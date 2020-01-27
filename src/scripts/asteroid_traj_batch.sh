@@ -36,9 +36,9 @@ do
 	# run the first job with a progress bar, the rest silently
 	if [ $i -lt $((num_batch-1)) ]
 	then		
-		python asteroids.py $n $batch_size &	
+		python asteroid_integrate.py $n $batch_size &	
 	else
-		python asteroids.py $n $batch_size --progress &
+		python asteroid_integrate.py $n $batch_size --progress &
 	fi
 
 	# Slight pause so the batches will be executed in the specified order
