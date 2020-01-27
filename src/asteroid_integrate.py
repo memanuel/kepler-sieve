@@ -108,7 +108,7 @@ def convert_data(df_in: pd.DataFrame, epoch_mjd: Optional[float]=None) -> pd.Dat
 def load_data() -> pd.DataFrame:
     """Load the asteroid data into a Pandas Dataframe"""
     # The name for the saved DataFrame
-    fname: str = '../jpl/orb_elements_asteroid.h5'
+    fname: str = '../data/jpl/orb_elements_asteroid.h5'
     
     # Try to load from disk if available
     ast_elt: pd.DataFrame

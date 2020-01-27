@@ -24,7 +24,9 @@
 
 # ******************************************************************************************
 # Symlinks on Linux - don't want these as part of repo
-data
+data/asteroids
+data/observations
+data/planets
 
 # ******************************************************************************************
 # Model checkpoints in specific directories
