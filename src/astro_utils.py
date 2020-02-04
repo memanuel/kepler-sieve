@@ -28,33 +28,33 @@ modified_julian_base_datetime: datetime = datetime(1858, 11, 17, 0, 0, 0)
 day2sec: float = 24.0 * 3600.0
 sec2day: float = 1.0 / day2sec
 
-## *************************************************************************************************
-#def date_to_jd(t: date) -> int:
-#    """Convert a Python date to a Julian day"""
-#    # Compute the number of days from Julian Base Date to date t
-#    dt = t - julian_base_date
-#    # Add the julian base number to the number of days from the julian base date to date t
-#    return julian_base_number + dt.days
-#
-## *************************************************************************************************
-#def date_to_mjd(t: date) -> int:
-#    """Convert a Python datetime to a Modified Julian day"""
-#    # Compute the number of days from Julian Base Date to date t
-#    dt = t - modified_julian_base_date
-#    return dt.days
-#
-## *************************************************************************************************
-#def jd_to_date(jd: int) -> date:
-#    """Convert an integer julian date to a Python date"""
-#    dt = timedelta(days=jd - julian_base_number)
-#    return julian_base_date + dt
-#
-## *************************************************************************************************
-#def mjd_to_date(mjd: int) -> date:
-#    """Convert an integer modified julian date to a Python date"""
-#    dt = timedelta(days=mjd)
-#    return modified_julian_base_date + dt
-#
+# *************************************************************************************************
+def date_to_jd(t: date) -> int:
+   """Convert a Python date to a Julian day"""
+   # Compute the number of days from Julian Base Date to date t
+   dt = t - julian_base_date
+   # Add the julian base number to the number of days from the julian base date to date t
+   return julian_base_number + dt.days
+
+# *************************************************************************************************
+def date_to_mjd(t: date) -> int:
+   """Convert a Python datetime to a Modified Julian day"""
+   # Compute the number of days from Julian Base Date to date t
+   dt = t - modified_julian_base_date
+   return dt.days
+
+# *************************************************************************************************
+def jd_to_date(jd: int) -> date:
+   """Convert an integer julian date to a Python date"""
+   dt = timedelta(days=jd - julian_base_number)
+   return julian_base_date + dt
+
+# *************************************************************************************************
+def mjd_to_date(mjd: int) -> date:
+   """Convert an integer modified julian date to a Python date"""
+   dt = timedelta(days=mjd)
+   return modified_julian_base_date + dt
+
 # *************************************************************************************************
 def datetime_to_jd(t: datetime) -> float:
     """Convert a Python datetime to a Julian day"""

@@ -9,7 +9,7 @@ Sat Sep 21 10:38:38 2019
 # Library imports
 import tensorflow as tf
 # import tensorflow_probability as tfp
-import scipy
+import scipy, scipy.interpolate
 # import rebound
 import numpy as np
 from datetime import datetime
@@ -19,6 +19,9 @@ from tqdm.auto import tqdm
 from astro_utils import datetime_to_mjd
 from asteroid_integrate import load_data
 from rebound_utils import load_sim_np
+
+# Type names
+from typing import Tuple, Dict
 
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
@@ -81,7 +84,7 @@ def get_earth_pos(ts) -> np.array:
     return q_earth
 
 # ********************************************************************************************************************* 
-def make_data_one_file(n0: int, n1: int) -> tf.data.Dataset:
+def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str, np.array]]:
     """
     Wrap the data in one file of asteroid trajectory data into a TF Dataset
     INPUTS:
