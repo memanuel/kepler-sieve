@@ -214,7 +214,8 @@ def qvrel2obs(q_body: np.array, v_body: np.array,
 
     # Represent the earth in the GCRS frame.  Easy because it has position & velocity zero!
     earth_gcrs = SkyCoord(x=zero_au, y=zero_au, z=zero_au, v_x=zero_km_sec, v_y=zero_km_sec, v_z=zero_km_sec,
-                          representation_type='cartesian', obstime=obstime, frame=GCRS)
+                          representation_type='cartesian', differential_type='cartesian',
+                          obstime=obstime, frame=GCRS)
     # Represent earth in BarycentricMeanEcliptic frame, using Cartesian representation
     earth_bme = earth_gcrs.transform_to(BarycentricMeanEcliptic)
     earth_bme.representation_type = 'cartesian'
@@ -301,8 +302,7 @@ def qvrel2radec(q_body: np.array, v_body: np.array,
         r: Distance in AU
     """
     # Delegate to qvrel2obs to get the observation in the GCRS frame
-    obs_gcrs = qvrel2obs(q_body=q_body, v_body=v_body, q_earth=q_earth, v_earth=v_earth, mjd=mjd,
-                         frame=frame, light_lag=light_lag)
+    obs_gcrs = qvrel2obs(q_body=q_body, v_body=v_body, q_earth=q_earth, v_earth=v_earth, mjd=mjd, frame=frame)
     # Extract the RA and DEC in degrees
     ra = obs_gcrs.ra.deg
     dec = obs_gcrs.dec.deg
@@ -311,7 +311,7 @@ def qvrel2radec(q_body: np.array, v_body: np.array,
     return (ra, dec, r)
 
 # *************************************************************************************************
-def report_radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd):
+def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd, verbose: bool=False):
     """Report difference in RA/DEC calculation according to two methods"""
     # difference in RA/DEC between skyfield and JPL
     ra_diff = ra2 - ra1
@@ -326,31 +326,33 @@ def report_radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd):
 
     # Difference in unit directions
     u_diff = u2 - u1
-    u_diff_norm = np.linalg.norm(u_diff) 
+    u_diff_norm = np.linalg.norm(u_diff, axis=0) 
     u_diff_sec =  np.rad2deg(u_diff_norm) * 3600
     
     # The name for the differences
     name_diff = 'Diff'
 
-    # report RA
-    print(f'Difference in RA: {name2} - {name1}')
-    print(f'{name2:12}: {ra2:8.6f} deg')
-    print(f'{name1:12}: {ra1:8.6f} deg')
-    print(f'{name_diff:12}: {ra_diff:8.6f} deg ({ra_diff_sec:5.2f} seconds)')
+    if verbose:
+        # report RA
+        print(f'Difference in RA: {name2} - {name1}')
+        print(f'{name2:12}: {ra2:8.6f} deg')
+        print(f'{name1:12}: {ra1:8.6f} deg')
+        print(f'{name_diff:12}: {ra_diff:8.6f} deg ({ra_diff_sec:5.2f} seconds)')
 
-    # report DEC
-    print(f'\nDifference in DEC: {name2} - {name1}')
-    print(f'{name2:12}: {dec2:8.6f} deg')
-    print(f'{name1:12}: {dec1:8.6f} deg')
-    print(f'{name_diff:12}: {dec_diff:8.6f} deg ({dec_diff_sec:5.2f} seconds)')
+        # report DEC
+        print(f'\nDifference in DEC: {name2} - {name1}')
+        print(f'{name2:12}: {dec2:8.6f} deg')
+        print(f'{name1:12}: {dec1:8.6f} deg')
+        print(f'{name_diff:12}: {dec_diff:8.6f} deg ({dec_diff_sec:5.2f} seconds)')
 
-    # report direction vectors
-    print(f'\nUnit direction vectors:')
-    print(f'{name2:12}:', u2)
-    print(f'{name1:12}:', u1)
-    print(f'{name_diff:12}:', u_diff)
-    print(f'AngleDiff   : {u_diff_sec:5.3f} seconds')
+        # report direction vectors
+        print(f'\nUnit direction vectors:')
+        print(f'{name2:12}:', u2)
+        print(f'{name1:12}:', u1)
+        print(f'{name_diff:12}:', u_diff)
+        print(f'AngleDiff   : {u_diff_sec:5.3f} seconds')
     
+    # Return the difference of direction vectors in seconds of arc
     return u_diff_sec
 
 # *************************************************************************************************
