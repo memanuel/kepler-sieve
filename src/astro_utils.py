@@ -7,6 +7,9 @@ Fri Aug 23 16:13:28 2019
 """
 
 import numpy as np
+import astropy
+from astropy.units import deg
+from astropy.coordinates import SkyCoord, ICRS, BarycentricMeanEcliptic
 from datetime import date, datetime, timedelta
 
 # Constant with the base date for julian day conversions
@@ -93,35 +96,57 @@ def mjd_to_jd(mjd: float) -> date:
     """Convert a floating point modified julian date to a julian date"""
     return mjd + modified_julian_offset
 
-# *************************************************************************************************
-def xyz_to_sph(x: np.array, y: np.array, z: np.array):
+# ********************************************************************************************************************* 
+def radec2dir(ra: float, dec: float, mjd: float) -> np.array:
     """
-    Convert a Cartesian coordinates x, y, z of a displacement vector to 
-    spherical coordinates r, asc, dec"""
-    # The distance R
-    r = np.sqrt(x*x + y*y + z*z)
-
-    # The right ascension
-    asc = np.arctan2(y, x)
-
-    # The declination; use mask to avoid divide by zero when r=0
-    dec = np.zeros_like(z)
-    mask = r>0
-    dec[mask] = np.arcsin(z[mask] / r[mask])
-
-    return r, asc, dec
-
-# *************************************************************************************************
-def cart_to_sph(q: np.array):
+    Convert a RA and DEC as of observation time to a unit displacement vector u = (ux, uy, uz) in ecliptic plane.
+    INPUTS:
+    ra: An astrometric Right Ascension in the ICRF
+    dec: An Astromentric Declination in the ICRF
+    mjd: The observation time as a modified julian day
+    RETURNS:
+    u: An array [ux, uy, uz] on the unit sphere in the the Ecliptic frame
+    EXAMPLE:
+    u = radec2dir(ra=76.107414227, dec=23.884882701, mjd=58600.0)
+    (this is Mars viewed from Earth at mjd 58600 / 2019-04-27 with JPL RA and DEC)
     """
-    Convert a Cartesian coordinates q with shape (N,3)o f a displacement vector to 
-    spherical coordinates r, asc, dec"""
-    # Unpack x, y, z
-    x = q[:, 0]
-    y = q[:, 1]
-    z = q[:, 2]
-    # Delegate to xyz_to_sph
-    return xyz_to_sph(x, y, z)
+    # Build the observation as a SkyCoord in the ICRS (oriented with earth, origin at barycenter)
+    obstime = astropy.time.Time(mjd, format='mjd')
+    obs_icrs = SkyCoord(ra=ra*deg, dec=dec*deg, obstime=obstime, frame=ICRS)
+    # Convert to the barycentric ecliptic frame (oriented with ecliptic, origin at barycenter)
+    obs_ecl = obs_icrs.transform_to(BarycentricMeanEcliptic)
+    u = obs_ecl.cartesian.xyz
+    return u.value
+    
+# # *************************************************************************************************
+# def xyz_to_sph(x: np.array, y: np.array, z: np.array):
+    # """
+    # Convert a Cartesian coordinates x, y, z of a displacement vector to 
+    # spherical coordinates r, alt, az"""
+    # # The distance R
+    # r = np.sqrt(x*x + y*y + z*z)
+
+    # # The azimuth
+    # az = np.arctan2(y, x)
+
+    # # The altitude; use mask to avoid divide by zero when r=0
+    # alt = np.zeros_like(z)
+    # mask = r>0
+    # alt[mask] = np.arcsin(z[mask] / r[mask])
+
+    # return r, alt, az
+
+# # *************************************************************************************************
+# def cart_to_sph(q: np.array):
+    # """
+    # Convert a Cartesian coordinates q with shape (N,3)o f a displacement vector to 
+    # spherical coordinates r, alt, az"""
+    # # Unpack x, y, z
+    # x = q[:, 0]
+    # y = q[:, 1]
+    # z = q[:, 2]
+    # # Delegate to xyz_to_sph
+    # return xyz_to_sph(x, y, z)
 
 # ********************************************************************************************************************* 
 def reverse_velocity(sim):
