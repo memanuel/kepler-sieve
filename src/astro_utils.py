@@ -127,8 +127,7 @@ def radec2dir(ra: float, dec: float, mjd: float) -> np.array:
     return u.value
 
 # ********************************************************************************************************************* 
-def qv2obs(q: np.array, v: np.array, mjd: np.array, 
-           frame=BarycentricMeanEcliptic, light_lag: bool = False) -> SkyCoord:
+def qv2obs(q: np.array, v: np.array, mjd: np.array, frame=BarycentricMeanEcliptic) -> SkyCoord:
     """
     Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
     INPUTS:
@@ -136,7 +135,6 @@ def qv2obs(q: np.array, v: np.array, mjd: np.array,
         v: Velocity of this body in given coordinate frame; passed with units (default AU / day)
         mjd: Observation time on Earth as a modified Julian day
         frame: Astropy coordinate frame; defaults to BarycentricMeanEcliptic
-        light_lag: Flag, indicating whether to account for time for light to arrive; defaults to False
     RETURNS:
         obs_gcrs: SkyCoordinate instance for this observation in the Geocentric frame (GCRS)
     """
@@ -153,21 +151,10 @@ def qv2obs(q: np.array, v: np.array, mjd: np.array,
                          frame=frame)
     # Transform the observation to the Geocentric frame
     obs_gcrs = obs_frame.transform_to(GCRS)
-    
-    # If method was called with light_lag flag, adjust for the speed of light
-    if light_lag:
-        # The light time; units will be in seconds
-        light_time = obs_gcrs.distance.to(meter) / light_speed
-        # The position adjustment; product of velocity in AU / day and light time in days
-        dq_lt = v.to(au/day) * light_time.to(day)
-        # Delegate second call to qv2obs, with this adjustment
-        return qv2obs(q=q-dq_lt, v=v, mjd=mjd, frame=frame, light_lag=False)
-    else:
-        return obs_gcrs
+    return obs_gcrs
 
 # ********************************************************************************************************************* 
-def qv2radec(q: np.array, v: np.array, mjd: np.array, 
-             frame=BarycentricMeanEcliptic, light_lag: bool = False) -> Tuple[np.array, np.array]:
+def qv2radec(q: np.array, v: np.array, mjd: np.array, frame=BarycentricMeanEcliptic) -> Tuple[np.array, np.array]:
     """
     Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
     INPUTS:
@@ -175,14 +162,13 @@ def qv2radec(q: np.array, v: np.array, mjd: np.array,
         v: Velocity of this body in given coordinate frame; passed with units (default AU / day)
         mjd: Observation time on Earth as a modified Julian day
         frame: Astropy coordinate frame; defaults to BarycentricMeanEcliptic
-        light_lag: Flag, indicating whether to account for time for light to arrive; defaults to False
     RETURNS:
         ra: Right Ascension in degrees
         dec: Declination in degrees
         r: Distance in AU
     """
     # Delegate to qv2obs to get the observation in the GCRS frame
-    obs_gcrs = qv2obs(q=q, v=v, mjd=mjd, frame=frame, light_lag=light_lag)
+    obs_gcrs = qv2obs(q=q, v=v, mjd=mjd, frame=frame)
     # Extract the RA and DEC in degrees
     ra = obs_gcrs.ra.deg
     dec = obs_gcrs.dec.deg
@@ -193,8 +179,7 @@ def qv2radec(q: np.array, v: np.array, mjd: np.array,
 # ********************************************************************************************************************* 
 def qvrel2obs(q_body: np.array, v_body: np.array, 
               q_earth: np.array, v_earth: np.array, 
-              mjd: np.array, 
-              frame=BarycentricMeanEcliptic, light_lag: bool = False) -> SkyCoord:
+              mjd: np.array, frame=BarycentricMeanEcliptic) -> SkyCoord:
     """
     Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space
     vs. integrated position and velocity of earth.
@@ -205,12 +190,17 @@ def qvrel2obs(q_body: np.array, v_body: np.array,
         v_earth: Velocity of earth in given coordinate frame; passed with units (default AU / day)
         mjd: Observation time on Earth as a modified Julian day
         frame: Astropy coordinate frame; defaults to BarycentricMeanEcliptic
-        light_lag: Flag, indicating whether to account for time for light to arrive; defaults to False
     RETURNS:
         obs: SkyCoordinate instance for this observation in the Geocentric frame (GCRS)
     """
     # The observation time
     obstime = astropy.time.Time(mjd, format='mjd')
+    
+    # Correct shape of zero_au and zero_km_sec because constants appear not to broadcast in SkyCoord constructor
+    if isinstance(mjd, np.ndarray):
+        shape = obstime.shape
+        zero_au = np.zeros(shape) * au
+        zero_km_sec = np.zeros(shape) * km / second
 
     # Represent the earth in the GCRS frame.  Easy because it has position & velocity zero!
     earth_gcrs = SkyCoord(x=zero_au, y=zero_au, z=zero_au, v_x=zero_km_sec, v_y=zero_km_sec, v_z=zero_km_sec,
@@ -269,17 +259,7 @@ def qvrel2obs(q_body: np.array, v_body: np.array,
                        frame=BarycentricMeanEcliptic)
     # Transform observation to GCRS
     obs_gcrs = obs_bme.transform_to(GCRS)
-
-    # If method was called with light_lag flag, adjust for the speed of light
-    if light_lag:
-        # The light time; units will be in seconds
-        light_time = obs_gcrs.distance.to(meter) / light_speed
-        # The position adjustment; product of velocity in AU / day and light time in days
-        dq_lt = v.to(au/day) * light_time.to(day)
-        # Delegate second call to qv2obs, with this adjustment
-        return qv2obs(q=q-dq_lt, v=v, mjd=mjd, frame=frame, light_lag=False)
-    else:
-        return obs_gcrs
+    return obs_gcrs
 
 # ********************************************************************************************************************* 
 def qvrel2radec(q_body: np.array, v_body: np.array, 
@@ -295,7 +275,6 @@ def qvrel2radec(q_body: np.array, v_body: np.array,
         v_earth: Velocity of earth in given coordinate frame; passed with units (default AU / day)
         mjd: Observation time on Earth as a modified Julian day
         frame: Astropy coordinate frame; defaults to BarycentricMeanEcliptic
-        light_lag: Flag, indicating whether to account for time for light to arrive; defaults to False
     RETURNS:
         ra: Right Ascension in degrees
         dec: Declination in degrees
