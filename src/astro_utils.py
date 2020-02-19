@@ -36,8 +36,8 @@ sec2day: float = 1.0 / day2sec
 zero_au = 0.0 * au
 zero_au_day = 0.0 * au / day
 zero_km_sec = 0.0 * km / second
-# Speed of light
-light_speed = astropy.constants.c
+# Speed of light; express this in AU / minute
+light_speed = astropy.constants.c.to(au / minute)
 
 # *************************************************************************************************
 def date_to_jd(t: date) -> int:
@@ -109,14 +109,14 @@ def radec2dir(ra: float, dec: float, mjd: float) -> np.array:
     """
     Convert a RA and DEC as of observation time to a unit displacement vector u = (ux, uy, uz) in ecliptic plane.
     INPUTS:
-    ra: An astrometric Right Ascension in the ICRF
-    dec: An Astromentric Declination in the ICRF
-    mjd: The observation time as a modified julian day
+        ra: An astrometric Right Ascension in the ICRF
+        dec: An Astromentric Declination in the ICRF
+        mjd: The observation time as a modified julian day
     RETURNS:
-    u: An array [ux, uy, uz] on the unit sphere in the the Ecliptic frame
+        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
     EXAMPLE:
-    u = radec2dir(ra=76.107414227, dec=23.884882701, mjd=58600.0)
-    (this is Mars viewed from Earth at mjd 58600 / 2019-04-27 with JPL RA and DEC)
+        u = radec2dir(ra=76.107414227, dec=23.884882701, mjd=58600.0)
+        (this is Mars viewed from Earth at mjd 58600 / 2019-04-27 with JPL RA and DEC)
     """
     # Build the observation as a SkyCoord in the ICRS (oriented with earth, origin at barycenter)
     obstime = astropy.time.Time(mjd, format='mjd')
@@ -125,6 +125,66 @@ def radec2dir(ra: float, dec: float, mjd: float) -> np.array:
     obs_ecl = obs_icrs.transform_to(BarycentricMeanEcliptic)
     u = obs_ecl.cartesian.xyz
     return u.value
+
+# ********************************************************************************************************************* 
+def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray) -> np.ndarray:
+    """
+    Compute the direction of displacement from earth to a space body as a unit displacement vector
+    u = (ux, uy, uz) in the ecliptic plane.
+    INPUTS:
+        q_body: position of this body in ecliptic coordinate frame; passed with units (default AU)
+        v_body: velocity of this body in ecliptic coordinate frame; passed with units (default AU / day)
+        q_earth: position of earth in ecliptic coordinate frame; passed with units (default AU)
+    RETURNS:
+        u: An array [ux, uy, uz] on the unit sphere in the ecliptic frame
+    EXAMPLE:
+        u = qv2dir(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
+                   v_body=np.array([-0.013177, -0.001673, 0.000288])*au/day,
+                   q_earth=np.array([-0.813785, -0.586761, -0.000003])*au)
+    """
+    # displacement from earth to body; in AU
+    q_rel = (q_body - q_earth)
+
+    # distance; in AU
+    r = np.linalg.norm(q_rel, axis=0) * au
+    
+    # light time in minutes
+    light_time = (r / light_speed)
+    
+    # adjusted relative position, accounting for light time
+    dq_lt = light_time * v_body.to(au/minute)     # convert velocity to au / minute b/c time is in minutes
+    q_rel_lt = q_rel - dq_lt
+    
+    # adjusted direction
+    r_lt = np.linalg.norm(q_rel_lt, axis=0) * au
+    u = q_rel_lt / r_lt
+    return u.value
+
+# ********************************************************************************************************************* 
+def dir2obs(u: np.array, mjd: np.array, frame=BarycentricMeanEcliptic) -> SkyCoord:
+    """
+    Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
+    INPUTS:
+        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
+        mjd: Observation time on Earth as a modified Julian day
+        frame: Astropy coordinate frame; defaults to BarycentricMeanEcliptic
+    RETURNS:
+        obs_gcrs: SkyCoordinate instance for this observation in the Geocentric frame (GCRS)
+    """
+    # The observation time
+    obstime = astropy.time.Time(mjd, format='mjd')
+
+    # Unpack position and velocity
+    x, y, z = q
+    v_x, v_y, v_z = v
+    
+    # The observation in the given coordinate frame (usually BarycentricMeanEcliptic)
+    obs_frame = SkyCoord(x=x, y=y, z=z, v_x=v_x, v_y=v_y, v_z=v_z, obstime=obstime, 
+                         representation_type='cartesian', differential_type='cartesian',
+                         frame=frame)
+    # Transform the observation to the Geocentric frame
+    obs_gcrs = obs_frame.transform_to(GCRS)
+    return obs_gcrs
 
 # ********************************************************************************************************************* 
 def qv2obs(q: np.array, v: np.array, mjd: np.array, frame=BarycentricMeanEcliptic) -> SkyCoord:
