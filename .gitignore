@@ -22,6 +22,9 @@
 *.jpg
 *.bmp
 
+# Random directories
+sql/01-MakeTable
+
 # ******************************************************************************************
 # Symlinks on Linux - don't want these as part of repo
 data/asteroids
