@@ -26,12 +26,12 @@ def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
     Convert a RA and DEC as of observation time to a unit displacement vector u = (ux, uy, uz) in ecliptic plane.
     INPUTS:
         ra: An astrometric Right Ascension in the ICRF; passed with units (default degrees)
-        dec: An Astromentric Declination in the ICRF;  passed with units (default degrees)
+        dec: An astromentric Declination in the ICRF;  passed with units (default degrees)
         obtime_mjd: The observation time as a modified julian day
     RETURNS:
         u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
     EXAMPLE:
-        u = radec2dir(ra=76.107414227*deg, dec=23.884882701*deg, mjd=58600.0)
+        u = radec2dir(ra=76.107414227*deg, dec=23.884882701*deg, obstime_mjd=58600.0)
         (this is Mars viewed from Earth at mjd 58600 / 2019-04-27 with JPL RA and DEC)
     """
     # Build the observation as a SkyCoord in the ICRS (oriented with earth, origin at barycenter)
@@ -41,6 +41,25 @@ def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
     obs_ecl = obs_icrs.transform_to(BarycentricMeanEcliptic)
     u = obs_ecl.cartesian.xyz
     return u.value
+
+# ********************************************************************************************************************* 
+def radec_app2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
+    """
+    Convert an apparent RA and DEC as of observation time to a unit displacement 
+    vector u = (ux, uy, uz) in ecliptic plane.
+    INPUTS:
+        ra: An apparent Right Ascension in the ICRF; passed with units (default degrees)
+        dec: An apparent Declination in the ICRF;  passed with units (default degrees)
+        obtime_mjd: The observation time as a modified julian day
+    RETURNS:
+        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
+    EXAMPLE:
+        u = radec_app2dir(ra=76.391533*deg, dec=23.90881*deg, obstime_mjd=58600.0)
+        (this is Mars viewed from Earth at mjd 58600 / 2019-04-27 with JPL RA and DEC)
+    """
+    # this is a placeholder function declaration.
+    # probably don't need this
+    pass
 
 # ********************************************************************************************************************* 
 def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray) -> np.ndarray:
@@ -105,11 +124,39 @@ def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarra
     return (ra, dec)
 
 # *************************************************************************************************
+def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
+    INPUTS:
+        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
+        obstime_mjd: Observation time on Earth as a modified Julian day
+    RETURNS:
+        ra: Right Ascension; with units (astropy degrees)
+        dec: Declination; with units (astropy degrees)
+    """
+    # The observation time
+    obstime = astropy.time.Time(obstime_mjd, format='mjd')
+
+    # Unpack position and convert to 1 au distance
+    x, y, z = u * au
+    
+    # The observation in the given coordinate frame (usually BarycentricMeanEcliptic)
+    frame = BarycentricMeanEcliptic
+    obs_frame = SkyCoord(x=x, y=y, z=z, obstime=obstime,  representation_type='cartesian', frame=frame)
+    # Transform the observation to the ICRS frame
+    obs_icrs = obs_frame.transform_to(ICRS)
+    # Extract the RA and DEC in degrees
+    ra = obs_icrs.ra.deg * deg
+    dec = obs_icrs.dec.deg * deg
+    # Return (ra, dec) as a tuple
+    return (ra, dec)
+
+# *************************************************************************************************
 def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd, verbose: bool=False):
     """Report difference in RA/DEC calculation according to two methods"""
     # difference in RA/DEC between skyfield and JPL
-    ra_diff = ra2 - ra1
-    dec_diff = dec2 - dec1
+    ra_diff = np.abs(ra2 - ra1)
+    dec_diff = np.abs(dec2 - dec1)
     # convert to arcseconds
     ra_diff_sec = ra_diff.to(arcsec).value
     dec_diff_sec = dec_diff.to(arcsec).value
@@ -121,31 +168,62 @@ def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd, verbose: bool=Fa
     # Difference in unit directions
     u_diff = u2 - u1
     u_diff_norm = np.linalg.norm(u_diff, axis=0) 
-    u_diff_sec =  np.rad2deg(u_diff_norm) * 3600
-    
+    u_diff_deg =  np.rad2deg(u_diff_norm)
+    u_diff_sec =  u_diff_deg * 3600
+
     # The name for the differences
     name_diff = 'Diff'
 
+    # Is input data arrays?
+    is_array: bool = isinstance(ra1, np.ndarray)
+    is_scalar: bool = not is_array
+        
+    if is_array:
+        ra_diff_mean = np.mean(ra_diff.value)
+        dec_diff_mean = np.mean(dec_diff.value)
+        u_diff_mean = np.mean(u_diff_deg)
+        u_diff_median = np.median(u_diff_deg)
+        u_diff_max = np.max(u_diff_deg)
+        ra_diff_mean_sec = ra_diff_mean * 3600
+        dec_diff_mean_sec = dec_diff_mean * 3600
+        u_diff_mean_sec = u_diff_mean * 3600
+        u_diff_median_sec = u_diff_median * 3600
+        u_diff_max_sec = u_diff_max * 3600
+
     if verbose:
         # report RA
-        print(f'Difference in RA: {name2} - {name1}')
-        print(f'{name2:12}: {ra2:8.6f} deg')
-        print(f'{name1:12}: {ra1:8.6f} deg')
-        print(f'{name_diff:12}: {ra_diff:8.6f} deg ({ra_diff_sec:5.2f} seconds)')
+        if is_scalar:
+            print(f'Difference in RA: {name2} - {name1}')
+            print(f'{name2:12}: {ra2:8.6f} deg')
+            print(f'{name1:12}: {ra1:8.6f} deg')
+            print(f'{name_diff:12}: {ra_diff:8.6f} deg ({ra_diff_sec:5.2f} seconds)')
+        else:
+            # print(f'{name_diff:12}: {ra_diff_mean:8.6f} deg ({ra_diff_mean_sec:5.2f} seconds)')
+            pass
 
         # report DEC
-        print(f'\nDifference in DEC: {name2} - {name1}')
-        print(f'{name2:12}: {dec2:8.6f} deg')
-        print(f'{name1:12}: {dec1:8.6f} deg')
-        print(f'{name_diff:12}: {dec_diff:8.6f} deg ({dec_diff_sec:5.2f} seconds)')
+        if is_scalar:
+            print(f'\nDifference in DEC: {name2} - {name1}')
+            print(f'{name2:12}: {dec2:8.6f} deg')
+            print(f'{name1:12}: {dec1:8.6f} deg')
+            print(f'{name_diff:12}: {dec_diff:8.6f} deg ({dec_diff_sec:5.2f} seconds)')
+        else:
+            # print(f'{name_diff:12}: {dec_diff_mean:8.6f} deg ({dec_diff_mean_sec:5.2f} seconds)')
+            pass
 
         # report direction vectors
-        print(f'\nUnit direction vectors:')
-        print(f'{name2:12}:', u2)
-        print(f'{name1:12}:', u1)
-        print(f'{name_diff:12}:', u_diff)
-        print(f'AngleDiff   : {u_diff_sec:5.3f} seconds')
-    
+        if is_scalar:
+            print(f'\nUnit direction vectors:')
+            print(f'{name2:12}:', u2)
+            print(f'{name1:12}:', u1)
+            print(f'{name_diff:12}:', u_diff)
+            print(f'AngleDiff   : {u_diff_deg:8.6f} deg ({u_diff_sec:5.3f} seconds)')
+        else:
+            print(f'Angle Difference: {name2} vs. {name1}')
+            print(f'Mean  : {u_diff_mean:10.6f} deg ({u_diff_mean_sec:8.3f} seconds)')
+            print(f'Median: {u_diff_median:10.6f} deg ({u_diff_median_sec:8.3f} seconds)')
+            print(f'Max   : {u_diff_max:10.6f} deg ({u_diff_max_sec:8.3f} seconds)')
+
     # Return the difference of direction vectors in seconds of arc
     return u_diff_sec
 
