@@ -11,7 +11,7 @@ import astropy
 from astropy.units import deg, au, km, meter, day, minute, second, arcsec
 from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic
 from datetime import date, datetime, timedelta
-from typing import Tuple
+from typing import Tuple, Optional
 
 # Constants for distance of zero AU and velocity of zero AU / day
 zero_au = 0.0 * au
@@ -62,7 +62,8 @@ def radec_app2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
     pass
 
 # ********************************************************************************************************************* 
-def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray) -> np.ndarray:
+def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray, 
+           obstime_mjd: Optional[np.ndarray] = None, obsgeoloc: Optional[np.ndarray] = None) -> np.ndarray:
     """
     Compute the direction of displacement from earth to a space body as a unit displacement vector
     u = (ux, uy, uz) in the ecliptic plane.
@@ -70,15 +71,36 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray) -> np.nd
         q_body: position of this body in ecliptic coordinate frame; passed with units (default AU)
         v_body: velocity of this body in ecliptic coordinate frame; passed with units (default AU / day)
         q_earth: position of earth in ecliptic coordinate frame; passed with units (default AU)
+        obstime_mjd: observation time as a modified julian date; only required if passing obsgeoloc 
+        obsgeoloc: geolocation of the observatory as vector [X, Y, Z] in meters using ITRS
     RETURNS:
         u: An array [ux, uy, uz] on the unit sphere in the ecliptic frame
     EXAMPLE:
         u = qv2dir(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
                    v_body=np.array([-0.013177, -0.001673, 0.000288])*au/day,
-                   q_earth=np.array([-0.813785, -0.586761, -0.000003])*au)
+                   q_earth=np.array([-0.813785, -0.586761, -0.000003])*au,
+                   obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
     """
-    # displacement from earth to body; in AU
-    q_rel = (q_body - q_earth)
+    # compute the correction due to the observatory of obstime_mjd and geoloc are passed
+    # dq_obs is the displacement from geocenter to the observatory
+    if (obstime_mjd is not None and obsgeoloc is not None):
+        # the observation times as astropy time objects
+        obstime = astropy.time.Time(obstime_mjd, format='mjd')
+        # the displacement from the geocenter to the observatory in the ICRS frame
+        x, y, z = obsgeoloc
+        obs_icrs = SkyCoord(x=x, y=y, z=z, obstime=obstime, frame=ICRS, representation_type='cartesian')
+        # displacement from geocenter to observatory in the BME frame
+        obs_bme = obs_icrs.transform_to(BarycentricMeanEcliptic)
+        dq_topos = obs_bme.cartesian.xyz.to(au).reshape((-1, 1))
+    else:
+        # default is to use geocenter if obstime and geoloc are note passed
+        dq_topos = np.zeros((3,1)) * au
+        
+    # position of the observer in space
+    q_obs = q_earth + dq_topos
+
+    # displacement from observer on earth to body; in AU
+    q_rel = q_body - q_obs
 
     # distance; in AU
     r = np.linalg.norm(q_rel, axis=0) * au
