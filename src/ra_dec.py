@@ -88,6 +88,29 @@ def site2geoloc(site_name: str, verbose: bool = False):
     return geoloc
 
 # ********************************************************************************************************************* 
+def infer_shape(q):
+    """
+    Infer the axes with data and space dimensions
+    INPUTS:
+        q: a vector
+    OUTPUTS:
+        data_axis: the index of the axis for the N data entries, e.g. 0 when data is Nx3
+        space_axis: the index of the axis for the 3 space dimensions, e.g. 1 when data is Nx3
+        shape: the shape of the vectors, e.g. (-1, 3) when data is Nx3
+    """
+    # 
+    if q.shape[0] == 3:
+        data_axis, space_axis = 1, 0
+        shape = (3, -1)
+    elif q.shape[1] == 3:
+        data_axis, space_axis = 0, 1
+        shape = (-1, 3)
+    else:
+        raise ValueError(f'Bad data shape! q_earth has shape {q_earth.shape}, shoulde by Nx3 or 3xN.')
+
+    return data_axis, space_axis, shape
+
+# ********************************************************************************************************************* 
 def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray, 
            obstime_mjd: Optional[np.ndarray] = None, 
            obsgeoloc: Optional[EarthLocation] = None) -> np.ndarray:
@@ -123,15 +146,8 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
         # default is to use geocenter if obstime and geoloc are not passed
         dq_topos = np.zeros((3)) * au
 
-    # infer the axes with data and space dimensions
-    if q_earth.shape[0] == 3:
-        space_axis, data_axis = 0, 1
-        shape = (3, -1)
-    elif q_earth.shape[1] == 3:
-        space_axis, data_axis = 1, 0
-        shape = (-1, 3)
-    else:
-        raise ValueError(f'Bad data shape! q_earth has shape {q_earth.shape}, shoulde by Nx3 or 3xN.')
+    # infer data shape
+    data_axis, space_axis, shape = infer_shape(q_earth)
 
     # reshape dq_topos to match q_earth
     dq_topos = dq_topos.reshape(shape)
@@ -214,11 +230,22 @@ def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarra
     return (ra, dec)
 
 # *************************************************************************************************
-def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbose: bool=False):
-    """Report the difference in directions in arc seconds"""
+def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbose: bool=False) -> float:
+    """
+    Report the difference in directions in arc seconds
+    INPUTS:
+        name1: Descriptive name of the first source, e.g. 'JPL'
+        name2: Descriptive name of the second source, e.g. 'MSE'
+        u1:    Array of directions from source 1; shape Nx3 or 3xN
+        u2:    Array of directions from source 2; shape Nx3 or 3xN
+        verbose: Whether to report results to console
+    """
+    # infer data shape
+    data_axis, space_axis, shape = infer_shape(u1)
+
     # Difference in unit directions
     u_diff = u2 - u1
-    u_diff_norm = np.linalg.norm(u_diff, axis=0) 
+    u_diff_norm = np.linalg.norm(u_diff, axis=space_axis) 
     u_diff_deg =  np.rad2deg(u_diff_norm)
     u_diff_sec =  u_diff_deg * 3600
 
@@ -247,7 +274,16 @@ def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbo
 # *************************************************************************************************
 def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd, 
                verbose: bool=False, verbose_radec:bool =False):
-    """Report difference in RA/DEC calculation according to two methods"""
+    """
+    Report difference in RA/DEC calculation according to two sources
+    INPUTS:
+        name1: Descriptive name of the first source, e.g. 'JPL'
+        name2: Descriptive name of the second source, e.g. 'MSE'
+        u1:    Array of directions from source 1; shape Nx3 or 3xN
+        u2:    Array of directions from source 2; shape Nx3 or 3xN
+        verbose: Whether to report results to console (angle between direction)
+        verbose_radec: Whether to report differences as difference in RA and DEC separately
+    """
     # Convert both to unit directions
     u1 = radec2dir(ra=ra1, dec=dec1, obstime_mjd=obstime_mjd)
     u2 = radec2dir(ra=ra2, dec=dec2, obstime_mjd=obstime_mjd)
@@ -266,109 +302,6 @@ def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd,
         print(f'\nRA/DEC:')
         print(f'RA Mean : {ra_diff:10.6f} deg ({ra_diff_sec:8.3f} seconds)')
         print(f'DEC Mean: {dec_diff:10.6f} deg ({dec_diff_sec:8.3f} seconds)')
-
-# # *************************************************************************************************
-# def radec_diff_v1(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd, verbose: bool=False):
-#     """Report difference in RA/DEC calculation according to two methods"""
-#     # difference in RA/DEC between skyfield and JPL
-#     ra_diff = np.abs(ra2 - ra1)
-#     dec_diff = np.abs(dec2 - dec1)
-#     # convert to arcseconds
-#     ra_diff_sec = ra_diff.to(arcsec).value
-#     dec_diff_sec = dec_diff.to(arcsec).value
-
-#     # Convert both to unit directions
-#     u1 = radec2dir(ra=ra1, dec=dec1, obstime_mjd=obstime_mjd)
-#     u2 = radec2dir(ra=ra2, dec=dec2, obstime_mjd=obstime_mjd)
-
-#     # Difference in unit directions
-#     u_diff = u2 - u1
-#     u_diff_norm = np.linalg.norm(u_diff, axis=0) 
-#     u_diff_deg =  np.rad2deg(u_diff_norm)
-#     u_diff_sec =  u_diff_deg * 3600
-
-#     # The name for the differences
-#     name_diff = 'Diff'
-
-#     # Is input data arrays?
-#     is_array: bool = isinstance(ra1, np.ndarray)
-#     is_scalar: bool = not is_array
-        
-#     if is_array:
-#         ra_diff_mean = np.mean(ra_diff.value)
-#         dec_diff_mean = np.mean(dec_diff.value)
-#         u_diff_mean = np.mean(u_diff_deg)
-#         u_diff_median = np.median(u_diff_deg)
-#         u_diff_max = np.max(u_diff_deg)
-#         ra_diff_mean_sec = ra_diff_mean * 3600
-#         dec_diff_mean_sec = dec_diff_mean * 3600
-#         u_diff_mean_sec = u_diff_mean * 3600
-#         u_diff_median_sec = u_diff_median * 3600
-#         u_diff_max_sec = u_diff_max * 3600
-
-#     if verbose:
-#         # report RA
-#         if is_scalar:
-#             print(f'Difference in RA: {name2} - {name1}')
-#             print(f'{name2:12}: {ra2:8.6f} deg')
-#             print(f'{name1:12}: {ra1:8.6f} deg')
-#             print(f'{name_diff:12}: {ra_diff:8.6f} deg ({ra_diff_sec:5.2f} seconds)')
-#         else:
-#             # print(f'{name_diff:12}: {ra_diff_mean:8.6f} deg ({ra_diff_mean_sec:5.2f} seconds)')
-#             pass
-
-#         # report DEC
-#         if is_scalar:
-#             print(f'\nDifference in DEC: {name2} - {name1}')
-#             print(f'{name2:12}: {dec2:8.6f} deg')
-#             print(f'{name1:12}: {dec1:8.6f} deg')
-#             print(f'{name_diff:12}: {dec_diff:8.6f} deg ({dec_diff_sec:5.2f} seconds)')
-#         else:
-#             # print(f'{name_diff:12}: {dec_diff_mean:8.6f} deg ({dec_diff_mean_sec:5.2f} seconds)')
-#             pass
-
-#         # report direction vectors
-#         if is_scalar:
-#             print(f'\nUnit direction vectors:')
-#             print(f'{name2:12}:', u2)
-#             print(f'{name1:12}:', u1)
-#             print(f'{name_diff:12}:', u_diff)
-#             print(f'AngleDiff   : {u_diff_deg:8.6f} deg ({u_diff_sec:5.3f} seconds)')
-#         else:
-#             print(f'Angle Difference: {name2} vs. {name1}')
-#             print(f'Mean  : {u_diff_mean:10.6f} deg ({u_diff_mean_sec:8.3f} seconds)')
-#             print(f'Median: {u_diff_median:10.6f} deg ({u_diff_median_sec:8.3f} seconds)')
-#             print(f'Max   : {u_diff_max:10.6f} deg ({u_diff_max_sec:8.3f} seconds)')
-
-#     # Return the difference of direction vectors in seconds of arc
-#     return u_diff_sec
-
-# # ********************************************************************************************************************* 
-# def qv2obs(q: np.array, v: np.array, mjd: np.array, frame=BarycentricMeanEcliptic) -> SkyCoord:
-#     """
-#     Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
-#     INPUTS:
-#         q: Position of this body in given coordinate frame; passed with units (default AU)
-#         v: Velocity of this body in given coordinate frame; passed with units (default AU / day)
-#         mjd: Observation time on Earth as a modified Julian day
-#         frame: Astropy coordinate frame; defaults to BarycentricMeanEcliptic
-#     RETURNS:
-#         obs_gcrs: SkyCoordinate instance for this observation in the Geocentric frame (GCRS)
-#     """
-#     # The observation time
-#     obstime = astropy.time.Time(mjd, format='mjd')
-
-#     # Unpack position and velocity
-#     x, y, z = q
-#     v_x, v_y, v_z = v
-    
-#     # The observation in the given coordinate frame (usually BarycentricMeanEcliptic)
-#     obs_frame = SkyCoord(x=x, y=y, z=z, v_x=v_x, v_y=v_y, v_z=v_z, obstime=obstime, 
-#                          representation_type='cartesian', differential_type='cartesian',
-#                          frame=frame)
-#     # Transform the observation to the Geocentric frame
-#     obs_gcrs = obs_frame.transform_to(GCRS)
-#     return obs_gcrs
 
 # ********************************************************************************************************************
 # TESTING
@@ -522,3 +455,26 @@ def obs_add_calc_dir(df_obs: pd.DataFrame, site_name: str, source_name: str) -> 
 
     # Set computed direction
     df_obs[u_cols] = u
+
+# ********************************************************************************************************************
+def obs_direction_diff(df_obs: pd.DataFrame, src1: str, src2: str, verbose: str = False):
+    """
+    Compute and report the difference in directions between two sources on an observation DataFrame.
+    INPUTS:
+        df_obs: DataFrame of observations with directions from multiple sources
+        src1:   First source in comparison, e.g. 'jpl' for direction calculated from quoted RA/DEC
+        src2:   Second source in comparison, e.g. 'calc_jpl' for MSE qv2dir() calculation of JPL positions
+        verbose: Wheth
+    RETURNS:
+        u_mean_diff_sec: Mean difference between sources measured in arc seconds
+    """
+    # Columns for direction according to these sources
+    u1_cols = [f'ux_{src1}', f'uy_{src1}', f'uz_{src1}']
+    u2_cols = [f'ux_{src2}', f'uy_{src2}', f'uz_{src2}']
+
+    # Assemble directions into arrays u1 and u2; shape will be Nx3
+    u1 = df_obs[u1_cols].values
+    u2 = df_obs[u2_cols].values
+
+    # Delegate to direction_diff
+    u_mean_diff_sec = direction_diff(name1=src1, name2=src2, u1=u1, u2=u2, verbose=verbose)
