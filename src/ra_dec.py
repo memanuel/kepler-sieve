@@ -43,6 +43,7 @@ def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
     # Convert to the barycentric ecliptic frame (oriented with ecliptic, origin at barycenter)
     obs_ecl = obs_icrs.transform_to(BarycentricMeanEcliptic)
     u = obs_ecl.cartesian.xyz
+    # Return as a numpy array of shape 3xN (easier b/c this is astropy default)
     return u.value
 
 # ********************************************************************************************************************* 
@@ -187,38 +188,15 @@ def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarra
     # The observation time
     obstime = astropy.time.Time(obstime_mjd, format='mjd')
 
+    # infer data shape
+    data_axis, space_axis, shape = infer_shape(u)
     # Unpack position and convert to 1 au distance
-    x, y, z = u * au
+    if space_axis==0:
+        x, y, z = u * au
+    else:
+        x, y, z = u.T * au
     
-    # The observation in the given coordinate frame (usually BarycentricMeanEcliptic)
-    frame = BarycentricMeanEcliptic
-    obs_frame = SkyCoord(x=x, y=y, z=z, obstime=obstime,  representation_type='cartesian', frame=frame)
-    # Transform the observation to the ICRS frame
-    obs_icrs = obs_frame.transform_to(ICRS)
-    # Extract the RA and DEC in degrees
-    ra = obs_icrs.ra.deg * deg
-    dec = obs_icrs.dec.deg * deg
-    # Return (ra, dec) as a tuple
-    return (ra, dec)
-
-# *************************************************************************************************
-def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
-    INPUTS:
-        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
-        obstime_mjd: Observation time on Earth as a modified Julian day
-    RETURNS:
-        ra: Right Ascension; with units (astropy degrees)
-        dec: Declination; with units (astropy degrees)
-    """
-    # The observation time
-    obstime = astropy.time.Time(obstime_mjd, format='mjd')
-
-    # Unpack position and convert to 1 au distance
-    x, y, z = u * au
-    
-    # The observation in the given coordinate frame (usually BarycentricMeanEcliptic)
+    # The observation in the BarycentricMeanEcliptic coordinate frame
     frame = BarycentricMeanEcliptic
     obs_frame = SkyCoord(x=x, y=y, z=z, obstime=obstime,  representation_type='cartesian', frame=frame)
     # Transform the observation to the ICRS frame
@@ -269,8 +247,8 @@ def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbo
         print(f'Max   : {u_diff_max:10.6f} deg ({u_diff_max_sec:8.3f} seconds)')
 
     # Return the difference of direction vectors in seconds of arc
-    return u_diff_sec
-    
+    return u_diff_mean_sec
+
 # *************************************************************************************************
 def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd, 
                verbose: bool=False, verbose_radec:bool =False):
@@ -304,19 +282,67 @@ def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd,
         print(f'DEC Mean: {dec_diff:10.6f} deg ({dec_diff_sec:8.3f} seconds)')
 
 # ********************************************************************************************************************
+def skyfield_observe(observer_sf, body_sf, obstime_sf):
+    """
+    Observe a body in Skyfield
+    INPUTS:
+        observer_sf: observer as a Skyfield object, e.g. observer_sf=planets['earth']
+        body_sf:     body to be observed as a Skyfield object, e.g. body_sf=planets['mars']
+        obstime_sf:  observation time as a Skyfield time array, e.g. ts_sf.tt_jd(obstime_mjd)
+    OUTPUTS:
+        (ra, dec, delta): tuple of numpy arrays of astropy angles and distances (degrees and AU)
+    EXAMPLE:
+        # Load ephemeris and timescale
+        planets_sf = load('../data/jpl/ephemeris/de435.bsp')
+        earth_sf = planets_sf['earth']
+        mars_sf = planets_sf['mars barycenter']
+        ts_sf = load.timescale()
+        obstime_mars_jd = df_obs_mars_geo.mjd.values
+        obstime_mars_sf = ts_sf.tt_jd(obstime_mars_jd)
+
+        # Observe Mars from Earth geocenter
+        ra_mars_geo_sf, dec_mars_geo_sf, delta_mars_geo_sf = \
+            skyfield_observe(observer_sf=earth_sf, body_sf=mars_sf, obstime_sf=obstime_mars_sf)
+        
+        # Calculate topos of Palomar observatory
+        geoloc_pal = site2geoloc('palomar', verbose=True)
+        lon, lat, height = geoloc_pal.geodetic
+        palomar_topos = skyfield.toposlib.Topos(latitude_degrees=lat.value, longitude_degrees=lon.value, elevation_m=height.value)
+
+        # Observe Mars from Palomar observatory
+        palomar_sf = earth_sf + palomar_topos
+        ra_mars_pal_sf, dec_mars_pal_sf, delta_mars_pal_sf = \
+            skyfield_observe(observer_sf=palomar_sf, body_sf=mars_sf, obstime_sf=obstime_mars_sf)
+    """
+    
+    # Observe body from observer with Skyfield
+    obs_sf = observer_sf.at(obstime_sf).observe(body_sf)
+
+    # Build Skyfield angle arrays (RA, DEC) and distance array (delta)
+    ra_aa, dec_aa, delta_da = obs_sf.radec()
+
+    # Extract degrees and AU to get arrays of astropy angles and distances
+    ra = ra_aa._degrees * deg
+    dec = dec_aa._degrees * deg
+    delta = delta_da.au * au
+    
+    # Return ra, dec, delta as astropy arrays
+    return (ra, dec, delta)
+
+# ********************************************************************************************************************
 # TESTING
 # ********************************************************************************************************************
 
 # ********************************************************************************************************************
-def load_planet_pos_jpl(planet_name: str, dir_name: str = '../data/jpl/testing/hourly'):
+def load_pos_jpl(body_name: str, dir_name: str = '../data/jpl/testing/hourly'):
     """
     Construct a DataFrame with the position and velocity of a planet according to JPL
     INPUTS:
-        planet_name: The name of the planet, used in the file names, e.g. 'earth'
-        dir_name:    The directory where the data files are stored, e.g. '../data/jpl/testing/hourly'
+        body_name: The name of the body, used in the file names, e.g. 'earth' or 'asteroid-001'
+        dir_name:  The directory where the data files are stored, e.g. '../data/jpl/testing/hourly'
     """
     # Load the JPL position as CSV
-    filename: str = os.path.join(dir_name, f'vectors-{planet_name}.txt')
+    filename: str = os.path.join(dir_name, f'vectors-{body_name}.txt')
     df = pd.read_csv(filename, index_col=False)
     # Add column for mjd
     df['mjd'] = (df['JulianDate'] - 2400000.5)
@@ -334,36 +360,75 @@ def add_cols_obs(df):
     df['mjd'] = (df['JulianDate'] - 2400000.5)
     # integer column for the date/time
     df['time_key'] = np.int32(np.round(df['mjd']*24))
-    # Add columns for the direction in ecliptic
-    u = radec2dir(ra=df.RA.values * deg, dec=df.DEC.values * deg, obstime_mjd = df['mjd'].values)
+    # compute direction in the BME (BarycentricMeanEcliptic) frame
+    ra = df.RA_jpl.values * deg
+    dec = df.DEC_jpl.values * deg
+    obstime_mjd = df['mjd'].values
+    u = radec2dir(ra=ra, dec=dec, obstime_mjd = obstime_mjd)
+    # Add columns for the direction in BME
+    # the direction u has shape 3xN
     df['ux_jpl'] = u[0]
     df['uy_jpl'] = u[1]
     df['uz_jpl'] = u[2]
     return df
 
 # ********************************************************************************************************************
-def load_planet_obs_jpl(planet_name: str, observer_name: str, dir_name: str = '../data/jpl/testing/hourly'):
+def load_obs_jpl(body_name: str, observer_name: str, dir_name: str = '../data/jpl/testing/hourly'):
     """
-    Construct a DataFrame with the observation of a planet according to JPL
+    Construct a DataFrame with the observation of a body according to JPL
     INPUTS:
-        planet_name:   Name of the planet being observed, used in the file names, e.g. 'mars'
+        body_name:   Name of the body being observed, used in the file names, e.g. 'mars'
         observer_name: Name of the observer location, e.g. 'geocenter' or 'palomar'
         dir_name:      Directory where the data files are stored, e.g. '../data/jpl/testing/hourly'
     """
     # Load the JPL observations as CSV
-    filename: str = os.path.join(dir_name, f'observer-{planet_name}-{observer_name}.txt')
+    filename: str = os.path.join(dir_name, f'observer-{body_name}-{observer_name}.txt')
     df = pd.read_csv(filename, index_col=False)
+
+    # Rename RA and DEC to RA_jpl and DEC_jpl
+    df.rename(columns={'RA': 'RA_jpl', 'DEC': 'DEC_jpl'}, inplace=True)
     
     # Add columns for time and directions
     add_cols_obs(df)
 
     # Order columns
-    columns = ['mjd', 'JulianDate', 'time_key', 'ux_jpl', 'uy_jpl', 'uz_jpl', 
-               'RA', 'DEC', 'RA_apparent', 'DEC_apparent',
+    columns = ['mjd', 'JulianDate', 'time_key',  
+               'RA_jpl', 'DEC_jpl', 'ux_jpl', 'uy_jpl', 'uz_jpl',
+               'RA_apparent', 'DEC_apparent',
                'delta', 'delta_dot', 'light_time',]
     df = df[columns]
     return df
 
+# ********************************************************************************************************************
+def obs_add_radec(df_obs: pd.DataFrame, ra: np.ndarray, dec: np.ndarray, source: str) -> None:
+    """
+    Add columns to an observation DataFrame with a RA/DEC quoted by an alternate source (e.g. Skyfield)
+    INPUTS:
+        df_obs: Dataframe to be modified
+        ra:     Right Ascension, as a numpy array of astropy angles
+        dec:    Declination, as a numpy array of astropy angles
+        source: Name of this source used as column suffix, e.g. 'jpl', 'sf' or 'mse'
+    """
+    # Alias source to src for legibility
+    src = source
+
+    # Add columns for RA and DEC
+    df_obs[f'RA_{src}'] = ra
+    df_obs[f'DEC_{src}'] = dec
+    
+    # Create empty columns for direction
+    cols_dir = [f'ux_{src}', f'uy_{src}', f'uz_{src}']
+    for col in cols_dir:
+        df_obs[col] = 0.0
+        
+    # Compute direction using radec2dir()
+    obstime_mjd = df_obs.mjd.values
+    u = radec2dir(ra=ra, dec=dec, obstime_mjd=obstime_mjd)
+
+    # Add directions to observation DataFrame
+    # Need transpose u.T b/c shape of u is 3xN
+    df_obs[cols_dir] = u.T
+    
 # ********************************************************************************************************************
 def obs_add_interp_qv(df_obs: pd.DataFrame, 
                       df_body: pd.DataFrame,
@@ -440,11 +505,20 @@ def obs_add_calc_dir(df_obs: pd.DataFrame, site_name: str, source_name: str) -> 
     # Extract position of earth; build as Nx3 array with astropy units
     q_earth = df_obs[q_earth_cols].values * au
 
-    # Geolocation of this site
+    # Observation times and geolocation of this site
+    obstime_mjd = df_obs.mjd.values
     obsgeoloc = site2geoloc(site_name=site_name, verbose=False)
 
     # Compute the direction of the body from earth using qv2dir
-    u = qv2dir(q_body=q_body, v_body=v_body, q_earth=q_earth, obsgeoloc=obsgeoloc)    
+    u = qv2dir(q_body=q_body, v_body=v_body, q_earth=q_earth, obstime_mjd=obstime_mjd, obsgeoloc=obsgeoloc)
+
+    # Compute the RA and DEC from the direction
+    obstime_mjd = df_obs.mjd.values
+    ra, dec = dir2radec(u=u, obstime_mjd=obstime_mjd)    
+
+    # Save the RA and DEC
+    df_obs[f'RA_{src}'] = ra
+    df_obs[f'DEC_{src}'] = dec
 
     # Columns for computed direction from this source
     u_cols = [f'ux_calc_{src}', f'uy_calc_{src}', f'uz_calc_{src}']
@@ -478,3 +552,4 @@ def obs_direction_diff(df_obs: pd.DataFrame, src1: str, src2: str, verbose: str 
 
     # Delegate to direction_diff
     u_mean_diff_sec = direction_diff(name1=src1, name2=src2, u1=u1, u2=u2, verbose=verbose)
+    return u_mean_diff_sec
