@@ -20,6 +20,7 @@ import os
 from typing import Tuple, Optional
 
 # MSE imports
+from utils import range_inc
 from astro_utils import jd_to_mjd, mjd_to_jd
 
 # Constants for distance of zero AU and velocity of zero AU / day
@@ -35,6 +36,9 @@ ts_sf = load.timescale()
 # Load planetary positions using de435
 planets_sf = load('../data/jpl/ephemeris/de435.bsp')
 earth_sf = planets_sf['earth']
+
+# Suppress fake pandas warnings
+pd.options.mode.chained_assignment = None
 
 # ********************************************************************************************************************* 
 def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
@@ -147,7 +151,7 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     """
     # compute the correction due to the observatory of obstime_mjd and geoloc are passed
     # dq_obs is the displacement from geocenter to the observatory
-    if (obstime_mjd is not None and obsgeoloc is not None and obsgeoloc):
+    if (obstime_mjd is not None and obsgeoloc is not None):
         # peel off common special case of geocenter
         x, y, z = obsgeoloc.geocentric
         geoloc_norm = np.linalg.norm(np.array([x.value, y.value, z.value]))
@@ -297,12 +301,14 @@ def radec_diff(name1, name2, ra1, dec1, ra2, dec2, obstime_mjd,
     dec_diff_sec = dec_diff * 3600
 
     # Delegate to direction_diff
-    u_diff_sec = direction_diff(name1=name1, name2=name2, u1=u1, u2=u2, verbose=verbose)
+    u_diff_mean_sec = direction_diff(name1=name1, name2=name2, u1=u1, u2=u2, verbose=verbose)
     # Report RA/DEC difference if requested
     if verbose_radec:
         print(f'\nRA/DEC:')
         print(f'RA Mean : {ra_diff:10.6f} deg ({ra_diff_sec:8.3f} seconds)')
         print(f'DEC Mean: {dec_diff:10.6f} deg ({dec_diff_sec:8.3f} seconds)')
+
+    return u_diff_mean_sec
 
 # ********************************************************************************************************************
 def skyfield_observe(observer_sf, body_sf, obstime_sf):
@@ -359,7 +365,7 @@ def skyfield_observe(observer_sf, body_sf, obstime_sf):
 # ********************************************************************************************************************
 def load_pos_jpl(body_name: str, dir_name: str = '../data/jpl/testing/hourly'):
     """
-    Construct a DataFrame with the position and velocity of a planet according to JPL
+    Construct a DataFrame with the position and velocity of a body according to JPL
     INPUTS:
         body_name: The name of the body, used in the file names, e.g. 'earth' or 'asteroid-001'
         dir_name:  The directory where the data files are stored, e.g. '../data/jpl/testing/hourly'
@@ -375,6 +381,32 @@ def load_pos_jpl(body_name: str, dir_name: str = '../data/jpl/testing/hourly'):
     columns = ['mjd', 'JulianDate', 'time_key', 'X', 'Y', 'Z', 'VX', 'VY', 'VZ', 'LT', 'RG', 'RR']
     df = df[columns]
     return df
+
+# ********************************************************************************************************************
+def load_ast_jpl(ast_num0: int, ast_num1: int, dir_name: str = '../data/jpl/testing/hourly'):
+    """
+    Construct a DataFrame with the position and velocity of a batch of asteroids according to JPL.
+    INPUTS:
+        ast_num0: the first asteroid number to process, e.g. 1
+        ast_num1: the last asteroid number to process, e.g. 16
+        dir_name: the directory where the data files are stored, e.g. '../data/jpl/testing/hourly'
+    """
+
+    # List of dataframes; one per asteroid
+    df_ast_list = []
+
+    # Load the JPL position of asteroids one at a time
+    for j in range_inc(ast_num0, ast_num1):
+        body_name = f'asteroid-{j:03d}'
+        df_ast_j = load_pos_jpl(body_name=body_name, dir_name=dir_name)
+        # Add column for the asteroid_num
+        df_ast_j.insert(loc=0, column='asteroid_num', value=j)
+        # Add this to list of frames
+        df_ast_list.append(df_ast_j)
+
+    # Concatenate dataframes
+    df_ast = pd.concat(df_ast_list)
+    return df_ast
 
 # ********************************************************************************************************************
 def add_cols_obs(df):
@@ -422,6 +454,34 @@ def load_obs_jpl(body_name: str, observer_name: str, dir_name: str = '../data/jp
     df = df[columns]
     return df
 
+# ********************************************************************************************************************
+def load_obs_ast_jpl(ast_num0: int, ast_num1: int, observer_name: str, 
+                     dir_name: str = '../data/jpl/testing/hourly'):
+    """
+    Construct a DataFrame with the observation of a batch of asteroids according to JPL
+    INPUTS:
+        ast_num0: the first asteroid number to process, e.g. 1
+        ast_num1: the last asteroid number to process, e.g. 16
+        observer_name: Name of the observer location, e.g. 'geocenter' or 'palomar'
+        dir_name:      Directory where the data files are stored, e.g. '../data/jpl/testing/hourly'
+    """
+    
+    # List of dataframes; one per asteroid
+    df_obs_list = []
+
+    # Load the JPL observations of asteroids one at a time
+    for j in range_inc(ast_num0, ast_num1):
+        body_name = f'asteroid-{j:03d}'
+        df_obs_j = load_obs_jpl(body_name=body_name, observer_name=observer_name, dir_name=dir_name)
+        # Add column for the asteroid_num
+        df_obs_j.insert(loc=0, column='asteroid_num', value=j)       
+        # Add this to list of frames
+        df_obs_list.append(df_obs_j)
+
+    # Concatenate dataframes
+    df_obs = pd.concat(df_obs_list)
+    return df_obs
+    
 # ********************************************************************************************************************
 def obs_add_radec(df_obs: pd.DataFrame, ra: np.ndarray, dec: np.ndarray, source: str) -> None:
     """
@@ -502,6 +562,42 @@ def obs_add_interp_qv(df_obs: pd.DataFrame,
     # Assign interpolated qv to the df_obs dataframe on the mask
     df_obs[body_cols] = obs_qv
 
+# ********************************************************************************************************************
+def obs_ast_add_interp_qv(df_obs: pd.DataFrame, df_ast: pd.DataFrame, df_earth: pd.DataFrame, 
+                          source_name: str) -> None:
+    """
+    Add interpolated position and velocity to a DataFrame of asteroid observations.
+    INPUTS:
+        df_obs:     DataFrame of asteroid observations
+        df_ast:     DataFrame of asteroid position and velocity
+        df_earth:   DataFrame of earth position
+        source_name: Name of the source for positions, e.g. 'jpl'
+    OUTPUTS:
+        Modifies df_obs in place        
+    """
+    # Alias source name for legibility
+    src = source_name
+
+    # List of distinct asteroid numbers
+    ast_nums = sorted(set(df_obs.asteroid_num))
+
+    # Add new columns
+    body_cols = [f'body_x_{src}', f'body_y_{src}', f'body_z_{src}', 
+                 f'body_vx_{src}', f'body_vy_{src}', f'body_vz_{src}']
+    earth_cols = [f'earth_x_{src}', f'earth_y_{src}', f'earth_z_{src}']
+    cols = body_cols + earth_cols
+    for col in cols:
+        df_obs[col] = 0.0    
+    
+    # Augment the asteroids one at a time
+    for j in ast_nums:
+        mask_obs = df_obs.asteroid_num == j
+        mask_pos = df_ast.asteroid_num == j
+        df_obs_j = df_obs.loc[mask_obs]
+        df_ast_j = df_ast.loc[mask_pos]
+        obs_add_interp_qv(df_obs=df_obs_j, df_body=df_ast_j, df_earth=df_earth, source_name='jpl')    
+        df_obs.loc[mask_obs, cols] = df_obs_j[cols]
+ 
 # ********************************************************************************************************************
 def obs_add_calc_dir(df_obs: pd.DataFrame, site_name: str, source_name: str) -> None:
     """
