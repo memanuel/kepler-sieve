@@ -6,15 +6,21 @@ Michael S. Emanuel
 Fri Aug 23 16:13:28 2019
 """
 
+# Library imports
 import numpy as np
 import pandas as pd
 import astropy
 from astropy.units import deg, au, km, meter, day, minute, second, arcsec
 from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic, EarthLocation
+from skyfield.api import load
+from skyfield.toposlib import Topos
 from scipy.interpolate import CubicSpline
 from datetime import date, datetime, timedelta
 import os
 from typing import Tuple, Optional
+
+# MSE imports
+from astro_utils import jd_to_mjd, mjd_to_jd
 
 # Constants for distance of zero AU and velocity of zero AU / day
 zero_au = 0.0 * au
@@ -22,6 +28,13 @@ zero_au_day = 0.0 * au / day
 zero_km_sec = 0.0 * km / second
 # Speed of light; express this in AU / minute
 light_speed = astropy.constants.c.to(au / minute)
+
+# Load Skyfield timescale
+ts_sf = load.timescale()
+
+# Load planetary positions using de435
+planets_sf = load('../data/jpl/ephemeris/de435.bsp')
+earth_sf = planets_sf['earth']
 
 # ********************************************************************************************************************* 
 def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
@@ -134,23 +147,33 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     """
     # compute the correction due to the observatory of obstime_mjd and geoloc are passed
     # dq_obs is the displacement from geocenter to the observatory
-    if (obstime_mjd is not None and obsgeoloc is not None):
-        # the observation times as astropy time objects
-        obstime = astropy.time.Time(obstime_mjd, format='mjd')
-        # the displacement from the geocenter to the observatory in the ICRS frame
+    if (obstime_mjd is not None and obsgeoloc is not None and obsgeoloc):
+        # peel off common special case of geocenter
         x, y, z = obsgeoloc.geocentric
-        obs_icrs = SkyCoord(x=x, y=y, z=z, obstime=obstime, frame=ICRS, representation_type='cartesian')
-        # displacement from geocenter to observatory in the BME frame
-        obs_bme = obs_icrs.transform_to(BarycentricMeanEcliptic)
-        dq_topos = obs_bme.cartesian.xyz.to(au)   
+        geoloc_norm = np.linalg.norm(np.array([x.value, y.value, z.value]))
+        if geoloc_norm < 1.0E-8:
+            dq_topos = np.zeros(3) * au
+        # the observation times as skyfield time objects
+        obstime_jd = mjd_to_jd(obstime_mjd)
+        obstime_sf = ts_sf.tt_jd(obstime_jd)
+        # unpack the geodetic coordinates of this observer geolocation
+        longitude, latitude, height = obsgeoloc.geodetic
+        longitude_degrees = longitude.to(deg).value
+        latitude_degrees = latitude.to(deg).value
+        elevation_m = height.to(meter).value
+        # construct a Skyfield topos instance
+        topos = Topos(latitude_degrees=latitude_degrees, 
+                      longitude_degrees=longitude_degrees, 
+                      elevation_m=elevation_m)
+        # query the topos object at the observation times
+        dq_topos = topos.at(obstime_sf).ecliptic_position().au.T * au
+        # dv_topos = topos.at(obstime_sf).ecliptic_velocity().km_per_s.T * km / second
     else:
         # default is to use geocenter if obstime and geoloc are not passed
-        dq_topos = np.zeros((3)) * au
-
-    # infer data shape
-    data_axis, space_axis, shape = infer_shape(q_earth)
+        dq_topos = np.zeros(3) * au
 
     # reshape dq_topos to match q_earth
+    data_axis, space_axis, shape = infer_shape(q_earth)
     dq_topos = dq_topos.reshape(shape)
 
     # position of the observer in space
@@ -159,7 +182,7 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     # displacement from observer on earth to body; in AU
     q_rel = q_body - q_obs
 
-    # distance; in AU
+    # distance; in AU; need to multiply by au b/c norm function returns array of floats
     r = np.linalg.norm(q_rel, axis=space_axis, keepdims=True) * au
     
     # light time in minutes
@@ -517,8 +540,8 @@ def obs_add_calc_dir(df_obs: pd.DataFrame, site_name: str, source_name: str) -> 
     ra, dec = dir2radec(u=u, obstime_mjd=obstime_mjd)    
 
     # Save the RA and DEC
-    df_obs[f'RA_{src}'] = ra
-    df_obs[f'DEC_{src}'] = dec
+    df_obs[f'RA_calc_{src}'] = ra
+    df_obs[f'DEC_calc_{src}'] = dec
 
     # Columns for computed direction from this source
     u_cols = [f'ux_calc_{src}', f'uy_calc_{src}', f'uz_calc_{src}']
