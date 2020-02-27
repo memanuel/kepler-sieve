@@ -12,7 +12,7 @@ import pandas as pd
 import astropy
 from astropy.units import deg, au, km, meter, day, minute, second, arcsec
 from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic, EarthLocation
-from skyfield.api import load
+from skyfield.api import Loader
 from skyfield.toposlib import Topos
 from scipy.interpolate import CubicSpline
 from datetime import date, datetime, timedelta
@@ -30,11 +30,14 @@ zero_km_sec = 0.0 * km / second
 # Speed of light; express this in AU / minute
 light_speed = astropy.constants.c.to(au / minute)
 
+# Create Skyfield loader in preferred location
+skyfield_load = Loader('../data/skyfield')
+
 # Load Skyfield timescale
-ts_sf = load.timescale()
+ts_sf = skyfield_load.timescale()
 
 # Load planetary positions using de435
-planets_sf = load('../data/jpl/ephemeris/de435.bsp')
+planets_sf = skyfield_load('de435.bsp')
 earth_sf = planets_sf['earth']
 
 # Suppress fake pandas warnings
@@ -322,10 +325,10 @@ def skyfield_observe(observer_sf, body_sf, obstime_sf):
         (ra, dec, delta): tuple of numpy arrays of astropy angles and distances (degrees and AU)
     EXAMPLE:
         # Load ephemeris and timescale
-        planets_sf = load('../data/jpl/ephemeris/de435.bsp')
+        planets_sf = skyfield_load('../data/jpl/ephemeris/de435.bsp')
         earth_sf = planets_sf['earth']
         mars_sf = planets_sf['mars barycenter']
-        ts_sf = load.timescale()
+        ts_sf = skyfield_load.timescale()
         obstime_mars_jd = df_obs_mars_geo.mjd.values
         obstime_mars_sf = ts_sf.tt_jd(obstime_mars_jd)
 
