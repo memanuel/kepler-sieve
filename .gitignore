@@ -22,6 +22,9 @@
 *.jpg
 *.bmp
 
+# VS Code stuff
+.vscode
+
 # Random directories
 sql/01-MakeTable
 
