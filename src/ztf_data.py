@@ -68,6 +68,17 @@ def load_ztf_det(mjd0: float, mjd1: float):
     
     # Run query and return DataFrame
     df = pd.read_sql_query(sql=sql, con=conn, params=params)
+
+    # Create new ObjectID column, with dtype Pandas string ('|S') rather than object
+    df.insert(loc=0, column='ObjectID', value=df.objectid.astype('|S'))    
+    # Drop old objectid column, which is now redundant
+    df.drop(columns='objectid', inplace=True)
+    
+    # Create new CandidateID column, with dtype Pandas np.int64 rather than object
+    df.insert(loc=1, column='CandidateID', value=df.candidateid.astype(np.int64))    
+    # Drop old candidateid column, which is now redundant
+    df.drop(columns='candidateid', inplace=True)
+
     return df
 
 # ********************************************************************************************************************* 
@@ -136,18 +147,18 @@ def ztf_det_add_dir(df: pd.DataFrame, file_name: str, dir_name: str='../data/ztf
         Modifies df in place and saves it to disk.
     """
     # Extract mjd, ra, and dec as vectors of astropy angles
-    mjd_ztf = df.mjd.values
-    ra_ztf = df.ra.values * deg
-    dec_ztf = df.dec.values * deg
+    mjd = df.mjd.values
+    ra = df.ra.values * deg
+    dec = df.dec.values * deg
 
     # Compute the directions using radec2dir()
-    u_ztf = radec2dir(ra=ra_ztf, dec=dec_ztf, obstime_mjd=mjd_ztf)    
+    u = radec2dir(ra=ra, dec=dec, obstime_mjd=mjd)    
 
     # Add these directions to the DataFrame in three columns after dec
     col_num_dec = df.columns.get_loc('dec')
-    df.insert(loc=col_num_dec+1, column='ux', value=u_ztf[0])
-    df.insert(loc=col_num_dec+2, column='uy', value=u_ztf[1])
-    df.insert(loc=col_num_dec+3, column='uz', value=u_ztf[2])
+    df.insert(loc=col_num_dec+1, column='ux', value=u[0])
+    df.insert(loc=col_num_dec+2, column='uy', value=u[1])
+    df.insert(loc=col_num_dec+3, column='uz', value=u[2])
 
     # Save modified DataFrame to disk
     path: str = os.path.join(dir_name, file_name)
