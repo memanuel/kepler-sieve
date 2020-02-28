@@ -14,6 +14,7 @@ import astropy
 from astropy.units import deg, au, km, meter, day, minute, second, arcsec
 from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic, EarthLocation
 import skyfield
+from skyfield.api import Loader as SkyfieldLoader
 from skyfield.toposlib import Topos
 from scipy.interpolate import CubicSpline
 # from datetime import date, datetime, timedelta
@@ -32,7 +33,7 @@ zero_km_sec = 0.0 * km / second
 light_speed = astropy.constants.c.to(au / minute)
 
 # Create Skyfield loader in preferred location
-skyfield_load = skyfield.api.Loader('../data/skyfield')
+skyfield_load = SkyfieldLoader('../data/skyfield')
 
 # Load Skyfield timescale
 ts_sf = skyfield_load.timescale()
