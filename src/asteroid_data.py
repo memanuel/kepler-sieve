@@ -6,12 +6,16 @@ Michael S. Emanuel
 Sat Sep 21 10:38:38 2019
 """
 
-# Library imports
+# Core
 import tensorflow as tf
-# import tensorflow_probability as tfp
 import scipy, scipy.interpolate
-# import rebound
 import numpy as np
+
+# Astronomy
+import astropy
+from astropy.units import au, day
+
+# Utility
 from datetime import datetime
 from tqdm.auto import tqdm
 
@@ -29,8 +33,11 @@ ast_elt = load_data()
 
 space_dims = 3
 
+# Speed of light; express this in AU / day
+light_speed_au_day = astropy.constants.c.to(au / day).value
+
 # ********************************************************************************************************************* 
-def get_earth_pos_file():
+def get_earth_pos_file(heliocentric: bool):
     """Get the position of earth consistent with the asteroid data; look up from data file"""
     # selected data type for TF tensors
     dtype = np.float32
@@ -55,10 +62,12 @@ def get_earth_pos_file():
     # Extract position of sun and earth in Barycentric coordinates
     sun_idx = object_names.index('Sun')
     earth_idx = object_names.index('Earth')
-    q_sun_bc = q[:, sun_idx, :]
-    q_earth_bc = q[:, earth_idx, :]
+    q_sun_bary = q[:, sun_idx, :]
+    q_earth_bary = q[:, earth_idx, :]
     # Compute earth position in heliocentric coordinates
-    q_earth = q_earth_bc - q_sun_bc
+    q_earth_helio = q_earth_bary - q_sun_bary
+    # Selected flavor (barycentric vs. heliocentric)
+    q_earth = q_earth_helio if heliocentric else q_earth_bary
     # Convert to selected data type
     return q_earth.astype(dtype), ts
 
@@ -66,30 +75,38 @@ def get_earth_pos_file():
 # Create 1D linear interpolator for earth positions; just need one instance for the whole module
 
 # Get position of earth at reference dates from file
-q_earth_ref, t_ref = get_earth_pos_file()
-# Build the interpolator
-interpolator = scipy.interpolate.interp1d(x=t_ref, y=q_earth_ref, kind='cubic', axis=0)
+q_earth_bary, t_bary = get_earth_pos_file(heliocentric=False)
+q_earth_helio, t_helio = get_earth_pos_file(heliocentric=True)
+# Build the interpolators for barycentric and heliocentric
+earth_interp_bary = scipy.interpolate.interp1d(x=t_bary, y=q_earth_bary, kind='cubic', axis=0)
+earth_interp_helio = scipy.interpolate.interp1d(x=t_helio, y=q_earth_helio, kind='cubic', axis=0)
 
 # ********************************************************************************************************************* 
-def get_earth_pos(ts) -> np.array:
-    """Get position of earth consistent with asteroid data at the specified times (MJDs)"""
-    # Get position of earth at reference dates from file
-    # q_earth_ref, t_ref = get_earth_pos_file()
-    
-    # Create 1D linear interpolator
-    # interpolator = scipy.interpolate.interp1d(x=t_ref, y=q_earth_ref, kind='cubic', axis=0)
+def get_earth_pos(ts, heliocentric: bool = False) -> np.array:
+    """
+    Get position of earth consistent with asteroid data at the specified times (MJDs)
+    INPUTS:
+        ts: Array of times expressed as MJDs
+        heliocentric: flag indicating whether to use heliocentric coordinates;
+                      default false uses barycentric coordinates
+    """
+    # Choose barycentric or heliocentric interpolator
+    interpolator = earth_interp_helio if heliocentric else earth_interp_bary
 
     # Compute interpolated position at desired times
     q_earth = interpolator(ts)
     return q_earth
 
 # ********************************************************************************************************************* 
-def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str, np.array]]:
+def make_data_one_file(n0: int, n1: int, heliocentric: bool = False) \
+    -> Tuple[Dict[str, np.array], Dict[str, np.array]]:
     """
     Wrap the data in one file of asteroid trajectory data into a TF Dataset
     INPUTS:
         n0: the first asteroid in the file, e.g. 0
         n1: the last asteroid in the file (exclusive), e.g. 1000
+        heliocentric: flag indicating whether to use heliocentric coordinates
+                      default false uses barycentric coordinates
     OUTPUTS:
         inputs: a dict of numpy arrays
         outputs: a dict of numpy arrays
@@ -117,19 +134,22 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
     mask = (n0 <= ast_elt.Num) & (ast_elt.Num < n1)
     
     # count of selected asteroids
-    # asteroid_names = list(ast_elt.Name[mask].to_numpy())
+    # asteroid_name = list(ast_elt.Name[mask].to_numpy())
     N_ast: int = np.sum(mask)
     # offset for indexing into asteroids; the first [10] objects are sun and planets
     ast_offset: int = len(object_names) - N_ast
 
-    # Extract position of the sun
+    # Extract position of the sun in barycentric coordinates
     sun_idx = 0
     q_sun = q[:, sun_idx, :]
     v_sun = q[:, sun_idx, :]
-    # Compute position of the earth in Heliocentric coordinates
+    # Position of the earth in barycentric or heliocentric coordinates
     earth_idx = 3
-    q_earth = q[:, earth_idx, :] - q_sun
-    # v_earth = v[:, earth_idx :] - v_sun
+    q_earth = q[:, earth_idx, :]
+    # v_earth = v[:, earth_idx :]
+    if heliocentric:
+        q_earth -= q_sun
+        # v_earth -= v_sun
 
     # shrink down q and v to slice with asteroid data only; 
     q = q[:, ast_offset:, :]
@@ -137,16 +157,25 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
     
     # swap axes for time step and body number; TF needs inputs and outputs to have same number of samples
     # this means that inputs and outputs must first be indexed by asteroid number, then time time step
-    # also convert to heliocentric coordinates
-    q = np.swapaxes(q, 0, 1) - q_sun
-    v = np.swapaxes(v, 0, 1) - v_sun
+    q = np.swapaxes(q, 0, 1)
+    v = np.swapaxes(v, 0, 1)
+    if heliocentric:
+        q -= q_sun
+        v -= v_sun
     
     # Compute relative displacement to earth
     q_rel = q - q_earth
     # Distance to earth
     r_earth = np.linalg.norm(q_rel, axis=2, keepdims=True)
-    # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)
-    u = q_rel / r_earth
+    # Light time in days from asteroid to earth in days (time units is days)
+    light_time = (r_earth / light_speed_au_day)
+    # adjusted relative position, accounting for light time; simulation velocity units are AU /day
+    dq_lt = light_time * v
+    q_rel_lt = q_rel - dq_lt
+    # adjusted distance to earth, accounting for light time
+    r_lt = np.linalg.norm(q_rel_lt, axis=2, keepdims=True)
+    # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)    
+    u = q_rel_lt / r_lt
 
     # dict with inputs   
     inputs = {
@@ -157,6 +186,8 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
         'omega': ast_elt.omega[mask].to_numpy().astype(dtype),
         'f': ast_elt.f[mask].to_numpy().astype(dtype),
         'epoch': ast_elt.epoch_mjd[mask].to_numpy().astype(dtype),
+        'asteroid_num': ast_elt.Num[mask].to_numpy(),
+        'asteroid_name': ast_elt.Name[mask].to_numpy(),
         'ts': np.tile(ts, reps=(N_ast,1,)),
     }
     
@@ -165,6 +196,7 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
         'q': q.astype(dtype),
         'v': v.astype(dtype),
         'u': u.astype(dtype),
+        'q_earth' : q_earth.astype(dtype),
     }
     
     return inputs, outputs

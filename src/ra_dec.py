@@ -16,7 +16,6 @@ from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic, E
 import skyfield
 from skyfield.api import Loader as SkyfieldLoader
 from skyfield.toposlib import Topos
-from scipy.interpolate import CubicSpline
 # from datetime import date, datetime, timedelta
 from typing import Tuple, Optional
 
@@ -191,8 +190,8 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     # displacement from observer on earth to body; in AU
     q_rel = q_body - q_obs
 
-    # distance; in AU; need to multiply by au b/c norm function returns array of floats
-    r = np.linalg.norm(q_rel, axis=space_axis, keepdims=True) * au
+    # distance; in AU
+    r = np.linalg.norm(q_rel, axis=space_axis, keepdims=True)
     
     # light time in minutes
     light_time = (r / light_speed)
