@@ -52,7 +52,8 @@ earth_sf = planets_sf['earth']
 fname_topos = '../data/skyfield/topos_tbl.npz'
 try:
     with np.load(fname_topos, allow_pickle=True) as npz:
-        topos_tbl = npz['topos_tbl'][0]
+        topos_tbl = npz['topos_tbl'].item()
+    # print(f'loaded topos table {fname_topos}')
 except:
     topos_tbl = dict()
     np.savez(fname_topos, topos_tbl=topos_tbl)
@@ -82,6 +83,39 @@ def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
     u = obs_ecl.cartesian.xyz
     # Return as a numpy array of shape 3xN (easier b/c this is astropy default)
     return u.value
+
+# ********************************************************************************************************************* 
+def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
+    INPUTS:
+        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
+        obstime_mjd: Observation time on Earth as a modified Julian day
+    RETURNS:
+        ra: Right Ascension; with units (astropy degrees)
+        dec: Declination; with units (astropy degrees)
+    """
+    # The observation time
+    obstime = astropy.time.Time(obstime_mjd, format='mjd')
+
+    # infer data shape
+    data_axis, space_axis, shape = infer_shape(u)
+    # Unpack position and convert to 1 au distance
+    if space_axis==0:
+        x, y, z = u * au
+    else:
+        x, y, z = u.T * au
+    
+    # The observation in the BarycentricMeanEcliptic coordinate frame
+    frame = BarycentricMeanEcliptic
+    obs_frame = SkyCoord(x=x, y=y, z=z, obstime=obstime,  representation_type='cartesian', frame=frame)
+    # Transform the observation to the ICRS frame
+    obs_icrs = obs_frame.transform_to(ICRS)
+    # Extract the RA and DEC in degrees
+    ra = obs_icrs.ra.deg * deg
+    dec = obs_icrs.dec.deg * deg
+    # Return (ra, dec) as a tuple
+    return (ra, dec)
 
 # # ********************************************************************************************************************* 
 # def radec_app2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
@@ -217,8 +251,8 @@ def calc_topos(obstime_mjd, site_name: str):
         # Evaluate it at the desired observation times
         spline_out = topos_spline(obstime_mjd)
         # unpack into dq and dv, with units
-        dq_topos = spline_out[0:3] * au
-        dv_topos = spline_out[3:6] * au/day
+        dq_topos = spline_out[:, 0:3] * au
+        dv_topos = spline_out[:, 3:6] * au/day
     else:
         # default is to use geocenter if obstime and geoloc are not passed
         dq_topos = np.zeros(3) * au
@@ -241,6 +275,9 @@ def astrometric_dir(q_body: np.ndarray, v_body: np.ndarray, q_obs: np.ndarray):
     # displacement from observer on earth to body; in AU
     q_rel = q_body - q_obs
 
+    # infer the space axis for taking the distance
+    data_axis, space_axis, shape = infer_shape(q_obs)
+
     # distance; in AU
     r = np.linalg.norm(q_rel, axis=space_axis, keepdims=True)
     
@@ -252,9 +289,10 @@ def astrometric_dir(q_body: np.ndarray, v_body: np.ndarray, q_obs: np.ndarray):
     q_rel_lt = q_rel - dq_lt
     
     # adjusted direction
-    r_lt = np.linalg.norm(q_rel_lt, axis=space_axis, keepdims=True) * au
+    r_lt = np.linalg.norm(q_rel_lt, axis=space_axis, keepdims=True)
     u = q_rel_lt / r_lt
-    return u.value
+    delta = np.squeeze(r_lt)
+    return u.value, delta
 
 # ********************************************************************************************************************* 
 def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray, 
@@ -278,7 +316,7 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
                    obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
     """
     # compute the correction due to the observatory of obstime_mjd and site_name are passed
-    dq_topos = calc_topos(objstime_mjd=obstime_mjd, site_name=site_name)
+    dq_topos = calc_topos(obstime_mjd=obstime_mjd, site_name=site_name)
 
     # reshape dq_topos to match q_earth
     data_axis, space_axis, shape = infer_shape(q_earth)
@@ -288,42 +326,9 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     q_obs = q_earth + dq_topos
 
     # calculate astrometric direction
-    u = astrometric_dir(q_body=q_body, v_body=v_body, q_obs=q_obs)
+    u, delta = astrometric_dir(q_body=q_body, v_body=v_body, q_obs=q_obs)
 
     return u
-
-# ********************************************************************************************************************* 
-def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Compute a RA and DEC from Earth Geocenter given position and velocity of a body in space.
-    INPUTS:
-        u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
-        obstime_mjd: Observation time on Earth as a modified Julian day
-    RETURNS:
-        ra: Right Ascension; with units (astropy degrees)
-        dec: Declination; with units (astropy degrees)
-    """
-    # The observation time
-    obstime = astropy.time.Time(obstime_mjd, format='mjd')
-
-    # infer data shape
-    data_axis, space_axis, shape = infer_shape(u)
-    # Unpack position and convert to 1 au distance
-    if space_axis==0:
-        x, y, z = u * au
-    else:
-        x, y, z = u.T * au
-    
-    # The observation in the BarycentricMeanEcliptic coordinate frame
-    frame = BarycentricMeanEcliptic
-    obs_frame = SkyCoord(x=x, y=y, z=z, obstime=obstime,  representation_type='cartesian', frame=frame)
-    # Transform the observation to the ICRS frame
-    obs_icrs = obs_frame.transform_to(ICRS)
-    # Extract the RA and DEC in degrees
-    ra = obs_icrs.ra.deg * deg
-    dec = obs_icrs.dec.deg * deg
-    # Return (ra, dec) as a tuple
-    return (ra, dec)
 
 # *************************************************************************************************
 def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbose: bool=False) -> float:

@@ -23,6 +23,7 @@ from utils import range_inc
 from astro_utils import datetime_to_mjd
 from asteroid_integrate import load_data
 from rebound_utils import load_sim_np
+from ra_dec import calc_topos, astrometric_dir, dir2radec
 
 # Type names
 from typing import Optional, Tuple, Dict
@@ -342,6 +343,64 @@ def spline_ast_data(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd
     return df_ast_out, df_earth_out, df_sun_out
     
 # ********************************************************************************************************************* 
+def spline_ast_obs(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
+    """
+    Generate a DataFrame of predicted observations given positions of asteroids and earth, and a site name.
+    INPUTS:
+        df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+        df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
+    """
+    # observation times
+    mjd_ast = df_ast.mjd.values
+    mjd_earth = df_earth.mjd.values
+
+    # extract position and velocity of asteroids
+    cols_q = ['qx', 'qy', 'qz']
+    cols_v = ['vx', 'vy', 'vz']
+    q_ast = df_ast[cols_q].values * au
+    v_ast = df_ast[cols_q].values * au / day
+
+    # position of earth and topos adjustment
+    q_earth = df_earth[cols_q].values * au
+    # Topos adjustment
+    dq_topos = calc_topos(obstime_mjd=mjd_earth, site_name=site_name)
+    # position of the observatory in ecliptic frame
+    q_obs_once = q_earth + dq_topos
+
+    # number of asteroids
+    asteroid_num = df_ast.asteroid_num.values
+    asteroid_num_unq = np.unique(asteroid_num)
+    N_ast = asteroid_num_unq.size
+
+    # tile q_obs so it can be subtracted from q_ast
+    q_obs = np.tile(q_obs_once, (N_ast,1))    
+
+    # calculate the astrometric direction with the observer position
+    u_ast, delta = astrometric_dir(q_body=q_ast, v_body=v_ast, q_obs=q_obs)
+    ux = u_ast[:, 0]
+    uy = u_ast[:, 1]
+    uz = u_ast[:, 2]
+    
+    # compute RA/DEC from direction
+    ra, dec = dir2radec(u=u_ast, obstime_mjd=mjd_ast)
+
+    # build the observation DataFrame
+    obs_dict = {
+        'asteroid_num': asteroid_num,
+        'mjd' : mjd_ast,
+        'time_key': np.int32(np.round(mjd_ast*24)),
+        'ra': ra.value,
+        'dec': dec.value,
+        'ux': ux,
+        'uy': uy,
+        'uz': uz,
+        'delta': delta
+    }
+    df_obs = pd.DataFrame(obs_dict)    
+    
+    return df_obs
+
+# ********************************************************************************************************************* 
 def compare_df_vec(df_mse, df_jpl, name: str):
     """Compare DataFrames with MSE vs. JPL vectors"""
     # Columnwise mean absolute error
@@ -367,4 +426,4 @@ def compare_df_vec(df_mse, df_jpl, name: str):
     print(f'mjd: {err_mjd:6.2e} days')
     # print(f' jd: {err_jd:6.2e} days')
     print(f'  q: {err_q_mean:6.2e} AU     (max {err_q_max:6.2e})')
-    print(f'  v: {err_v_mean:6.2e} AU/day (rel {err_v_rel:6.2e})')    
+    print(f'  v: {err_v_mean:6.2e} AU/day (rel {err_v_rel:6.2e})')
