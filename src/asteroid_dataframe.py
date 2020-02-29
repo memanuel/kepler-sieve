@@ -256,7 +256,7 @@ def load_ast_data(n0: int, n1: int,
     return df_ast, df_earth, df_sun
     
 # ********************************************************************************************************************* 
-def spline_ast_data(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
@@ -401,6 +401,31 @@ def spline_ast_obs(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
     df_obs = pd.DataFrame(obs_dict)    
     
     return df_obs
+
+# ********************************************************************************************************************* 
+def spline_ast_vec_obs(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geocenter') -> \
+        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Convenience API to (1) obtain splined vectors (2) observed angles
+    INPUTS:
+        n0:  First asteroid to load, e.g. 1
+        n1:  Last asteroid to load, e.g. 64
+        mjd: Array of modified julian dates on which splined output is desired
+        site_name: Name of observatory; defaults to 'geocenter'
+    OUTPUTS:
+        df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+        df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        df_obs:   Projected observation of asteroid from earth at given observatory
+    """
+
+    # Calculate splined vectors from spline_ast_data
+    df_ast, df_earth, df_sun = spline_ast_vec(n0=n0, n1=n1, mjd=mjd)
+
+    # Calculate predicted RA / DEC and direction with spline_ast_obs
+    df_obs = spline_ast_obs(df_ast=df_ast, df_earth=df_earth, site_name=site_name)
+
+    # Return earth and asteroid vectors plus aligned observations
+    return df_ast, df_earth, df_obs
 
 # ********************************************************************************************************************* 
 def compare_df_vec(df_mse, df_jpl, name: str):
