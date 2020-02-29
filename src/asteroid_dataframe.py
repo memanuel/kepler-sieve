@@ -34,6 +34,8 @@ ast_elt = load_data()
 ast_block_size: int = 1000
 # space_dims = 3
 
+
+
 # Speed of light; express this in AU / day
 light_speed_au_day = astropy.constants.c.to(au / day).value
 
@@ -78,7 +80,7 @@ def load_ast_data_block(block: int,
 
     # mask for selected time interval
     mjd0 = 0.0 if mjd0 is None else mjd0
-    mjd1 = np.finfo.max if mjd1 is None else mjd1
+    mjd1 = 1E9 if mjd1 is None else mjd1
     mask_t = (mjd0 <= mjd_all) & (mjd_all < mjd1)
     # Apply filter to find mjd that will be sent back
     mjd = mjd_all[mask_t]

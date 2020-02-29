@@ -6,22 +6,29 @@ Michael S. Emanuel
 Fri Aug 23 16:13:28 2019
 """
 
-# Library imports
-import os
+# Core
 import numpy as np
 import pandas as pd
+from scipy.interpolate import CubicSpline
+
+# Astronomy
 import astropy
 from astropy.units import deg, au, km, meter, day, minute, second, arcsec
 from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic, EarthLocation
 import skyfield
 from skyfield.api import Loader as SkyfieldLoader
 from skyfield.toposlib import Topos
-# from datetime import date, datetime, timedelta
-from typing import Tuple, Optional
+
+# Utility
+import os
+from datetime import date, datetime
 
 # MSE imports
 from utils import range_inc
-from astro_utils import jd_to_mjd, mjd_to_jd
+from astro_utils import jd_to_mjd, mjd_to_jd, date_to_mjd
+
+# Typing
+from typing import Tuple, Optional
 
 # ********************************************************************************************************************* 
 # Constants for distance of zero AU and velocity of zero AU / day
@@ -40,6 +47,15 @@ ts_sf = skyfield_load.timescale()
 # Load planetary positions using de435
 planets_sf = skyfield_load('de435.bsp')
 earth_sf = planets_sf['earth']
+
+# Table with saved splines for topos adjustment
+fname_topos = '../data/skyfield/topos_tbl.npz'
+try:
+    with np.load(fname_topos, allow_pickle=True) as npz:
+        topos_tbl = npz['topos_tbl'][0]
+except:
+    topos_tbl = dict()
+    np.savez(fname_topos, topos_tbl=topos_tbl)
 
 # Suppress fake pandas warnings
 pd.options.mode.chained_assignment = None
@@ -133,60 +149,95 @@ def infer_shape(q):
     return data_axis, space_axis, shape
 
 # ********************************************************************************************************************* 
-def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray, 
-           obstime_mjd: Optional[np.ndarray] = None, 
-           obsgeoloc: Optional[EarthLocation] = None) -> np.ndarray:
+def calc_topos_impl(obstime_mjd: np.ndarray, obsgeoloc: EarthLocation) -> np.ndarray:
     """
-    Compute the direction of displacement from earth to a space body as a unit displacement vector
+    Compute the topos adjustment from the center of earth to an observer's geolocation.
+    INPUTS:
+        obstime_mjd: observation time as a modified julian date
+        obsgeoloc: geolocation of the observatory as an astropy EarthLocation object
+    RETURNS:
+        dq_topos: An array of displacements in the ecliptic frame
+    """
+    # compute the correction due to the observatory of obstime_mjd and geoloc are passed
+    # dq_obs is the displacement from geocenter to the observatory
+    # the observation times as skyfield time objects
+    obstime_jd = mjd_to_jd(obstime_mjd)
+    obstime_sf = ts_sf.tt_jd(obstime_jd)
+    # unpack the geodetic coordinates of this observer geolocation
+    longitude, latitude, height = obsgeoloc.geodetic
+    longitude_degrees = longitude.to(deg).value
+    latitude_degrees = latitude.to(deg).value
+    elevation_m = height.to(meter).value
+    # construct a Skyfield topos instance
+    topos = Topos(latitude_degrees=latitude_degrees, 
+                  longitude_degrees=longitude_degrees, 
+                  elevation_m=elevation_m)
+    # query the topos object at the observation times
+    dq_topos = topos.at(obstime_sf).ecliptic_position().au.T * au
+    dv_topos = topos.at(obstime_sf).ecliptic_velocity().km_per_s.T * km / second
+    dv_topos = dv_topos.to(au/day)
+
+    return dq_topos, dv_topos
+
+# TODO: build a spline of topos adjustments for palomar, for speed; rename this calc_topos_impl
+# and have calc_topos just do a lookup from the spline
+
+# ********************************************************************************************************************* 
+def calc_topos(obstime_mjd, site_name: str):
+    """
+    Calculate topos adjustment using cached spline
+    """
+    # convert site_name to lower case
+    site_name = site_name.lower()
+    # only look up splined topos if obstime_mjd is passed and site name is not geocenter
+    if obstime_mjd is not None and site_name != 'geocenter':
+        try:
+            # Try to find the spline for this site name
+            topos_spline = topos_tbl[site_name]
+        except KeyError:
+            print(f'Generating Topos spline for {site_name}...')
+            # sample on a very big range of dates to ensure spline lookup is good
+            mjd0 = date_to_mjd(date(1980,1,1))
+            mjd1 = date_to_mjd(date(2060,1,1))
+            mjd_long = np.arange(start=mjd0, stop=mjd1, step=0.0625)
+            # convert the site name to a geolocation
+            obsgeoloc = site2geoloc(site_name)
+            # do the actual topos calculation with calc_topos_impl; pass long array mjd_long
+            dq_topos, dv_topos = calc_topos_impl(obstime_mjd=mjd_long, obsgeoloc=obsgeoloc)
+            # build a cubic spline for this site
+            x = mjd_long
+            y = np.concatenate([dq_topos.value, dv_topos.value], axis=1)
+            topos_spline = CubicSpline(x=x, y=y)
+            # save this spline to the topos table
+            topos_tbl[site_name] = topos_spline
+            # save revised topos_tbl to disk
+            np.savez(fname_topos, topos_tbl=topos_tbl)
+        
+        # We are now guaranteed that topos_spline is the spline for this site
+        # Evaluate it at the desired observation times
+        spline_out = topos_spline(obstime_mjd)
+        # unpack into dq and dv, with units
+        dq_topos = spline_out[0:3] * au
+        dv_topos = spline_out[3:6] * au/day
+    else:
+        # default is to use geocenter if obstime and geoloc are not passed
+        dq_topos = np.zeros(3) * au
+        dv_topos = np.zeros(3) * au/day
+    return dq_topos
+
+# ********************************************************************************************************************* 
+def astrometric_dir(q_body: np.ndarray, v_body: np.ndarray, q_obs: np.ndarray):
+    """
+    Compute the astrometric direction from earth to a space body as a unit displacement vector
     u = (ux, uy, uz) in the ecliptic plane.
     INPUTS:
         q_body: position of this body in ecliptic coordinate frame; passed with units (default AU)
         v_body: velocity of this body in ecliptic coordinate frame; passed with units (default AU / day)
-        q_earth: position of earth in ecliptic coordinate frame; passed with units (default AU)
-        obstime_mjd: observation time as a modified julian date; only required if passing obsgeoloc 
-        obsgeoloc: geolocation of the observatory as an astropy EarthLocation object
+        q_obs:  position of observer in ecliptic coordinate frame; passed with units (default AU)
+                typically this will be computed as q_earth + dq_topos
     RETURNS:
         u: An array [ux, uy, uz] on the unit sphere in the ecliptic frame
-    EXAMPLE:
-        u = qv2dir(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
-                   v_body=np.array([-0.013177, -0.001673, 0.000288])*au/day,
-                   q_earth=np.array([-0.813785, -0.586761, -0.000003])*au,
-                   obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
     """
-    # compute the correction due to the observatory of obstime_mjd and geoloc are passed
-    # dq_obs is the displacement from geocenter to the observatory
-    if (obstime_mjd is not None and obsgeoloc is not None):
-        # peel off common special case of geocenter
-        x, y, z = obsgeoloc.geocentric
-        geoloc_norm = np.linalg.norm(np.array([x.value, y.value, z.value]))
-        if geoloc_norm < 1.0E-8:
-            dq_topos = np.zeros(3) * au
-        # the observation times as skyfield time objects
-        obstime_jd = mjd_to_jd(obstime_mjd)
-        obstime_sf = ts_sf.tt_jd(obstime_jd)
-        # unpack the geodetic coordinates of this observer geolocation
-        longitude, latitude, height = obsgeoloc.geodetic
-        longitude_degrees = longitude.to(deg).value
-        latitude_degrees = latitude.to(deg).value
-        elevation_m = height.to(meter).value
-        # construct a Skyfield topos instance
-        topos = Topos(latitude_degrees=latitude_degrees, 
-                      longitude_degrees=longitude_degrees, 
-                      elevation_m=elevation_m)
-        # query the topos object at the observation times
-        dq_topos = topos.at(obstime_sf).ecliptic_position().au.T * au
-        # dv_topos = topos.at(obstime_sf).ecliptic_velocity().km_per_s.T * km / second
-    else:
-        # default is to use geocenter if obstime and geoloc are not passed
-        dq_topos = np.zeros(3) * au
-
-    # reshape dq_topos to match q_earth
-    data_axis, space_axis, shape = infer_shape(q_earth)
-    dq_topos = dq_topos.reshape(shape)
-
-    # position of the observer in space
-    q_obs = q_earth + dq_topos
-
     # displacement from observer on earth to body; in AU
     q_rel = q_body - q_obs
 
@@ -204,6 +255,42 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     r_lt = np.linalg.norm(q_rel_lt, axis=space_axis, keepdims=True) * au
     u = q_rel_lt / r_lt
     return u.value
+
+# ********************************************************************************************************************* 
+def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray, 
+           obstime_mjd: Optional[np.ndarray] = None, 
+           site_name: str = 'geocenter') -> np.ndarray:
+    """
+    Compute the direction of displacement from earth to a space body as a unit displacement vector
+    u = (ux, uy, uz) in the ecliptic plane.
+    INPUTS:
+        q_body: position of this body in ecliptic coordinate frame; passed with units (default AU)
+        v_body: velocity of this body in ecliptic coordinate frame; passed with units (default AU / day)
+        q_earth: position of earth in ecliptic coordinate frame; passed with units (default AU)
+        obstime_mjd: observation time as a modified julian date; only required if passing obsgeoloc 
+        obsgeoloc: geolocation of the observatory as an astropy EarthLocation object
+    RETURNS:
+        u: An array [ux, uy, uz] on the unit sphere in the ecliptic frame
+    EXAMPLE:
+        u = qv2dir(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
+                   v_body=np.array([-0.013177, -0.001673, 0.000288])*au/day,
+                   q_earth=np.array([-0.813785, -0.586761, -0.000003])*au,
+                   obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
+    """
+    # compute the correction due to the observatory of obstime_mjd and site_name are passed
+    dq_topos = calc_topos(objstime_mjd=obstime_mjd, site_name=site_name)
+
+    # reshape dq_topos to match q_earth
+    data_axis, space_axis, shape = infer_shape(q_earth)
+    dq_topos = dq_topos.reshape(shape)
+
+    # position of the observer in space
+    q_obs = q_earth + dq_topos
+
+    # calculate astrometric direction
+    u = astrometric_dir(q_body=q_body, v_body=v_body, q_obs=q_obs)
+
+    return u
 
 # ********************************************************************************************************************* 
 def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarray]:

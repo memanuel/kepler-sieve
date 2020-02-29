@@ -6,6 +6,7 @@
 
 # Serialized variables
 *.pickle
+*.npz
 
 # Data files
 *.csv
