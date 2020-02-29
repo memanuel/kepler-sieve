@@ -196,7 +196,7 @@ def make_data_one_file(n0: int, n1: int, heliocentric: bool = False) \
         'q': q.astype(dtype),
         'v': v.astype(dtype),
         'u': u.astype(dtype),
-        'q_earth' : q_earth.astype(dtype),
+        # 'q_earth' : q_earth.astype(dtype),
     }
     
     return inputs, outputs
