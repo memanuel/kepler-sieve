@@ -9,6 +9,7 @@ Sat Sep 21 10:38:38 2019
 # Core
 import numpy as np
 import pandas as pd
+from scipy.interpolate import CubicSpline
 
 # Astronomy
 import astropy
@@ -119,7 +120,10 @@ def load_ast_data_block(block: int,
     # Swap axes so they will be indexed (asteroid_num, time_step, space_dim)
     # initial order is (time_step, asteroid_number, space_dim)
     q_ast = np.swapaxes(q_ast, 0, 1)
-    v_ast = np.swapaxes(v_ast, 0, 1)
+    v_ast = np.swapaxes(v_ast, 0, 1)    
+
+    # Assemble concatenated 3d arrays for splining
+    # qv_ast = np.concatenate([q_ast, v_ast], axis=2)
 
     # number of times
     N_t = mjd.size
@@ -200,8 +204,9 @@ def load_ast_data_block(block: int,
     return df_ast, df_earth, df_sun
 
 # ********************************************************************************************************************* 
-def load_ast_data(n0: int, n1: int, site_name: str = 'geocenter',
-                  mjd0: Optional[float]=None, mjd1: Optional[float]=None) -> \
+def load_ast_data(n0: int, n1: int, 
+                  mjd0: Optional[float]=None, 
+                  mjd1: Optional[float]=None) -> \
     Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
@@ -246,6 +251,93 @@ def load_ast_data(n0: int, n1: int, site_name: str = 'geocenter',
     df_sun = pd.concat(dfs_sun)
     
     return df_ast, df_earth, df_sun
+    
+# ********************************************************************************************************************* 
+def spline_ast_data(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Load the MSE asteroid integrations for this range of asteroids.
+    INPUTS:
+        n0:  First asteroid to load, e.g. 1
+        n1:  Last asteroid to load, e.g. 64
+        mjd: Array of modified julian dates on which splined output is desired
+    OUTPUTS:
+        df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+        df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        df_sun:   Position & velocity of sun in barycentric frame
+    """
+    # Compute mjd0 and mjd1 from mjd
+    mjd0 = np.min(mjd) - 1
+    mjd1 = np.max(mjd) + 1
+
+    # Load data in this date range
+    df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Time key from mjd at spline points
+    time_key = np.int32(np.round(mjd*24))
+
+    # Distinct asteroids
+    asteroid_num = np.unique(df_ast.asteroid_num.values)
+    # Number of asteroids
+    N_ast = asteroid_num.size
+    # Number of times in input and splined output
+    N_t_in = df_earth.mjd.size
+    N_t_out = mjd.size
+    # Number of rows in input and splined output
+    N_row_in = N_ast * N_t_in
+    N_row_out = N_ast * N_t_out
+
+    # Data to be splined: x axis is time
+    x_spline = df_earth.mjd
+
+    # Desired output columns to be splined for asteroids, earth and sun
+    cols_cart = ['qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f']
+    cols_ast = cols_cart + cols_elt
+    cols_earth = cols_cart + cols_elt
+    cols_sun = cols_cart
+
+    # the indexing of y_spline_ast is (ast_num, time_step, data_dim) with shape e.g. (16, 3653, 6)
+    y_spline_ast = df_ast[cols_ast].values.reshape(N_ast, N_t_in, -1)
+    # Earth and sun data to be splined don't need to be reshaped
+    y_spline_earth = df_earth[cols_earth].values
+    y_spline_sun = df_sun[cols_sun].values
+
+    # splining functions for asteroids, earth, and sun
+    spline_func_ast = CubicSpline(x=x_spline, y=y_spline_ast, axis=1)
+    spline_func_earth = CubicSpline(x=x_spline, y=y_spline_earth, axis=0)
+    spline_func_sun = CubicSpline(x=x_spline, y=y_spline_sun, axis=0)
+
+    # splined output for asteroids, earth and sun
+    spline_data_ast = spline_func_ast(mjd)
+    spline_data_earth = spline_func_earth(mjd)
+    spline_data_sun = spline_func_sun(mjd)
+
+    # asteroid DataFrame
+    ast_dict_keys = {
+        'asteroid_num': np.repeat(asteroid_num, N_t_out),
+        'mjd': np.tile(mjd, N_ast),
+        'time_key' : np.tile(time_key, N_ast)
+    }
+    ast_dict_data = {col:spline_data_ast[:,:,k].reshape(N_row_out) for k, col in enumerate(cols_ast)}
+    ast_dict = dict(**ast_dict_keys, **ast_dict_data)
+    df_ast_out = pd.DataFrame(ast_dict)
+
+    # earth DataFrame
+    earth_dict_keys = {
+        'mjd': mjd,
+        'time_key': time_key
+    }
+    earth_dict_data = {col:spline_data_earth[:,k] for k, col in enumerate(cols_earth)}
+    earth_dict = dict(**earth_dict_keys, **earth_dict_data)
+    df_earth_out = pd.DataFrame(earth_dict)
+
+    # sun DataFrame
+    sun_dict_keys = earth_dict_keys
+    sun_dict_data = {col:spline_data_sun[:,k] for k, col in enumerate(cols_sun)}
+    sun_dict = dict(**sun_dict_keys, **sun_dict_data)
+    df_sun_out = pd.DataFrame(sun_dict)
+    
+    return df_ast_out, df_earth_out, df_sun_out
     
 # ********************************************************************************************************************* 
 def compare_df_vec(df_mse, df_jpl, name: str):
