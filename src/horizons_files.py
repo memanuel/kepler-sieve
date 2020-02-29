@@ -303,7 +303,7 @@ def obs_add_calc_dir(df_obs: pd.DataFrame, site_name: str, source_name: str) -> 
     obsgeoloc = site2geoloc(site_name=site_name, verbose=False)
 
     # Compute the direction of the body from earth using qv2dir
-    u = qv2dir(q_body=q_body, v_body=v_body, q_earth=q_earth, obstime_mjd=obstime_mjd, obsgeoloc=obsgeoloc)
+    u, delta = qv2dir(q_body=q_body, v_body=v_body, q_earth=q_earth, obstime_mjd=obstime_mjd, site_name=site_name)
 
     # Compute the RA and DEC from the direction
     obstime_mjd = df_obs.mjd.values

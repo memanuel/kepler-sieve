@@ -310,7 +310,7 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     RETURNS:
         u: An array [ux, uy, uz] on the unit sphere in the ecliptic frame
     EXAMPLE:
-        u = qv2dir(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
+        u, delta = qv2dir(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
                    v_body=np.array([-0.013177, -0.001673, 0.000288])*au/day,
                    q_earth=np.array([-0.813785, -0.586761, -0.000003])*au,
                    obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
@@ -328,7 +328,7 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     # calculate astrometric direction
     u, delta = astrometric_dir(q_body=q_body, v_body=v_body, q_obs=q_obs)
 
-    return u
+    return u, delta
 
 # *************************************************************************************************
 def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbose: bool=False) -> float:

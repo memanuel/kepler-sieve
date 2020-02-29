@@ -23,7 +23,7 @@ from utils import range_inc
 from astro_utils import datetime_to_mjd
 from asteroid_integrate import load_data
 from rebound_utils import load_sim_np
-from ra_dec import calc_topos, astrometric_dir, dir2radec
+from ra_dec import qv2dir, dir2radec, calc_topos, astrometric_dir, direction_diff
 
 # Type names
 from typing import Optional, Tuple, Dict
@@ -358,29 +358,31 @@ def spline_ast_obs(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
     cols_q = ['qx', 'qy', 'qz']
     cols_v = ['vx', 'vy', 'vz']
     q_ast = df_ast[cols_q].values * au
-    v_ast = df_ast[cols_q].values * au / day
-
-    # position of earth and topos adjustment
-    q_earth = df_earth[cols_q].values * au
-    # Topos adjustment
-    dq_topos = calc_topos(obstime_mjd=mjd_earth, site_name=site_name)
-    # position of the observatory in ecliptic frame
-    q_obs_once = q_earth + dq_topos
+    v_ast = df_ast[cols_v].values * au / day
 
     # number of asteroids
     asteroid_num = df_ast.asteroid_num.values
     asteroid_num_unq = np.unique(asteroid_num)
     N_ast = asteroid_num_unq.size
 
+    # position of earth and topos adjustment
+    q_earth_once = df_earth[cols_q].values * au
+    # Topos adjustment
+    dq_topos = calc_topos(obstime_mjd=mjd_earth, site_name=site_name)
+    # position of the observatory in ecliptic frame
+    q_obs_once = q_earth_once + dq_topos
+
     # tile q_obs so it can be subtracted from q_ast
     q_obs = np.tile(q_obs_once, (N_ast,1))    
 
     # calculate the astrometric direction with the observer position
     u_ast, delta = astrometric_dir(q_body=q_ast, v_body=v_ast, q_obs=q_obs)
+
+    # extract components from u
     ux = u_ast[:, 0]
     uy = u_ast[:, 1]
     uz = u_ast[:, 2]
-    
+
     # compute RA/DEC from direction
     ra, dec = dir2radec(u=u_ast, obstime_mjd=mjd_ast)
 
@@ -427,3 +429,18 @@ def compare_df_vec(df_mse, df_jpl, name: str):
     # print(f' jd: {err_jd:6.2e} days')
     print(f'  q: {err_q_mean:6.2e} AU     (max {err_q_max:6.2e})')
     print(f'  v: {err_v_mean:6.2e} AU/day (rel {err_v_rel:6.2e})')
+
+# ********************************************************************************************************************* 
+def compare_df_obs(df_mse, df_jpl, name: str):
+    """Compare DataFrames with MSE vs. JPL observations"""
+    # Columnwise mean absolute error
+    err_mjd = np.mean(np.abs(df_mse.mjd - df_jpl.mjd))
+
+    # direction from both frames
+    u_mse = df_mse[['ux', 'uy', 'uz']].values
+    u_jpl = df_jpl[['ux_jpl', 'uy_jpl', 'uz_jpl']].values
+
+    print(f'Mean absolute error for {name} observations: MSE vs. JPL')
+    print(f'mjd: {err_mjd:6.2e} days')
+
+    direction_diff(name1='mse', name2='jpl', u1=u_mse, u2=u_jpl, verbose=True)
