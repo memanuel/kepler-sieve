@@ -60,11 +60,11 @@ def load_ztf_det(mjd0: float, mjd1: float):
         det.mjd,
         det.ra,
         det.dec,
-        det.magpsf,
-        det.magap,
-        det.magnr,
-        det.sigmara,
-        det.sigmadec,
+        det.magpsf as mag_psf,
+        det.magap as mag_app,
+        det.magnr as nag_nr,
+        det.sigmara as sigma_ra,
+        det.sigmadec as sigma_dec,
         obj.pclassearly as asteroid_prob
     from 
         detections as det
@@ -201,35 +201,44 @@ def load_ztf_det_all():
         ztf_det_add_dir(df=df, file_name='ztf-detections.h5', dir_name='../data/ztf')
 
     # Drop the superfluous magnitude columns to avoid confusion
-    df.drop(columns=['magpsf', 'magnr'], inplace=True)
-    # Rename the column 'magap' to 'mag'
-    df.rename(columns={'magap':'mag'})
-    
-    return df
+    df.drop(columns=['mag_psf', 'mag_nr'], inplace=True)
+    # Rename the column 'mag_app' to 'mag'
+    df.rename(columns={'mag_app':'mag'})
+
+    # Generate the TimeStampID column.  This is integer key counting the unique times of observations.
+    mjd_unq, time_stamp_id = np.unique(df.mjd.values, return_inverse=True)
+    # Convert time_stamp_id to 32 bit integer
+    time_stamp_id = time_stamp_id.astype(np.int32)
+    # Add TimeStampID to the DataFrame
+    col_num_ts = df.columns.get_loc('CandidateID') + 1
+    df.insert(loc=col_num_ts, column='TimeStampID', value=time_stamp_id)
+
+    # Return the DataFrame of observations and vector of unique observation times
+    return df, mjd_unq
 
 # ********************************************************************************************************************* 
-def interp_ast_dir(ast_num_src: np.ndarray, mjd_src: np.ndarray, u_src: np.ndarray, 
-                   ast_num_out: np.int32, mjd_out: np.ndarray):
-    """
-    Construct splined predicted asteroid directions from a source at desired dates.
-    INPUTS:
-        ast_num_src: asteroid numbers whose position is predicted by source; shape (N,)
-        mjd_src    : modified julian dates as of which direction is predicted by source; shape (N,)
-        u_src      : directions from observatory to asteroid predicted by source; shape (N,3,)
-        ast_num_out: asteroid number whose position is desired; scalar integer
-        mjd_out    : modified julian dates as of which interpolated directions are desired; shape (M,)
-    OUTPUTS:
-        u_out      : predicted direction to asteroid ast_num_out at times mjd_out; shape (M,3,)
-    """
-    # Mask matching desired asteroid
-    mask = (ast_num_src == ast_num_out)
+# def interp_ast_dir(ast_num_src: np.ndarray, mjd_src: np.ndarray, u_src: np.ndarray, 
+#                    ast_num_out: np.int32, mjd_out: np.ndarray):
+#     """
+#     Construct splined predicted asteroid directions from a source at desired dates.
+#     INPUTS:
+#         ast_num_src: asteroid numbers whose position is predicted by source; shape (N,)
+#         mjd_src    : modified julian dates as of which direction is predicted by source; shape (N,)
+#         u_src      : directions from observatory to asteroid predicted by source; shape (N,3,)
+#         ast_num_out: asteroid number whose position is desired; scalar integer
+#         mjd_out    : modified julian dates as of which interpolated directions are desired; shape (M,)
+#     OUTPUTS:
+#         u_out      : predicted direction to asteroid ast_num_out at times mjd_out; shape (M,3,)
+#     """
+#     # Mask matching desired asteroid
+#     mask = (ast_num_src == ast_num_out)
 
-    # Build cubic spline of u_src vs. mjd_src, masked for selected asteroid
-    x_spline = mjd_src[mask]
-    y_spline = u_src[mask]
-    u_spline = CubicSpline(x=x_spline, y=y_spline)
+#     # Build cubic spline of u_src vs. mjd_src, masked for selected asteroid
+#     x_spline = mjd_src[mask]
+#     y_spline = u_src[mask]
+#     u_spline = CubicSpline(x=x_spline, y=y_spline)
     
-    # Evaluate the spline at desired times
-    u_out = u_spline(mjd_out)
+#     # Evaluate the spline at desired times
+#     u_out = u_spline(mjd_out)
     
-    return u_out
+#     return u_out

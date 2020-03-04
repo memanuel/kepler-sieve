@@ -343,9 +343,9 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.
     return df_ast_out, df_earth_out, df_sun_out
     
 # ********************************************************************************************************************* 
-def spline_ast_obs(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
+def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
     """
-    Generate a DataFrame of predicted observations given positions of asteroids and earth, and a site name.
+    Generate a DataFrame of predicted directions given positions of asteroids and earth, and a site name.
     INPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
         df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
@@ -387,7 +387,7 @@ def spline_ast_obs(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
     ra, dec = dir2radec(u=u_ast, obstime_mjd=mjd_ast)
 
     # build the observation DataFrame
-    obs_dict = {
+    dir_dict = {
         'asteroid_num': asteroid_num,
         'mjd' : mjd_ast,
         'time_key': np.int32(np.round(mjd_ast*24)),
@@ -398,12 +398,12 @@ def spline_ast_obs(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
         'uz': uz,
         'delta': delta
     }
-    df_obs = pd.DataFrame(obs_dict)    
+    df_dir = pd.DataFrame(dir_dict)
     
-    return df_obs
+    return df_dir
 
 # ********************************************************************************************************************* 
-def spline_ast_vec_obs(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geocenter') -> \
+def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geocenter') -> \
         Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Convenience API to (1) obtain splined vectors (2) observed angles
@@ -422,10 +422,10 @@ def spline_ast_vec_obs(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geoc
     df_ast, df_earth, df_sun = spline_ast_vec(n0=n0, n1=n1, mjd=mjd)
 
     # Calculate predicted RA / DEC and direction with spline_ast_obs
-    df_obs = spline_ast_obs(df_ast=df_ast, df_earth=df_earth, site_name=site_name)
+    df_dir = spline_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name=site_name)
 
     # Return earth and asteroid vectors plus aligned observations
-    return df_ast, df_earth, df_obs
+    return df_ast, df_earth, df_dir
 
 # ********************************************************************************************************************* 
 def compare_df_vec(df_mse, df_jpl, name: str):
@@ -456,7 +456,7 @@ def compare_df_vec(df_mse, df_jpl, name: str):
     print(f'  v: {err_v_mean:6.2e} AU/day (rel {err_v_rel:6.2e})')
 
 # ********************************************************************************************************************* 
-def compare_df_obs(df_mse, df_jpl, name: str):
+def compare_df_dir(df_mse, df_jpl, name: str):
     """Compare DataFrames with MSE vs. JPL observations"""
     # Columnwise mean absolute error
     err_mjd = np.mean(np.abs(df_mse.mjd - df_jpl.mjd))

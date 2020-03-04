@@ -57,7 +57,7 @@ def load_pos_jpl(body_name: str, dir_name: str = '../data/jpl/testing/hourly'):
     return df
 
 # ********************************************************************************************************************
-def load_ast_jpl(ast_num0: int, ast_num1: int, dir_name: str = '../data/jpl/testing/hourly'):
+def load_ast_pos_jpl(ast_num0: int, ast_num1: int, dir_name: str = '../data/jpl/testing/hourly'):
     """
     Construct a DataFrame with the position and velocity of a batch of asteroids according to JPL.
     INPUTS:
@@ -129,7 +129,7 @@ def load_obs_jpl(body_name: str, observer_name: str, dir_name: str = '../data/jp
     return df
 
 # ********************************************************************************************************************
-def load_obs_ast_jpl(ast_num0: int, ast_num1: int, observer_name: str, 
+def load_ast_obs_jpl(ast_num0: int, ast_num1: int, observer_name: str, 
                      dir_name: str = '../data/jpl/testing/hourly'):
     """
     Construct a DataFrame with the observation of a batch of asteroids according to JPL
