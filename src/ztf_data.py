@@ -7,6 +7,11 @@ Michael S. Emanuel
 27-Feb-2020
 """
 
+# Libraries for getting Alerce data out of ZTF2 database
+import json
+import psycopg2
+from alerce.api import AlerceAPI
+
 # Standard libraries
 import numpy as np
 import pandas as pd
@@ -21,15 +26,18 @@ import datetime
 from datetime import date
 from tqdm.auto import tqdm
 
-# Libraries for getting Alerce data out of ZTF2 database
-import json
-import psycopg2
-from alerce.api import AlerceAPI
+# Plotting
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from IPython.display import Image
 
 # MSE imports
 from utils import range_inc
 from astro_utils import date_to_mjd
 from ra_dec import radec2dir
+
+# Typing
+from typing import Optional
 
 # ********************************************************************************************************************* 
 # Get credentials for ZTF2 connection
@@ -105,7 +113,7 @@ def load_ztf_det_year(year: int, save_dir: str = '../data/ztf'):
     """
     # Check if file already exists.  If so, load it from memory and return early
     file_name = os.path.join(save_dir, f'ztf-detections-{year}.h5')
-    try:        
+    try:
         df = pd.read_hdf(file_name)
         print(f'Loaded {file_name} from disk.')
         return df
@@ -180,10 +188,13 @@ def load_ztf_det_all():
     """
     # Check if file already exists.  If so, load it from memory and return early
     save_dir = '../data/ztf'
-    file_name = os.path.join(save_dir, f'ztf-detections.h5')
+    file_path = os.path.join(save_dir, f'ztf-detections.h5')
     try:
-        df = pd.read_hdf(file_name)
-        print(f'Loaded {file_name} from disk.')
+        df = pd.read_hdf(file_path)
+        print(f'Loaded {file_path} from disk.')
+        # Generate the unique times
+        mjd_unq = np.unique(df.mjd.values)
+        return df, mjd_unq
     except:
         print(f'Assembling {file_name} from ZTF detections by year...')   
         # Load data for all years with available data
@@ -213,32 +224,262 @@ def load_ztf_det_all():
     col_num_ts = df.columns.get_loc('CandidateID') + 1
     df.insert(loc=col_num_ts, column='TimeStampID', value=time_stamp_id)
 
+    # Save assembled DataFrame to disk
+    df.to_hdf(file_path, key='ztf', mode='w')
+
     # Return the DataFrame of observations and vector of unique observation times
     return df, mjd_unq
 
 # ********************************************************************************************************************* 
-# def interp_ast_dir(ast_num_src: np.ndarray, mjd_src: np.ndarray, u_src: np.ndarray, 
-#                    ast_num_out: np.int32, mjd_out: np.ndarray):
-#     """
-#     Construct splined predicted asteroid directions from a source at desired dates.
-#     INPUTS:
-#         ast_num_src: asteroid numbers whose position is predicted by source; shape (N,)
-#         mjd_src    : modified julian dates as of which direction is predicted by source; shape (N,)
-#         u_src      : directions from observatory to asteroid predicted by source; shape (N,3,)
-#         ast_num_out: asteroid number whose position is desired; scalar integer
-#         mjd_out    : modified julian dates as of which interpolated directions are desired; shape (M,)
-#     OUTPUTS:
-#         u_out      : predicted direction to asteroid ast_num_out at times mjd_out; shape (M,3,)
-#     """
-#     # Mask matching desired asteroid
-#     mask = (ast_num_src == ast_num_out)
+def ztf_nearest_ast(ztf: pd.DataFrame, 
+                    ast_dir: pd.DataFrame, 
+                    thresh_deg: float = 180.0,
+                    file_name: Optional[str] = None, 
+                    dir_name: str = '../data/ztf',
+                    regen: bool = False):
+    """
+    Find the nearest asteroid to each observation in the ZTF data.
+    INPUTS:
+        ztf:     DataFrame of ZTF observations.  
+                 Columns used include TimeStampID, ux, uy, uz, nearest_ast_num, nearest_ast_dist
+        ast_dir: DataFrame of theoretical asteroid directions from observatory with observations.
+                 mjd must match up with thos of mjd_unq (unique, sorted time stamps in ztf)
+        thresh:  Threshold in degrees to consider an observation close to an asteroid
+        file_name:   Name of file to load from or save to
+        dir_name:    Directory with h5 file
+        regen:   Flag; force regeneration of file whether or not on disk
+    OUTPUTS:
+        DataFrame ztf with the columns for nearest asteroid
+    """
+    # Distinct asteroid numbers in ast_dir
+    asteroid_nums = np.unique(ast_dir.asteroid_num)
+    # Range of asteroid numbers
+    ast_min: int = np.min(asteroid_nums)
+    ast_max: int = np.max(asteroid_nums)
 
-#     # Build cubic spline of u_src vs. mjd_src, masked for selected asteroid
-#     x_spline = mjd_src[mask]
-#     y_spline = u_src[mask]
-#     u_spline = CubicSpline(x=x_spline, y=y_spline)
-    
-#     # Evaluate the spline at desired times
-#     u_out = u_spline(mjd_out)
-    
-#     return u_out
+    # Default file name if one wasn't specified
+    if file_name is None:
+        file_name = f'ztf-nearest-ast-{ast_min}-{ast_max}.h5'
+
+    # Assemble file_path
+    file_path = os.path.join(dir_name, file_name)
+    if not regen:
+        try:
+            df = pd.read_hdf(file_path)
+            print(f'Loaded {file_path} from disk.')
+            return df
+        except:
+            print(f'Unable to load {file_path}, computing nearest asteroids from {ast_min} to {ast_max}...')
+    else:
+        print(f'Regenerating {file_path}, computing nearest asteroids from {ast_min} to {ast_max}...')
+
+    # Convert threshold from degrees to magnitude of direction difference
+    thresh_dist = np.sin(np.deg2rad(thresh_deg/2.0))*2.0
+
+    # Add columns for nearest asteroid number and distance if not already present
+    if 'nearest_ast_num' not in ztf.columns:
+        ztf.insert(loc=ztf.columns.size, column='nearest_ast_num', value=np.int32(-1))
+    if 'nearest_ast_dist' not in ztf.columns:
+        ztf.insert(loc=ztf.columns.size, column='nearest_ast_dist', value=2.0)
+    # Add columns for RA, DEC, and direction of nearest asteroid
+    cols_nearest_ast_radec = ['ast_ra', 'ast_dec']
+    cols_nearest_ast_dir = ['ast_ux', 'ast_uy', 'ast_uz']
+    for col in (cols_nearest_ast_radec + cols_nearest_ast_dir):
+        if col not in ztf.columns:
+            ztf.insert(loc=ztf.columns.size, column=col, value=np.nan)
+        
+    # Extract directions of the ZTF observations as an Mx3 array
+    cols_radec = ['ra', 'dec']
+    cols_dir = ['ux', 'uy', 'uz']
+    # radec_ztf = ztf[cols_radec].values
+    u_ztf = ztf[cols_dir].values
+
+    # Extract TimeStampID as M array
+    row_num = ztf.TimeStampID.values
+
+    # Check asteroid distance one at a time
+    for asteroid_num in tqdm(asteroid_nums):
+        # Mask for this asteroid in the ast_dir DataFrame
+        mask_ast = (ast_dir.asteroid_num == asteroid_num)
+
+        # Directions of this asteroid at the unique time stamps
+        radec_ast_unq = ast_dir.loc[mask_ast, cols_radec].values
+        u_ast_unq = ast_dir.loc[mask_ast, cols_dir].values
+
+        # Difference bewteen ztf direction and this asteroid direction
+        dist_i = np.linalg.norm(u_ztf - u_ast_unq[row_num], axis=1)
+
+        # Is this the closest seen so far?
+        mask_close = (dist_i < thresh_dist) & (dist_i < ztf.nearest_ast_dist)
+        # Row numbers corresponding to close observations
+        row_num_close = row_num[mask_close]
+        # Update nearest asteroid number and distance columns
+        ztf.nearest_ast_num[mask_close] = asteroid_num
+        ztf.nearest_ast_dist[mask_close] = dist_i
+        # Save the RA, DEC and direction columns
+        ztf.loc[mask_close, cols_nearest_ast_radec] = radec_ast_unq[row_num_close]
+        ztf.loc[mask_close, cols_nearest_ast_dir] = u_ast_unq[row_num_close]
+
+    # Save assembled DataFrame to disk and return it
+    ztf.to_hdf(file_path, key='ztf', mode='w')
+    return ztf
+
+# ********************************************************************************************************************* 
+def ztf_obs_by_month(ztf):
+    """Generate a chart summarizing observations by month in ZTF data"""
+    # Extract the year-month tuple for each observation for summarizing
+    tt = Time(ztf.mjd, format='mjd')
+    isotimes = tt.iso
+    ym = np.array([isotime[0:7] for isotime in isotimes])
+    ym_ser = pd.Series(data=ym, index=ztf.index)
+
+    # Group data by month for monthly summary
+    obs_monthly = ztf.groupby(ym_ser)
+    obs_monthly_count = obs_monthly.size()
+
+    # Calculations for plot
+    month_strs = obs_monthly_count.index.values
+    x_values = np.arange(obs_monthly_count.size)
+    x_dates = [date(int(x[0:4]), int(x[5:7]), 1) for x in month_strs]
+    y_values = obs_monthly_count.values
+
+    # Plot the number of observations by month
+    fig, ax = plt.subplots()
+    ax.set_title('Alerce Asteroid Observations by Month')
+    ax.set_xlabel('Month')
+    ax.set_ylabel('Asteroid Observations')
+    # ax.bar(x=x_values, height=y_values, tick_label=month_strs, color='blue')
+    ax.bar(x=x_values, height=y_values, color='blue')
+    ax.set_xticks(x_values[::3])
+    ax.set_xticks(x_values, minor=True)
+    ax.set_xticklabels(month_strs[::3], minor=False)
+    # ax.legend()
+    ax.grid()
+    fig.savefig('../figs/alerce/alerce_ast_per_month.png', bbox_inches='tight')
+    plt.show()
+
+# ********************************************************************************************************************* 
+def dist2rad(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to radians in [0, pi]"""
+    x_rad = np.arcsin(0.5 * dist) * 2.0
+    return x_rad
+
+# ********************************************************************************************************************* 
+def rad2dist(x_rad):
+    """Convert a distance on unit sphere from radians in [0, pi] to cartesian distance in [0, 2]"""
+    return np.sin(0.5 * x_rad) * 2.0
+
+# ********************************************************************************************************************* 
+def dist2deg(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to degrees in [0, 180]"""
+    x_rad = dist2rad(dist)
+    return np.rad2deg(x_rad)
+
+# ********************************************************************************************************************* 
+def deg2dist(x_deg):
+    """Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]"""
+    x_rad = np.deg2rad(x_deg)
+    return rad2dist(x_rad)
+
+# ********************************************************************************************************************* 
+def cdf_nearest_dist(dist: np.ndarray, n: int, thresh_deg: float = 180.0):
+    """
+    Compute the theoretical CDF of the nearest distance to n points that are distributed uniformly at random on the sphere.
+    INPUTS:
+        dist: Distances in cartesian space (so dist ranges from 0 to 2.0)
+        n:    Number of asteroids compared to each observation, e.g. 16 or 100
+        thresh_deg: Threshold in degrees; only distances smaller than threshold are included
+    OUTPUTS:
+        p:    CDF; these will be distributed as Unif[0, 1] for random data
+    """
+    # Convert dist to radians; result will be in the interval [0, 2pi]
+    # x = np.arcsin(0.5 * dist) * 2.0
+    x = dist2rad(dist)
+    # The theoretical CDF of the min of n distances
+    alpha = 0.5*(1.0 + np.cos(x))
+    p = 1.0 - alpha**n
+    # Compute the CDF at the threshold
+    thresh = np.deg2rad(thresh_deg)
+    alpha_thresh = 0.5*(1.0 + np.cos(thresh))
+    p_thresh = 1.0 - alpha_thresh**n
+    # return the conditional probability distribution
+    p_cond = p / p_thresh
+    return p_cond
+
+# ********************************************************************************************************************* 
+def plot_cdf_uncond(ztf: pd.DataFrame, n: int, bins=100):
+    """
+    Genereate two CDFs of asteroid distance.
+    INPUTS:
+        ztf: DataFrame with distance to nearest asteroid
+        n:   Number of asteroids, e.g. 16
+    """
+    # Number of rows in data
+    N_obs = ztf.shape[0]
+    # Histogram: unconditional probability
+    p = cdf_nearest_dist(dist=ztf.nearest_ast_dist.values, n=n, thresh_deg=180.0)
+
+    # Plot unconditional histogram
+    fig, ax = plt.subplots()
+    ax.set_title(f'Histogram of Distance to Nearest Asteroid for n={n} (No Threshold)')
+    ax.set_xlabel('Percentile of Random Distribution')
+    ax.set_ylabel('Observed Frequency')
+    freq, bins_np, patches = ax.hist(x=p, bins=bins, color='blue', label='observed')
+    bin_count = bins_np.size - 1
+    random_freq = N_obs / bin_count
+    ax.axhline(y=random_freq, color='red', label='random')
+    ax.legend()
+    ax.grid()
+    fig.savefig(f'../figs/alerce/nearest_ast_hist_n={n}.png', bbox_inches='tight')
+    plt.show()
+    return fig, ax
+
+# ********************************************************************************************************************* 
+def plot_cdf_cond(ztf, n: int, thresh_deg: float = 1.0, bins=20):
+    """
+    Genereate two CDFs of asteroid distance.
+    INPUTS:
+        ztf: DataFrame with distance to nearest asteroid
+        n:   Number of asteroids, e.g. 16
+        thresh_deg: Threshold in degrees for close observations
+    """
+    # Number of rows in data
+    N_obs = ztf.shape[0]
+
+    # Threshold distance and flag indicating whether observations are within threshold
+    thresh_dist = deg2dist(thresh_deg)
+    is_close = ztf.nearest_ast_dist < thresh_dist
+
+    # Probability of being close at this threshold on a random observation 
+    prob_close = cdf_nearest_dist(dist=thresh_dist, n=n)
+
+    # CDF 
+    p = cdf_nearest_dist(dist=ztf[is_close].nearest_ast_dist.values, n=n, thresh_deg=1.0)
+
+    # String description of threshold
+    thresh_min = 60 * thresh_deg
+    thresh_sec = 60 * thresh_min
+    if 1.0 <= thresh_deg:
+        thresh_caption = f'{thresh_deg:.0f} Degrees'
+        thresh_str = f'{thresh_deg:.0f}_deg'
+    elif 1.0 <= thresh_min:
+        thresh_caption = f'{thresh_min:.0f} Arc Minutes'
+        thresh_str = f'{thresh_min:.0f}_arc_min'
+    elif 1.0 <= thresh_sec:
+        thresh_caption = f'{thresh_sec:.0f} Arc Seconds'
+        thresh_str = f'{thresh_sec:.0f}_arc_sec'
+
+    # Plot unconditional histogram
+    fig, ax = plt.subplots()
+    ax.set_title(f'Histogram of Distance to Nearest Asteroid for n={n} (Threshold {thresh_caption} )')
+    ax.set_xlabel('Percentile of Random Distribution')
+    ax.set_ylabel('Observed Frequency')
+    freq, bins_np, patches = ax.hist(x=p, bins=bins, color='blue', label='observed')
+    bin_count = bins_np.size - 1
+    random_freq = N_obs * prob_close/ bin_count
+    ax.axhline(y=random_freq, color='red', label='random')
+    ax.legend()
+    ax.grid()
+    fig.savefig(f'../figs/alerce/nearest_ast_hist_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
+    plt.show()
+    return fig, ax

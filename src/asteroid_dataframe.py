@@ -17,6 +17,7 @@ from astropy.units import au, day
 
 # Utility
 from datetime import datetime
+from tqdm.auto import tqdm
 
 # Local imports
 from utils import range_inc
@@ -235,7 +236,8 @@ def load_ast_data(n0: int, n1: int,
     dfs_sun = np.empty(num_blocks, dtype=object)
 
     # Iterate through the blocks
-    for i, block in enumerate(range_inc(block_min, block_max)):
+    print(f'Loading asteroid data from n0={n0} to n1={n1} in {num_blocks} blocks...')
+    for i, block in tqdm(enumerate(range_inc(block_min, block_max))):
         # Load the data for this block
         df_ast_i, df_earth_i, df_sun_i = load_ast_data_block(block=block, mjd0=mjd0, mjd1=mjd1)
         # If it's the first or last block, filter it necessary
