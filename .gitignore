@@ -34,6 +34,7 @@ sql/01-MakeTable
 data/asteroids
 data/observations
 data/planets
+data/ztf_ast
 
 # ******************************************************************************************
 # Model checkpoints in specific directories

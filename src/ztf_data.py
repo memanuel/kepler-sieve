@@ -35,6 +35,7 @@ from IPython.display import Image
 from utils import range_inc
 from astro_utils import date_to_mjd
 from ra_dec import radec2dir
+from asteroid_dataframe import spline_ast_vec_dir
 
 # Typing
 from typing import Optional
@@ -231,47 +232,25 @@ def load_ztf_det_all():
     return df, mjd_unq
 
 # ********************************************************************************************************************* 
-def ztf_nearest_ast(ztf: pd.DataFrame, 
-                    ast_dir: pd.DataFrame, 
-                    thresh_deg: float = 180.0,
-                    file_name: Optional[str] = None, 
-                    dir_name: str = '../data/ztf',
-                    regen: bool = False):
+def ztf_calc_nearest_ast(ztf: pd.DataFrame, 
+                         ast_dir: pd.DataFrame, 
+                         thresh_deg: float = 180.0):
     """
-    Find the nearest asteroid to each observation in the ZTF data.
+    Calculate the nearest asteroid to each observation in the ZTF data.
     INPUTS:
         ztf:     DataFrame of ZTF observations.  
                  Columns used include TimeStampID, ux, uy, uz, nearest_ast_num, nearest_ast_dist
         ast_dir: DataFrame of theoretical asteroid directions from observatory with observations.
                  mjd must match up with thos of mjd_unq (unique, sorted time stamps in ztf)
         thresh:  Threshold in degrees to consider an observation close to an asteroid
-        file_name:   Name of file to load from or save to
-        dir_name:    Directory with h5 file
-        regen:   Flag; force regeneration of file whether or not on disk
     OUTPUTS:
         DataFrame ztf with the columns for nearest asteroid
     """
     # Distinct asteroid numbers in ast_dir
     asteroid_nums = np.unique(ast_dir.asteroid_num)
     # Range of asteroid numbers
-    ast_min: int = np.min(asteroid_nums)
-    ast_max: int = np.max(asteroid_nums)
-
-    # Default file name if one wasn't specified
-    if file_name is None:
-        file_name = f'ztf-nearest-ast-{ast_min}-{ast_max}.h5'
-
-    # Assemble file_path
-    file_path = os.path.join(dir_name, file_name)
-    if not regen:
-        try:
-            df = pd.read_hdf(file_path)
-            print(f'Loaded {file_path} from disk.')
-            return df
-        except:
-            print(f'Unable to load {file_path}, computing nearest asteroids from {ast_min} to {ast_max}...')
-    else:
-        print(f'Regenerating {file_path}, computing nearest asteroids from {ast_min} to {ast_max}...')
+    # ast_min: int = np.min(asteroid_nums)
+    # ast_max: int = np.max(asteroid_nums)
 
     # Convert threshold from degrees to magnitude of direction difference
     thresh_dist = np.sin(np.deg2rad(thresh_deg/2.0))*2.0
@@ -320,9 +299,60 @@ def ztf_nearest_ast(ztf: pd.DataFrame,
         ztf.loc[mask_close, cols_nearest_ast_radec] = radec_ast_unq[row_num_close]
         ztf.loc[mask_close, cols_nearest_ast_dir] = u_ast_unq[row_num_close]
 
-    # Save assembled DataFrame to disk and return it
-    ztf.to_hdf(file_path, key='ztf', mode='w')
     return ztf
+
+# ********************************************************************************************************************* 
+def ztf_nearest_ast(ztf: pd.DataFrame, 
+                    n0: int, 
+                    n1: int,
+                    thresh_deg: float = 180.0,
+                    dir_name: str = '../data/ztf_ast',
+                    regen: bool = False):
+    """
+    Load or calculate the nearest asteroid to each observation in the ZTF data.
+    INPUTS:
+        ztf:      DataFrame of ZTF observations.  
+                  Columns used include TimeStampID, ux, uy, uz, nearest_ast_num, nearest_ast_dist
+        n0:       First asteroid number to process, inclusive (e.g. 0)
+        n1:       Last asteroid number to process, exclusive (e.g. 1000)
+        thresh:   Threshold in degrees to consider an observation close to an asteroid
+        dir_name: Directory with h5 file
+        regen:    Flag; force regeneration of file whether or not on disk
+    OUTPUTS:
+        DataFrame ztf with the columns for nearest asteroid
+    """
+    # File name and path
+    file_name = f'ztf-nearest-ast-{n0:06d}-{n1:06d}.h5'
+    file_path = os.path.join(dir_name, file_name)
+
+    # Load the data file if its available, and regeneration was not requested
+    if not regen:
+        try:
+            df = pd.read_hdf(file_path)
+            print(f'Loaded {file_path} from disk.')
+            return df
+        except:
+            print(f'Unable to load {file_path}, computing nearest asteroids from {n0} to {n1}...')
+    else:
+        print(f'Regenerating {file_path}, computing nearest asteroids from {n0} to {n1}...')
+    
+    # If we get here, we need to build the ztf_ast DataFrame by calculation
+
+    # Unique times in ztf data
+    mjd_unq = np.unique(ztf.mjd)
+
+    # Observatory for ZTF data is always Palomar Mountain
+    site_name = 'palomar'
+
+    # Build splined positions and observations at unique observation times
+    ast_pos, earth_pos, ast_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=mjd_unq, site_name=site_name)
+
+    # Calculate nearest asteroid in this block with  ztf_calc_nearest_ast
+    ztf_ast = ztf_calc_nearest_ast(ztf=ztf, ast_dir=ast_dir, thresh_deg=thresh_deg)
+
+    # Save assembled DataFrame to disk and return it
+    ztf_ast.to_hdf(file_path, key='ztf_ast', mode='w')
+    return ztf_ast
 
 # ********************************************************************************************************************* 
 def ztf_obs_by_month(ztf):
