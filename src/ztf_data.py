@@ -355,7 +355,7 @@ def ztf_obs_by_month(ztf):
     ax.set_xticklabels(month_strs[::3], minor=False)
     # ax.legend()
     ax.grid()
-    fig.savefig('../figs/alerce/alerce_ast_per_month.png', bbox_inches='tight')
+    fig.savefig('../figs/ztf/alerce_ast_per_month.png', bbox_inches='tight')
     plt.show()
 
 # ********************************************************************************************************************* 
@@ -430,7 +430,7 @@ def plot_cdf_uncond(ztf: pd.DataFrame, n: int, bins=100):
     ax.axhline(y=random_freq, color='red', label='random')
     ax.legend()
     ax.grid()
-    fig.savefig(f'../figs/alerce/nearest_ast_hist_n={n}.png', bbox_inches='tight')
+    fig.savefig(f'../figs/ztf/nearest_ast_hist_n={n}.png', bbox_inches='tight')
     plt.show()
     return fig, ax
 
@@ -480,6 +480,6 @@ def plot_cdf_cond(ztf, n: int, thresh_deg: float = 1.0, bins=20):
     ax.axhline(y=random_freq, color='red', label='random')
     ax.legend()
     ax.grid()
-    fig.savefig(f'../figs/alerce/nearest_ast_hist_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
+    fig.savefig(f'../figs/ztf/nearest_ast_hist_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
     plt.show()
     return fig, ax

@@ -216,7 +216,7 @@ def load_ast_data(n0: int, n1: int,
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
         n0:  First asteroid to load, e.g. 1
-        n1:  Last asteroid to load, e.g. 64
+        n1:  Last asteroid to load, (inclusive) e.g. 64
         mjd0: Start modfified julian date used to filter output.
         mjd1: Last modified julian date used to filter output.
               Default for mjd0 and mjd1 is None; then return all available time steps
@@ -230,30 +230,27 @@ def load_ast_data(n0: int, n1: int,
     block_max = n1 // ast_block_size
     num_blocks = block_max - block_min + 1
 
-    # List of frames
+    # List of asteroid frames for each data block
     dfs_ast = np.empty(num_blocks, dtype=object)
-    dfs_earth = np.empty(num_blocks, dtype=object)
-    dfs_sun = np.empty(num_blocks, dtype=object)
 
     # Iterate through the blocks
     print(f'Loading asteroid data from n0={n0} to n1={n1} in {num_blocks} blocks...')
-    for i, block in tqdm(enumerate(range_inc(block_min, block_max))):
+    iterates = list(enumerate(range_inc(block_min, block_max)))
+    for i, block in tqdm(iterates):
         # Load the data for this block
         df_ast_i, df_earth_i, df_sun_i = load_ast_data_block(block=block, mjd0=mjd0, mjd1=mjd1)
         # If it's the first or last block, filter it necessary
         if i in (0, num_blocks-1):
             mask = (n0 <= df_ast_i.asteroid_num) & (df_ast_i.asteroid_num <= n1)
             df_ast_i = df_ast_i[mask]
-            # print(f'i={i}, block={block}')
-        # Save these frames to lists of frames
+        # Save asteroid frame to list of frames
         dfs_ast[i] = df_ast_i
-        dfs_earth[i] = df_earth_i
-        dfs_sun[i] = df_sun_i
 
-    # Concatenate frames
+    # Concatenate frames for asteroids only! Earth and sun just one copy on the distinct dates
     df_ast = pd.concat(dfs_ast)
-    df_earth = pd.concat(dfs_earth)
-    df_sun = pd.concat(dfs_sun)
+    # Just copy the last frame for earth and sun
+    df_earth = df_earth_i
+    df_sun = df_sun_i
     
     return df_ast, df_earth, df_sun
     
@@ -421,9 +418,11 @@ def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geoc
     """
 
     # Calculate splined vectors from spline_ast_data
+    print(f'Splining asteroid and earth vectors for asteroid numbers {n0} to {n1}...')
     df_ast, df_earth, df_sun = spline_ast_vec(n0=n0, n1=n1, mjd=mjd)
 
     # Calculate predicted RA / DEC and direction with spline_ast_obs
+    print(f'Computing astrometric asteroid directions for asteroid numbers {n0} to {n1}...')
     df_dir = spline_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name=site_name)
 
     # Return earth and asteroid vectors plus aligned observations
