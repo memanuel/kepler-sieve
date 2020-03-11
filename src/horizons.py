@@ -85,14 +85,14 @@ horizon_entry = collections.namedtuple('horizon_entry', ['m', 'x', 'y', 'z', 'vx
 # ********************************************************************************************************************* 
 def save_horizons_cache(hrzn):
     """Save the Horizons cache"""
-    fname_cache = '../jpl/horizon_cache.pickle'    
+    fname_cache = '../data/jpl/horizon_cache.pickle'    
     with open(fname_cache, 'wb') as fh:
         pickle.dump(hrzn, fh)
 
 # ********************************************************************************************************************* 
 def load_horizons_cache():
     """Load the Horizons cache"""
-    fname_cache = '../jpl/horizon_cache.pickle'    
+    fname_cache = '../data/jpl/horizon_cache.pickle'    
     with open(fname_cache, 'rb') as fh:
         hrzn = pickle.load(fh)
     return hrzn

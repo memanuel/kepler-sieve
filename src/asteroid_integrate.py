@@ -25,10 +25,10 @@ from horizons import make_sim_horizons
 from planets import make_sim_planets, object_names_planets
 
 # ********************************************************************************************************************* 
-def load_data_impl() -> pd.DataFrame:
+def load_data_impl_main() -> pd.DataFrame:
     """Load the asteroid data into a Pandas DataFrame"""
     # The source for this file is at https://ssd.jpl.nasa.gov/?sb_elem
-    fname: str = '../jpl/orb_elements_asteroid.txt'
+    fname: str = '../data/jpl/orb_elements_asteroid.txt'
 
     # The field names in the JPL file and their column positions
     names: List[str] = ['Num', 'Name', 'Epoch', 'a', 'e', 'i', 'w', 'Node', 'M', 'H', 'G', 'Ref']
@@ -70,6 +70,67 @@ def load_data_impl() -> pd.DataFrame:
     df: pd.DataFrame = pd.read_fwf(fname, colspecs=colspecs, header=header, names=names, skiprows=skiprows, dtype=dtype)
     # Set the asteroid number field to be the index
     df.set_index(keys=['Num'], drop=False, inplace=True)
+    return df
+
+# ********************************************************************************************************************* 
+def load_data_impl_aux() -> pd.DataFrame:
+    """Load the auxiliary asteroid data into a Pandas DataFrame"""
+
+    fname: str = '../data/jpl/orb_elements_asteroid2.txt'
+
+    # The field names in the JPL file and their column positions
+    names: List[str] = ['Name', 'Epoch', 'a', 'e', 'i', 'w', 'Node', 'M', 'H', 'G', 'Ref']
+    colspec_tbl: Dict[str, Tuple[int, int]] = {
+        'Name': (0, 12), 
+        'Epoch': (12, 17), 
+        'a': (18, 28), 
+        'e': (29, 39), 
+        'i': (40, 50), 
+        'w': (51, 60),
+        'Node': (61, 70),
+        'M': (71, 82),
+        'H': (83, 88),
+        'G': (89, 93),
+        'Ref': (94, 104),
+    }
+
+    # Other arguments for Pandas file import
+    colspecs: List[Tuple[int, int]] = [colspec_tbl[nm] for nm in names]
+    header: int = 0
+    skiprows: List[int] = [1]
+    dtype: Dict[str, int] = {
+        'Name': str,
+        'Epoch': float,
+        'a': float,
+        'e': float,
+        'i': float,
+        'w': float,
+        'Node': float,
+        'M': float,
+        'H': float,
+        'G': float,
+        'Ref': str,
+    }
+
+    # Read the DataFrame
+    df: pd.DataFrame = pd.read_fwf(fname, colspecs=colspecs, header=header, names=names, skiprows=skiprows, dtype=dtype)
+    # Populate the asteroid_num field and add it to DataFrame
+    ast_num_offset = 1000001
+    ast_num = df.index.values + ast_num_offset
+    df.insert(loc=0, column='Num', value=ast_num)
+    # Set the asteroid number field to be the index
+    df.set_index(keys=['Num'], drop=False, inplace=True)
+    return df
+
+# ********************************************************************************************************************* 
+def load_data_impl() -> pd.DataFrame:
+    """Load the combined asteroid data into a Pandas DataFrame"""
+    # Load main data file
+    df1 = load_data_impl_main()
+    # Load auxiliary data file
+    df2 = load_data_impl_aux()
+    # Return combined DataFrame
+    df = pd.concat([df1, df2])
     return df
 
 # ********************************************************************************************************************* 
@@ -334,7 +395,7 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
     # Make a gigantic simulation with all these asteroids
     n0: int = np.min(ast_elt.Num)
     n1 = np.max(ast_elt.Num) + 1
-    print(f'Making big simulation with all {n1} asteroids...')
+    print(f'Making big simulation with all {N} asteroids...')
     sim_ast, asteroid_names = make_sim_asteroids(sim_base=sim_base, ast_elt=ast_elt, n0=n0, n1=n1, progbar=True)
     
     # Calculate orbital elements for all particles; must specify primary = Sun!!!
