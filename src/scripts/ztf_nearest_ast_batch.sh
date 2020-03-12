@@ -1,5 +1,5 @@
 # Extract command line arguments
-# This is the number of asteroids processed in each Python program, e.g. 1000
+# This is the number of asteroids processed in each Python program, e.g. 10000
 batch_size=$1
 # The number of batches run in parallel in each large job, e.g. 50
 num_batch=$2
@@ -36,9 +36,9 @@ do
 	# run the first job with a progress bar, the rest silently
 	if [ $i -lt $((num_batch-1)) ]
 	then		
-		python asteroid_integrate.py $n $batch_size &	
+		python ztf_nearest_ast.py $n $batch_size &	
 	else
-		python asteroid_integrate.py $n $batch_size --progress &
+		python ztf_nearest_ast.py $n $batch_size --progress &
 	fi
 
 	# Slight pause so the batches will be executed in the specified order
@@ -60,5 +60,5 @@ do
 done
 
 echo -e "\n********************************************************************************"
-echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Processed asteroid trajectories from $n0 to $n1."
+echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Processed nearest asteroid to ZTF from $n0 to $n1."
 echo -e "********************************************************************************\n"

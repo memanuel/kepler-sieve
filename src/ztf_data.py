@@ -41,13 +41,22 @@ from asteroid_dataframe import spline_ast_vec_dir
 from typing import Optional
 
 # ********************************************************************************************************************* 
-# Get credentials for ZTF2 connection
+# Global variables
+
+# Credentials for ZTF2 connection
 credentials_file = "../alerce/alercereaduser.json"
 with open(credentials_file) as fh:
     cred = json.load(fh)["params"]
 
 # Connect to ZTF2 database; this is a shared resource, just one for the module
-conn = psycopg2.connect(dbname=cred['dbname'], user=cred['user'], host=cred['host'], password=cred['password'])
+try:
+    conn = psycopg2.connect(dbname=cred['dbname'], user=cred['user'], host=cred['host'], password=cred['password'])
+except:
+    print(f'Unable to get ZTF2 connection.')
+    conn = None
+
+# Directory for files with nearest asteroid to ztf observations
+ztf_ast_dir_name = '../data/ztf_ast'
 
 # ********************************************************************************************************************* 
 def load_ztf_det(mjd0: float, mjd1: float):
@@ -181,9 +190,11 @@ def ztf_det_add_dir(df: pd.DataFrame, file_name: str, dir_name: str='../data/ztf
     df.to_hdf(path, key='df', mode='w')
 
 # ********************************************************************************************************************* 
-def load_ztf_det_all():
+def load_ztf_det_all(verbose: bool = False):
     """
     Load all available ZTF detections
+    INPUTS:
+        verbose:  Whether to print status messages to console
     RETURNS:
         df: Pandas DataFrame of detections.  Includes columns ObjectID, CandidateID, mjd, ra, dec, asteroid_prob
     """
@@ -192,12 +203,14 @@ def load_ztf_det_all():
     file_path = os.path.join(save_dir, f'ztf-detections.h5')
     try:
         df = pd.read_hdf(file_path)
-        print(f'Loaded {file_path} from disk.')
+        if verbose:
+            print(f'Loaded {file_path} from disk.')
         # Generate the unique times
         mjd_unq = np.unique(df.mjd.values)
         return df, mjd_unq
     except:
-        print(f'Assembling {file_name} from ZTF detections by year...')   
+        if verbose:
+            print(f'Assembling {file_name} from ZTF detections by year...')   
         # Load data for all years with available data
         dfs = []
         year0 = 2018  # first year of ZTF2 data
@@ -232,9 +245,24 @@ def load_ztf_det_all():
     return df, mjd_unq
 
 # ********************************************************************************************************************* 
+def ztf_ast_file_name(n0: int, n1: int):
+    """File name for data file with ZTF observations and nearest asteroid."""
+    file_name = f'ztf-nearest-ast-{n0:06d}-{n1:06d}.h5'
+    return file_name
+
+# ********************************************************************************************************************* 
+def ztf_ast_file_path(n0: int, n1: int):
+    """File path for data file with ZTF observations and nearest asteroid."""
+    file_name = ztf_ast_file_name(n0=n0, n1=n1)   
+    file_path = os.path.join(ztf_ast_dir_name, file_name)
+    return file_path
+
+# ********************************************************************************************************************* 
 def ztf_calc_nearest_ast(ztf: pd.DataFrame, 
                          ast_dir: pd.DataFrame, 
-                         thresh_deg: float = 180.0):
+                         thresh_deg: float = 180.0,
+                         progbar: bool = False,
+                         verbose: bool = False):
     """
     Calculate the nearest asteroid to each observation in the ZTF data.
     INPUTS:
@@ -243,6 +271,8 @@ def ztf_calc_nearest_ast(ztf: pd.DataFrame,
         ast_dir: DataFrame of theoretical asteroid directions from observatory with observations.
                  mjd must match up with thos of mjd_unq (unique, sorted time stamps in ztf)
         thresh:  Threshold in degrees to consider an observation close to an asteroid
+        progbar: Whether to display a tqdm progress bar
+        verbose:  Whether to print status messages to console
     OUTPUTS:
         DataFrame ztf with the columns for nearest asteroid
     """
@@ -277,7 +307,8 @@ def ztf_calc_nearest_ast(ztf: pd.DataFrame,
     row_num = ztf.TimeStampID.values
 
     # Check asteroid distance one at a time
-    for asteroid_num in tqdm(asteroid_nums):
+    iterates = tqdm(asteroid_nums) if progbar else asteroid_nums
+    for asteroid_num in iterates:
         # Mask for this asteroid in the ast_dir DataFrame
         mask_ast = (ast_dir.asteroid_num == asteroid_num)
 
@@ -302,12 +333,37 @@ def ztf_calc_nearest_ast(ztf: pd.DataFrame,
     return ztf
 
 # ********************************************************************************************************************* 
+def ztf_load_nearest_ast(n0: int, 
+                         n1: int,
+                         dir_name: str = '../data/ztf_ast'):
+    """
+    Load the nearest asteroid to each observation in the ZTF data.
+    INPUTS:
+        n0:       First asteroid number to process, inclusive (e.g. 0)
+        n1:       Last asteroid number to process, exclusive (e.g. 1000)
+        dir_name: Directory with h5 file
+    OUTPUTS:
+        DataFrame ztf with the columns for nearest asteroid
+    """
+    # File path
+    file_path = ztf_ast_file_path(n0=n0, n1=n1)
+
+    # Load the data file if its available, and regeneration was not requested
+    try:
+        df = pd.read_hdf(file_path)
+    except:
+        raise ValueError(f'ztf_load_nearest_ast: unable to load file {file_path}.')
+    return df
+
+# ********************************************************************************************************************* 
 def ztf_nearest_ast(ztf: pd.DataFrame, 
                     n0: int, 
                     n1: int,
                     thresh_deg: float = 180.0,
                     dir_name: str = '../data/ztf_ast',
-                    regen: bool = False):
+                    regen: bool = False,
+                    progbar: bool = False,
+                    verbose: bool = False):
     """
     Load or calculate the nearest asteroid to each observation in the ZTF data.
     INPUTS:
@@ -318,23 +374,28 @@ def ztf_nearest_ast(ztf: pd.DataFrame,
         thresh:   Threshold in degrees to consider an observation close to an asteroid
         dir_name: Directory with h5 file
         regen:    Flag; force regeneration of file whether or not on disk
+        progbar:  Whether to display a tqdm progress bar
+        verbose:  Whether to print status messages to console
     OUTPUTS:
         DataFrame ztf with the columns for nearest asteroid
     """
     # File name and path
-    file_name = f'ztf-nearest-ast-{n0:06d}-{n1:06d}.h5'
+    file_name = ztf_ast_file_name(n0=n0, n1=n1)
     file_path = os.path.join(dir_name, file_name)
 
     # Load the data file if its available, and regeneration was not requested
     if not regen:
         try:
             df = pd.read_hdf(file_path)
-            print(f'Loaded {file_path} from disk.')
+            if verbose:
+                print(f'Loaded {file_path} from disk.')
             return df
         except:
-            print(f'Unable to load {file_path}, computing nearest asteroids from {n0} to {n1}...')
+            if verbose:
+                print(f'Unable to load {file_path}, computing nearest asteroids from {n0} to {n1}...')
     else:
-        print(f'Regenerating {file_path}, computing nearest asteroids from {n0} to {n1}...')
+        if verbose:
+            print(f'Regenerating {file_path}, computing nearest asteroids from {n0} to {n1}...')
     
     # If we get here, we need to build the ztf_ast DataFrame by calculation
 
@@ -348,7 +409,8 @@ def ztf_nearest_ast(ztf: pd.DataFrame,
     ast_pos, earth_pos, ast_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=mjd_unq, site_name=site_name)
 
     # Calculate nearest asteroid in this block with  ztf_calc_nearest_ast
-    ztf_ast = ztf_calc_nearest_ast(ztf=ztf, ast_dir=ast_dir, thresh_deg=thresh_deg)
+    ztf_ast = ztf_calc_nearest_ast(ztf=ztf, ast_dir=ast_dir, thresh_deg=thresh_deg, 
+                                   progbar=progbar, verbose=verbose)
 
     # Save assembled DataFrame to disk and return it
     ztf_ast.to_hdf(file_path, key='ztf_ast', mode='w')

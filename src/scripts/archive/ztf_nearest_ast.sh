@@ -1,8 +1,8 @@
 # Input parameters
 # The number of asteroids processed in each Python program, e.g. 1000
-batch_size=1000
+batch_size=10000
 # The number of batches run in parallel in each large job, e.g. 50
-num_batch=50
+num_batch=20
 # The largest asteroid number to process
 max_ast_num=541130
 

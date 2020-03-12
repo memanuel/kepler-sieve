@@ -215,8 +215,8 @@ def load_ast_data(n0: int, n1: int,
     """
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
-        n0:  First asteroid to load, e.g. 1
-        n1:  Last asteroid to load, (inclusive) e.g. 64
+        n0:  First asteroid to load, e.g. 0
+        n1:  Last asteroid to load, (exclusive) e.g. 1000
         mjd0: Start modfified julian date used to filter output.
         mjd1: Last modified julian date used to filter output.
               Default for mjd0 and mjd1 is None; then return all available time steps
@@ -227,7 +227,7 @@ def load_ast_data(n0: int, n1: int,
     """
     # Range of blocks required
     block_min = n0 // ast_block_size
-    block_max = n1 // ast_block_size
+    block_max = (n1-1) // ast_block_size
     num_blocks = block_max - block_min + 1
 
     # List of asteroid frames for each data block
@@ -241,7 +241,7 @@ def load_ast_data(n0: int, n1: int,
         df_ast_i, df_earth_i, df_sun_i = load_ast_data_block(block=block, mjd0=mjd0, mjd1=mjd1)
         # If it's the first or last block, filter it necessary
         if i in (0, num_blocks-1):
-            mask = (n0 <= df_ast_i.asteroid_num) & (df_ast_i.asteroid_num <= n1)
+            mask = (n0 <= df_ast_i.asteroid_num) & (df_ast_i.asteroid_num < n1)
             df_ast_i = df_ast_i[mask]
         # Save asteroid frame to list of frames
         dfs_ast[i] = df_ast_i
@@ -259,8 +259,8 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.
     """
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
-        n0:  First asteroid to load, e.g. 1
-        n1:  Last asteroid to load, e.g. 64
+        n0:  First asteroid to load, inclusive, e.g. 0
+        n1:  Last asteroid to load, exclusive, e.g. 1000
         mjd: Array of modified julian dates on which splined output is desired
     OUTPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
