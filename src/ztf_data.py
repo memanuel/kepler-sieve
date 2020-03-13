@@ -406,7 +406,8 @@ def ztf_nearest_ast(ztf: pd.DataFrame,
     site_name = 'palomar'
 
     # Build splined positions and observations at unique observation times
-    ast_pos, earth_pos, ast_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=mjd_unq, site_name=site_name)
+    ast_pos, earth_pos, ast_dir = \
+        spline_ast_vec_dir(n0=n0, n1=n1, mjd=mjd_unq, site_name=site_name, progbar=progbar)
 
     # Calculate nearest asteroid in this block with  ztf_calc_nearest_ast
     ztf_ast = ztf_calc_nearest_ast(ztf=ztf, ast_dir=ast_dir, thresh_deg=thresh_deg, 

@@ -60,13 +60,18 @@ def run_batch(n0: int, n1: int, progbar: bool, verbose: bool) -> None:
                                   progbar=progbar, verbose=verbose)
 
 # ********************************************************************************************************************* 
-def process_ast_blocks(block_size: int, n0: int = 0, n1: Optional[int] = None) -> np.ndarray:
+def calc_ast_block_numbers(block_size: int, n0: int=0, n1: Optional[int] = None) -> np.ndarray:
     """
-    Process multiple blocks of asteroids to find the one nearest to each ZTF observation
+    Compute the asteroid block numbers in a range of asteroid numbers.
     INPUTS:
         block_size: Size of batches to run, e.g. 5000
         n0:         First asteroid number to process, inclusive, e.g. 0
-        n1:         Last asteroid number to process, exclusive, e.g. 1,255,514
+        n1:         Last asteroid number to process, exclusive, e.g. 1,255,514.  
+                    None means no upper limit
+    OUTPUTS:
+        ast_blocks: Numpy array of the the block numbers for asteroids in this range.
+                    e.g. if asteroid numbers are in [1, 542,000) and [1,000,000, 1,256,000)
+                    and block_size=1000, then blocks = [0, 1, ... 541, 1000, 1001, ... 1256]    
     """
     # Load distinct asteroid numbers
     orb_elt = load_orbital_elts()
@@ -81,9 +86,21 @@ def process_ast_blocks(block_size: int, n0: int = 0, n1: Optional[int] = None) -
 
     # Extract distinct blocks of data
     ast_blocks = np.unique(ast_nums // block_size)
-    # Limit ast_blocks to max_blocks elements if it was specifiec
-    # if max_blocks is not None:
-    #    ast_blocks = ast_blocks[0:max_blocks]
+    return ast_blocks
+
+# ********************************************************************************************************************* 
+def process_ast_blocks(block_size: int, n0: int = 0, n1: Optional[int] = None) -> None:
+    """
+    Process multiple blocks of asteroids to find the one nearest to each ZTF observation
+    INPUTS:
+        block_size: Size of batches to run, e.g. 5000
+        n0:         First asteroid number to process, inclusive, e.g. 0
+        n1:         Last asteroid number to process, exclusive, e.g. 1,255,514
+    OUTPUTS:
+        None.  Saves the assembled files ztf_nearest_ast_n0_n1.h5 to disk.
+    """
+    # Calculate distinct blocks of asteroids from n0, n1 and block_size
+    ast_blocks = calc_ast_block_numbers(block_size=block_size, n0=n0, n1=n1)
 
     # Create a list of arguments to run_batch
     run_batch_args = []
@@ -113,11 +130,8 @@ def process_ast_blocks(block_size: int, n0: int = 0, n1: Optional[int] = None) -
     # Status message
     print(f'Processed {n1-n0} asteroids from {n0} to {n1} in blocks of {block_size}.')
 
-    # Return list with the nearest_ast_block frame for each block processed along with the blocks
-    return ast_blocks
-
 # ********************************************************************************************************************* 
-def nearest_ast_reduction(ast_blocks: np.ndarray, block_size: int, progbar: bool = False) -> np.ndarray:
+def nearest_ast_reduction(ast_blocks: np.ndarray, block_size: int, progbar: bool = False) -> None:
     """
     Perform a reduction operation on a list of nearest_ast_block DataFrames.
     Each frame in the list is the nearest asteroid out of a block of asteroids.
@@ -134,12 +148,18 @@ def nearest_ast_reduction(ast_blocks: np.ndarray, block_size: int, progbar: bool
     n0 = ast_blocks[0] * block_size
     n1 = n0 + block_size
     
-    # load ztf_ast for first block and initialize it as the master
-    ztf = load_ztf_nearest_ast(n0=n0, n1=n1)
-
     # Full range of asteroids
     ast_num_min = n0
     ast_num_max = ast_blocks[-1] * block_size + block_size
+
+    # Check if this file exists; if so, quit early
+    file_path = ztf_ast_file_path(n0=ast_num_min, n1=ast_num_max)
+    if os.path.isfile(file_path):
+        print(f'Found reduction file {file_path}.')
+        return
+
+    # load ztf_ast for first block and initialize it as the master
+    ztf = load_ztf_nearest_ast(n0=n0, n1=n1)
 
     # Column names of data pertaining to the nearest asteroid
     cols = ['nearest_ast_num', 'nearest_ast_dist', 'ast_ra', 'ast_dec', 'ast_ux', 'ast_uy', 'ast_uz']
@@ -159,10 +179,9 @@ def nearest_ast_reduction(ast_blocks: np.ndarray, block_size: int, progbar: bool
         # Overwrite data columns for nearest asteroid
         ztf.loc[mask, cols] = ztf_i.loc[mask, cols]
 
-    # Save this file
-    file_path = ztf_ast_file_path(n0=ast_num_min, n1=ast_num_max)
+    # Save reduced DataFrame to disk
     ztf.to_hdf(file_path, key='ztf_ast', mode='w')
-  
+
 # ********************************************************************************************************************* 
 def main():
     """Main routine for integrating the orbits of known asteroids"""
@@ -174,12 +193,14 @@ def main():
                         help='the last asteroid number to process')
     parser.add_argument('-block_size', nargs='?', metavar='block_size', type=int, default=1000,
                         help='the number of asteroids in each block')
-    parser.add_argument('--progress', default=True, action='store_true',
-                        help='display progress bar')
     parser.add_argument('--all', default=False, action='store_true',
                         help='process all the data')
+    parser.add_argument('--reduce', default=False, action='store_true',
+                        help='perform reduction step only (consolidate nearest across multiple blocks)')
     # parser.add_argument('--test', default=False, action='store_true',
     #                     help='run in test mode')
+    parser.add_argument('--progress', default=True, action='store_true',
+                        help='display progress bar')
 
     # Parse arguments and alias inputs
     args = parser.parse_args()    
@@ -191,7 +212,7 @@ def main():
     # Settings to process all asteroids
     if args.all:
         n0 = 0
-        n1 = 1256000
+        n1 = None
         block_size = 1000
 
     # Status
@@ -206,8 +227,12 @@ def main():
     #     print()
     #     exit()
 
-    # Generate ztf_nearest_ast for each block
-    ast_blocks = process_ast_blocks(block_size=block_size, n0=n0, n1=n1)
+    # Calculate distinct blocks of asteroids from n0, n1 and block_size
+    ast_blocks = calc_ast_block_numbers(block_size=block_size, n0=n0, n1=n1)
+
+    # Generate ztf_nearest_ast for each block; skip this if running in reduce mode
+    if not args.reduce:
+        process_ast_blocks(block_size=block_size, n0=n0, n1=n1)
 
     # Perform the reduction to get the globally closest asteroid
     nearest_ast_reduction(ast_blocks=ast_blocks, block_size=block_size, progbar=progbar)
@@ -219,4 +244,3 @@ def main():
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     main()
-    

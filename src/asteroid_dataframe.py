@@ -235,11 +235,13 @@ def load_ast_data(n0: int, n1: int,
     # List of asteroid frames for each data block
     dfs_ast = np.empty(num_blocks, dtype=object)
 
-    # Iterate through the blocks
-    print(f'Loading asteroid data from n0={n0} to n1={n1} in {num_blocks} blocks...')
+    # Set up iterates and prepare progress bar if requested
     iterates = list(enumerate(range_inc(block_min, block_max)))
     if progbar:
+        print(f'Loading asteroid data from n0={n0} to n1={n1} in {num_blocks} blocks...')
         iterates = tqdm(iterates)
+
+    # Iterate through the blocks
     for i, block in iterates:
         # Load the data for this block
         df_ast_i, df_earth_i, df_sun_i = load_ast_data_block(block=block, mjd0=mjd0, mjd1=mjd1)
