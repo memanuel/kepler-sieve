@@ -210,7 +210,8 @@ def load_ast_data_block(block: int,
 # ********************************************************************************************************************* 
 def load_ast_data(n0: int, n1: int, 
                   mjd0: Optional[float]=None, 
-                  mjd1: Optional[float]=None) -> \
+                  mjd1: Optional[float]=None,
+                  progbar: bool = True) -> \
     Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
@@ -220,6 +221,7 @@ def load_ast_data(n0: int, n1: int,
         mjd0: Start modfified julian date used to filter output.
         mjd1: Last modified julian date used to filter output.
               Default for mjd0 and mjd1 is None; then return all available time steps
+        progbar: Whether to print a progress bar to the console
     OUTPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
         df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
@@ -236,7 +238,9 @@ def load_ast_data(n0: int, n1: int,
     # Iterate through the blocks
     print(f'Loading asteroid data from n0={n0} to n1={n1} in {num_blocks} blocks...')
     iterates = list(enumerate(range_inc(block_min, block_max)))
-    for i, block in tqdm(iterates):
+    if progbar:
+        iterates = tqdm(iterates)
+    for i, block in iterates:
         # Load the data for this block
         df_ast_i, df_earth_i, df_sun_i = load_ast_data_block(block=block, mjd0=mjd0, mjd1=mjd1)
         # If it's the first or last block, filter it necessary
@@ -255,13 +259,15 @@ def load_ast_data(n0: int, n1: int,
     return df_ast, df_earth, df_sun
     
 # ********************************************************************************************************************* 
-def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, progbar: bool = True) \
+                   -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
         n0:  First asteroid to load, inclusive, e.g. 0
         n1:  Last asteroid to load, exclusive, e.g. 1000
         mjd: Array of modified julian dates on which splined output is desired
+        progbar: Whether to print a progress bar to the console
     OUTPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
         df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
@@ -272,7 +278,7 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray) -> Tuple[pd.DataFrame, pd.
     mjd1 = np.max(mjd) + 1
 
     # Load data in this date range
-    df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, progbar=progbar)
 
     # Time key from mjd at spline points
     time_key = np.int32(np.round(mjd*24))
@@ -402,7 +408,8 @@ def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
     return df_dir
 
 # ********************************************************************************************************************* 
-def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geocenter') -> \
+def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray, 
+                       site_name: str = 'geocenter', progbar: bool = True) -> \
         Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Convenience API to (1) obtain splined vectors (2) observed angles
@@ -411,6 +418,7 @@ def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geoc
         n1:  Last asteroid to load, e.g. 64
         mjd: Array of modified julian dates on which splined output is desired
         site_name: Name of observatory; defaults to 'geocenter'
+        progbar: Whether to print a progress bar to the console
     OUTPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
         df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
@@ -419,7 +427,7 @@ def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray, site_name: str = 'geoc
 
     # Calculate splined vectors from spline_ast_data
     print(f'Splining asteroid and earth vectors for asteroid numbers {n0} to {n1}...')
-    df_ast, df_earth, df_sun = spline_ast_vec(n0=n0, n1=n1, mjd=mjd)
+    df_ast, df_earth, df_sun = spline_ast_vec(n0=n0, n1=n1, mjd=mjd, progbar=progbar)
 
     # Calculate predicted RA / DEC and direction with spline_ast_obs
     print(f'Computing astrometric asteroid directions for asteroid numbers {n0} to {n1}...')

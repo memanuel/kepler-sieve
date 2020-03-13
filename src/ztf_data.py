@@ -333,7 +333,7 @@ def ztf_calc_nearest_ast(ztf: pd.DataFrame,
     return ztf
 
 # ********************************************************************************************************************* 
-def ztf_load_nearest_ast(n0: int, 
+def load_ztf_nearest_ast(n0: int, 
                          n1: int,
                          dir_name: str = '../data/ztf_ast'):
     """
