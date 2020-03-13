@@ -36,6 +36,12 @@ data/observations
 data/planets
 data/ztf_ast
 
+# Windows symlinks
+data/asteroids_win
+data/observations_win
+data/planets_win
+data/ztf_ast_win
+
 # ******************************************************************************************
 # Model checkpoints in specific directories
 src/tensorflow-tutorial/checkpoints
