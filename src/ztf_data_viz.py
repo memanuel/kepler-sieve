@@ -85,7 +85,6 @@ def cdf_nearest_dist(dist: np.ndarray, n: int, thresh_deg: float = 180.0):
         p:    CDF; these will be distributed as Unif[0, 1] for random data
     """
     # Convert dist to radians; result will be in the interval [0, 2pi]
-    # x = np.arcsin(0.5 * dist) * 2.0
     x = dist2rad(dist)
     # The theoretical CDF of the min of n distances
     alpha = 0.5*(1.0 + np.cos(x))
@@ -197,7 +196,7 @@ def plot_cdf_cond(ztf, n: int, thresh_deg: float = 1.0, bins=20):
 # ********************************************************************************************************************* 
 def plot_dist(ztf, n: int, thresh_deg: float = 1.0, bins=20):
     """
-    Generate two CDFs of asteroid distance.
+    Generate plot with histogram of distance to the nearest asteroid vs. random baseline.
     INPUTS:
         ztf: DataFrame with distance to nearest asteroid
         n:   Number of asteroids, e.g. 16
@@ -263,6 +262,105 @@ def plot_dist(ztf, n: int, thresh_deg: float = 1.0, bins=20):
     ax.legend()
     ax.grid()
     fig.savefig(f'../figs/ztf/nearest_ast_hist_dist_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
+    plt.show()
+
+    return fig, ax
+
+# ********************************************************************************************************************* 
+def plot_rel_density(ztf, n: int, thresh_deg: float = 1.0, bins=20, chart_type: str = 'rel'):
+    """
+    Generate two CDFs of asteroid distance.
+    INPUTS:
+        ztf: DataFrame with distance to nearest asteroid
+        n:   Number of asteroids, e.g. 16
+        thresh_deg: Threshold in degrees for close observations
+        chart_type: Type of density to plot.  Either 'rel' or 'abs'.
+                    'rel' : relative density to theoretical
+                    'abs' : absolute density in hits per square degree
+    """
+    # Number of rows in data
+    N_obs = ztf.shape[0]
+
+    # Threshold distance and flag indicating whether observations are within threshold
+    thresh_dist = deg2dist(thresh_deg)
+    is_close = ztf.nearest_ast_dist < thresh_dist
+
+    # Cartesian distance of close observations
+    dist = ztf[is_close].nearest_ast_dist.values
+    # Distance in degrees and arc seconds
+    dist_deg = dist2deg(dist)
+    # dist_sec = 3600.0 * dist_deg
+
+    # String description of threshold
+    thresh_caption, thresh_str, angle_unit = angle_to_str(angle_deg=thresh_deg)
+
+    # data for x axis; scale according to selected units
+    # key = angle_unit, value = (plot data, threshold)
+    plot_x_tbl = {
+        'deg': (dist_deg, thresh_deg,),
+        'min': (dist_deg * 60.0, thresh_deg * 60.0,),
+        'sec': (dist_deg * 3600.0, thresh_deg * 3600.0),
+    }
+    plot_x, thresh_x = plot_x_tbl[angle_unit]
+
+    # x-axis label depends on unit choice
+    # key = angle_unit, value = axis label
+    axis_label_tbl = {
+        'deg': 'Distance in Degrees',
+        'min': 'Distance in Arc Minutes',
+        'sec': 'Distance in Arc Seconds',
+    }
+
+    # Set caption and y_label based on chart type
+    caption = {
+        'rel': 'Relative Density',
+        'abs': 'Absolute Density',
+    }[chart_type]
+
+    y_label = {
+        'rel': 'Relative Density (Observed / Random)',
+        'abs': 'Absolute Density (Prob per Square Degree)',
+    }[chart_type]
+
+    # Plot frequency histogram vs. distance to nearest asteroid
+    fig, ax = plt.subplots()
+    ax.set_title(f'{caption}: Distance to Nearest Asteroid for n={n}')
+    ax.set_xlabel(axis_label_tbl[angle_unit])
+    ax.set_ylabel(y_label)
+
+    # bins in plot units and cartesian distance
+    bins_x = np.linspace(0.0, thresh_x, bins+1)
+    bins_dist = np.linspace(0.0, thresh_dist, bins+1)
+
+    # Predicted number of points in each bin
+    N_pred_cum = cdf_nearest_dist(dist=bins_dist, n=n, thresh_deg=180.0) * N_obs
+    N_pred = np.diff(N_pred_cum) 
+
+    # Relative density in each bin
+    hist, edges = np.histogram(a=plot_x, bins=bins_x)
+    dens_rel = hist / N_pred
+
+    # Absolute density; hits per deg^2
+    sq_deg_in_sky = 4.0 * np.pi * np.rad2deg(1.0)**2
+    area_cum = cdf_nearest_dist(dist=bins_dist, n=1)*sq_deg_in_sky
+    area_bin = np.diff(area_cum)
+    dens_abs = hist / area_bin / N_obs
+    # log_dens_abs = np.log(dens_abs)
+
+    # Histogram of observed frequency in each bin
+    x_bar = bins_x[0:bins]
+    width = thresh_x / bins
+
+    # Plot relative or absolute
+    if chart_type == 'rel':
+        ax.bar(x=x_bar, height=dens_rel, width=width, align='edge', color='blue', label='relative')
+    elif chart_type == 'abs':
+        ax.bar(x=x_bar, height=dens_abs, width=width, align='edge', color='blue', label='absolute')
+        ax.set_yscale('log')
+
+    # ax.legend()
+    ax.grid()
+    # fig.savefig(f'../figs/ztf/nearest_ast_hist_dens_{chart_type}_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
     plt.show()
 
     return fig, ax
