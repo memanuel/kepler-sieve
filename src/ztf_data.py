@@ -429,7 +429,7 @@ def calc_hit_freq(ztf, thresh_sec: float):
         thresh_sec: Threshold in arc seconds for close observations
     """
     # Threshold distance and flag indicating whether observations are within threshold
-    thresh_deg = thresh_sec * 3600.0
+    thresh_deg = thresh_sec / 3600.0
     thresh_dist = deg2dist(thresh_deg)
     is_close = ztf.nearest_ast_dist < thresh_dist
     # View of ztf limited to close observations
