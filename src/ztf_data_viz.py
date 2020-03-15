@@ -140,7 +140,7 @@ def plot_cdf_uncond(ztf: pd.DataFrame, n: int, bins=100):
 
     # Plot unconditional histogram
     fig, ax = plt.subplots()
-    ax.set_title(f'Histogram of Distance to Nearest Asteroid for n={n} (No Threshold)')
+    ax.set_title(f'Distance to Nearest Asteroid for n={n} (No Threshold)')
     ax.set_xlabel('Percentile of Random Distribution')
     ax.set_ylabel('Observed Frequency')
     freq, bins_np, patches = ax.hist(x=p, bins=bins, color='blue', label='observed')
@@ -180,7 +180,7 @@ def plot_cdf_cond(ztf, n: int, thresh_deg: float = 1.0, bins=20):
 
     # Plot unconditional histogram
     fig, ax = plt.subplots()
-    ax.set_title(f'Histogram of Distance to Nearest Asteroid for n={n} (Threshold {thresh_caption} )')
+    ax.set_title(f'Distance to Nearest Asteroid for n={n} (Threshold {thresh_caption} )')
     ax.set_xlabel('Percentile of Random Distribution')
     ax.set_ylabel('Observed Frequency')
     freq, bins_np, patches = ax.hist(x=p, bins=bins, color='blue', label='observed')
@@ -237,7 +237,7 @@ def plot_dist(ztf, n: int, thresh_deg: float = 1.0, bins=20):
 
     # Plot frequency histogram vs. distance to nearest asteroid
     fig, ax = plt.subplots()
-    ax.set_title(f'Histogram of Distance to Nearest Asteroid for n={n} (Threshold {thresh_caption} )')
+    ax.set_title(f'Distance to Nearest Asteroid for n={n} (Threshold {thresh_caption} )')
     ax.set_xlabel(axis_label_tbl[angle_unit])
     ax.set_ylabel('Observed Frequency')
 
@@ -319,7 +319,7 @@ def plot_rel_density(ztf, n: int, thresh_deg: float = 1.0, bins=20, chart_type: 
 
     y_label = {
         'rel': 'Relative Density (Observed / Random)',
-        'abs': 'Absolute Density (Prob per Square Degree)',
+        'abs': 'Absolute Density (Hit Prob. per Square Degree)',
     }[chart_type]
 
     # Plot frequency histogram vs. distance to nearest asteroid
@@ -360,7 +360,51 @@ def plot_rel_density(ztf, n: int, thresh_deg: float = 1.0, bins=20, chart_type: 
 
     # ax.legend()
     ax.grid()
-    # fig.savefig(f'../figs/ztf/nearest_ast_hist_dens_{chart_type}_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
+    fig.savefig(f'../figs/ztf/nearest_ast_hist_dens_{chart_type}_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
     plt.show()
 
     return fig, ax
+
+# ********************************************************************************************************************* 
+def plot_close_freq(ztf, n: int, thresh_deg: float, is_cum=True, bins=100):
+    """
+    Generate plot with histogram of distance to the nearest asteroid vs. random baseline.
+    INPUTS:
+        ztf: DataFrame with distance to nearest asteroid
+        n:   Number of asteroids, e.g. 16000
+        thresh_deg: Threshold in degrees for close observations
+    """
+    # Threshold distance and flag indicating whether observations are within threshold
+    thresh_dist = deg2dist(thresh_deg)
+    is_close = ztf.nearest_ast_dist < thresh_dist
+    # View of ztf limited to close observations
+    ztfc = ztf[is_close]
+
+    # Group close observations by asteroid number
+    close_by_ast = ztfc.groupby(ztfc.nearest_ast_num)
+    close_by_ast_count = close_by_ast.size()
+    close_ast_num = close_by_ast_count.index.values
+    close_ast_count = close_by_ast_count.values
+
+    # String description of threshold
+    thresh_caption, thresh_str, angle_unit = angle_to_str(angle_deg=thresh_deg)
+
+    # Title and axis labels
+    cum_prefix = f'Cumulative ' if is_cum else ''
+    chart_title = f'{cum_prefix}Frequency of Close Observations by Asteroid (Threshold {thresh_caption})'
+    chart_x_label = f'Number of Close Observations < {thresh_caption} for one Asteroid'
+    chart_y_label = f'{cum_prefix}Frequency (Number of Asteroids)'
+
+    # Plot unconditional histogram
+    fig, ax = plt.subplots()
+    ax.set_title(chart_title)
+    ax.set_xlabel(chart_x_label)
+    ax.set_ylabel(chart_y_label)
+    ax.set_xticks(np.arange(0, bins+1, 10))
+    bins_np = np.arange(bins+1)
+    ax.hist(close_ast_count, color='blue', bins=bins_np, cumulative=is_cum)
+    # ax.legend()
+    ax.grid()
+    cum_str = f'_cum' if is_cum else ''
+    fig.savefig(f'../figs/ztf/nearest_ast_count_by_dist{cum_str}_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
+    plt.show()
