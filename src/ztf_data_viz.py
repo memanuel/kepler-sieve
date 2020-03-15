@@ -11,6 +11,10 @@ Michael S. Emanuel
 import numpy as np
 import pandas as pd
 
+# Local
+from astro_utils import dist2rad, dist2deg, deg2dist
+from ztf_data import calc_hit_freq
+
 # Plotting
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -49,29 +53,6 @@ def ztf_obs_by_month(ztf):
     ax.grid()
     fig.savefig('../figs/ztf/alerce_ast_per_month.png', bbox_inches='tight')
     plt.show()
-
-# ********************************************************************************************************************* 
-def dist2rad(dist):
-    """Convert a cartesian distance on unit sphere in [0, 2] to radians in [0, pi]"""
-    x_rad = np.arcsin(0.5 * dist) * 2.0
-    return x_rad
-
-# ********************************************************************************************************************* 
-def rad2dist(x_rad):
-    """Convert a distance on unit sphere from radians in [0, pi] to cartesian distance in [0, 2]"""
-    return np.sin(0.5 * x_rad) * 2.0
-
-# ********************************************************************************************************************* 
-def dist2deg(dist):
-    """Convert a cartesian distance on unit sphere in [0, 2] to degrees in [0, 180]"""
-    x_rad = dist2rad(dist)
-    return np.rad2deg(x_rad)
-
-# ********************************************************************************************************************* 
-def deg2dist(x_deg):
-    """Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]"""
-    x_rad = np.deg2rad(x_deg)
-    return rad2dist(x_rad)
 
 # ********************************************************************************************************************* 
 def cdf_nearest_dist(dist: np.ndarray, n: int, thresh_deg: float = 180.0):
@@ -366,7 +347,7 @@ def plot_rel_density(ztf, n: int, thresh_deg: float = 1.0, bins=20, chart_type: 
     return fig, ax
 
 # ********************************************************************************************************************* 
-def plot_close_freq(ztf, n: int, thresh_deg: float, is_cum=True, bins=100):
+def plot_hit_freq(ztf, n: int, thresh_deg: float, is_cum=True, bins=100, save_fig: bool=True):
     """
     Generate plot with histogram of distance to the nearest asteroid vs. random baseline.
     INPUTS:
@@ -374,17 +355,9 @@ def plot_close_freq(ztf, n: int, thresh_deg: float, is_cum=True, bins=100):
         n:   Number of asteroids, e.g. 16000
         thresh_deg: Threshold in degrees for close observations
     """
-    # Threshold distance and flag indicating whether observations are within threshold
-    thresh_dist = deg2dist(thresh_deg)
-    is_close = ztf.nearest_ast_dist < thresh_dist
-    # View of ztf limited to close observations
-    ztfc = ztf[is_close]
-
-    # Group close observations by asteroid number
-    close_by_ast = ztfc.groupby(ztfc.nearest_ast_num)
-    close_by_ast_count = close_by_ast.size()
-    close_ast_num = close_by_ast_count.index.values
-    close_ast_count = close_by_ast_count.values
+    # Compute number of close observations by asteroid
+    thresh_sec = thresh_deg / 3600.0
+    ast_num, hit_count = calc_hit_freq(ztf=ztf, thresh_sec=thresh_sec)
 
     # String description of threshold
     thresh_caption, thresh_str, angle_unit = angle_to_str(angle_deg=thresh_deg)
@@ -402,9 +375,10 @@ def plot_close_freq(ztf, n: int, thresh_deg: float, is_cum=True, bins=100):
     ax.set_ylabel(chart_y_label)
     ax.set_xticks(np.arange(0, bins+1, 10))
     bins_np = np.arange(bins+1)
-    ax.hist(close_ast_count, color='blue', bins=bins_np, cumulative=is_cum)
+    ax.hist(hit_count, color='blue', bins=bins_np, cumulative=is_cum)
     # ax.legend()
     ax.grid()
     cum_str = f'_cum' if is_cum else ''
-    fig.savefig(f'../figs/ztf/nearest_ast_count_by_dist{cum_str}_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
+    if save_fig:
+        fig.savefig(f'../figs/ztf/nearest_ast_count_by_dist{cum_str}_n={n}_thresh={thresh_str}.png', bbox_inches='tight')
     plt.show()

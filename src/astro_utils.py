@@ -97,11 +97,37 @@ def mjd_to_jd(mjd: float) -> date:
     """Convert a floating point modified julian date to a julian date"""
     return mjd + modified_julian_offset
 
+# ********************************************************************************************************************* 
+def dist2rad(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to radians in [0, pi]"""
+    x_rad = np.arcsin(0.5 * dist) * 2.0
+    return x_rad
+
+# ********************************************************************************************************************* 
+def rad2dist(x_rad):
+    """Convert a distance on unit sphere from radians in [0, pi] to cartesian distance in [0, 2]"""
+    return np.sin(0.5 * x_rad) * 2.0
+
+# ********************************************************************************************************************* 
+def dist2deg(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to degrees in [0, 180]"""
+    x_rad = dist2rad(dist)
+    return np.rad2deg(x_rad)
+
+# ********************************************************************************************************************* 
+def deg2dist(x_deg):
+    """Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]"""
+    x_rad = np.deg2rad(x_deg)
+    return rad2dist(x_rad)
+
 # *************************************************************************************************
+# DEPRECATED
 def xyz_to_sph(x: np.array, y: np.array, z: np.array):
     """
     Convert a Cartesian coordinates x, y, z of a displacement vector to 
-    spherical coordinates r, alt, az"""
+    spherical coordinates r, alt, az
+    DEPRECATED
+    """
     # The distance R
     r = np.sqrt(x*x + y*y + z*z)
 

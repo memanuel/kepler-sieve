@@ -28,7 +28,7 @@ from tqdm.auto import tqdm
 
 # MSE imports
 from utils import range_inc
-from astro_utils import date_to_mjd
+from astro_utils import date_to_mjd, deg2dist
 from ra_dec import radec2dir
 from asteroid_dataframe import spline_ast_vec_dir
 
@@ -240,9 +240,17 @@ def load_ztf_det_all(verbose: bool = False):
     return df, mjd_unq
 
 # ********************************************************************************************************************* 
-def ztf_ast_file_name(n0: int, n1: int):
+def ztf_ast_file_name(n0: int, n1: Optional[int]):
     """File name for data file with ZTF observations and nearest asteroid."""
-    file_name = f'ztf-nearest-ast-{n0:06d}-{n1:06d}.h5'
+    # Handle special case that we want all asteroids (n0=0, n1=None)
+    if (n0==0 and n1 is None):
+        'ztf-nearest-ast.h5'
+    # Handle special case that we want all asteroids starting from n0 (n1=None)
+    elif (n1 is None):
+        file_name = f'ztf-nearest-ast-{n0:06d}.h5'
+    # General case: n0 and n1 both specified
+    else:
+        file_name = f'ztf-nearest-ast-{n0:06d}-{n1:06d}.h5'
     return file_name
 
 # ********************************************************************************************************************* 
@@ -328,8 +336,8 @@ def ztf_calc_nearest_ast(ztf: pd.DataFrame,
     return ztf
 
 # ********************************************************************************************************************* 
-def load_ztf_nearest_ast(n0: int, 
-                         n1: int,
+def load_ztf_nearest_ast(n0: int=0, 
+                         n1: int=None,
                          dir_name: str = '../data/ztf_ast'):
     """
     Load the nearest asteroid to each observation in the ZTF data.
@@ -411,3 +419,27 @@ def ztf_nearest_ast(ztf: pd.DataFrame,
     # Save assembled DataFrame to disk and return it
     ztf_ast.to_hdf(file_path, key='ztf_ast', mode='w')
     return ztf_ast
+
+# ********************************************************************************************************************* 
+def calc_hit_freq(ztf, thresh_sec: float):
+    """
+    Calculate number of close hits by asteroid number
+    INPUTS:
+        ztf: DataFrame with distance to nearest asteroid
+        thresh_sec: Threshold in arc seconds for close observations
+    """
+    # Threshold distance and flag indicating whether observations are within threshold
+    thresh_deg = thresh_sec * 3600.0
+    thresh_dist = deg2dist(thresh_deg)
+    is_close = ztf.nearest_ast_dist < thresh_dist
+    # View of ztf limited to close observations
+    ztfc = ztf[is_close]
+
+    # Group close observations by asteroid number
+    close_by_ast = ztfc.groupby(ztfc.nearest_ast_num)
+    close_by_ast_count = close_by_ast.size()
+    ast_num = close_by_ast_count.index.values
+    hit_count = close_by_ast_count.values
+
+    # Return numbers and counts
+    return ast_num, hit_count
