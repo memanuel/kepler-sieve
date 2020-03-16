@@ -380,19 +380,19 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
     q = np.swapaxes(q, 0, 1)
     v = np.swapaxes(v, 0, 1)
     
-    # Compute relative displacement to earth
-    q_rel = q - q_earth
+    # Compute relative displacement to earth; instantaneous, before light time adjustment
+    q_rel_inst = q - q_earth
     # Distance to earth
-    r_earth = np.linalg.norm(q_rel, axis=2, keepdims=True)
+    r_earth_inst = np.linalg.norm(q_rel_inst, axis=2, keepdims=True)
     # Light time in days from asteroid to earth in days (time units is days)
-    light_time = (r_earth / light_speed_au_day)
-    # adjusted relative position, accounting for light time; simulation velocity units are AU /day
+    light_time = (r_earth_inst / light_speed_au_day)
+    # Adjusted relative position, accounting for light time; simulation velocity units are AU /day
     dq_lt = light_time * v
-    q_rel_lt = q_rel - dq_lt
-    # adjusted distance to earth, accounting for light time
-    r_lt = np.linalg.norm(q_rel_lt, axis=2, keepdims=True)
+    q_rel = q_rel_inst - dq_lt
+    # Adjusted distance to earth, accounting for light time
+    r = np.linalg.norm(q_rel, axis=2, keepdims=True)
     # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)    
-    u = q_rel_lt / r_lt
+    u = q_rel / r
 
     # dict with inputs   
     inputs = {
@@ -413,7 +413,7 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
         'q': q.astype(dtype),
         'v': v.astype(dtype),
         'u': u.astype(dtype),
-        # 'q_earth' : q_earth.astype(dtype),
+        'r': r.astype(dtype)
     }
     
     return inputs, outputs
@@ -490,7 +490,6 @@ def make_dataset_dir_file(n0: int, n1: int) -> tf.data.Dataset:
         n0: the first asteroid in the file, e.g. 0
         n1: the last asteroid in the file (exclusive), e.g. 1000
     OUTPUTS:
-        ds: a tf.data.Dataset object for this 
     """
     # Load data
     inputs_all, outputs_all = make_data_one_file(n0, n1)
@@ -499,7 +498,10 @@ def make_dataset_dir_file(n0: int, n1: int) -> tf.data.Dataset:
     inputs = inputs_all
     
     # Wrap up selected outputs
-    outputs ={'u': outputs_all['u']}
+    outputs ={
+        'u': outputs_all['u'],
+        'r': outputs_all['r']
+    }
 
     # Wrap into a dataset
     ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))    

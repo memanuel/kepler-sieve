@@ -120,6 +120,12 @@ def deg2dist(x_deg):
     x_rad = np.deg2rad(x_deg)
     return rad2dist(x_rad)
 
+# ********************************************************************************************************************* 
+def dist2sec(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to arc seconds in [0, 180*3600]"""
+    x_rad = dist2rad(dist)
+    return np.rad2deg(x_rad) * 3600.0
+
 # *************************************************************************************************
 # DEPRECATED
 def xyz_to_sph(x: np.array, y: np.array, z: np.array):

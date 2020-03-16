@@ -7,11 +7,17 @@ Michael S. Emanuel
 Sun Oct 13 11:56:50 2019
 """
 
-# Library imports
+# Core
 import tensorflow as tf
 import numpy as np
-import time
 from silence_tensorflow import silence_tensorflow
+
+# Astronomy
+import astropy
+from astropy.units import au, day
+
+# Utility
+import time
 
 # Local imports
 # from tf_utils import Identity
@@ -19,7 +25,10 @@ from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
 from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, get_sun_pos_vel
 from asteroid_data import orbital_element_batch
 from asteroid_integrate import calc_ast_pos
+from astro_utils import dist2deg, dist2sec
 from  tf_utils import gpu_grow_memory, Identity
+
+# ********************************************************************************************************************* 
 # Aliases
 keras = tf.keras
 
@@ -41,6 +50,9 @@ G_ = 0.00029591220828559104
 # The gravitational field strength mu = G * (m0 + m1)
 # For massless asteroids orbiting the sun with units Msun, m0=1.0, m1=0.0, and mu = G
 mu = tf.constant(G_)
+
+# Speed of light; express this in AU / day
+light_speed_au_day = astropy.constants.c.to(au / day).value
 
 # Number of spatial dimensions
 space_dims = 3
@@ -290,7 +302,7 @@ class AsteroidPosition(keras.layers.Layer):
         # Add solar velocity get v in barycentric coordinates
         v_bary = tf.add(v_helio, self.v_sun)
    
-        # The estimated barycentric position includes the optional correction factor dq
+        # The estimated barycentric position and velocity includes the optional correction factor dq
         q = tf.add(q_bary, self.dq)
         v = tf.add(v_bary, self.dv)
 
@@ -299,29 +311,29 @@ class AsteroidPosition(keras.layers.Layer):
     def get_config(self):
         return self.cfg
 
-# ********************************************************************************************************************* 
-class DirectionUnitVector(keras.layers.Layer):
-    """
-    Layer to compute the direction from object 1 (e.g. earth) to object 2 (e.g. asteroid)
-    """
+# # ********************************************************************************************************************* 
+# class DirectionUnitVector(keras.layers.Layer):
+#     """
+#     Layer to compute the direction from object 1 (e.g. earth) to object 2 (e.g. asteroid)
+#     """
     
-    def __init__(self, **kwargs):
-        super(DirectionUnitVector, self).__init__(**kwargs)
+#     def __init__(self, **kwargs):
+#         super(DirectionUnitVector, self).__init__(**kwargs)
 
-    # don't declare this tf.function because it breaks when using it with q_earth
-    # still not entirely sure how tf.function works ...
-    # @tf.function
-    def call(self, q1, q2):
-        # Relative displacement from earth to asteroid
-        q_rel = tf.subtract(q2, q1, name='q_rel')
-        # Distance between objects
-        r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
-        # Unit vector pointing from object 1 to object 2
-        u = tf.divide(q_rel, r, name='q_rel_over_r')
-        return u
+#     # don't declare this tf.function because it breaks when using it with q_earth
+#     # still not entirely sure how tf.function works ...
+#     # @tf.function
+#     def call(self, q1, q2):
+#         # Relative displacement from earth to asteroid
+#         q_rel = tf.subtract(q2, q1, name='q_rel')
+#         # Distance between objects
+#         r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
+#         # Unit vector pointing from object 1 to object 2
+#         u = tf.divide(q_rel, r, name='q_rel_over_r')
+#         return u
     
-    def get_config(self):
-        return dict()       
+#     def get_config(self):
+#         return dict()       
 
 
 ## ********************************************************************************************************************* 
@@ -347,25 +359,45 @@ class AsteroidDirection(keras.layers.Layer):
         # Build layer to compute positions
         self.q_layer = AsteroidPosition(ts=ts, batch_size=batch_size, name='q_ast')
         
-        # Take a one time snapshot of the earth's position at these times; done in heliocentric coordinates
+        # Take a one time snapshot of the earth's position at these times in barycentric coordinates
         q_earth_np = get_earth_pos(ts)
         traj_size = ts.shape[0]
         q_earth_np = q_earth_np.reshape(1, traj_size, space_dims)
-        self.q_earth = keras.backend.constant(q_earth_np, dtype=tf.float32, shape=q_earth_np.shape, name='q_earth')
-        
+        # self.q_earth = keras.backend.constant(q_earth_np, dtype=tf.float32, shape=q_earth_np.shape, name='q_earth')
+
+        # Take a one time snapshot of the topos adjustment; displacement from geocenter to selected observatory
+        # TODO: update this with real topos adjustment
+        q_topos_np = q_earth_np * 0.0
+
+        # Position of the observatory in barycentric frame as a Keras constant
+        q_obs_np = q_earth_np + q_topos_np
+        self.q_obs = keras.backend.constant(q_obs_np, dtype=dtype, shape=q_obs_np.shape, name='q_obs')
+
     def calibrate(self, elts, q_ast, v_ast):
         """Calibrate this model by calibrating the underlying position layer"""
         # Calibrate the position model
         self.q_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
 
     def call(self, a, e, inc, Omega, omega, f, epoch):
-        # Calculate position
-        q_ast = self.q_layer(a, e, inc, Omega, omega, f, epoch)
+        # Calculate position and velocity of the asteroid
+        q_ast, v_ast = self.q_layer(a, e, inc, Omega, omega, f, epoch)
 
-        # Unit displacement vector (direction) from earth to asteroid
-        u = DirectionUnitVector(name='u')(self.q_earth, q_ast)
-        
-        return u
+        # Relative displacement from observatory to asteroid; instantaneous, before light time adjustment
+        q_rel_inst = tf.subtract(q_ast, self.q_obs, name='q_rel_inst')
+        # Distance between earth and asteroid, before light time adjustment
+        r_inst = tf.norm(q_rel_inst, axis=-1, keepdims=True, name='r_earth_inst')
+
+        # Light time in days from asteroid to earth in days (time units is days)
+        light_time = tf.divide(r_inst, light_speed_au_day)
+        # Adjusted relative position, accounting for light time; simulation velocity units are AU /day
+        dq_lt = tf.multiply(v_ast, light_time)
+        q_rel = tf.subtract(q_rel_inst, dq_lt)
+        # Adjusted distance to earth, accounting for light time
+        r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
+        # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)    
+        u = tf.divide(q_rel, r)
+
+        return u, r
     
     def get_config(self):
         return self.cfg
@@ -449,11 +481,15 @@ def make_model_ast_dir(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
 
     # All the work done in a single layer
     # u = AsteroidDirection(ts, batch_size, name='u')(a, e, inc, Omega, omega, f, epoch)
-    ast_dir_layer = AsteroidDirection(ts, batch_size, name='u')
-    u = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
+    ast_dir_layer = AsteroidDirection(ts, batch_size, name='ast_dir_layer')
+    u, r = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
+
+    # Alias outputs
+    u = Identity(name='u')(u)
+    r = Identity(name='r')(r)
 
     # Wrap the outputs
-    outputs = (u,)
+    outputs = (u, r)
     
     # Wrap this into a model
     model = keras.Model(inputs=inputs, outputs=outputs, name='model_asteroid_dir')
@@ -501,7 +537,7 @@ def test_ast_pos() -> bool:
     isOK_mse: bool = (rmse_q < thresh_q) and (rmse_v < thresh_v)
     # Report results
     msg: str = 'PASS' if isOK_mse else 'FAIL'
-    print(f'Root MSE for asteroid model on first 1000 asteroids:')
+    print(f'\nRoot MSE for asteroid model on first 1000 asteroids:')
     print(f'q in AU     = {rmse_q:8.6f}')
     print(f'v in AU/day = {rmse_v:8.6f}')
     print(f'***** {msg} *****')
@@ -583,27 +619,28 @@ def test_ast_dir() -> bool:
     # Compile with MSE (mean squared error) loss
     model.compile(loss='MSE')
     # Evaluate this model
-    mse: float = model.evaluate(ds, steps=steps)
-    rmse: float = np.sqrt(mse)
+    mse_ur, mse_u, mse_r = model.evaluate(ds)
+    rmse_u: float = np.sqrt(mse_u)
+    rmse_r: float = np.sqrt(mse_r)
     # Convert error from unit vector to angle
-    rmse_rad = 2.0 * np.arcsin(rmse / 2.0)
-    rmse_deg = np.rad2deg(rmse_rad)
-    rmse_sec = rmse_deg * 3600
+    rmse_deg = dist2deg(rmse_u)
+    rmse_sec = rmse_deg * 3600.0
     # Threshold for passing
-    thresh: float = 2.5
-    isOK_1: bool = (rmse_deg < thresh)
-    
+    thresh_deg_pre: float = 1.0
+    isOK_mse: bool = (rmse_deg < thresh_deg_pre)
+
     # Report results
-    msg: str = 'PASS' if isOK_1 else 'FAIL'
-    print(f'MSE for asteroid model on first 1000 asteroids = {mse:8.6f}')
-    print(f'Angle error = {rmse_rad:5.3e} rad / {rmse_deg:8.6f} degrees / {rmse_sec:6.2f} arc seconds')
+    msg: str = 'PASS' if isOK_mse else 'FAIL'
+    print(f'\nMSE for asteroid model on first 1000 asteroids = {mse_u:8.6f}')
+    print(f'Angle error = {rmse_u:5.3e} cart / {rmse_deg:8.6f} degrees / {rmse_sec:6.2f} arc seconds')
     print(f'***** {msg} *****')
 
     # Evaluate on first batch before adjustments
-    u1_true = batch_out['u']
-    u1_pred = model.predict(batch_in)
-    # Error in degrees
-    err1_pre = np.rad2deg(np.mean(np.linalg.norm(u1_pred - u1_true, axis=2)))
+    u_true = batch_out['u']
+    u_pred, r_pred = model.predict(batch_in)
+    # Error in cartesian distance and arc seconds, before calibration
+    err_dist_pre = np.mean(np.linalg.norm(u_pred - u_true, axis=2))
+    err_sec_pre = dist2sec(err_dist_pre)
     
     # Assemble orbital elements for calibration
     elts = {
@@ -627,25 +664,25 @@ def test_ast_dir() -> bool:
     
     # Evaluate error after correction
     model.ast_dir_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
-    u1_pred = model.predict(batch_in)
-    err1_post = np.rad2deg(np.mean(np.linalg.norm(u1_pred - u1_true, axis=2)))
-    err1_post_sec = err1_post * 3600
+    u_pred, r_pred = model.predict(batch_in)
+    err_dist_post = np.mean(np.linalg.norm(u_pred - u_true, axis=2))
+    err_sec_post = dist2sec(err_dist_post)
     
     # Report results
-    thresh = 1.0
-    isOK_2: bool = (err1_post_sec < thresh)
-    msg = 'PASS' if isOK_2 else 'FAIL'
+    thresh_sec_post = 1.0
+    isOK_post: bool = (err_sec_post < thresh_sec_post)
+    msg = 'PASS' if isOK_post else 'FAIL'
     print(f'Mean angle error on first batch of 64 asteroids in degrees:')
-    print(f'Before calibration: {err1_pre:5.3e}')
-    print(f'After calibration:  {err1_post:5.3e}  ({err1_post_sec:5.3f} arc-seconds)')
+    print(f'Before calibration: {err_dist_pre:5.3e} cart ({err_sec_pre:8.3f} arc-seconds)' )
+    print(f'After calibration:  {err_dist_post:5.3e} cart ({err_sec_post:8.3f} arc-seconds)')
     print(f'***** {msg} *****')
     
-    return (isOK_1 and isOK_2)
+    return (isOK_mse and isOK_post)
 
 # ********************************************************************************************************************* 
 def main():
     test_ast_pos()
-    # test_ast_dir()
+    test_ast_dir()
     
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
