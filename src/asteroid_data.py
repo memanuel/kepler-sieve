@@ -10,6 +10,7 @@ Sat Sep 21 10:38:38 2019
 import tensorflow as tf
 import scipy, scipy.interpolate
 import numpy as np
+import pandas as pd
 
 # Astronomy
 import astropy
@@ -21,7 +22,7 @@ from tqdm.auto import tqdm
 
 # Local imports
 from astro_utils import datetime_to_mjd
-from asteroid_integrate import load_data
+from asteroid_integrate import load_data as load_data_asteroids
 from rebound_utils import load_sim_np
 
 # Type names
@@ -29,12 +30,166 @@ from typing import Tuple, Dict
 
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
-ast_elt = load_data()
+ast_elt = load_data_asteroids()
 
+# Alias number of dimensions in space to avoid magic number 3
 space_dims = 3
 
 # Speed of light; express this in AU / day
 light_speed_au_day = astropy.constants.c.to(au / day).value
+
+# ********************************************************************************************************************* 
+def make_ragged_tensors(t_np: np.array, u_np: np.array, ast_num_np: np.array, batch_size: int):
+    """
+    Convert t, u, ast_num into ragged tensors
+    INPUTS:
+        t_np: A numpy array with observation times as MJDs; size (N,)
+        u_np: A numpy array with directions as MJDs; size (N,3)
+        ast_num_np: A numpy array with the asteroid numbers; size (N,)
+        batch_size: Used to pad end of data set with times having zero observations
+    """
+    # Unique times and their indices
+    t_unq, inv_idx, = np.unique(t_np, return_inverse=True)
+    
+    # Pad t_unq with extra times so it has an even multiple of batch_size
+    data_size: int = t_unq.shape[0]
+    if batch_size is not None:
+        num_pad: int = -data_size % batch_size
+        t_unq = np.pad(t_unq, pad_width=(0,num_pad), mode='constant')
+        t_unq[data_size:] = t_unq[data_size-1] + np.arange(num_pad)
+
+    # The row IDs for the ragged tensorflow are what numpy calls the inverse indices    
+    value_rowids = inv_idx 
+
+    # Tensor with distinct times
+    t = tf.convert_to_tensor(value=t_unq)
+    # Ragged tensors for direction u and asteroid number ast_num
+    u = tf.RaggedTensor.from_value_rowids(values=u_np, value_rowids=inv_idx)
+    ast_num = tf.RaggedTensor.from_value_rowids(values=ast_num_np, value_rowids=value_rowids)
+
+    # Return the tensors for t, u, ast_num
+    return t, u, ast_num
+    
+# ********************************************************************************************************************* 
+def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
+    """
+    Create a tf.Dataset from ZTF DataFrame
+    INPUTS:
+        ztf: A DataFrame of ZTF data.  Columns must include mjd, ux, uy, uz.
+        batch_size: Batch size used for TensorFlow DataSet.  None wraps all data into one big batch.
+    Outputs:
+        ds: A TensorFlow DataSet object.
+    """
+    # Extract inputs for make_ragged_tensors from ztf DataFrame
+    t_np = ztf.mjd.values.astype(np.float32)
+    cols_u = ['ux', 'uy', 'uz']
+    u_np = ztf[cols_u].values.astype(np.float32)
+    ast_num_np = ztf.nearest_ast_num.values
+
+    # Sort arrays in increasing order of observation time; otherwise make_ragged_tensors won't work
+    sort_idx = np.argsort(t_np)
+    t_np = t_np[sort_idx]
+    u_np = u_np[sort_idx]
+    ast_num_np = ast_num_np[sort_idx]
+
+    # Convert to tensors (regular for t, ragged for u and ast_num)
+    t, u_r, ast_num_r = make_ragged_tensors(t_np=t_np, u_np=u_np, ast_num_np=ast_num_np, batch_size=batch_size)
+
+    # Set batch_size to all the times if it was not specified
+    if batch_size is None:
+        batch_size = u_r.shape[0]
+
+    # Number of entries to pad at the end so batches all divisible by batch_size    
+    num_pad = t.shape[0] - u_r.shape[0]
+
+    # Get row lengths
+    row_len = tf.cast(u_r.row_lengths(), tf.int32)
+    # Pad row len with zeros for the last batch
+    row_len = tf.pad(row_len, paddings=[[0,num_pad]], mode='CONSTANT', constant_values=0)
+    
+    # Pad u_r into a regular tensor
+    pad_default = np.array([0.0, 0.0, 65536.0])
+    u = u_r.to_tensor(default_value=pad_default)
+    
+    # Pad u with entries for the last batch
+    pad_shape_u = [[0,num_pad], [0,0], [0,0]]
+    u = tf.pad(u, paddings=pad_shape_u, mode='CONSTANT', constant_values=65536.0)
+        
+    # Index associated with time points
+    idx = tf.range(t.shape[0], dtype=tf.int32)
+    
+    # Pad ast_num_r into a regular tensor; use default -1 to indicate padded observation
+    ast_num = ast_num_r.to_tensor(default_value=-1)
+    
+    # Pad ast_num with entries for the last batch
+    pad_shape_ast_num = [[0,num_pad],[0,0]]
+    ast_num = tf.pad(ast_num, paddings=pad_shape_ast_num, mode='CONSTANT', constant_values=-1)
+    
+    # Wrap into tensorflow Dataset
+    inputs = {
+        't': t,
+        'idx': idx,
+        'row_len': row_len,
+        'u_obs': u, 
+    }
+    outputs = {
+        'ast_num': ast_num,
+    }
+    ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
+    
+    # Batch the dataset
+    drop_remainder: bool = False
+    buffer_size = 16384
+    ds = ds.batch(batch_size, drop_remainder=drop_remainder).shuffle(buffer_size).repeat()
+    # Return the dataset as well as tensors with the time snapshots and row lengths
+    return ds, t, row_len
+    
+# ********************************************************************************************************************* 
+def orbital_element_batch(ast_nums: np.ndarray):
+    """
+    Return a batch of orbital elements
+    INPUTS:
+        ast_nums: Numpy array of asteroid numbers to include in batch
+    OUTPUTS:
+        elts: Dictionary with seven keys for a, e, inc, Omega, omega, f, epoch
+    """
+    # The orbital elements and epoch
+    dtype = np.float32
+    a = ast_elt.a[ast_nums].to_numpy().astype(dtype)
+    e = ast_elt.e[ast_nums].to_numpy().astype(dtype)
+    inc = ast_elt.inc[ast_nums].to_numpy().astype(dtype)
+    Omega = ast_elt.Omega[ast_nums].to_numpy().astype(dtype)
+    omega = ast_elt.omega[ast_nums].to_numpy().astype(dtype)
+    f = ast_elt.f[ast_nums].to_numpy().astype(dtype)
+    epoch = ast_elt.epoch_mjd[ast_nums].to_numpy().astype(dtype)
+    
+    # Wrap into dictionary
+    elts = {
+        'a': a,
+        'e': e,
+        'inc': inc,
+        'Omega': Omega,
+        'omega': omega,
+        'f': f,
+        'epoch': epoch
+    }
+    
+    return elts
+
+# ********************************************************************************************************************* 
+def orbital_element_batch_v1(n0: int, batch_size: int=64):
+    """Return a batch of orbital elements"""
+    # Get start and end index location of this asteroid number
+    i0: int = ast_elt.index.get_loc(n0)
+    i1: int = i0 + batch_size
+    ast_nums = np.arange(i0, i1+1, dytpe=np.int32)
+
+    # Delegate to orbital_element_batch
+    return orbital_element_batch(ast_nums)
+
+# ********************************************************************************************************************* 
+# OLD STUFF - PROBABLY GET RID OF THIS LATER
+# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def get_earth_pos_file(heliocentric: bool):
@@ -323,174 +478,3 @@ def make_dataset_ast_dir(n0: int, num_files: int):
     ds = combine_datasets_dir(n0=n0, n1=n1, progbar=progbar)
     return ds
 
-# ********************************************************************************************************************* 
-def orbital_element_batch(n0: int, batch_size: int=64):
-    """Return a batch of orbital elements"""
-    # Get start and end index location of this asteroid number
-    i0: int = ast_elt.index.get_loc(n0)
-    i1: int = i0 + batch_size
-    
-    # The orbital elements and epoch
-    dtype = np.float32
-    a = ast_elt.a[i0:i1].to_numpy().astype(dtype)
-    e = ast_elt.e[i0:i1].to_numpy().astype(dtype)
-    inc = ast_elt.inc[i0:i1].to_numpy().astype(dtype)
-    Omega = ast_elt.Omega[i0:i1].to_numpy().astype(dtype)
-    omega = ast_elt.omega[i0:i1].to_numpy().astype(dtype)
-    f = ast_elt.f[i0:i1].to_numpy().astype(dtype)
-    epoch = ast_elt.epoch_mjd[i0:i1].to_numpy().astype(dtype)
-    
-    # Wrap into dictionary
-    elts = {
-        'a': a,
-        'e': e,
-        'inc': inc,
-        'Omega': Omega,
-        'omega': omega,
-        'f': f,
-        'epoch': epoch
-    }
-    
-    return elts
-
-# ********************************************************************************************************************* 
-# Attempts to get the entire dataset into one object
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def gen_batches(n_max: int = 541, include_vel: bool = False, batch_size: int = 64):
-    """Python generator for all the asteroid trajectories"""
-    # round up n_max to the next multiple of 8
-    n_max = ((n_max+7) // 8) * 8
-    # iterate over the combined datasets
-    for n in range(0, n_max, 8):
-        ds = combine_datasets_pos(n0=n, n1=n+8, include_vel=include_vel, batch_size=batch_size)
-        # iterate over the batches in the combined dataset
-        for batch in ds.batch(batch_size):
-            yield batch
-
-# ********************************************************************************************************************* 
-def make_dataset_ast_gen():
-    """Wrap the asteroid data into a Dataset using Python generator"""
-    # see ds.element_spec()
-    output_types = (
-    {'a': tf.float32,
-     'e': tf.float32,
-     'inc': tf.float32,
-     'Omega': tf.float32,
-     'omega': tf.float32,
-     'f': tf.float32,
-     'epoch': tf.float32,
-     'ts': tf.float32,
-    },
-    {'q': tf.float32,
-     'v': tf.float32,
-    }
-    )
-    
-    # output shapes: 6 orbital elements and epoch are scalars; ts is vector of length N; qs, vs, Nx3
-    N: int = 14976
-    batch_size: int = 64
-    output_shapes = (
-    {'a': (batch_size,),
-     'e': (batch_size,),
-     'inc': (batch_size,),
-     'Omega': (batch_size,),
-     'omega': (batch_size,),
-     'f': (batch_size,),
-     'epoch': (batch_size,),
-     'ts':(batch_size,N,),
-    },
-    {'q': (batch_size,N,3),
-     'v': (batch_size,N,3),
-    }
-    )
-
-    # Set arguments for gen_batches
-    n_max: int = 8
-    include_vel: bool = False
-    batch_args = (n_max, include_vel, batch_size)
-
-    # Build dataset from generator
-    ds = tf.data.Dataset.from_generator(
-            generator=gen_batches,
-            output_types=output_types,
-            output_shapes=output_shapes,
-            args=batch_args)
-
-    return ds
-
-# ********************************************************************************************************************* 
-# https://www.tensorflow.org/tutorials/load_data/tfrecord
-def _bytes_feature(value):
-  """Returns a bytes_list from a string / byte."""
-  if isinstance(value, type(tf.constant(0))):
-    value = value.numpy() # BytesList won't unpack a string from an EagerTensor.
-  return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
-
-def _float_feature(value):
-  """Returns a float_list from a float / double."""
-  return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
-
-def _int64_feature(value):
-  """Returns an int64_list from a bool / enum / int / uint."""
-  return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
-
-def _float_vec_feature(values):
-  """Returns a float_list from a numpy array of float / double."""
-  return tf.train.Feature(float_list=tf.train.FloatList(value=values))
-
-# ********************************************************************************************************************* 
-def serialize_ast_traj(ds: tf.data.Dataset):
-    """Serialize one asteroid trajectory to a proto message"""
-    # iterator for the dataset
-    it = iter(ds)
-
-    # Unpack inputs and outputs from iterator
-    inputs, outputs = next(it)
-    
-    # Unpack inputs (orbital elements)
-    a = inputs['a']
-    e = inputs['e']
-    inc = inputs['inc']
-    Omega = inputs['Omega']
-    omega = inputs['omega']
-    f = inputs['f']
-    epoch = inputs['epoch']
-    ts = inputs['ts']
-    
-    # Unpack outputs (position and velocity)
-    q = outputs['q']
-    v = outputs['v']
-    
-    # Dictionary mapping feature names to date types compatible with tf.Example
-    feature = {
-        'a': _float_feature(a),
-        'e': _float_feature(e),
-        'inc': _float_feature(inc),
-        'Omega': _float_feature(Omega),
-        'omega': _float_feature(omega),
-        'f': _float_feature(f),
-        'epoch': _float_feature(epoch),
-        'ts': _float_vec_feature(ts),
-        # q and v must be flattened
-        'q': _float_vec_feature(tf.reshape(q, [-1])),
-        'v': _float_vec_feature(tf.reshape(v, [-1])),
-    }
-    
-    # create a message using tf.train.Example
-    proto_msg = tf.train.Example(features=tf.train.Features(feature=feature))
-    return proto_msg.SerializeToString()
-
-# ********************************************************************************************************************* 
-def deserialize_ast_traj(proto_msg):
-    """Deserialize an asteroid trajectory stored as a proto message"""
-    pass
-
-
-#q_earth_ref, t_ref = get_earth_pos_file()
-#x_ref_min = tf.math.reduce_min(t_ref)
-#x_ref_max = tf.math.reduce_max(t_ref)
-#q_earth = tfp.math.interp_regular_1d_grid(x=ts, x_ref_min=x_ref_min, x_ref_max=x_ref_max, 
-#                                          y_ref=q_earth_ref, axis=0)
-#

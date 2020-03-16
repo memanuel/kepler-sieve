@@ -244,7 +244,7 @@ def ztf_ast_file_name(n0: int, n1: Optional[int]):
     """File name for data file with ZTF observations and nearest asteroid."""
     # Handle special case that we want all asteroids (n0=0, n1=None)
     if (n0==0 and n1 is None):
-        'ztf-nearest-ast.h5'
+        file_name = 'ztf-nearest-ast.h5'
     # Handle special case that we want all asteroids starting from n0 (n1=None)
     elif (n1 is None):
         file_name = f'ztf-nearest-ast-{n0:06d}.h5'
@@ -443,3 +443,32 @@ def calc_hit_freq(ztf, thresh_sec: float):
 
     # Return numbers and counts
     return ast_num, hit_count
+
+# ********************************************************************************************************************* 
+def make_ztf_easy_batch(batch_size: int = 64):
+    """
+    Generate an "easy batch" to prototype asteroid search algorithm.
+    The easy batch consists of all ZTF observations whose nearest asteroid is
+    one of the 64 asteroids with the most hits at a 2.0 arc second threshold.
+    """
+    # Load all ZTF observations including nearest asteroid
+    ztf = load_ztf_nearest_ast()
+
+    # Asteroid numbers and hit counts
+    ast_num, hit_count = calc_hit_freq(ztf=ztf, thresh_sec=2.0)
+
+    # Sort the hit counts in descending order and find the top batch_size
+    idx = np.argsort(hit_count)[::-1][0:batch_size]
+
+    # Extract the asteroid number and hit count for this batch
+    ast_num_batch = ast_num[idx]
+    hit_count_batch = hit_count[idx]
+
+    # Mask for entries in this batch
+    is_in_batch = (ztf.nearest_ast_num == 0)
+    for ast_num in ast_num_batch:
+        is_in_batch = is_in_batch | (ztf.nearest_ast_num == ast_num)
+    ztf_batch = ztf[is_in_batch].copy()
+
+    return ztf_batch
+

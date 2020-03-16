@@ -6,25 +6,34 @@ Michael S. Emanuel
 Thu Oct 17 15:24:10 2019
 """
 
-# Library imports
+# Core
+import numpy as np
+import pandas as pd
+
+# Tensorflow / ML
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
-import numpy as np
-from datetime import datetime, timedelta
-import time
+
+# Utility
 import logging
-from typing import Dict
+import time
+from datetime import timedelta
 
 # Local imports
-from asteroid_integrate import load_data as load_data_asteroids
-from observation_data import make_synthetic_obs_dataset, random_direction
-from asteroid_data import orbital_element_batch
+from ztf_data import make_ztf_easy_batch
+# from ztf_data import load_ztf_det_all, load_ztf_nearest_ast, ztf_nearest_ast, calc_hit_freq
+from asteroid_data import make_ztf_dataset, orbital_element_batch
+from asteroid_integrate import load_data as load_data_asteroids, calc_ast_pos
 from asteroid_model import AsteroidDirection, make_model_ast_pos
-from asteroid_integrate import calc_ast_pos
 from search_score_functions import score_mean, score_var, score_mean_2d, score_var_2d
-from tf_utils import Identity
+from astro_utils import deg2dist
 from utils import print_header
+from tf_utils import Identity
 
+# Typing
+from typing import Dict
+
+# ********************************************************************************************************************* 
 # Aliases
 keras = tf.keras
 
@@ -47,8 +56,8 @@ e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
 
 # Range for resolution parameter R
-R_min_ = np.deg2rad(1.0/3600)
-R_max_ = np.deg2rad(10.0)
+R_min_ = deg2dist(1.0/3600)
+R_max_ = deg2dist(10.0)
 log_R_min_ = np.log(R_min_)
 log_R_max_ = np.log(R_max_)
 
@@ -567,8 +576,10 @@ def report_model_attribute_change(att0: np.array, att1: np.array, mask_good: np.
           f'     ({pct_chng_a:+4.1%})')
    
 # ********************************************************************************************************************* 
-def report_model(model, R_deg, mask_good, batch_size, steps, elts_true, display=True):
-    """Report summary of model on good and b"""
+def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float, 
+                 mask_good: np.ndarray, batch_size: int, steps: int, 
+                 elts_true: np.ndarray, display: bool =True):
+    """Report summary of model on good and bad"""
 
     # Mask for perturbed ("bad") elements
     mask_bad = ~mask_good
@@ -648,7 +659,7 @@ def report_model(model, R_deg, mask_good, batch_size, steps, elts_true, display=
     return scores, traj_err, elt_err
 
 # ********************************************************************************************************************* 
-def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01):
+def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good):
     """Report progress while model trained"""
     
     # Unpack inputs pairs
@@ -716,264 +727,178 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01):
           f'{d_elt_err_b[3]:+8.6f},  {d_elt_err_b[4]:+8.6f}, {d_elt_err_b[5]:+8.6f}, ')
 
 # ********************************************************************************************************************* 
-def main():
-    pass
+def main(time_batch_size: int = 128, elt_batch_size: int = 64, epochs=20):
+    # Load all ZTF data with nearest asteroid calculations
+    ztf = make_ztf_easy_batch(batch_size=elt_batch_size)
 
-# Dataset of observations: synthetic data on first 1000 asteroids
+    # Build a TensorFlow DataSet from ZTF DataFrame
+    ds, ts, row_len = make_ztf_dataset(ztf=ztf, batch_size=time_batch_size)
 
-# Build the dataset
-n0: int = 1
-n1: int = 100
-dt0: datetime = datetime(2000,1,1)
-dt1: datetime = datetime(2019,1,1)
-time_batch_size = 128
-ds, ts, row_len = make_synthetic_obs_dataset(n0=n0, n1=n1, dt0=dt0, dt1=dt1, batch_size=time_batch_size)
-# Trajectory size and steps per batch
-traj_size = ts.shape[0]
-steps = int(np.ceil(traj_size / time_batch_size))
+    # Trajectory size and steps per batch
+    traj_size = ts.shape[0]
+    steps = int(np.ceil(traj_size / time_batch_size))
 
-# Get example batch
-batch_in, batch_out = list(ds.take(1))[0]
-# Contents of this batch
-t = batch_in['t']
-idx = batch_in['idx']
-row_len = batch_in['row_len']
-u_obs = batch_in['u_obs']
+    # Batch of perturbed orbital elements for asteroid model
+    R_deg: float = 2.0
+    ast_nums = np.unique(ztf.nearest_ast_num)
+    elts_np = orbital_element_batch(ast_nums)
+    epoch = elts_np['epoch'][0]
 
-# Get trajectory size and max_obs
-traj_size: int = ts.shape[0]
-max_obs: int = u_obs.shape[1]
-num_obs: float = np.sum(row_len, dtype=np.float32)
+    # Get example batch
+    batch_in, batch_out = list(ds.take(1))[0]
+    # Contents of this batch
+    t = batch_in['t']
+    idx = batch_in['idx']
+    row_len = batch_in['row_len']
+    u_obs = batch_in['u_obs']
 
-# Batch of perturbed orbital elements for asteroid model
-R_deg: float = 2.0
-elts_np = orbital_element_batch(1)
-epoch = elts_np['epoch'][0]
-elt_batch_size = 64
+    # Get max_obs and number of observations
+    max_obs: int = u_obs.shape[1]
+    num_obs: float = np.sum(row_len, dtype=np.float32)
 
-# The correct orbital elements as an array
-elts_true = np.array([elts_np['a'], elts_np['e'], elts_np['inc'], elts_np['Omega'], 
-                      elts_np['omega'], elts_np['f'], elts_np['epoch']]).transpose()
+    # The correct orbital elements as an array
+    elts_true = np.array([elts_np['a'], elts_np['e'], elts_np['inc'], elts_np['Omega'], 
+                          elts_np['omega'], elts_np['f'], elts_np['epoch']]).transpose()
 
-# Mask where data expected vs not
-mask_good = np.arange(64) < 32
-mask_bad = ~mask_good
-# Perturb second half of orbital elements
-# elts_np2 = perturb_elts(elts_np, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=2.0, mask=mask_bad)
-elts_np2 = perturb_elts(elts_np, sigma_a=0.05, sigma_e=0.05, sigma_f_deg=5.0, mask=mask_bad)
+    # Mask where data expected vs not
+    mask_good = np.arange(elt_batch_size) < (elt_batch_size//2)
+    mask_bad = ~mask_good
+    # Perturb second half of orbital elements
+    elts_np2 = perturb_elts(elts_np, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=0.0, mask=mask_bad)
 
-# Orbits for calibration
-if 'q_cal' not in globals():
-    print(f'Numerically integrating calibration trajectories q_cal...')
-    q_cal = calc_ast_pos(elts=elts_np2, epoch=epoch, ts=ts)
-# q_cal = None
+    # Orbits for calibration
+    if 'q_cal' not in globals():
+        print(f'Numerically integrating calibration trajectories q_cal...')
+        q_cal = calc_ast_pos(elts=elts_np2, epoch=epoch, ts=ts)
+    # q_cal = None
 
-# Set calibration flag
-use_calibration: bool = True
+    # Set calibration flag
+    use_calibration: bool = True
 
-# Alpha and beta parameters for the objective function
-alpha = 8.0
-beta = 20.0
+    # Alpha and beta parameters for the objective function
+    alpha = 8.0
+    beta = 20.0
 
-# Build functional model for asteroid score
-model = make_model_asteroid_search(\
-    ts=ts, elts_np=elts_np2, max_obs=max_obs, num_obs=num_obs,
-    elt_batch_size=elt_batch_size, time_batch_size=time_batch_size,
-    R_deg=R_deg, alpha=alpha, beta=beta, q_cal=q_cal, use_calibration=use_calibration)
+    # Build functional model for asteroid score
+    model = make_model_asteroid_search(\
+        ts=ts, elts_np=elts_np2, max_obs=max_obs, num_obs=num_obs,
+        elt_batch_size=elt_batch_size, time_batch_size=time_batch_size,
+        R_deg=R_deg, alpha=alpha, beta=beta, q_cal=q_cal, use_calibration=use_calibration)
 
-# Use Adam optimizer with gradient clipping
-learning_rate = 2.0e-5
-clipvalue = 5.0
-opt = keras.optimizers.Adam(learning_rate=learning_rate, 
-                            beta_1=0.900, 
-                            beta_2=0.999,
-                            epsilon=1.0E-7, 
-                            clipvalue=clipvalue, 
-                            amsgrad=False)
-model.compile(optimizer=opt)
+    # Use Adam optimizer with gradient clipping
+    learning_rate = 2.0e-5
+    clipvalue = 5.0
+    opt = keras.optimizers.Adam(learning_rate=learning_rate, 
+                                beta_1=0.900, 
+                                beta_2=0.999,
+                                epsilon=1.0E-7, 
+                                clipvalue=clipvalue, 
+                                amsgrad=False)
+    model.compile(optimizer=opt)
+    # Whether to display results
+    display = False
 
-display = False
+    # Report losses before training
+    print(f'Processed easy batch with {elt_batch_size} asteroids. Perturbed second half.')
+    if display:
+        print_header('Model Before Training:')
+    pred0 = model.predict_on_batch(ds)
+    elts0, R0, u_pred0, z0, _ = pred0
+    scores0, traj_err0, elt_err0 = \
+        report_model(model=model, ds=ds, R_deg=R_deg, mask_good=mask_good, 
+                     batch_size=elt_batch_size, steps=steps, elts_true=elts_true, display=display)
 
-# Report losses before training
-print(f'Processed first {n1} asteroids; seeded with first 64. Perturbed 33-65.')
-if display:
-    print_header('Model Before Training:')
-pred0 = model.predict_on_batch(ds)
-elts0, R0, u_pred0, z0, _ = pred0
-scores0, traj_err0, elt_err0 = \
-    report_model(model=model, R_deg=R_deg, mask_good=mask_good, 
-                 batch_size=elt_batch_size, steps=steps, elts_true=elts_true, display=display)
+    # Get intital gradients on entire data set
+    with tf.GradientTape(persistent=True) as gt:
+        gt.watch([model.elements.e_, model.elements.inc_, model.elements.R_])
+        pred = model.predict_on_batch(ds.take(traj_size))
+        elts, R, u_pred, z, scores = pred
+        # unpack elements
+        a = elts[:,0]
+        e = elts[:,1]
+        inc = elts[:,2]
+        Omega = elts[:,3]
+        omega = elts[:,4]
+        f = elts[:,5]
+        epoch = elts[:,6]
+        # unpack scores
+        raw_score = scores[:, 0]
+        mu = scores[:, 1]
+        sigma2 = scores[:, 2]
+        objective = scores[:, 3]
+        # total loss function
+        loss = tf.reduce_sum(-objective)
 
-# Get intital gradients on entire data set
-with tf.GradientTape(persistent=True) as gt:
-    gt.watch([model.elements.e_, model.elements.inc_, model.elements.R_])
-    pred = model.predict_on_batch(ds.take(traj_size))
-    elts, R, u_pred, z, scores = pred
-    # unpack elements
-    a = elts[:,0]
-    e = elts[:,1]
-    inc = elts[:,2]
-    Omega = elts[:,3]
-    omega = elts[:,4]
-    f = elts[:,5]
-    epoch = elts[:,6]
-    # unpack scores
-    raw_score = scores[:, 0]
-    mu = scores[:, 1]
-    sigma2 = scores[:, 2]
-    objective = scores[:, 3]
-    # total loss function
-    loss = tf.reduce_sum(-objective)
+    #    # Derivatives of elements w.r.t. control variables
+    #    da_da_ = gt.gradient(a, model.elements.a_)
+    #    de_de_ = gt.gradient(e, model.elements.e_)
+    #    dinc_dinc_ = gt.gradient(inc, model.elements.inc_)
+    #    dOmega_dOmega_ = gt.gradient(Omega, model.elements.Omega_)
+    #    domega_domega_ = gt.gradient(omega, model.elements.omega_)
+    #    df_df_ = gt.gradient(f, model.elements.f_)
 
-#    # Derivatives of elements w.r.t. control variables
-#    da_da_ = gt.gradient(a, model.elements.a_)
-#    de_de_ = gt.gradient(e, model.elements.e_)
-#    dinc_dinc_ = gt.gradient(inc, model.elements.inc_)
-#    dOmega_dOmega_ = gt.gradient(Omega, model.elements.Omega_)
-#    domega_domega_ = gt.gradient(omega, model.elements.omega_)
-#    df_df_ = gt.gradient(f, model.elements.f_)
+    # Derivatives of loss w.r.t. control variables for elements and R
+    dL_da = gt.gradient(loss, model.elements.a_) / steps
+    dL_de = gt.gradient(loss, model.elements.e_) / steps
+    dL_dinc = gt.gradient(loss, model.elements.inc_) / steps
+    dL_dOmega = gt.gradient(loss, model.elements.Omega_) / steps
+    dL_domega = gt.gradient(loss, model.elements.omega_) / steps
+    dL_df = gt.gradient(loss, model.elements.f_) / steps
+    dL_dR = gt.gradient(loss, model.elements.R_) / steps
+    del gt
 
-# Derivatives of loss w.r.t. control variables for elements and R
-dL_da = gt.gradient(loss, model.elements.a_) / steps
-dL_de = gt.gradient(loss, model.elements.e_) / steps
-dL_dinc = gt.gradient(loss, model.elements.inc_) / steps
-dL_dOmega = gt.gradient(loss, model.elements.Omega_) / steps
-dL_domega = gt.gradient(loss, model.elements.omega_) / steps
-dL_df = gt.gradient(loss, model.elements.f_) / steps
-dL_dR = gt.gradient(loss, model.elements.R_) / steps
-del gt
+    # Train model
+    step_multiplier = 5
+    steps_per_epoch = steps*step_multiplier
+    rows_per_epoch = steps_per_epoch * time_batch_size
+    print_header(f'Training for {epochs} Epochs of Size {rows_per_epoch} Observation Days...')
+    print(f'alpha:         {alpha:5.1f}')
+    print(f'beta:          {beta:5.1f}')
+    print(f'R (degrees):   {R_deg:5.1f}')
+    print(f'learning_rate:   {learning_rate:5.2e}')
+    print(f'clipvalue:      {clipvalue:5.2f}')
 
-# Train model
-step_multiplier = 5
-steps_per_epoch = steps*step_multiplier
-rows_per_epoch = steps_per_epoch * time_batch_size
-epochs = 20
-print_header(f'Training for {epochs} Epochs of Size {rows_per_epoch} Observation Days...')
-print(f'alpha:         {alpha:5.1f}')
-print(f'beta:          {beta:5.1f}')
-print(f'R (degrees):   {R_deg:5.1f}')
-print(f'learning_rate:   {learning_rate:5.2e}')
-print(f'clipvalue:      {clipvalue:5.2f}')
+    train_time_0 = time.time()
+    hist = model.fit(ds, epochs=epochs, steps_per_epoch=steps_per_epoch)
+    train_time_1 = time.time()
+    train_time = train_time_1 - train_time_0
+    print(f'Elapsed Time: {str(timedelta(seconds=train_time))}')
 
-train_time_0 = time.time()
-hist = model.fit(ds, epochs=epochs, steps_per_epoch=steps_per_epoch)
-train_time_1 = time.time()
-train_time = train_time_1 - train_time_0
-print(f'Elapsed Time: {str(timedelta(seconds=train_time))}')
+    # Report results
+    if display:
+        print_header('Model After Training:')
+    pred1 = model.predict_on_batch(ds)
+    elts1, R1, u_pred1, z1, _ = pred1
+    scores1, traj_err1, elt_err1 = \
+        report_model(model=model, ds=ds, R_deg=R_deg, mask_good=mask_good, 
+                     batch_size=elt_batch_size, steps=steps, elts_true=elts_true, display=display)
 
-# Report results
-if display:
-    print_header('Model After Training:')
-pred1 = model.predict_on_batch(ds)
-elts1, R1, u_pred1, z1, _ = pred1
-scores1, traj_err1, elt_err1 = \
-    report_model(model=model, R_deg=R_deg, mask_good=mask_good, 
-                 batch_size=elt_batch_size, steps=steps, elts_true=elts_true, display=display)
+    # Unpack scores after training
+    raw_score = scores1[:,0]
+    mu = scores1[:,1]
+    sigma2 = scores1[:,2]
+    objective = scores1[:,3]
+    sigma = scores1[:, 4]
+    t_score = scores1[:, 5]
+    eff_obs = raw_score - mu
 
-# Unpack scores after training
-raw_score = scores1[:,0]
-mu = scores1[:,1]
-sigma2 = scores1[:,2]
-objective = scores1[:,3]
-sigma = scores1[:, 4]
-t_score = scores1[:, 5]
-eff_obs = raw_score - mu
+    ## Change in scores
+    d_scores = scores1 - scores0
+    d_traj_err = traj_err1 - traj_err0
+    d_elt_err = elt_err1 - elt_err0
+    d_R = R1 - R0
 
-## Change in scores
-d_scores = scores1 - scores0
-d_traj_err = traj_err1 - traj_err0
-d_elt_err = elt_err1 - elt_err0
-d_R = R1 - R0
-
-# Report training progress: scores, orbital element errors, and resolution
-print_header('Progress During Training:')
-# report_training_progress(d_scores, d_traj_err, d_elt_err, d_R)
-scores_01 = (scores0, scores1)
-traj_err_01 = (traj_err0, traj_err1)
-elt_err_01 = (elt_err0, elt_err1)
-R_01 = (R0, R1)
-# report_training_progress(d_scores, d_traj_err, d_elt_err, d_R)
-report_training_progress(scores_01, traj_err_01, elt_err_01, R_01)
+    # Report training progress: scores, orbital element errors, and resolution
+    print_header('Progress During Training:')
+    # report_training_progress(d_scores, d_traj_err, d_elt_err, d_R)
+    scores_01 = (scores0, scores1)
+    traj_err_01 = (traj_err0, traj_err1)
+    elt_err_01 = (elt_err0, elt_err1)
+    R_01 = (R0, R1)
+    # report_training_progress(d_scores, d_traj_err, d_elt_err, d_R)
+    report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
-    main()
+    main(time_batch_size=128, elt_batch_size=64, epochs=5)
 
-
-
-
-#    # Initial elements
-#    a0 = elts_np2['a']
-#    e0 = elts_np2['e']
-#    inc0 = elts_np2['inc']
-#    Omega0 = elts_np2['Omega']
-#    omega0 = elts_np2['omega']
-#    f0 = elts_np2['f']
-#    
-#    # Current elements
-#    #a1 = model.elements.get_a()
-#    #e1 = model.elements.get_e()
-#    #inc1 = model.elements.get_inc()
-#    #Omega1 = model.elements.get_Omega()
-#    #omega1 = model.elements.get_omega()
-#    #f1 = model.elements.get_f()
-#    a1 = a
-#    e1 = e
-#    inc1 = inc
-#    Omega1 = Omega
-#    omega1 = omega
-#    f1 = f
-#    
-#    # True elements
-#    a_true = elts_true[:, 0]
-#    e_true = elts_true[:, 1]
-#    inc_true = elts_true[:, 2]
-#    Omega_true = elts_true[:, 3]
-#    omega_true = elts_true[:, 4]
-#    f_true = elts_true[:, 5]
-#    
-#    # change in a during training
-#    da = a1 - a0
-#    df = f1 - f0
-#    # the change we want to learn
-#    goal_a = a_true - a0
-#    goal_f = f_true - f0
-#    
-#    # Known asteroid numbers
-#    ast_num = batch_out['ast_num']
-
-#    ## score calculation in gradient tape
-#    with tf.GradientTape(persistent=True) as gt:
-#        gt.watch([a, e, R])
-#        u_pred_ = model.direction(a, e, inc, Omega, omega, f, epoch)
-#        A = 1.0 / R**2
-#        B = tf.reshape(-0.5 * A, (64, 1, 1,))
-#        gt.watch([A])
-#        z_ = model.dir_diff(u_obs, u_pred_, idx)
-#        z2_ = tf.square(tf.linalg.norm(z_, axis=-1))
-#        arg = tf.multiply(B, z2_)
-#        # K.sum(z_*z_, axis=(2,3)).shape
-#        # raw_scores = tf.exp(arg)
-#        is_close = arg > -10
-#        close_idx = tf.where(is_close)
-#        raw_scores = tf.scatter_nd(indices=close_idx, updates=tf.exp(arg[is_close]), shape=arg.shape)
-#        # raw_scores = tf.exp(arg)
-#        # scores of asteroid 1 by date
-#        scores_ast1 = raw_scores[0]
-#        # scores_ast1 = K.sum(raw_scores[0], axis=(1))
-#        # raw score by asteroid
-#        raw_score = K.sum(tf.exp(arg), axis=(1,2))
-#    
-#        mu_per_obs = score_mean(A)
-#        mu = tf.multiply(num_obs, mu_per_obs, name='mu')
-#        
-#        # The expected variance; use the 2D (plane) estimate
-#        var_per_obs = score_var(A)
-#        sigma2 = tf.multiply(num_obs, var_per_obs, name='sigma2')
-#        
-#        # objective function
-#        objective = raw_score - alpha * mu - beta * sigma2
-#        
-#        # gradients
-#        df_da = gt.gradient(objective, a)
-#        df_dR = gt.gradient(objective, R)

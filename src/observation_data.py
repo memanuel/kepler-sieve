@@ -28,7 +28,7 @@ ast_elt = load_data_asteroids()
 ast_num_all = ast_elt.Num.to_numpy()
 
 # Load earth position data
-q_earth, ts = get_earth_pos_file()
+q_earth, ts = get_earth_pos_file(heliocentric=False)
 space_dims = 3
 
 # ********************************************************************************************************************* 
