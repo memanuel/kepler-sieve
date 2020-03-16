@@ -325,14 +325,16 @@ def get_sun_pos_vel(ts: np.ndarray) -> np.array:
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def make_dataset_dir_spline(n0: int, n1: int, N_t: int = 1000, batch_size: int = 64) -> tf.data.Dataset:
+def make_dataset_ast_dir_spline(n0: int, n1: int, site_name: str = 'geocenter', 
+                                N_t: int = 1000, batch_size: int = 64) -> tf.data.Dataset:
     """
     Create a tf.Dataset for testing asteroid direction model.
     Data comes from output of spline_ast_vec_dir in asteroid_dataframe.
     INPUTS:
-        n0: First asteroid number; inclusive
-        n1: Last asteroid number; exclusive
-        N_t: Number of times to sample
+        n0: First asteroid number; inclusive, e.g. 1
+        n1: Last asteroid number; exclusive, e.g. 65
+        site_name: Name of site, e.g. 'palomar'
+        N_t: Number of times to sample, e.g. 1000
         batch_size: batch_size for this dataset
     """
     # DataFrame of asteroid snapshots
@@ -371,7 +373,7 @@ def make_dataset_dir_spline(n0: int, n1: int, N_t: int = 1000, batch_size: int =
     }
 
     # Build splined direction at selected times
-    df_ast, df_earth, df_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=ts)
+    df_ast, df_earth, df_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=ts, site_name=site_name)
 
     # Extract outputs: u, r
     cols_u = ['ux', 'uy', 'uz']
