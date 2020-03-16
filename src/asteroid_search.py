@@ -15,7 +15,6 @@ import tensorflow as tf
 from tensorflow.python.keras import backend as K
 
 # Utility
-import logging
 import time
 from datetime import timedelta
 
@@ -28,7 +27,7 @@ from asteroid_model import AsteroidDirection, make_model_ast_pos
 from search_score_functions import score_mean, score_var, score_mean_2d, score_var_2d
 from astro_utils import deg2dist
 from utils import print_header
-from tf_utils import Identity
+from tf_utils import tf_quiet, gpu_grow_memory, Identity
 
 # Typing
 from typing import Dict
@@ -38,8 +37,10 @@ from typing import Dict
 keras = tf.keras
 
 # ********************************************************************************************************************* 
-# Turn off all logging; only solution found to eliminate crushing volume of unresolvable autograph warnings
-logging.getLogger('tensorflow').disabled = True
+# Run TF quietly
+tf_quiet()
+# Configure TensorFlow to use GPU memory variably; done automatically by importing asteroid_model
+# gpu_grow_memory(verbose=True)
 
 # Constants
 space_dims = 3
@@ -47,6 +48,8 @@ space_dims = 3
 # Load asteroid names and orbital elements
 ast_elt = load_data_asteroids()
 
+# ********************************************************************************************************************* 
+# Transformations of orbital elements for search
 # Range for a
 a_min_: float = 0.5
 a_max_: float = 32.0
@@ -78,7 +81,7 @@ class OrbitalElements(keras.layers.Layer):
             'batch_size': batch_size,
             'R_deg': R_deg,
         }
-        
+        # Save batch size, orbital elements as numpy array, and resolution in degrees
         self.batch_size = batch_size
         self.elts_np = elts_np
         self.R_deg = R_deg
@@ -91,9 +94,12 @@ class OrbitalElements(keras.layers.Layer):
         
         # Control over e_, in range e_min to e_max
         self.e_min = tf.constant(e_min_, dtype=tf.float32)
-        self.e_range = tf.constant(e_max_ - e_min_, dtype=tf.float32)
-        self.e_ = tf.Variable(initial_value=self.inverse_e(elts_np['e']), trainable=True, 
-                              constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='e_')
+        self.e_max = tf.constant(e_max_, dtype=tf.float32)
+        # self.e_range = tf.constant(e_max_ - e_min_, dtype=tf.float32)
+        # self.e_ = tf.Variable(initial_value=self.inverse_e(elts_np['e']), trainable=True, 
+        #                      constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='e_')
+        self.e_ = tf.Variable(initial_value=elts_np['e'], trainable=True, 
+                              constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
         # Control over inc_, in range -pi/2 to pi/2
         self.inc_max = tf.constant(np.pi/2*(1-2**-20), dtype=tf.float32)
@@ -130,11 +136,12 @@ class OrbitalElements(keras.layers.Layer):
 
     def get_e(self):
         """Transformed value of e"""
-        return self.e_min + self.e_ * self.e_range
+        # return self.e_min + self.e_ * self.e_range
+        return self.e_
 
-    def inverse_e(self, e):
-        """Inverse transform value of e"""
-        return (e - self.e_min) / self.e_range
+    # def inverse_e(self, e):
+    #    """Inverse transform value of e"""
+    #    return (e - self.e_min) / self.e_range
 
     def get_inc(self):
         """Transformed value of inc"""
@@ -336,6 +343,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
                                elts_np: Dict,
                                max_obs: int,
                                num_obs: float,
+                               site_name: str='geocenter',
                                elt_batch_size: int=64, 
                                time_batch_size: int=None,
                                R_deg: float = 5.0,
@@ -380,22 +388,22 @@ def make_model_asteroid_search(ts: tf.Tensor,
     elts = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
 
     # The predicted direction
-    direction_layer = AsteroidDirection(ts=ts, batch_size=elt_batch_size, name='u_pred')
+    direction_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=elt_batch_size, name='u_pred')
 
     # Compute numerical orbits for calibration if necessary
     if use_calibration:
         if q_cal is not None:
-            q_ast, q_sun, q_earth = q_cal
+            q_ast, q_earth, v_ast = q_cal
         else:
             print(f'Numerically integrating orbits for calibration...')
             epoch0 = elts_np['epoch'][0]
-            q_ast, q_sun, q_earth = calc_ast_pos(elts=elts_np, epoch=epoch0, ts=ts)
+            q_ast, q_earth, v_ast = calc_ast_pos(elts=elts_np, epoch=epoch0, ts=ts)
 
     # Calibrate the direction prediction layer
     if use_calibration:
-        direction_layer.calibrate(elts=elts_np, q_ast=q_ast, q_sun=q_sun)
+        direction_layer.calibrate(elts=elts_np, q_ast=q_ast, v_ast=v_ast)
     # Tensor of predicted directions
-    u_pred = direction_layer(a, e, inc, Omega, omega, f, epoch)
+    u_pred, r_pred = direction_layer(a, e, inc, Omega, omega, f, epoch)
 
     # Difference in direction between u_obs and u_pred
     dir_diff_layer = DirectionDifference(batch_size=elt_batch_size, 
@@ -429,15 +437,12 @@ def make_model_asteroid_search(ts: tf.Tensor,
     # Add the loss function
     model.add_loss(-tf.reduce_sum(objective))
     # model.add_loss(-tf.reduce_sum(tf.math.log(objective-objective_min)))
-    
-    
 
     return model
 
 # ********************************************************************************************************************* 
 def perturb_elts(elts, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask=None):
     """Apply perturbations to orbital elements"""
-
     # Copy the elements
     elts_new = elts.copy()
 
@@ -489,9 +494,9 @@ def traj_diff(elts0: np.array, elts1: np.array, model_pos: keras.Model):
         'epoch': elts1[:,6],
     }
     
-    # Predict position
-    q0 = model_pos.predict(inputs0)
-    q1 = model_pos.predict(inputs1)
+    # Predict position and velocity
+    q0, v0 = model_pos.predict(inputs0)
+    q1, v1 = model_pos.predict(inputs1)
     
     # Displacement between predicted trajsectories; shape (batch_size, traj_size, 3)
     dq = q1 - q0
@@ -715,6 +720,8 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
     report_model_attribute_change(err_f0, err_f1, mask_good, 'Error in true anomaly, f', dp=6)
     
     # Changes in element errors
+    d_elt_err = elt_err1 - elt_err0
+    mask_bad = ~mask_good
     d_elt_err_g = np.mean(d_elt_err[mask_good], axis=0)
     d_elt_err_b = np.mean(d_elt_err[mask_bad], axis=0)
 

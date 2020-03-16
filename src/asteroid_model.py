@@ -10,26 +10,28 @@ Sun Oct 13 11:56:50 2019
 # Core
 import tensorflow as tf
 import numpy as np
-from silence_tensorflow import silence_tensorflow
 
 # Astronomy
 import astropy
 from astropy.units import au, day
+
+# Utility
+# from silence_tensorflow import silence_tensorflow
 
 # Local imports
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
 from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, get_sun_pos_vel
 from asteroid_data import orbital_element_batch
 from ra_dec import calc_topos
-from tf_utils import gpu_grow_memory, Identity
+from tf_utils import tf_quiet, gpu_grow_memory, Identity
 
 # ********************************************************************************************************************* 
 # Aliases
 keras = tf.keras
 
 # ********************************************************************************************************************* 
-# Turn off massive amount of superfluous tensorflow warnings and status messages
-silence_tensorflow()
+# Run TF quietly
+tf_quiet()
 # Configure TensorFlow to use GPU memory variably
 gpu_grow_memory(verbose=True)
 

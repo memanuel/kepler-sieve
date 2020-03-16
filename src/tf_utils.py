@@ -6,12 +6,26 @@ Michael S. Emanuel
 Wed Jun 26 20:24:42 2019
 """
 
+# Tensorflow
 import tensorflow as tf
-keras = tf.keras
+from silence_tensorflow import silence_tensorflow
+
+# Core
 import numpy as np
+
+# Utility
 import matplotlib.pyplot as plt
 import time
 import datetime
+
+# *************************************************************************************************
+# Aliases
+keras = tf.keras
+
+# ********************************************************************************************************************* 
+def tf_quiet():
+    """Silence excessive TensorFlow warnings and status messages"""
+    silence_tensorflow()
 
 # *************************************************************************************************
 def gpu_grow_memory(verbose : bool=False):
