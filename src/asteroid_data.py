@@ -352,12 +352,12 @@ def make_dataset_ast_dir_spline(n0: int, n1: int, site_name: str = 'geocenter',
     mjd0 = datetime_to_mjd(dt0)
     mjd1 = datetime_to_mjd(dt1)
 
-    # Select a random subset of times; these must be sorted
-    np.random.seed(42)
-    ts = np.sort(np.random.uniform(low=mjd0, high=mjd1, size=N_t))
-
     # Data type for this dataset
     dtype = np.float32
+
+    # Select a random subset of times; these must be sorted
+    np.random.seed(42)
+    ts = np.sort(np.random.uniform(low=mjd0, high=mjd1, size=N_t).astype(dtype=dtype))
 
     # dict with inputs
     inputs = {
@@ -397,7 +397,7 @@ def make_dataset_ast_dir_spline(n0: int, n1: int, site_name: str = 'geocenter',
     drop_remainder = True
     ds = ds.batch(batch_size=batch_size, drop_remainder=drop_remainder)
 
-    return ds, ts
+    return ds
 
 # ********************************************************************************************************************* 
 # Build TensorFlow data sets with positions and velocities of asteroids - manually from integration outputs

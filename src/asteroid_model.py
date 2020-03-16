@@ -16,16 +16,11 @@ from silence_tensorflow import silence_tensorflow
 import astropy
 from astropy.units import au, day
 
-# Utility
-# import time
-
 # Local imports
-# from tf_utils import Identity
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
 from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, get_sun_pos_vel
 from asteroid_data import orbital_element_batch
-# from asteroid_integrate import calc_ast_pos
-# from astro_utils import dist2deg, dist2sec
+from ra_dec import calc_topos
 from tf_utils import gpu_grow_memory, Identity
 
 # ********************************************************************************************************************* 
@@ -311,40 +306,16 @@ class AsteroidPosition(keras.layers.Layer):
     def get_config(self):
         return self.cfg
 
-# # ********************************************************************************************************************* 
-# class DirectionUnitVector(keras.layers.Layer):
-#     """
-#     Layer to compute the direction from object 1 (e.g. earth) to object 2 (e.g. asteroid)
-#     """
-    
-#     def __init__(self, **kwargs):
-#         super(DirectionUnitVector, self).__init__(**kwargs)
-
-#     # don't declare this tf.function because it breaks when using it with q_earth
-#     # still not entirely sure how tf.function works ...
-#     # @tf.function
-#     def call(self, q1, q2):
-#         # Relative displacement from earth to asteroid
-#         q_rel = tf.subtract(q2, q1, name='q_rel')
-#         # Distance between objects
-#         r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
-#         # Unit vector pointing from object 1 to object 2
-#         u = tf.divide(q_rel, r, name='q_rel_over_r')
-#         return u
-    
-#     def get_config(self):
-#         return dict()       
-
-
-## ********************************************************************************************************************* 
+# ********************************************************************************************************************* 
 class AsteroidDirection(keras.layers.Layer):
     """
     Layer to compute the direction from earth to asteroid.
     """
-    def __init__(self, ts, batch_size: int, **kwargs):
+    def __init__(self, ts, site_name: str, batch_size: int, **kwargs):
         """
         INPUTS:
             ts: fixed tensor of time snapshots at which to simulate the position
+            site_name: name of the observatory site, used for topos adjustment, e.g. 'geocenter' or 'palomar'
             batch_size: the number of elements to simulate at a time, e.g. 64; not to be confused with traj_size!
         """
         super(AsteroidDirection, self).__init__(**kwargs)
@@ -352,8 +323,10 @@ class AsteroidDirection(keras.layers.Layer):
         # Configuration for serialization
         self.cfg = {
             'ts': ts,
+            'site_name': site_name,
             'batch_size': batch_size,
         }
+        # Save the times
         self.ts = ts
         
         # Build layer to compute positions
@@ -366,11 +339,12 @@ class AsteroidDirection(keras.layers.Layer):
         # self.q_earth = keras.backend.constant(q_earth_np, dtype=tf.float32, shape=q_earth_np.shape, name='q_earth')
 
         # Take a one time snapshot of the topos adjustment; displacement from geocenter to selected observatory
-        # TODO: update this with real topos adjustment
-        q_topos_np = q_earth_np * 0.0
+        dq_topos_ap = calc_topos(obstime_mjd=ts, site_name=site_name)
+        # Convert dq_topos to a numpy array with units of au
+        dq_topos_np = dq_topos_ap.to(au).value
 
         # Position of the observatory in barycentric frame as a Keras constant
-        q_obs_np = q_earth_np + q_topos_np
+        q_obs_np = q_earth_np + dq_topos_np
         self.q_obs = keras.backend.constant(q_obs_np, dtype=dtype, shape=q_obs_np.shape, name='q_obs')
 
     def calibrate(self, elts, q_ast, v_ast):
@@ -453,7 +427,7 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
 
 
 # ********************************************************************************************************************* 
-def make_model_ast_dir(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
+def make_model_ast_dir(ts: tf.Tensor, site_name: str = 'geocenter', batch_size:int =64) -> keras.Model:
     """
     Compute direction from earth to asteroids in the solar system from
     the initial orbital elements with the Kepler model.
@@ -462,6 +436,7 @@ def make_model_ast_dir(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
     Outputs of the model are the unit vector (direction) pointing from earth to the asteroid
     INPUTS;
         ts: times to evaluate asteroid direction from earth
+        site_name: name of the observatory site for topos adjustment, e.g. 'geocenter' or 'palomar'
         batch_size: defaults to None for variable batch size
     """
     # Inputs: 6 orbital elements; epoch
@@ -481,7 +456,7 @@ def make_model_ast_dir(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
 
     # All the work done in a single layer
     # u = AsteroidDirection(ts, batch_size, name='u')(a, e, inc, Omega, omega, f, epoch)
-    ast_dir_layer = AsteroidDirection(ts, batch_size, name='ast_dir_layer')
+    ast_dir_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=batch_size, name='ast_dir_layer')
     u, r = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
 
     # Alias outputs
