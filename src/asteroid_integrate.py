@@ -280,8 +280,8 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
         epoch: MJD as of which these orbital elements apply
         ts: array of MJDs as of which 
     Outputs:
-        q_earth: position of earth at input times; shape (traj_size, 3,)
         q_ast: positions of asteroids at input times; shape (num_ast, traj_size, 3,)
+        q_earth: position of earth at input times; shape (traj_size, 3,)
     Note: this function has some overlap with make_archive_impl in rebount_utils.py
     It's different though because it's intended to generate arrays on the fly, not save them to disk.
     """
@@ -324,14 +324,16 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
     # Match the order required by rebound for efficient serialization!
     # This must be permuted at the end
     q: np.array = np.zeros(shape=(M, N, 3,), dtype=np.float64)
+    v: np.array = np.zeros(shape=(M, N, 3,), dtype=np.float64)
     
     # Subfunction: process one row of the loop    
     def process_row(sim: rebound.Simulation, t: float, row: int):
         # Integrate to the current time step with an exact finish time
         sim.integrate(t, exact_finish_time=1)
         
-        # Serialize the positions of earth and all the bodies
+        # Serialize the positions and velocities of all the bodies (includes asteroids and heavy bodies)
         sim.serialize_particle_data(xyz=q[row])
+        sim.serialize_particle_data(vxvyvz=v[row])
     
     # process times in the forward direction
     for i, t in enumerate(ts_fwd):
@@ -348,14 +350,18 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
         process_row(sim=sim_back, t=t, row=row)
     
     # Position of sun is the relevant column
-    q_sun = q[:, sun_idx, 0:3]
+    # q_sun = q[:, sun_idx, 0:3]
+    # v_sun = v[:, sun_idx, 0:3]
     # Position of earth is the relevant column
     q_earth = q[:, earth_idx, 0:3]
+    # v_earth = v[:, earth_idx, 0:3]
+
     # The asteroid positions are in the right-hand slice of q_all
     # Transpose so resulting array has size (N_ast, traj_size, 3)
     q_ast = q[:, N_heavy:N, 0:3].transpose((1,0,2))
+    v_ast = v[:, N_heavy:N, 0:3].transpose((1,0,2))
 
-    return q_ast, q_sun, q_earth
+    return q_ast, q_earth, v_ast
 
 # ********************************************************************************************************************* 
 def make_sim_asteroids_horizons(asteroid_names: List[str], epoch: datetime) -> rebound.Simulation:

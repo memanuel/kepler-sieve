@@ -36,8 +36,13 @@ gpu_grow_memory(verbose=True)
 # sim = rebound.Simulation()
 # sim.units = ('day', 'AU', 'Msun')
 # G_ = sim.G
+# Hard code G
 G_ = 0.00029591220828559104
+# The gravitational field strength mu = G * (m0 + m1)
+# For massless asteroids orbiting the sun with units Msun, m0=1.0, m1=0.0, and mu = G
 mu = tf.constant(G_)
+
+# Number of spatial dimensions
 space_dims = 3
 
 # Data type
@@ -81,43 +86,22 @@ class ElementToPosition(keras.layers.Layer):
         sf = keras.layers.Activation(activation=tf.sin, name='sin_f')(f)
 
         # Distance from center
-        # one_minus_e2 = tf.constant(1.0) - tf.square(e)
-        # one_plus_e_cos_f = tf.constant(1.0) + e * tf.cos(f)
-        # r = a * one_minus_e2 / one_plus_e_cos_f
         e2 = keras.layers.Activation(activation=tf.square, name='e2')(e)
-        # one_minus_e2 = tf.subtract(tf.constant(1.0), e2, name='one_minus_e2')
         one = tf.broadcast_to(1.0, shape)
-        # one_minus_e2 = keras.layers.subtract([one, e2], name='one_minus_e2')
         one_minus_e2 = tf.subtract(one, e2, name='one_minus_e2')
-        # e_cos_f = keras.layers.multiply([e, cf], name='e_cos_f')
         e_cos_f = tf.multiply(e, cf, name='e_cos_f')
-        # one_plus_e_cos_f = keras.layers.add([one, e_cos_f], name='one_plus_e_cos_f')
         one_plus_e_cos_f = tf.add(one, e_cos_f, name='one_plus_e_cos_f')
-        # a_x_one_minus_e2 = keras.layers.multiply([a, one_minus_e2], name='a_x_one_minus_e2')
         a_x_one_minus_e2 = tf.multiply(a, one_minus_e2, name='a_x_one_minus_e2')
         r = tf.divide(a_x_one_minus_e2, one_plus_e_cos_f, name='r')
         
         # Position
-        # cocf = keras.layers.multiply([co,cf], name='cocf')
         cocf = tf.multiply(co ,cf, name='cocf')
-        # sosf = keras.layers.multiply([so,sf], name='sosf')
         sosf = tf.multiply(so, sf, name='sosf')
-        # cocf_sosf = keras.layers.subtract([cocf, sosf], name='cocf_sosf')
         cocf_sosf = tf.subtract(cocf, sosf, name='cocf_sosf')
 
-        # socf = keras.layers.multiply([so,cf], name='socf')
         socf = tf.multiply(so, cf, name='socf')
-        # cosf = keras.layers.multiply([co,sf], name='cosf')
         cosf = tf.multiply(co, sf, name='cosf')
-        # socf_cosf = keras.layers.add([socf, cosf], name='socf_cosf')
         socf_cosf = tf.add(socf, cosf, name='socf_cosf')
-
-        # cO_x_cocf_sosf = keras.layers.multiply([cO, cocf_sosf], name='cO_x_cocf_sosf')
-        # sO_x_socf_cosf = keras.layers.multiply([sO, socf_cosf], name = 'sO_x_socf_cosf')
-        # sO_x_socf_cosf_x_ci = keras.layers.multiply([sO_x_socf_cosf, ci], name='sO_x_socf_cosf_x_ci')       
-        # sO_x_cocf_sosf = keras.layers.multiply([sO, cocf_sosf], name='sO_x_cocf_sosf')
-        # cO_x_socf_cosf = keras.layers.multiply([cO, socf_cosf], name='cO_x_socf_cosf')
-        # cO_x_socf_cosf_x_ci = keras.layers.multiply([cO_x_socf_cosf, ci], name='cO_x_socf_cosf_x_ci')
 
         cO_x_cocf_sosf = tf.multiply(cO, cocf_sosf, name='cO_x_cocf_sosf')
         sO_x_socf_cosf = tf.multiply(sO, socf_cosf, name = 'sO_x_socf_cosf')
@@ -127,24 +111,40 @@ class ElementToPosition(keras.layers.Layer):
         cO_x_socf_cosf_x_ci = tf.multiply(cO_x_socf_cosf, ci, name='cO_x_socf_cosf_x_ci')
 
         # Direction components
-        # ux = keras.layers.subtract([cO_x_cocf_sosf, sO_x_socf_cosf_x_ci], name='ux')
         ux = tf.subtract(cO_x_cocf_sosf, sO_x_socf_cosf_x_ci, name='ux')
-        # uy = keras.layers.add([sO_x_cocf_sosf, cO_x_socf_cosf_x_ci], name='uy')
         uy = tf.add(sO_x_cocf_sosf, cO_x_socf_cosf_x_ci, name='uy')
-        # uz = keras.layers.multiply([socf_cosf, si], name='socf_cosf_x_si')
         uz = tf.multiply(socf_cosf, si, name='socf_cosf_x_si')
 
         # Position components
-        # qx = keras.layers.multiply([r, ux], name='qx')
-        # qy = keras.layers.multiply([r, uy], name='qy')
-        # qz = keras.layers.multiply([r, uz], name='qz')
         qx = tf.multiply(r, ux, name='qx')
         qy = tf.multiply(r, uy, name='qy')
         qz = tf.multiply(r, uz, name='qz')
 
         # Assemble the position vector
         q = keras.layers.concatenate(inputs=[qx, qy, qz], axis=-1, name='q')
-        return q
+
+        # Calculate the velocity
+        # Current speed
+        v0 = tf.sqrt(mu / a / one_minus_e2)
+        # The term e+cf appears three times
+        epcf = tf.add(e, cf)
+        # The term cocO appears twice
+        cocO = tf.multiply(co, cO)
+        # The term cosO appears twice
+        cosO = tf.multiply(co, sO)
+        # The term so*sO appears twice
+        sosO = tf.multiply(so, sO)
+        # The terms socO appears twice
+        socO = tf.multiply(so, cO)
+        # Simplified expression for velocity with substitutions
+        vx = v0*(epcf*(-ci*cosO - socO) - sf*(cocO - ci*sosO))
+        vy = v0*(epcf*(ci*cocO - sosO)  - sf*(cosO + ci*socO))
+        vz = v0*(epcf*co*si - sf*si*so)
+
+        # Assemble the velocity vector
+        v = keras.layers.concatenate(inputs=[vx, vy, vz], axis=-1, name='v')
+
+        return q, v
 
     def get_config(self):
         return dict()
@@ -201,11 +201,16 @@ class AsteroidPosition(keras.layers.Layer):
         self.dq = tf.Variable(initial_value=np.zeros((batch_size, self.traj_size, space_dims,)), 
                               dtype=dtype, trainable=False, name='dq')
 
-    def update_dq(self, dq):
-        """Update the value of dq"""
-        self.dq.assign(dq)
+        # The adjustment vq to correct the Kepler approximation to match the numerical integration
+        self.dv = tf.Variable(initial_value=np.zeros((batch_size, self.traj_size, space_dims,)), 
+                              dtype=dtype, trainable=False, name='dv')
 
-    def calibrate(self, elts, q_ast):
+    def update_dq_dv(self, dq, dv):
+        """Update the value of dq and dv"""
+        self.dq.assign(dq)
+        self.dv.assign(dv)
+
+    def calibrate(self, elts, q_ast, v_ast):
         """Calibrate this model by setting dq to recover q_ast"""
         # Unpack elements
         a = elts['a']
@@ -215,13 +220,16 @@ class AsteroidPosition(keras.layers.Layer):
         omega = elts['omega']
         f = elts['f']
         epoch = elts['epoch']
+
         # Zero out calibration and predict with these elements
-        self.update_dq(self.dq*0.0)
-        q_pred = self.call(a, e, inc, Omega, omega, f, epoch)
+        self.update_dq_dv(self.dq*0.0, self.dv*0.0)
+        q_pred, v_pred = self.call(a, e, inc, Omega, omega, f, epoch)
+
         # We expected to get the numerically integrated barycentric coordinates of the asteroids
         # Compute the offset and apply it to the model
         dq = q_ast - q_pred
-        self.update_dq(dq)
+        dv = v_ast - v_pred
+        self.update_dq_dv(dq, dv)
 
     def call(self, a, e, inc, Omega, omega, f, epoch):
         """
@@ -276,12 +284,17 @@ class AsteroidPosition(keras.layers.Layer):
         elt_t = (a_t, e_t, inc_t, Omega_t, omega_t, f_t,)
         
         # Convert orbital elements to heliocentric cartesian coordinates
-        q_helio = ElementToPosition(name='q_helio')(elt_t)
+        q_helio, v_helio = ElementToPosition(name='q_helio')(elt_t)
         # Add solar position to get q in barycentric coordinates
-        q = tf.add(q_helio, self.q_sun)
+        q_bary = tf.add(q_helio, self.q_sun)
+        # Add solar velocity get v in barycentric coordinates
+        v_bary = tf.add(v_helio, self.v_sun)
    
         # The estimated barycentric position includes the optional correction factor dq
-        return tf.add(q, self.dq)
+        q = tf.add(q_bary, self.dq)
+        v = tf.add(v_bary, self.dv)
+
+        return q, v
 
     def get_config(self):
         return self.cfg
@@ -340,10 +353,10 @@ class AsteroidDirection(keras.layers.Layer):
         q_earth_np = q_earth_np.reshape(1, traj_size, space_dims)
         self.q_earth = keras.backend.constant(q_earth_np, dtype=tf.float32, shape=q_earth_np.shape, name='q_earth')
         
-    def calibrate(self, elts, q_ast):
+    def calibrate(self, elts, q_ast, v_ast):
         """Calibrate this model by calibrating the underlying position layer"""
         # Calibrate the position model
-        self.q_layer.calibrate(elts=elts, q_ast=q_ast)
+        self.q_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
 
     def call(self, a, e, inc, Omega, omega, f, epoch):
         # Calculate position
@@ -389,11 +402,14 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
     ts = keras.backend.constant(ts, name='ts')
 
     # Call asteroid position layer
-    ast_pos_layer = AsteroidPosition(ts, batch_size, name='q')
-    q = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
+    ast_pos_layer = AsteroidPosition(ts, batch_size, name='ast_pos_layer')
+    q, v = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
+    # Alias outputs
+    q = Identity(name='q')(q)
+    v = Identity(name='v')(v)
     
     # Wrap up the outputs
-    outputs = (q,)
+    outputs = (q, v,)
 
     # Wrap this into a model
     model = keras.Model(inputs=inputs, outputs=outputs, name='model_asteroid_pos')
@@ -458,40 +474,46 @@ def test_ast_pos_layer():
     ast_pos_layer = AsteroidPosition(batch_size=64)
     ts = np.arange(51544, 58744, dtype=np.float32)
     a,e,inc,Omega,omega,f, epoch = orbital_element_batch(1).values()
-    q_ast = ast_pos_layer(ts,a,e,inc,Omega,omega,f,epoch)
-    return q_ast
+    q_ast, v_ast = ast_pos_layer(ts,a,e,inc,Omega,omega,f,epoch)
+    return q_ast, v_ast
 
 # ********************************************************************************************************************* 
 def test_ast_pos() -> bool:
     """Test asteroid position model"""
     # Load data for the first 1000 asteroids
-    ds: tf.data.Dataset = make_dataset_ast_pos(0, 1)
+    ds: tf.data.Dataset = make_dataset_ast_pos(n0=0, num_files=1, include_vel=True)
     # Get reference times
     batch_in, batch_out = list(ds.take(1))[0]
     ts = batch_in['ts'][0]
     batch_size = 64
     # Create the model to predict asteroid trajectories
     model: keras.Model = make_model_ast_pos(ts=ts, batch_size=batch_size)
-    # model = AsteroidPositionModel(ts=ts, batch_size=batch_size)
     # Compile with MSE (mean squared error) loss
     model.compile(loss='MSE')
     # Evaluate this model
-    mse: float = model.evaluate(ds)
-    rmse: float = np.sqrt(mse)
+    mse_qv, mse_q, mse_v = model.evaluate(ds)
+    # RMS errors for q and v
+    rmse_q: float = np.sqrt(mse_q)
+    rmse_v: float = np.sqrt(mse_v)
     # Threshold for passing
-    thresh: float = 0.125
-    isOK_1: bool = (rmse < thresh)
+    thresh_q: float = 0.125
+    thresh_v: float = 0.125
+    isOK_mse: bool = (rmse_q < thresh_q) and (rmse_v < thresh_v)
     # Report results
-    msg: str = 'PASS' if isOK_1 else 'FAIL'
-    print(f'Root MSE for asteroid model on first 1000 asteroids in AU = {rmse:8.6f}')
+    msg: str = 'PASS' if isOK_mse else 'FAIL'
+    print(f'Root MSE for asteroid model on first 1000 asteroids:')
+    print(f'q in AU     = {rmse_q:8.6f}')
+    print(f'v in AU/day = {rmse_v:8.6f}')
     print(f'***** {msg} *****')
 
-    # Evaluate on first batch before adjustments
-    q1_true = batch_out['q']
-    q1_pred = model.predict(batch_in)
-    err1_pre = np.mean(np.linalg.norm(q1_pred - q1_true, axis=2))
-    
-    # Assemble orbital elements for p
+    # Evaluate q, v on first batch before adjustments
+    q_true = batch_out['q']
+    v_true = batch_out['v']
+    q_pred, v_pred = model.predict(batch_in)
+    err_q_pre = np.mean(np.linalg.norm(q_pred - q_true, axis=2))
+    err_v_pre = np.mean(np.linalg.norm(v_pred - v_true, axis=2))
+
+    # Assemble orbital elements
     elts = {
         'a': batch_in['a'].numpy(),
         'e': batch_in['e'].numpy(),
@@ -506,27 +528,43 @@ def test_ast_pos() -> bool:
     
     # Compute numerical orbit for calibration
     t0 = time.time()
-    q_ast, q_sun, q_earth = calc_ast_pos(elts=elts, epoch=epoch, ts=ts)
+    q_ast, q_earth, v_ast = calc_ast_pos(elts=elts, epoch=epoch, ts=ts)
     t1 = time.time()
     calc_time = t1 - t0
     print(f'\nNumerical integration of orbits took {calc_time:5.3f} seconds.')
     
     # Calibrate the position model
-    model.ast_pos_layer.calibrate(elts=elts, q_ast=q_ast)
+    model.ast_pos_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
     # Evaluate error after calibration
-    q1_pred = model.predict(batch_in)
-    err1_post = np.mean(np.linalg.norm(q1_pred - q1_true, axis=2))
+    q_pred, v_pred = model.predict(batch_in)
+    err_q_post = np.mean(np.linalg.norm(q_pred - q_true, axis=2))
+    err_v_post = np.mean(np.linalg.norm(v_pred - v_true, axis=2))
 
-    # Report results
-    thresh = 2.0E-6
-    isOK_2: bool = (err1_post < thresh)
-    msg = 'PASS' if isOK_2 else 'FAIL'
-    print(f'Mean error on first batch of 64 asteroids in AU:')
-    print(f'Before calibration: {err1_pre:5.3e}')
-    print(f'After calibration:  {err1_post:5.3e}')
+    # Relative errors
+    err_q_pre_rel = err_q_pre / np.mean(np.linalg.norm(q_true, axis=2))
+    err_v_pre_rel = err_v_pre / np.mean(np.linalg.norm(v_true, axis=2))
+    err_q_post_rel = err_q_post / np.mean(np.linalg.norm(q_true, axis=2))
+    err_v_post_rel = err_v_post / np.mean(np.linalg.norm(v_true, axis=2))
+
+    # Report results for position after calibration
+    thresh_q = 2.0E-6
+    isOK_q: bool = (err_q_post < thresh_q)
+    msg = 'PASS' if isOK_q else 'FAIL'
+    print(f'\nMean position error on first batch of 64 asteroids in AU:')
+    print(f'Before calibration: {err_q_pre:5.3e} ({err_q_pre_rel:5.3e} relative)')
+    print(f'After calibration:  {err_q_post:5.3e} ({err_q_post_rel:5.3e} relative)')
     print(f'***** {msg} *****')
 
-    return (isOK_1 and isOK_2)
+    # Report results for velocity after calibration
+    thresh_v = 1.0E-8
+    isOK_v: bool = (err_v_post < thresh_v)
+    msg = 'PASS' if isOK_v else 'FAIL'
+    print(f'\nMean velocity error on first batch of 64 asteroids in AU/day:')
+    print(f'Before calibration: {err_v_pre:5.3e} ({err_v_pre_rel:5.3e} relative)')
+    print(f'After calibration:  {err_v_post:5.3e} ({err_v_post_rel:5.3e} relative)')
+    print(f'***** {msg} *****')
+
+    return (isOK_mse and isOK_q and isOK_v)
 
 # ********************************************************************************************************************* 
 def test_ast_dir() -> bool:
@@ -582,13 +620,13 @@ def test_ast_dir() -> bool:
     
     # Compute correction factor dq; also time this operation
     t0 = time.time()
-    q_ast, q_sun, q_earth = calc_ast_pos(elts=elts, epoch=epoch, ts=ts)
+    q_ast, q_earth, v_ast = calc_ast_pos(elts=elts, epoch=epoch, ts=ts)
     t1 = time.time()
     calc_time = t1 - t0
     print(f'\nNumerical integration of orbits took {calc_time:5.3f} seconds.')
     
     # Evaluate error after correction
-    model.ast_dir_layer.calibrate(elts=elts, q_ast=q_ast)
+    model.ast_dir_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
     u1_pred = model.predict(batch_in)
     err1_post = np.rad2deg(np.mean(np.linalg.norm(u1_pred - u1_true, axis=2)))
     err1_post_sec = err1_post * 3600

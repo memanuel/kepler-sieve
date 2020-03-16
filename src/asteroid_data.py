@@ -259,7 +259,7 @@ def get_earth_pos(ts: np.ndarray) -> np.array:
         ts: Array of times expressed as MJDs
     """
     # Compute interpolated position at desired times
-    q_earth = earch_interp(ts)
+    q_earth = earth_interp(ts)
 
     return q_earth
 
