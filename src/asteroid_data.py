@@ -23,6 +23,7 @@ from tqdm.auto import tqdm
 # Local imports
 from astro_utils import datetime_to_mjd
 from asteroid_integrate import load_data as load_data_asteroids
+from asteroid_dataframe import spline_ast_vec_dir
 from rebound_utils import load_sim_np
 
 # Type names
@@ -320,7 +321,84 @@ def get_sun_pos_vel(ts: np.ndarray) -> np.array:
 #     return q_earth, q_sun
 
 # ********************************************************************************************************************* 
-# Build TensorFlow data sets with positions and velocities of asteroids
+# Build TensorFlow data sets with directions of asteroids - using spline_ast_vec_dir
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def make_dataset_dir_spline(n0: int, n1: int, N_t: int = 1000, batch_size: int = 64) -> tf.data.Dataset:
+    """
+    Create a tf.Dataset for testing asteroid direction model.
+    Data comes from output of spline_ast_vec_dir in asteroid_dataframe.
+    INPUTS:
+        n0: First asteroid number; inclusive
+        n1: Last asteroid number; exclusive
+        N_t: Number of times to sample
+        batch_size: batch_size for this dataset
+    """
+    # DataFrame of asteroid snapshots
+    ast_elt_all = load_data_asteroids()    
+
+    # Elements of selected asteroids
+    # ast_elt = ast_elt_all.loc[ast_nums]
+    mask = (n0 <= ast_elt_all.Num) & (ast_elt_all.Num < n1)
+    ast_elt = ast_elt_all[mask]
+    N_ast = ast_elt.shape[0]
+
+    # Range of times for sampling
+    dt0 = datetime(2000, 1, 1)
+    dt1 = datetime(2040, 1, 1)
+    mjd0 = datetime_to_mjd(dt0)
+    mjd1 = datetime_to_mjd(dt1)
+
+    # Select a random subset of times; these must be sorted
+    np.random.seed(42)
+    ts = np.sort(np.random.uniform(low=mjd0, high=mjd1, size=N_t))
+
+    # Data type for this dataset
+    dtype = np.float32
+
+    # dict with inputs
+    inputs = {
+        'a': ast_elt.a.values.astype(dtype),
+        'e': ast_elt.e.values.astype(dtype),
+        'inc': ast_elt.inc.values.astype(dtype),
+        'Omega': ast_elt.Omega.values.astype(dtype),
+        'omega': ast_elt.omega.values.astype(dtype),
+        'f': ast_elt.f.values.astype(dtype),
+        'epoch': ast_elt.epoch_mjd.values.astype(dtype),
+        'asteroid_num': ast_elt.Num.values.astype(np.int32),
+        'ts': np.tile(ts, reps=(N_ast,1,)),
+    }
+
+    # Build splined direction at selected times
+    df_ast, df_earth, df_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=ts)
+
+    # Extract outputs: u, r
+    cols_u = ['ux', 'uy', 'uz']
+    u_flat = df_dir[cols_u].values
+    r_flat = df_dir.delta.values
+
+    # Reshape outputs into rectangular arrays; shape is (ast_num, time_idx, space)
+    u = u_flat.reshape((N_ast, N_t, space_dims))
+    r = r_flat.reshape((N_ast, N_t))
+
+    # Outputs as Python dict
+    outputs = {
+        'u': u, 
+        'r': r,
+    }
+
+    # Wrap into a dataset
+    ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
+
+    # Batch the dataset and return it
+    drop_remainder = True
+    ds = ds.batch(batch_size=batch_size, drop_remainder=drop_remainder)
+
+    return ds, ts
+
+# ********************************************************************************************************************* 
+# Build TensorFlow data sets with positions and velocities of asteroids - manually from integration outputs
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
