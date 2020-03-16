@@ -10,21 +10,24 @@ Sun Oct 13 11:56:50 2019
 # Library imports
 import tensorflow as tf
 import numpy as np
-import logging
 import time
+from silence_tensorflow import silence_tensorflow
 
 # Local imports
 # from tf_utils import Identity
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
-from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, orbital_element_batch
+from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, get_sun_pos_vel
+from asteroid_data import orbital_element_batch
 from asteroid_integrate import calc_ast_pos
-from  tf_utils import Identity
+from  tf_utils import gpu_grow_memory, Identity
 # Aliases
 keras = tf.keras
 
 # ********************************************************************************************************************* 
-# Turn off all logging; only solution found to eliminate crushing volume of unresolvable autograph warnings
-logging.getLogger('tensorflow').disabled = True
+# Turn off massive amount of superfluous tensorflow warnings and status messages
+silence_tensorflow()
+# Configure TensorFlow to use GPU memory variably
+gpu_grow_memory(verbose=True)
 
 # ********************************************************************************************************************* 
 # Constants
@@ -36,6 +39,9 @@ logging.getLogger('tensorflow').disabled = True
 G_ = 0.00029591220828559104
 mu = tf.constant(G_)
 space_dims = 3
+
+# Data type
+dtype = tf.float32
 
 # ********************************************************************************************************************* 
 # Custom Layers
@@ -148,7 +154,7 @@ class AsteroidPosition(keras.layers.Layer):
     """
     Compute orbit positions for asteroids in the solar system from the initial orbital elements with the Kepler model.
     Inputs for the model are 6 orbital elements, the epoch, and the desired times for position outputs.
-    Outputs of the model are the position of the asteroid relative to the sun.    
+    Outputs of the model are the position of the asteroid in the BARYCENTRIC frame.
     """
     def __init__(self, ts, batch_size: int, **kwargs):
         """
@@ -169,12 +175,22 @@ class AsteroidPosition(keras.layers.Layer):
         self.traj_size = ts.shape[0]
         self.batch_size = batch_size
 
+        # Take a one time snapshot of the sun's position and velocity at these times
+        q_sun_np, v_sun_np = get_sun_pos_vel(ts)
+        traj_size = ts.shape[0]
+        q_sun_np = q_sun_np.reshape(1, traj_size, space_dims)
+        v_sun_np = v_sun_np.reshape(1, traj_size, space_dims)
+
+        # Convert q_sun and v_sun into keras constants
+        self.q_sun = keras.backend.constant(q_sun_np, dtype=dtype, shape=q_sun_np.shape, name='q_sun')
+        self.v_sun = keras.backend.constant(v_sun_np, dtype=dtype, shape=v_sun_np.shape, name='v_sun')
+
         # Reshape ts to (batch_size, traj_size, 1)
         target_shape = (-1, 1)
 
         # print(f'ts.shape = {ts.shape}')
         # First repeat ts batch_size times; now size is (traj_size, batch_size, 1)
-        t_rep= keras.layers.RepeatVector(n=batch_size, name='ts_rep')(keras.backend.reshape(ts, target_shape))
+        t_rep = keras.layers.RepeatVector(n=batch_size, name='ts_rep')(keras.backend.reshape(ts, target_shape))
         # print(f't_rep.shape = {t_rep.shape}')
         # Transpose axes to make shape (batch_size, traj_size, 1)
         self.t_vec = tf.transpose(t_rep, perm=(1,0,2))
@@ -183,13 +199,13 @@ class AsteroidPosition(keras.layers.Layer):
         # The adjustment dq to correct the Kepler approximation to match the numerical integration
         # self.dq = keras.backend.variable(np.zeros((batch_size, self.traj_size, space_dims,)), dtype=tf.float32, name = 'dq')
         self.dq = tf.Variable(initial_value=np.zeros((batch_size, self.traj_size, space_dims,)), 
-                              dtype=tf.float32, trainable=False, name='dq')
+                              dtype=dtype, trainable=False, name='dq')
 
     def update_dq(self, dq):
         """Update the value of dq"""
         self.dq.assign(dq)
 
-    def calibrate(self, elts, q_ast, q_sun):
+    def calibrate(self, elts, q_ast):
         """Calibrate this model by setting dq to recover q_ast"""
         # Unpack elements
         a = elts['a']
@@ -202,10 +218,9 @@ class AsteroidPosition(keras.layers.Layer):
         # Zero out calibration and predict with these elements
         self.update_dq(self.dq*0.0)
         q_pred = self.call(a, e, inc, Omega, omega, f, epoch)
-        # Compute what we expected to get- numerically integrated heliocentric coordinates of the asteroids
-        q_num = q_ast - q_sun
+        # We expected to get the numerically integrated barycentric coordinates of the asteroids
         # Compute the offset and apply it to the model
-        dq = q_num - q_pred
+        dq = q_ast - q_pred
         self.update_dq(dq)
 
     def call(self, a, e, inc, Omega, omega, f, epoch):
@@ -213,6 +228,8 @@ class AsteroidPosition(keras.layers.Layer):
         Simulate the orbital trajectories.  
         Snapshot times t shared by all the input elements.  
         The inputs orbital elements and reference epoch should all have size (batch_size,).
+        Output is the barycentric position; the elements generate a heliocentric calculation, and the
+        constant with the sun's position is added to it.
         """
         # Alias traj_size, batch_size for legibility
         traj_size = self.traj_size
@@ -258,10 +275,12 @@ class AsteroidPosition(keras.layers.Layer):
         # Wrap orbital elements into one tuple of inputs for layer converting to cartesian coordinates
         elt_t = (a_t, e_t, inc_t, Omega_t, omega_t, f_t,)
         
-        # Convert orbital elements to cartesian coordinates 
-        q = ElementToPosition(name='q')(elt_t)
+        # Convert orbital elements to heliocentric cartesian coordinates
+        q_helio = ElementToPosition(name='q_helio')(elt_t)
+        # Add solar position to get q in barycentric coordinates
+        q = tf.add(q_helio, self.q_sun)
    
-        # The estimated position includes the optional correction factor dq
+        # The estimated barycentric position includes the optional correction factor dq
         return tf.add(q, self.dq)
 
     def get_config(self):
@@ -321,21 +340,10 @@ class AsteroidDirection(keras.layers.Layer):
         q_earth_np = q_earth_np.reshape(1, traj_size, space_dims)
         self.q_earth = keras.backend.constant(q_earth_np, dtype=tf.float32, shape=q_earth_np.shape, name='q_earth')
         
-        # Alternative approach; make q_earth a 
-        # self.q_earth = keras.backend.variable(q_earth_np, dtype=tf.float32, name='q_earth')
-        # print(f'self.q_earth.shape = {self.q_earth.shape}')
-
-    # def update_q_earth(self, q_earth):
-    #     """Update the value of q_earth"""
-    #    print(f'update_q_earth: argument q_earth.shape = {q_earth.shape}')
-    #    self.q_earth.assign(q_earth.reshape(1, -1, 3))
-
-    def calibrate(self, elts, q_ast, q_sun):
+    def calibrate(self, elts, q_ast):
         """Calibrate this model by calibrating the underlying position layer"""
         # Calibrate the position model
-        self.q_layer.calibrate(elts=elts, q_ast=q_ast, q_sun=q_sun)
-        # Update the position of earth from the same integration
-        # self.update_q_earth(q_earth - q_sun)
+        self.q_layer.calibrate(elts=elts, q_ast=q_ast)
 
     def call(self, a, e, inc, Omega, omega, f, epoch):
         # Calculate position
@@ -381,7 +389,6 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
     ts = keras.backend.constant(ts, name='ts')
 
     # Call asteroid position layer
-    # q = AsteroidPosition(ts, batch_size, name='q')(a, e, inc, Omega, omega, f, epoch)
     ast_pos_layer = AsteroidPosition(ts, batch_size, name='q')
     q = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
     
@@ -505,7 +512,7 @@ def test_ast_pos() -> bool:
     print(f'\nNumerical integration of orbits took {calc_time:5.3f} seconds.')
     
     # Calibrate the position model
-    model.ast_pos_layer.calibrate(elts=elts, q_ast=q_ast, q_sun=q_sun)
+    model.ast_pos_layer.calibrate(elts=elts, q_ast=q_ast)
     # Evaluate error after calibration
     q1_pred = model.predict(batch_in)
     err1_post = np.mean(np.linalg.norm(q1_pred - q1_true, axis=2))
@@ -581,7 +588,7 @@ def test_ast_dir() -> bool:
     print(f'\nNumerical integration of orbits took {calc_time:5.3f} seconds.')
     
     # Evaluate error after correction
-    model.ast_dir_layer.calibrate(elts=elts, q_ast=q_ast, q_sun=q_sun)
+    model.ast_dir_layer.calibrate(elts=elts, q_ast=q_ast)
     u1_pred = model.predict(batch_in)
     err1_post = np.rad2deg(np.mean(np.linalg.norm(u1_pred - u1_true, axis=2)))
     err1_post_sec = err1_post * 3600
@@ -600,7 +607,7 @@ def test_ast_dir() -> bool:
 # ********************************************************************************************************************* 
 def main():
     test_ast_pos()
-    test_ast_dir()
+    # test_ast_dir()
     
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

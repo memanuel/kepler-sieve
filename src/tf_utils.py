@@ -14,11 +14,13 @@ import time
 import datetime
 
 # *************************************************************************************************
-def gpu_grow_memory():
-    pass
+def gpu_grow_memory(verbose : bool=False):
     """Set TensorFlow to grow memory of GPUs rather than grabbing it all at once."""
     # Get available GPUs
     gpus = tf.config.experimental.list_physical_devices('GPU')
+    # List GPUs if requested
+    if verbose:
+        print(f'Found {len(gpus)} GPUs.  Setting memory growth = True.')
     # Set all selected GPUs to 
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)

@@ -177,8 +177,16 @@ def orbital_element_batch(ast_nums: np.ndarray):
     return elts
 
 # ********************************************************************************************************************* 
-def orbital_element_batch_v1(n0: int, batch_size: int=64):
-    """Return a batch of orbital elements"""
+def orbital_element_batch_by_ast_num(n0: int, batch_size: int=64):
+    """
+    Return a batch of orbital elements for asteroids in a batch of consecutive asteroid numbers.
+    DEPRECATED.
+    INPUTS:
+        n0: first asteroid number, e.g. 1
+        batch_size: number of asteroids in batch
+    OUTPUTS:
+        elts: Dictionary with seven keys for a, e, inc, Omega, omega, f, epoch
+    """
     # Get start and end index location of this asteroid number
     i0: int = ast_elt.index.get_loc(n0)
     i1: int = i0 + batch_size
@@ -188,12 +196,8 @@ def orbital_element_batch_v1(n0: int, batch_size: int=64):
     return orbital_element_batch(ast_nums)
 
 # ********************************************************************************************************************* 
-# OLD STUFF - PROBABLY GET RID OF THIS LATER
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def get_earth_pos_file(heliocentric: bool):
-    """Get the position of earth consistent with the asteroid data; look up from data file"""
+def get_earth_sun_pos_file():
+    """Get the position and velocity of earth and sun consistent with the asteroid data; look up from data file"""
     # selected data type for TF tensors
     dtype = np.float32
     
@@ -214,54 +218,118 @@ def get_earth_pos_file(heliocentric: bool):
     t_offset = datetime_to_mjd(dt0)
     ts += t_offset
    
-    # Extract position of sun and earth in Barycentric coordinates
-    sun_idx = object_names.index('Sun')
+    # Extract position of earth and sun in Barycentric coordinates
     earth_idx = object_names.index('Earth')
-    q_sun_bary = q[:, sun_idx, :]
-    q_earth_bary = q[:, earth_idx, :]
-    # Compute earth position in heliocentric coordinates
-    q_earth_helio = q_earth_bary - q_sun_bary
-    # Selected flavor (barycentric vs. heliocentric)
-    q_earth = q_earth_helio if heliocentric else q_earth_bary
-    # Convert to selected data type
-    return q_earth.astype(dtype), ts
+    sun_idx = object_names.index('Sun')
+    q_earth = q[:, earth_idx, :]
+    q_sun = q[:, sun_idx, :]
+
+    # Velocity of earth and sun in Barycentric coordinates
+    v_earth = v[:, earth_idx, :]
+    v_sun = v[:, sun_idx, :]
+
+    return ts, q_earth.astype(dtype), q_sun.astype(dtype), v_earth.astype(dtype), v_sun.astype(dtype)
 
 # ********************************************************************************************************************* 
 # Create 1D linear interpolator for earth positions; just need one instance for the whole module
 
-# Get position of earth at reference dates from file
-q_earth_bary, t_bary = get_earth_pos_file(heliocentric=False)
-q_earth_helio, t_helio = get_earth_pos_file(heliocentric=True)
-# Build the interpolators for barycentric and heliocentric
-earth_interp_bary = scipy.interpolate.interp1d(x=t_bary, y=q_earth_bary, kind='cubic', axis=0)
-earth_interp_helio = scipy.interpolate.interp1d(x=t_helio, y=q_earth_helio, kind='cubic', axis=0)
+# Get position and velocity of earth and sun in barycentric frame at reference dates from file
+ts, q_earth, q_sun, v_earth, v_sun = get_earth_sun_pos_file()
+
+# Build interpolator for barycentric position of earth and sun
+earth_interp = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0)
+sun_interp = scipy.interpolate.interp1d(x=ts, y=q_sun, kind='cubic', axis=0)
+
+# Build interpolator for barycentric velocity of earth and sun
+earth_interp_v = scipy.interpolate.interp1d(x=ts, y=v_earth, kind='cubic', axis=0)
+sun_interp_v = scipy.interpolate.interp1d(x=ts, y=v_sun, kind='cubic', axis=0)
+
+# Build interpolator for heliocentric earth position (old; don't use this anymore!)
+q_earth_helio = q_earth - q_sun
+earth_interp_helio = scipy.interpolate.interp1d(x=ts, y=q_earth_helio, kind='cubic', axis=0)
+
+# Alias earth_interp to earth_interp_bary for consistent naming scheme
+earth_interp_bary = earth_interp
 
 # ********************************************************************************************************************* 
-def get_earth_pos(ts, heliocentric: bool = False) -> np.array:
+def get_earth_pos(ts: np.ndarray) -> np.array:
     """
-    Get position of earth consistent with asteroid data at the specified times (MJDs)
+    Get position of earth consistent with asteroid data at the specified times (MJDs) in barycentric frame
+    INPUTS:
+        ts: Array of times expressed as MJDs
+    """
+    # Compute interpolated position at desired times
+    q_earth = earch_interp(ts)
+
+    return q_earth
+
+# ********************************************************************************************************************* 
+def get_earth_pos_helio(ts: np.ndarray) -> np.array:
+    """
+    Get position of earth consistent with asteroid data at the specified times (MJDs) in heliocentric frame
+    INPUTS:
+        ts: Array of times expressed as MJDs
+    """
+    # Compute interpolated position at desired times
+    q_earth = earch_interp_helio(ts)
+
+    return q_earth
+
+# ********************************************************************************************************************* 
+def get_earth_pos_flex(ts: np.ndarray, heliocentric: bool) -> np.array:
+    """
+    Get position of earth consistent with asteroid data at the specified times (MJDs) in barycentric frame
     INPUTS:
         ts: Array of times expressed as MJDs
         heliocentric: flag indicating whether to use heliocentric coordinates;
                       default false uses barycentric coordinates
     """
-    # Choose barycentric or heliocentric interpolator
+    # Use selected interpolator
     interpolator = earth_interp_helio if heliocentric else earth_interp_bary
 
     # Compute interpolated position at desired times
     q_earth = interpolator(ts)
+
     return q_earth
 
 # ********************************************************************************************************************* 
-def make_data_one_file(n0: int, n1: int, heliocentric: bool = False) \
-    -> Tuple[Dict[str, np.array], Dict[str, np.array]]:
+def get_sun_pos_vel(ts: np.ndarray) -> np.array:
+    """
+    Get barycentric position and velocity of sun consistent with asteroid data at the specified times (MJDs)
+    INPUTS:
+        ts: Array of times expressed as MJDs
+    """
+    # Compute interpolated position at desired times
+    q_sun = sun_interp(ts)
+    v_sun = sun_interp_v(ts)
+    return q_sun, v_sun
+
+# ********************************************************************************************************************* 
+# def get_earth_sun_pos(ts) -> np.array:
+#     """
+#     Get barycentric position of earth and sun consistent with asteroid data at the specified times (MJDs)
+#     INPUTS:
+#         ts: Array of times expressed as MJDs
+#     """
+#     # Choose barycentric or heliocentric interpolator
+#     interpolator_earth = earth_interp
+
+#     # Compute interpolated position at desired times
+#     q_earth = earth_interp(ts)
+#     q_sun = sun_interp(ts)
+#     return q_earth, q_sun
+
+# ********************************************************************************************************************* 
+# Build TensorFlow data sets with positions and velocities of asteroids
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str, np.array]]:
     """
     Wrap the data in one file of asteroid trajectory data into a TF Dataset
     INPUTS:
         n0: the first asteroid in the file, e.g. 0
         n1: the last asteroid in the file (exclusive), e.g. 1000
-        heliocentric: flag indicating whether to use heliocentric coordinates
-                      default false uses barycentric coordinates
     OUTPUTS:
         inputs: a dict of numpy arrays
         outputs: a dict of numpy arrays
@@ -302,9 +370,6 @@ def make_data_one_file(n0: int, n1: int, heliocentric: bool = False) \
     earth_idx = 3
     q_earth = q[:, earth_idx, :]
     # v_earth = v[:, earth_idx :]
-    if heliocentric:
-        q_earth -= q_sun
-        # v_earth -= v_sun
 
     # shrink down q and v to slice with asteroid data only; 
     q = q[:, ast_offset:, :]
@@ -314,9 +379,6 @@ def make_data_one_file(n0: int, n1: int, heliocentric: bool = False) \
     # this means that inputs and outputs must first be indexed by asteroid number, then time time step
     q = np.swapaxes(q, 0, 1)
     v = np.swapaxes(v, 0, 1)
-    if heliocentric:
-        q -= q_sun
-        v -= v_sun
     
     # Compute relative displacement to earth
     q_rel = q - q_earth
@@ -477,4 +539,3 @@ def make_dataset_ast_dir(n0: int, num_files: int):
     progbar: bool = False
     ds = combine_datasets_dir(n0=n0, n1=n1, progbar=progbar)
     return ds
-
