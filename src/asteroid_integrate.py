@@ -166,8 +166,8 @@ def convert_data(df_in: pd.DataFrame, epoch_mjd: Optional[float]=None) -> pd.Dat
     return df
 
 # ********************************************************************************************************************* 
-def load_data() -> pd.DataFrame:
-    """Load the asteroid data into a Pandas Dataframe"""
+def load_ast_elt() -> pd.DataFrame:
+    """Load the asteroid orbital elements data into a Pandas Dataframe"""
     # The name for the saved DataFrame
     fname: str = '../data/jpl/orb_elements_asteroid.h5'
     
@@ -280,6 +280,30 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
         epoch: MJD as of which these orbital elements apply
         ts: array of MJDs as of which 
     Outputs:
+        q_ast:   positions of asteroids at input times; shape (num_ast, traj_size, 3,)
+        q_earth: position of earth at input times; shape (traj_size, 3,)
+        v_ast:   velocity of asteroids at input times
+    Note: this function has some overlap with make_archive_impl in rebount_utils.py
+    It's different though because it's intended to generate arrays on the fly, not save them to disk.
+    """
+    # Delegate to calc_ast_pos_all
+    tbl = calc_ast_pos_all(elts=elts, epoch=epoch, ts=ts)
+    # Grab q_ast, q_earth and v_ast
+    q_ast = tbl['q_ast']
+    q_earth = tbl['q_earth']
+    v_ast = tbl['v_ast']
+
+    return q_ast, q_earth, v_ast
+
+# ********************************************************************************************************************* 
+def calc_ast_pos_all(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.array:
+    """
+    Calculate asteroid positions from the given elements on the fly
+    INPUTS:
+        elts: dictionary with keys 'a', 'e', etc. for 6 orbital elements.  values arrays of shape (N,)
+        epoch: MJD as of which these orbital elements apply
+        ts: array of MJDs as of which 
+    Outputs:
         q_ast: positions of asteroids at input times; shape (num_ast, traj_size, 3,)
         q_earth: position of earth at input times; shape (traj_size, 3,)
     Note: this function has some overlap with make_archive_impl in rebount_utils.py
@@ -350,18 +374,27 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
         process_row(sim=sim_back, t=t, row=row)
     
     # Position of sun is the relevant column
-    # q_sun = q[:, sun_idx, 0:3]
-    # v_sun = v[:, sun_idx, 0:3]
+    q_sun = q[:, sun_idx, 0:3]
+    v_sun = v[:, sun_idx, 0:3]
     # Position of earth is the relevant column
     q_earth = q[:, earth_idx, 0:3]
-    # v_earth = v[:, earth_idx, 0:3]
+    v_earth = v[:, earth_idx, 0:3]
 
     # The asteroid positions are in the right-hand slice of q_all
     # Transpose so resulting array has size (N_ast, traj_size, 3)
     q_ast = q[:, N_heavy:N, 0:3].transpose((1,0,2))
     v_ast = v[:, N_heavy:N, 0:3].transpose((1,0,2))
 
-    return q_ast, q_earth, v_ast
+    # Assemble outputs into one table and return it
+    tbl = {
+        'q_ast': q_ast,
+        'q_earth': q_earth,
+        'q_sun': q_sun,
+        'v_ast': v_ast,
+        'v_earth': v_earth,
+        'v_sun': v_sun,
+    }
+    return tbl
 
 # ********************************************************************************************************************* 
 def make_sim_asteroids_horizons(asteroid_names: List[str], epoch: datetime) -> rebound.Simulation:
@@ -450,7 +483,7 @@ def test_element_recovery(verbose: bool = False) -> bool:
         'Lutetia', 'Kalliope', 'Thalia', 'Phocaea']
 
     # Load asteroid data as DataFrame
-    ast_elt = load_data()
+    ast_elt = load_ast_elt()
     
     # Get the epoch from the DataFrame
     epoch_mjd: float = ast_elt.epoch_mjd[1]

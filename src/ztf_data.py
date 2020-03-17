@@ -445,7 +445,7 @@ def calc_hit_freq(ztf, thresh_sec: float):
     return ast_num, hit_count
 
 # ********************************************************************************************************************* 
-def make_ztf_easy_batch(batch_size: int = 64):
+def make_ztf_easy_batch(batch_size: int = 64, thresh_sec: float = 10.0):
     """
     Generate an "easy batch" to prototype asteroid search algorithm.
     The easy batch consists of all ZTF observations whose nearest asteroid is
@@ -469,6 +469,15 @@ def make_ztf_easy_batch(batch_size: int = 64):
     for ast_num in ast_num_batch:
         is_in_batch = is_in_batch | (ztf.nearest_ast_num == ast_num)
     ztf_batch = ztf[is_in_batch].copy()
+
+    # Threshold to be close enough
+    thresh_deg = thresh_sec / 3600.0
+    thresh_dist = deg2dist(thresh_deg)
+    is_close = ztf_batch.nearest_ast_dist < thresh_dist
+    ztf_batch = ztf_batch[is_close]
+
+    # Reset index so rows counted from zero
+    ztf_batch.reset_index()
 
     return ztf_batch
 

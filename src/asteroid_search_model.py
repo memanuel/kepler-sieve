@@ -21,7 +21,7 @@ from datetime import timedelta
 # Local imports
 from asteroid_model import AsteroidDirection
 from asteroid_integrate import calc_ast_pos
-from search_score_functions import score_mean, score_var, score_mean_2d, score_var_2d
+from search_score_functions import score_mean, score_var, score_mean_var
 from astro_utils import deg2dist
 from tf_utils import tf_quiet, Identity
 
@@ -247,12 +247,13 @@ class DirectionDifference(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, batch_size: int, alpha: float, beta: float, **kwargs):
+    def __init__(self, batch_size: int, alpha: float, beta: float, thresh_deg: float, **kwargs):
         """
         INPUTS:
             batch_size: this is element_batch_size, the number of orbital elements per batch
             alpha: multiplicative factor on mu in objective function
             beta: multiplicative factor on sigma2 in objective function
+            thresh_deg: threshold in degrees for observations to be included in the batch.  impacts mu, sigma2
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
@@ -261,24 +262,28 @@ class TrajectoryScore(keras.layers.Layer):
             'batch_size': batch_size,
             'alpha': alpha,
             'beta': beta,
+            'thresh_deg': thresh_deg
         }
 
         # Save sizes and parameters
         self.batch_size = batch_size
         self.alpha = alpha
         self.beta = beta
+        # Convert threshold from degrees to Cartesian distance
+        self.thresh = deg2dist(thresh_deg)
+        self.thresh2 = self.thresh**2
         
         # Max values of mu and sigma2
-        A_min = 1.0 / R_max_**2
-        self.mu_max = score_mean(A_min)
-        self.sigma2_max = score_var(A_min)
+        # A_min = 1.0 / R_max_**2
+        # self.mu_max = score_mean(A_min)
+        # self.sigma2_max = score_var(A_min)
 
     def call(self, z: tf.Tensor, R: tf.Tensor, num_obs: float):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
             z: difference in direction between u_pred and u_obs
-            R: resolution factor in radians for score function
+            R: resolution factor in Cartesian distance for score function
             num_obs: total number of observations (real, not padded!)
         """
         # The scaling coefficient for scores; score = exp(-1/2 A epsilon^2)
@@ -289,30 +294,30 @@ class TrajectoryScore(keras.layers.Layer):
         # print(f'B.shape = {B.shape}')
         
         # Argument to the exponential
-        # arg = tf.multiply(B, tf.linalg.norm(z, axis=-1))
-        # z2 = tf.square(tf.linalg.norm(z, axis=-1))
         z2 = K.sum(tf.square(z), axis=(-1))
         arg = tf.multiply(B, z2)
         # print(f'arg.shape = {arg.shape}')
         
-        # Filter to only exponentiate where the argument is close enough to matter
-        is_close = arg > -10
+        # Filter to only include terms where z2 is within the threshold distance^2
+        is_close = z2 < self.thresh2
         close_idx = tf.where(is_close)
         raw_scores = tf.scatter_nd(indices=close_idx, updates=tf.exp(arg[is_close]), shape=arg.shape)
         
         # The score function
-        # raw_score = K.sum(tf.exp(arg), axis=(1,2))
         raw_score = K.sum(raw_scores, axis=(1,2))
         # print(f'raw_score.shape = {raw_score.shape}')
         
+        # The expected score and variance per observation
+        mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh)
+
         # The expected score
-        mu_per_obs = score_mean(A)
+        # mu_per_obs = score_mean(A)
         mu = tf.multiply(num_obs, mu_per_obs, name='mu')
         
         # The expected variance
-        var_per_obs = score_var(A)
-        sigma2 = tf.multiply(num_obs, var_per_obs, name='sigma2')
-        # sigma = tf.sqrt(sigma2, name='sigma')
+        # Note; variance adds up over batches, not std dev; makes no sense to sum up sigma over batches
+        # var_per_obs = score_var(A)
+        sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
 
         # Assemble the objective function to be maximized
         objective = raw_score - self.alpha * mu - self.beta * sigma2
@@ -339,6 +344,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
                                elt_batch_size: int=64, 
                                time_batch_size: int=None,
                                R_deg: float = 5.0,
+                               thresh_deg: float = 1.0,
                                alpha: float = 2.0,
                                beta: float = 1.0,
                                q_cal = None,
@@ -405,7 +411,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
     z = dir_diff_layer(u_obs, u_pred, idx)
 
     # Calculate score compoments
-    score_layer = TrajectoryScore(batch_size=elt_batch_size, alpha=alpha, beta=beta)
+    score_layer = TrajectoryScore(batch_size=elt_batch_size, alpha=alpha, beta=beta, thresh_deg=thresh_deg)
     raw_score,  mu, sigma2, objective  = score_layer(z, R, num_obs)
     # Stack the scores
     scores = tf.stack(values=[raw_score, mu, sigma2, objective], axis=1, name='scores')

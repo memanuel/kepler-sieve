@@ -22,7 +22,7 @@ from tqdm.auto import tqdm
 
 # Local imports
 from astro_utils import datetime_to_mjd
-from asteroid_integrate import load_data as load_data_asteroids
+from asteroid_integrate import load_ast_elt
 from asteroid_dataframe import spline_ast_vec_dir
 from rebound_utils import load_sim_np
 
@@ -31,7 +31,7 @@ from typing import Tuple, Dict
 
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
-ast_elt = load_data_asteroids()
+ast_elt = load_ast_elt()
 
 # Alias number of dimensions in space to avoid magic number 3
 space_dims = 3
@@ -338,7 +338,7 @@ def make_dataset_ast_dir_spline(n0: int, n1: int, site_name: str = 'geocenter',
         batch_size: batch_size for this dataset
     """
     # DataFrame of asteroid snapshots
-    ast_elt_all = load_data_asteroids()    
+    ast_elt_all = load_ast_elt()    
 
     # Elements of selected asteroids
     # ast_elt = ast_elt_all.loc[ast_nums]

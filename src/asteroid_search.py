@@ -82,8 +82,11 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
         time_batch_size = traj_size
     steps = int(np.ceil(traj_size / time_batch_size))
 
-    # Batch of perturbed orbital elements for asteroid model
+    # Resolution and threshold in degrees
     R_deg: float = 0.5
+    thresh_deg: float = 1.0
+
+    # Batch of perturbed orbital elements for asteroid model
     ast_nums = np.unique(ztf.nearest_ast_num)
     elts_np = orbital_element_batch(ast_nums)
     epoch = elts_np['epoch'][0]
@@ -111,7 +114,8 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     mask_good = np.arange(elt_batch_size) < (elt_batch_size//2)
     mask_bad = ~mask_good
     # Perturb second half of orbital elements
-    elts_np2 = perturb_elts(elts_np, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=0.0, mask=mask_bad)
+    # elts_np2 = perturb_elts(elts_np, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=0.0, mask=mask_bad)
+    elts_np2 = perturb_elts(elts_np, mask=mask_bad)
 
     # Orbits for calibration
     if 'q_cal' not in globals():
@@ -123,14 +127,15 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     use_calibration: bool = True
 
     # Alpha and beta parameters for the objective function
-    alpha = 2.0
+    alpha = 1.0
     beta = 0.0
 
     # Build functional model for asteroid score
     model = make_model_asteroid_search(\
         ts=ts, elts_np=elts_np2, max_obs=max_obs, num_obs=num_obs,
         elt_batch_size=elt_batch_size, time_batch_size=time_batch_size,
-        R_deg=R_deg, alpha=alpha, beta=beta, q_cal=q_cal, use_calibration=use_calibration)
+        R_deg=R_deg, thresh_deg=thresh_deg, alpha=alpha, beta=beta, 
+        q_cal=q_cal, use_calibration=use_calibration)
 
     # Use Adam optimizer with gradient clipping
     # learning_rate = 2.0e-5

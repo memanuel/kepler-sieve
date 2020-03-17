@@ -22,7 +22,7 @@ from tqdm.auto import tqdm
 # Local imports
 from utils import range_inc
 from astro_utils import datetime_to_mjd
-from asteroid_integrate import load_data
+from asteroid_integrate import load_ast_elt, calc_ast_pos_all
 from rebound_utils import load_sim_np
 from ra_dec import qv2dir, dir2radec, calc_topos, astrometric_dir, direction_diff
 
@@ -31,7 +31,7 @@ from typing import Optional, Tuple, Dict
 
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
-ast_elt = load_data()
+ast_elt = load_ast_elt()
 # Size of the blocks in asteroid integrator files
 ast_block_size: int = 1000
 # space_dims = 3
@@ -261,27 +261,110 @@ def load_ast_data(n0: int, n1: int,
     return df_ast, df_earth, df_sun
     
 # ********************************************************************************************************************* 
-def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, progbar: bool = True) \
-                   -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def calc_ast_data(elts: Dict[str, np.ndarray], 
+                  mjd0: np.float,
+                  mjd1: np.float,
+                  element_id: Optional[np.ndarray]=None,
+                  progbar: bool = True) -> \
+    Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Build asteroid integration for this block orbital elements on the fly.
+    INPUTS:
+        elts:       Dictionary of orbital elements as numpy arrays
+        mjd0:       Start date as an mjd
+        mjd1:       End date an mjd
+        elemnet_id: Optional array of element_ids for describing / saving elements
+        progbar:    Whether to print a progress bar to the console
+    OUTPUTS:
+        df_ast:     Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+        df_earth:   Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        df_sun:     Position & velocity of sun in barycentric frame
+    """
+    # Extract the epoch
+    epoch = elts['epoch'][0]
+
+    # Daily snapshots in range of data
+    ts = np.arange(mjd0, mjd1, dtype=np.float64)
+
+    # Number of asteroids in this batch of elements
+    N_elt = elts['a'].size
+
+    # Number of times and number of rows in flattened DataFrame
+    N_t = ts.size
+    N_row = N_elt * N_t
+
+    # Element ID in this batch; counts from e.g. 0 to 63
+    if element_id is None:
+        element_id = np.arange(N_elt, dtype=np.int32)
+    # Whether or not element_id was provided, it needs to be repeated to N_t times to line up with flattened frame.
+    element_ids = np.repeat(element_id, ts.size)
+
+    # The mjd column of the DataFrame; times must be tiled N_elt times for asteroids
+    mjd_ast = np.tile(ts, N_elt)    
+    mjd_earth = ts
+    mjd_sun = ts
+
+    # Calculate asteroid positions on batch
+    pos_tbl = calc_ast_pos_all(elts=elts, epoch=epoch, ts=ts)
+
+    # Extract asteroid position and velocity
+    q_ast = pos_tbl['q_ast']
+    v_ast = pos_tbl['v_ast']
+    # Reshape q and v; now flat data frames, indexing element_id first, then timestamp_id
+    q_ast = q_ast.reshape(N_row, 3)
+    v_ast = v_ast.reshape(N_row, 3)
+
+    # Extract asteroid position and velocity of earth and sun
+    q_earth = pos_tbl['q_earth']
+    v_earth = pos_tbl['v_earth']
+    q_sun = pos_tbl['q_sun']
+    v_sun = pos_tbl['v_sun']
+
+    # Build asteroid DataFrame
+    df_ast = pd.DataFrame({
+        'element_id':element_id, 
+        'mjd': mjd_ast,
+    })
+
+    # Build earth and sun DataFrame
+    df_earth = pd.DataFrame({
+        'mjd': mjd_earth,
+    })
+    df_sun = pd.DataFrame({
+        'mjd': mjd_earth,
+    })
+    
+    # Columns for position and velocity
+    cols_q = ['qx', 'qy', 'qz']
+    cols_v = ['vx', 'vy', 'vz']
+
+    # Save position columns
+    for k, col in enumerate(cols_q):
+        df_ast[col] = q_ast[:, k]
+        df_earth[col] = q_earth[:, k] 
+        df_sun[col] = q_sun[:, k]
+
+    # Save velocity columns
+    for k, col in enumerate(cols_v):
+        df_ast[col] = v_ast[:, k] 
+        df_earth[col] = v_earth[:, k]
+        df_sun[col] = v_sun[:, k] 
+
+    return df_ast, df_earth, df_sun
+
+# ********************************************************************************************************************* 
+def spline_ast_vec_df(df_ast, df_earth, progbar: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
-        n0:  First asteroid to load, inclusive, e.g. 0
-        n1:  Last asteroid to load, exclusive, e.g. 1000
-        mjd: Array of modified julian dates on which splined output is desired
+        df_ast:    DataFrame with asteroid position and velocity
+        df_earth:  DataFrame with asteroid position and velocity
         progbar: Whether to print a progress bar to the console
     OUTPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
         df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
         df_sun:   Position & velocity of sun in barycentric frame
     """
-    # Compute mjd0 and mjd1 from mjd
-    mjd0 = np.min(mjd) - 1
-    mjd1 = np.max(mjd) + 1
-
-    # Load data in this date range
-    df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, progbar=progbar)
-
     # Time key from mjd at spline points
     time_key = np.int32(np.round(mjd*24))
 
@@ -349,6 +432,31 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, progbar: bool = True) \
     
     return df_ast_out, df_earth_out, df_sun_out
     
+# ********************************************************************************************************************* 
+def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, progbar: bool = True) \
+                   -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Load the MSE asteroid integrations for this range of asteroids.
+    INPUTS:
+        n0:  First asteroid to load, inclusive, e.g. 0
+        n1:  Last asteroid to load, exclusive, e.g. 1000
+        mjd: Array of modified julian dates on which splined output is desired
+        progbar: Whether to print a progress bar to the console
+    OUTPUTS:
+        df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+        df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        df_sun:   Position & velocity of sun in barycentric frame
+    """
+    # Compute mjd0 and mjd1 from mjd
+    mjd0 = np.min(mjd) - 1
+    mjd1 = np.max(mjd) + 1
+
+    # Load data in this date range
+    df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, progbar=progbar)
+
+    # Delegate to spline_ast_vec_df
+    df_ast_out, df_earth_out, df_sun_out = spline_ast_vec_df(df_ast=df_ast, df_earth=df_earth, df_sun=df_sun)
+
 # ********************************************************************************************************************* 
 def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
     """
