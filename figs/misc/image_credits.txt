@@ -1,0 +1,2 @@
+Area Element on Sphere:
+https://math.stackexchange.com/questions/131735/surface-element-in-spherical-coordinates
