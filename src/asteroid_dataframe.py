@@ -273,11 +273,11 @@ def calc_ast_data(elts: Dict[str, np.ndarray],
         elts:       Dictionary of orbital elements as numpy arrays
         mjd0:       Start date as an mjd
         mjd1:       End date an mjd
-        elemnet_id: Optional array of element_ids for describing / saving elements
+        element_id: Optional array of element_ids for describing / saving elements
         progbar:    Whether to print a progress bar to the console
     OUTPUTS:
-        df_ast:     Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
-        df_earth:   Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        df_ast:     Position & velocity of asteroids in barycentric frame
+        df_earth:   Position & velocity of earth in barycentric frame
         df_sun:     Position & velocity of sun in barycentric frame
     """
     # Extract the epoch
@@ -297,7 +297,7 @@ def calc_ast_data(elts: Dict[str, np.ndarray],
     if element_id is None:
         element_id = np.arange(N_elt, dtype=np.int32)
     # Whether or not element_id was provided, it needs to be repeated to N_t times to line up with flattened frame.
-    element_ids = np.repeat(element_id, ts.size)
+    element_id = np.repeat(element_id, ts.size)
 
     # The mjd column of the DataFrame; times must be tiled N_elt times for asteroids
     mjd_ast = np.tile(ts, N_elt)    
@@ -353,25 +353,32 @@ def calc_ast_data(elts: Dict[str, np.ndarray],
     return df_ast, df_earth, df_sun
 
 # ********************************************************************************************************************* 
-def spline_ast_vec_df(df_ast, df_earth, progbar: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def spline_ast_vec_df(df_ast: pd.DataFrame, df_earth: pd.DataFrame, df_sun: pd.DataFrame, mjd: np.ndarray,
+                      include_elts: bool = True, progbar: bool = True) \
+                      -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
     INPUTS:
         df_ast:    DataFrame with asteroid position and velocity
-        df_earth:  DataFrame with asteroid position and velocity
-        progbar: Whether to print a progress bar to the console
+        df_earth:  DataFrame with earth position and velocity
+        df_sun:    DataFrame with earth position and velocity
+        mjd:       Array of times at which splined output is desired
+        include_elts: Whether to include orbital elements for the asteroids and earth
+        progbar:   Whether to print a progress bar to the console
     OUTPUTS:
-        df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
-        df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
-        df_sun:   Position & velocity of sun in barycentric frame
+        df_ast_out:   Position & velocity of asteroids in barycentric frame
+        df_earth_out: Position & velocity of earth in barycentric frame
+        df_sun_out:   Position & velocity of sun in barycentric frame
     """
     # Time key from mjd at spline points
     time_key = np.int32(np.round(mjd*24))
 
-    # Distinct asteroids
-    asteroid_num = np.unique(df_ast.asteroid_num.values)
-    # Number of asteroids
-    N_ast = asteroid_num.size
+    # Distinct asteroids or elements; get the name of the relevant column and array of distinct values
+    id_col_name = 'asteroid_num' if 'asteroid_num' in df_ast.columns else 'element_id'
+    id_vals = np.unique(df_ast[id_col_name])
+
+    # Number of asteroids or elements
+    N_ast = id_vals.size
     # Number of times in input and splined output
     N_t_in = df_earth.mjd.size
     N_t_out = mjd.size
@@ -385,8 +392,8 @@ def spline_ast_vec_df(df_ast, df_earth, progbar: bool = True) -> Tuple[pd.DataFr
     # Desired output columns to be splined for asteroids, earth and sun
     cols_cart = ['qx', 'qy', 'qz', 'vx', 'vy', 'vz']
     cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f']
-    cols_ast = cols_cart + cols_elt
-    cols_earth = cols_cart + cols_elt
+    cols_ast = cols_cart + cols_elt if include_elts else cols_cart
+    cols_earth = cols_cart + cols_elt if include_elts else cols_cart
     cols_sun = cols_cart
 
     # the indexing of y_spline_ast is (ast_num, time_step, data_dim) with shape e.g. (16, 3653, 6)
@@ -407,9 +414,9 @@ def spline_ast_vec_df(df_ast, df_earth, progbar: bool = True) -> Tuple[pd.DataFr
 
     # asteroid DataFrame
     ast_dict_keys = {
-        'asteroid_num': np.repeat(asteroid_num, N_t_out),
+        id_col_name: np.repeat(id_vals, N_t_out),
         'mjd': np.tile(mjd, N_ast),
-        'time_key' : np.tile(time_key, N_ast)
+        # 'time_key' : np.tile(time_key, N_ast)
     }
     ast_dict_data = {col:spline_data_ast[:,:,k].reshape(N_row_out) for k, col in enumerate(cols_ast)}
     ast_dict = dict(**ast_dict_keys, **ast_dict_data)
@@ -418,7 +425,7 @@ def spline_ast_vec_df(df_ast, df_earth, progbar: bool = True) -> Tuple[pd.DataFr
     # earth DataFrame
     earth_dict_keys = {
         'mjd': mjd,
-        'time_key': time_key
+        # 'time_key': time_key
     }
     earth_dict_data = {col:spline_data_earth[:,k] for k, col in enumerate(cols_earth)}
     earth_dict = dict(**earth_dict_keys, **earth_dict_data)
@@ -433,7 +440,8 @@ def spline_ast_vec_df(df_ast, df_earth, progbar: bool = True) -> Tuple[pd.DataFr
     return df_ast_out, df_earth_out, df_sun_out
     
 # ********************************************************************************************************************* 
-def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, progbar: bool = True) \
+def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, 
+                   include_elts: bool = True, progbar: bool = True) \
                    -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the MSE asteroid integrations for this range of asteroids.
@@ -455,7 +463,9 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray, progbar: bool = True) \
     df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, progbar=progbar)
 
     # Delegate to spline_ast_vec_df
-    df_ast_out, df_earth_out, df_sun_out = spline_ast_vec_df(df_ast=df_ast, df_earth=df_earth, df_sun=df_sun)
+    df_ast_out, df_earth_out, df_sun_out = spline_ast_vec_df(\
+        df_ast=df_ast, df_earth=df_earth, df_sun=df_sun, mjd=mjd, 
+        include_elts=include_elts, progbar=progbar)
 
 # ********************************************************************************************************************* 
 def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:

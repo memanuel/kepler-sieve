@@ -287,11 +287,11 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
     It's different though because it's intended to generate arrays on the fly, not save them to disk.
     """
     # Delegate to calc_ast_pos_all
-    tbl = calc_ast_pos_all(elts=elts, epoch=epoch, ts=ts)
+    pos_tbl = calc_ast_pos_all(elts=elts, epoch=epoch, ts=ts)
     # Grab q_ast, q_earth and v_ast
-    q_ast = tbl['q_ast']
-    q_earth = tbl['q_earth']
-    v_ast = tbl['v_ast']
+    q_ast = pos_tbl['q_ast']
+    q_earth = pos_tbl['q_earth']
+    v_ast = pos_tbl['v_ast']
 
     return q_ast, q_earth, v_ast
 
@@ -304,9 +304,8 @@ def calc_ast_pos_all(elts: Dict[str, np.array], epoch: float, ts: np.array) -> n
         epoch: MJD as of which these orbital elements apply
         ts: array of MJDs as of which 
     Outputs:
-        q_ast: positions of asteroids at input times; shape (num_ast, traj_size, 3,)
-        q_earth: position of earth at input times; shape (traj_size, 3,)
-    Note: this function has some overlap with make_archive_impl in rebount_utils.py
+        pos_tbl: Python dict.  Entries include q_ast, q_earth, q_sun, v_ast, v_earth, v_sun
+    Note: this function has some overlap with make_archive_impl in rebound_utils.py
     It's different though because it's intended to generate arrays on the fly, not save them to disk.
     """
     # Build the simulation at the epoch
@@ -373,20 +372,21 @@ def calc_ast_pos_all(elts: Dict[str, np.array], epoch: float, ts: np.array) -> n
         # Process this row
         process_row(sim=sim_back, t=t, row=row)
     
-    # Position of sun is the relevant column
-    q_sun = q[:, sun_idx, 0:3]
-    v_sun = v[:, sun_idx, 0:3]
-    # Position of earth is the relevant column
+    # Position of earth is slice on the relevant column
     q_earth = q[:, earth_idx, 0:3]
     v_earth = v[:, earth_idx, 0:3]
 
+    # Position of sun is slice on the relevant column
+    q_sun = q[:, sun_idx, 0:3]
+    v_sun = v[:, sun_idx, 0:3]
+
     # The asteroid positions are in the right-hand slice of q_all
-    # Transpose so resulting array has size (N_ast, traj_size, 3)
+    # Transpose so resulting array has shape (N_ast, traj_size, 3)
     q_ast = q[:, N_heavy:N, 0:3].transpose((1,0,2))
     v_ast = v[:, N_heavy:N, 0:3].transpose((1,0,2))
 
     # Assemble outputs into one table and return it
-    tbl = {
+    pos_tbl = {
         'q_ast': q_ast,
         'q_earth': q_earth,
         'q_sun': q_sun,
@@ -394,7 +394,7 @@ def calc_ast_pos_all(elts: Dict[str, np.array], epoch: float, ts: np.array) -> n
         'v_earth': v_earth,
         'v_sun': v_sun,
     }
-    return tbl
+    return pos_tbl
 
 # ********************************************************************************************************************* 
 def make_sim_asteroids_horizons(asteroid_names: List[str], epoch: datetime) -> rebound.Simulation:

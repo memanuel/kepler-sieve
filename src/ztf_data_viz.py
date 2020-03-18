@@ -347,20 +347,19 @@ def plot_rel_density(ztf, n: int, thresh_deg: float = 1.0, bins=20, chart_type: 
     return fig, ax
 
 # ********************************************************************************************************************* 
-def plot_hit_freq(ztf, n: int, thresh_deg: float, is_cum=True, bins=100, save_fig: bool=True):
+def plot_hit_freq(ztf, n: int, thresh_sec: float, is_cum=True, bins=100, save_fig: bool=True):
     """
     Generate plot with histogram of distance to the nearest asteroid vs. random baseline.
     INPUTS:
         ztf: DataFrame with distance to nearest asteroid
         n:   Number of asteroids, e.g. 16000
-        thresh_deg: Threshold in degrees for close observations
+        thresh_sec: Threshold in arcseconds for close observations
     """
     # Compute number of close observations by asteroid
-    thresh_sec = thresh_deg / 3600.0
     ast_num, hit_count = calc_hit_freq(ztf=ztf, thresh_sec=thresh_sec)
 
     # String description of threshold
-    thresh_caption, thresh_str, angle_unit = angle_to_str(angle_deg=thresh_deg)
+    thresh_caption, thresh_str, angle_unit = angle_to_str(angle_deg=thresh_sec/3600.0)
 
     # Title and axis labels
     cum_prefix = f'Cumulative ' if is_cum else ''
