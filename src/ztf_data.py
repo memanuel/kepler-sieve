@@ -469,20 +469,22 @@ def calc_hit_freq(ztf, thresh_sec: float):
     return ast_num, hit_count
 
 # ********************************************************************************************************************* 
-def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float) -> Dict[np.float32, pd.DataFrame]:
+def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float, progbar: bool=False) \
+                      -> Dict[np.int32, pd.DataFrame]:
     """
     Assemble Python dict of DataFrames with ZTF observations near a batch of orbital elements.
     INPUTS:
-        ztf:    DataFrame of candidate ZTF observations
-        df_dir: DataFrame of splined directions for elements at the unique observation times
+        ztf:        DataFrame of candidate ZTF observations
+        df_dir:     DataFrame of splined directions for elements at the unique observation times
         thresh_deg: Threshold for a close observation in degrees
+        progbar:    Whether to display a progress bar
     """
     # Get unique element IDs
     element_ids = df_dir.element_id.values
     element_ids_unq = np.unique(element_ids)
 
     # Column collections used on ztf
-    cols_catalog = ['ObjectID', 'TimeStampID', 'mjd']
+    cols_catalog = ['ObjectID', 'CandidateID', 'TimeStampID', 'mjd']
     cols_radec = ['ra', 'dec']
     cols_dir = ['ux', 'uy', 'uz']
     cols_out = cols_catalog + cols_radec + cols_dir
@@ -500,7 +502,8 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     ztf_tbl = dict()
 
     # Iterate over distinct element IDs
-    for element_id in element_ids_unq:
+    iterates = tqdm(element_ids_unq) if progbar else element_ids_unq
+    for element_id in iterates:
         # projected directions with this element id
         mask_elt = (df_dir.element_id == element_id)
         # Directions of this candidate element at the unique time stamps
