@@ -33,7 +33,7 @@ from ra_dec import radec2dir
 from asteroid_dataframe import spline_ast_vec_dir
 
 # Typing
-from typing import Optional
+from typing import Optional, Dict
 
 # ********************************************************************************************************************* 
 # Global variables
@@ -105,6 +105,27 @@ def load_ztf_det(mjd0: float, mjd1: float):
 
     return df
 
+
+# ********************************************************************************************************************* 
+def ztf_reindex(ztf: pd.DataFrame, offset: np.int32 = 0) -> pd.DataFrame:
+    """Reindex a ZTF DataFrame so it is sorted by (mjd, CandidateID)"""
+    # Extract the two columns used for the sort: mjd and candidate_id
+    mjd = ztf.mjd.values
+    candidate_id = ztf.CandidateID.values
+    # Perform a lexical sort: first by mjd, then by candidate_id
+    index = np.lexsort(keys=(mjd, candidate_id))
+    # Need to reset the index because there may be duplicates in the input
+    ztf.reset_index(drop=True, inplace=True)
+    # Reindex the dataframe
+    ztf = ztf.reindex(index=index)
+    # Sort the dataframe in place by the new index
+    ztf.sort_index(inplace=True)
+    # Add the offset to the index
+    if offset != 0:
+        ztf.index += offset
+    # Return the sorted DataFrame
+    return ztf
+
 # ********************************************************************************************************************* 
 def load_ztf_det_year(year: int, save_dir: str = '../data/ztf'):
     """
@@ -149,8 +170,10 @@ def load_ztf_det_year(year: int, save_dir: str = '../data/ztf'):
         # Save this week into the HDF5; append mode adds one week at a time
         # df_i.to_hdf(file_name, key='df', mode='a', append=True)
         
-    # Assemble the weeks into one DataFrame and return it
+    # Assemble the weeks into one DataFrame
     df = pd.concat(df_list)
+    # Reindex the DataFrame
+    df = ztf_reindex(df)
     # Save the combined DataFrame into an HDF5 file
     df.to_hdf(file_name, key='df', mode='w')
     return df
@@ -216,7 +239,8 @@ def load_ztf_det_all(verbose: bool = False):
 
         # Combine frames into one DataFrame
         df = pd.concat(dfs)
-
+        # Reindex the combined DataFrame; otherwise will have duplicated indices
+        df = ztf_reindex(df)
         # Add calculated directions; save file to disk; and return it
         ztf_det_add_dir(df=df, file_name='ztf-detections.h5', dir_name='../data/ztf')
 
@@ -443,6 +467,58 @@ def calc_hit_freq(ztf, thresh_sec: float):
 
     # Return numbers and counts
     return ast_num, hit_count
+
+# ********************************************************************************************************************* 
+def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float) -> Dict[np.float32, pd.DataFrame]:
+    """
+    Assemble Python dict of DataFrames with ZTF observations near a batch of orbital elements.
+    INPUTS:
+        ztf:    DataFrame of candidate ZTF observations
+        df_dir: DataFrame of splined directions for elements at the unique observation times
+        thresh_deg: Threshold for a close observation in degrees
+    """
+    # Get unique element IDs
+    element_ids = df_dir.element_id.values
+    element_ids_unq = np.unique(element_ids)
+
+    # Column collections used on ztf
+    cols_catalog = ['ObjectID', 'TimeStampID', 'mjd']
+    cols_radec = ['ra', 'dec']
+    cols_dir = ['ux', 'uy', 'uz']
+    cols_out = cols_catalog + cols_radec + cols_dir
+
+    # Extract TimeStampID as (M,) array; name it row_num to emphasize that we use it to index into u_elt
+    row_num = ztf.TimeStampID.values
+
+    # Extract directions of the ZTF observations as an Mx3 array
+    u_ztf = ztf[cols_dir].values
+
+    # Threshold as Cartesian distance
+    thresh_dist = deg2dist(thresh_deg)    
+
+    # Dictionary of DataFrames that are close
+    ztf_tbl = dict()
+
+    # Iterate over distinct element IDs
+    for element_id in element_ids_unq:
+        # projected directions with this element id
+        mask_elt = (df_dir.element_id == element_id)
+        # Directions of this candidate element at the unique time stamps
+        u_elt = df_dir.loc[mask_elt, cols_dir].values
+        # Difference bewteen ztf direction and this element's direction
+        dist_i = np.linalg.norm(u_ztf - u_elt[row_num], axis=1)
+        # Which rows are within the threshold distance?
+        mask_close = (dist_i < thresh_dist)
+        # Row numbers corresponding to close observations
+        row_num_close = row_num[mask_close]
+        # The ztf_ids of these rows are the index on the ztf frame
+        # Don't need to save this, because it's the index on ztf_i below
+        # ztf_id = ztf.index[mask_close]
+        # Copy this slice and save it to the table
+        ztf_i = ztf.loc[mask_close, cols_out].copy()
+        ztf_tbl[element_id] = ztf_i
+
+    return ztf_tbl
 
 # ********************************************************************************************************************* 
 def make_ztf_easy_batch(batch_size: int = 64, thresh_sec: float = 10.0):

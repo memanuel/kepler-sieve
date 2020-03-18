@@ -100,7 +100,7 @@ def angle_to_str(angle_deg) -> str:
         angle_caption = f'{angle_min:.0f} Arc Minutes'
         angle_str = f'{angle_min:.0f}_arc_min'
         angle_unit = 'min'
-    elif 1.0 <= angle_sec:
+    else:
         angle_caption = f'{angle_sec:.0f} Arc Seconds'
         angle_str = f'{angle_sec:.0f}_arc_sec'
         angle_unit = 'sec'

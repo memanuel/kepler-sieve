@@ -92,7 +92,7 @@ def load_ast_data_block(block: int,
     # Times as julian dates 
     jd = ts_ap.jd
     # Times as integer key counting the number of hours in MJD era
-    time_key = np.int32(np.round(mjd*24))
+    # time_key = np.int32(np.round(mjd*24*3600))
 
     # mask for selected asteroids
     mask_ast = (n0 <= ast_elt.Num) & (ast_elt.Num < n1)
@@ -147,8 +147,7 @@ def load_ast_data_block(block: int,
         # indexing : asteroid number and time
         'asteroid_num': np.repeat(asteroid_num, N_t),
         'mjd': np.tile(mjd, N_ast),
-        # 'jd' : np.tile(jd, N_ast),
-        'time_key' : np.tile(time_key, N_ast),
+        # 'time_key' : np.tile(time_key, N_ast),
         # cartesian coordinates
         'qx': q_ast[:, :, 0].reshape(N_row),
         'qy': q_ast[:, :, 1].reshape(N_row),
@@ -170,8 +169,7 @@ def load_ast_data_block(block: int,
     earth_dict = {
         # indexing
         'mjd': mjd,
-        # 'jd' : jd,
-        'time_key' : time_key,
+        # 'time_key' : time_key,
         # cartesian coordinate
         'qx': q_earth[:, 0],
         'qy': q_earth[:, 1],
@@ -193,8 +191,7 @@ def load_ast_data_block(block: int,
     sun_dict = {
         # indexing
         'mjd': mjd,
-        # 'jd' : jd,
-        'time_key' : time_key,
+        # 'time_key' : time_key,
         # cartesian coordinate
         'qx': q_sun[:, 0],
         'qy': q_sun[:, 1],
@@ -371,14 +368,14 @@ def spline_ast_vec_df(df_ast: pd.DataFrame, df_earth: pd.DataFrame, df_sun: pd.D
         df_sun_out:   Position & velocity of sun in barycentric frame
     """
     # Time key from mjd at spline points
-    time_key = np.int32(np.round(mjd*24))
+    # time_key = np.int32(np.round(mjd*24*3600))
 
     # Distinct asteroids or elements; get the name of the relevant column and array of distinct values
-    id_col_name = 'asteroid_num' if 'asteroid_num' in df_ast.columns else 'element_id'
-    id_vals = np.unique(df_ast[id_col_name])
+    id_col = 'asteroid_num' if 'asteroid_num' in df_ast.columns else 'element_id'
+    id_val_unq = np.unique(df_ast[id_col].values)
 
     # Number of asteroids or elements
-    N_ast = id_vals.size
+    N_ast = id_val_unq.size
     # Number of times in input and splined output
     N_t_in = df_earth.mjd.size
     N_t_out = mjd.size
@@ -412,9 +409,12 @@ def spline_ast_vec_df(df_ast: pd.DataFrame, df_earth: pd.DataFrame, df_sun: pd.D
     spline_data_earth = spline_func_earth(mjd)
     spline_data_sun = spline_func_sun(mjd)
 
+    # ID column (asteroid_num or element_id) corresponding to splined output
+    id_val = np.repeat(id_val_unq, N_t_out)
+
     # asteroid DataFrame
     ast_dict_keys = {
-        id_col_name: np.repeat(id_vals, N_t_out),
+        id_col: id_val,
         'mjd': np.tile(mjd, N_ast),
         # 'time_key' : np.tile(time_key, N_ast)
     }
@@ -463,9 +463,8 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray,
     df_ast, df_earth, df_sun = load_ast_data(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, progbar=progbar)
 
     # Delegate to spline_ast_vec_df
-    df_ast_out, df_earth_out, df_sun_out = spline_ast_vec_df(\
-        df_ast=df_ast, df_earth=df_earth, df_sun=df_sun, mjd=mjd, 
-        include_elts=include_elts, progbar=progbar)
+    return spline_ast_vec_df(df_ast=df_ast, df_earth=df_earth, df_sun=df_sun, mjd=mjd, 
+                             include_elts=include_elts, progbar=progbar)
 
 # ********************************************************************************************************************* 
 def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
@@ -475,6 +474,10 @@ def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
         df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
     """
+    # distinct asteroids or elements; get the name of the relevant column and array of distinct values
+    id_col = 'asteroid_num' if 'asteroid_num' in df_ast.columns else 'element_id'
+    id_val = df_ast[id_col].values
+
     # observation times
     mjd_ast = df_ast.mjd.values
     mjd_earth = df_earth.mjd.values
@@ -486,9 +489,11 @@ def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
     v_ast = df_ast[cols_v].values * au / day
 
     # number of asteroids
-    asteroid_num = df_ast.asteroid_num.values
-    asteroid_num_unq = np.unique(asteroid_num)
-    N_ast = asteroid_num_unq.size
+    # asteroid_num = df_ast.asteroid_num.values
+    # asteroid_num_unq = np.unique(asteroid_num)
+    # N_ast = asteroid_num_unq.size
+    id_val_unq = np.unique(id_val)
+    N_ast = id_val_unq.size
 
     # position of earth and topos adjustment
     q_earth_once = df_earth[cols_q].values * au
@@ -513,9 +518,9 @@ def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str)
 
     # build the observation DataFrame
     dir_dict = {
-        'asteroid_num': asteroid_num,
+        id_col: id_val,
         'mjd' : mjd_ast,
-        'time_key': np.int32(np.round(mjd_ast*24)),
+        # 'time_key': np.int32(np.round(mjd_ast*24)),
         'ra': ra.value,
         'dec': dec.value,
         'ux': ux,
