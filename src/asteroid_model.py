@@ -15,9 +15,6 @@ import numpy as np
 import astropy
 from astropy.units import au, day
 
-# Utility
-# from silence_tensorflow import silence_tensorflow
-
 # Local imports
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
 from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, get_sun_pos_vel

@@ -53,7 +53,7 @@ def traj_diff(elts0: np.array, elts1: np.array, model_pos: keras.Model):
     return np.mean(distance, axis=-1)
     
 # ********************************************************************************************************************* 
-def report_model_attribute(att: np.array, mask_good: np.array, att_name: str):
+def report_model_attribute(att: np.array, mask_good: np.ndarray, att_name: str):
     """Report mean and stdev of a model attribute on good and bad masks"""
     # Complementary mask
     mask_bad = ~mask_good
@@ -210,7 +210,7 @@ def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float,
     return scores, traj_err, elt_err
 
 # ********************************************************************************************************************* 
-def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good):
+def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good, report_elt_change: bool = False):
     """Report progress while model trained"""
     
     # Unpack inputs pairs
@@ -224,10 +224,12 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
     raw_score1 = scores1[:,0]
     mu0 = scores0[:,1]
     mu1 = scores1[:,1]
-    sigma0 = scores0[:,2]
-    sigma1 = scores1[:,2]
+    sigma2_0 = scores0[:,2]
+    sigma2_1 = scores1[:,2]
     objective0 = scores0[:,3]
     objective1 = scores1[:,3]
+    sigma0 = scores0[:,4]
+    sigma1 = scores1[:,4]
     t_score0 = scores0[:,5]
     t_score1 = scores1[:,5]
     
@@ -240,7 +242,7 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
     report_model_attribute_change(raw_score0, raw_score1, mask_good, 'Raw Score', dp=0)
     report_model_attribute_change(mu0, mu1, mask_good, 'Mu', dp=0)
     report_model_attribute_change(eff_obs0, eff_obs1, mask_good, 'Effective Observations', dp=0)
-    report_model_attribute_change(sigma0, sigma1, mask_good, 'Sigma Squared', dp=0)
+    report_model_attribute_change(sigma0, sigma1, mask_good, 'Sigma', dp=0)
     report_model_attribute_change(t_score0, t_score1, mask_good, 't-score', dp=1)
     report_model_attribute_change(objective0, objective1, mask_good, 'Objective Function', dp=0)
     report_model_attribute_change(np.rad2deg(R0), np.rad2deg(R1), mask_good, 'Resolution R (degrees)', dp=4)
@@ -259,23 +261,27 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
     err_f0 = elt_err0[:,5]
     err_f1 = elt_err1[:,5]
     
-    # Report element errors
-    report_model_attribute_change(err_a0, err_a1, mask_good, 'Error in semi-major axis, a', dp=6)
-    report_model_attribute_change(err_e0, err_e1, mask_good, 'Error in eccentricity, e', dp=6)
-    report_model_attribute_change(err_inc0, err_inc1, mask_good, 'Error in inclination, inc', dp=6)
-    report_model_attribute_change(err_f0, err_f1, mask_good, 'Error in true anomaly, f', dp=6)
+    # Report element errors if requested
+    if report_elt_change:
+        report_model_attribute_change(err_a0, err_a1, mask_good, 'Error in semi-major axis, a', dp=6)
+        report_model_attribute_change(err_e0, err_e1, mask_good, 'Error in eccentricity, e', dp=6)
+        report_model_attribute_change(err_inc0, err_inc1, mask_good, 'Error in inclination, inc', dp=6)
+        report_model_attribute_change(err_f0, err_f1, mask_good, 'Error in true anomaly, f', dp=6)
     
-    # Changes in element errors
+    # Changes in element errors and R
     d_elt_err = elt_err1 - elt_err0
+    d_R = R1 - R0
     mask_bad = ~mask_good
     d_elt_err_g = np.mean(d_elt_err[mask_good], axis=0)
     d_elt_err_b = np.mean(d_elt_err[mask_bad], axis=0)
+    d_R_g = np.mean(d_R[mask_good])
+    d_R_b = np.mean(d_R[mask_bad])
 
     print(f'\nChange in Orbital Element error by Category:')
     print(f'(Angles shown in degrees)')
-    print('          a           e         inc         Omega       omega      f')
+    print('          a           e         inc         Omega       omega      f          R')
     print(f'd_err_g: {d_elt_err_g[0]:+8.6f},  {d_elt_err_g[1]:+8.6f}, {d_elt_err_g[2]:+8.6f}, '
-          f'{d_elt_err_g[3]:+8.6f},  {d_elt_err_g[4]:+8.6f}, {d_elt_err_g[5]:+8.6f}, ')
+          f'{d_elt_err_g[3]:+8.6f},  {d_elt_err_g[4]:+8.6f}, {d_elt_err_g[5]:+8.6f}, {d_R_g:+8.6f}')
     print(f'd_err_b: {d_elt_err_b[0]:+8.6f},  {d_elt_err_b[1]:+8.6f}, {d_elt_err_b[2]:+8.6f}, '
-          f'{d_elt_err_b[3]:+8.6f},  {d_elt_err_b[4]:+8.6f}, {d_elt_err_b[5]:+8.6f}, ')
+          f'{d_elt_err_b[3]:+8.6f},  {d_elt_err_b[4]:+8.6f}, {d_elt_err_b[5]:+8.6f}, {d_R_b:+8.6f}')
 

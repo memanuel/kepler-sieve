@@ -35,7 +35,6 @@ keras = tf.keras
 # ********************************************************************************************************************* 
 # Run TF quietly
 tf_quiet()
-# Configure TensorFlow to use GPU memory variably; done automatically by importing asteroid_model
 
 # Constants
 space_dims = 3
@@ -64,7 +63,7 @@ log_R_max_ = np.log(R_max_)
 class OrbitalElements(keras.layers.Layer):
     """Custom layer to maintain state of candidate orbital elements and resolutions."""
 
-    def __init__(self, elts_np: dict, batch_size: int, R_deg: float, **kwargs):
+    def __init__(self, elts_np: dict, batch_size: int, R_deg: float, R_is_trainable: bool = True, **kwargs):
         super(OrbitalElements, self).__init__(**kwargs)
         
         # Configuration for serialization
@@ -115,7 +114,7 @@ class OrbitalElements(keras.layers.Layer):
         # log_R_init  = np.log(R_init)
         self.R_min = tf.constant(R_min_, dtype=tf.float32)
         self.log_R_range = tf.constant(log_R_max_ - log_R_min_, dtype=tf.float32)
-        self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=True, 
+        self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=R_is_trainable, 
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
         
     def get_a(self):
@@ -311,12 +310,11 @@ class TrajectoryScore(keras.layers.Layer):
         mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh)
 
         # The expected score
-        # mu_per_obs = score_mean(A)
         mu = tf.multiply(num_obs, mu_per_obs, name='mu')
         
         # The expected variance
-        # Note; variance adds up over batches, not std dev; makes no sense to sum up sigma over batches
-        # var_per_obs = score_var(A)
+        # Note; variance adds up over batches, not std dev.  
+        # However, if the batch size is all of the observations, then std dev can be meaninfully averaged
         sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
 
         # Assemble the objective function to be maximized
@@ -345,8 +343,9 @@ def make_model_asteroid_search(ts: tf.Tensor,
                                time_batch_size: int=None,
                                R_deg: float = 5.0,
                                thresh_deg: float = 1.0,
+                               R_is_trainable: bool = True,
                                alpha: float = 2.0,
-                               beta: float = 1.0,
+                               beta: float = 0.0,
                                q_cal = None,
                                use_calibration: bool = True):
     """Make functional API model for scoring elements"""
@@ -367,7 +366,8 @@ def make_model_asteroid_search(ts: tf.Tensor,
     ts = keras.backend.constant(ts, name='ts')
 
     # Set of trainable weights with candidate
-    elements_layer = OrbitalElements(elts_np=elts_np, batch_size=elt_batch_size, R_deg=R_deg, name='candidates')
+    elements_layer = OrbitalElements(elts_np=elts_np, batch_size=elt_batch_size, 
+                                     R_deg=R_deg, R_is_trainable=R_is_trainable, name='candidates')
     a, e, inc, Omega, omega, f, epoch, R = elements_layer(idx)
     
     # Alias the orbital elements; a, e, inc, Omega, omega, and f are trainable; epoch is fixed

@@ -31,13 +31,22 @@ def tf_quiet():
 def gpu_grow_memory(verbose : bool=False):
     """Set TensorFlow to grow memory of GPUs rather than grabbing it all at once."""
     # Get available GPUs
-    gpus = tf.config.experimental.list_physical_devices('GPU')
+    gpus = tf.config.list_physical_devices('GPU')
     # List GPUs if requested
     if verbose:
         print(f'Found {len(gpus)} GPUs.  Setting memory growth = True.')
     # Set all selected GPUs to 
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
+
+# ********************************************************************************************************************* 
+def get_gpu_device(gpu_num: int):
+    """Select a specific GPU"""
+    # Name of this device
+    device_name = f':/gpu:{gpu_num}'
+    # Select the desired GPU and return it; use it in a with tf.device context
+    gpu_device = tf.device(device_name)
+    return gpu_device
 
 # ********************************************************************************************************************* 
 def plot_loss_hist(hist,  model_name, key='loss', baseline=None):
