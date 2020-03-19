@@ -488,7 +488,12 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     cols_catalog = ['ObjectID', 'CandidateID', 'TimeStampID', 'mjd']
     cols_radec = ['ra', 'dec']
     cols_dir = ['ux', 'uy', 'uz']
-    cols_out = cols_catalog + cols_radec + cols_dir
+    # Add nearest asteroid data to columns if available
+    cols_nearest_ast_all = ['nearest_ast_num', 'nearest_ast_dist', 
+                            'ast_ra', 'ast_dec', 'ast_ux', 'ast_uy', 'ast_uz']
+    cols_nearest_ast = [col for col in cols_nearest_ast_all if col in ztf.columns]
+    # All the output columns
+    cols_out = cols_catalog + cols_radec + cols_dir + cols_nearest_ast
 
     # Extract TimeStampID as (M,) array; name it row_num to emphasize that we use it to index into u_elt
     row_num = ztf.TimeStampID.values
@@ -548,8 +553,8 @@ def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     element_id = np.sort(ast_num_best)
     elts_dict = orbital_element_batch(element_id)
     elts = pd.DataFrame(elts_dict)
-    # Add asteroid num to elts
-    elts.insert(loc=0, column='ast_num', value=element_id)
+    # Add asteroid num to elts; name it element_id
+    elts.insert(loc=0, column='element_id', value=element_id)
 
     # Unique dates
     mjd = np.unique(ztf.mjd)

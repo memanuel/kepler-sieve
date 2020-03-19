@@ -233,11 +233,11 @@ def make_sim_asteroids(sim_base: rebound.Simulation,
     return sim, asteroid_names
 
 # ********************************************************************************************************************* 
-def make_sim_from_elts(elts: Dict[str, np.array], epoch: float):
+def make_sim_from_elts(elts: pd.DataFrame, epoch: float):
     """
     Create a simulation for planets and asteroids parameterized by their orbital elements
     INPUTS:
-        elts: dictionary with keys 'a', 'e', etc. for 6 orbital elements.  values arrays of shape (N,)
+        elts: DataFrame with columns 'a', 'e', etc. for 6 orbital elements.  rows arrays of shape (N,)
         epoch: MJD as of which these orbital elements apply    
     """
     # Convert epoch to a datetime
@@ -272,11 +272,11 @@ def make_sim_from_elts(elts: Dict[str, np.array], epoch: float):
     return sim
 
 # ********************************************************************************************************************* 
-def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.array:
+def calc_ast_pos(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array:
     """
     Calculate asteroid positions from the given elements on the fly
     INPUTS:
-        elts: dictionary with keys 'a', 'e', etc. for 6 orbital elements.  values arrays of shape (N,)
+        elts: DataFrame with columns 'a', 'e', etc. for 6 orbital elements.  rows arrays of shape (N,)
         epoch: MJD as of which these orbital elements apply
         ts: array of MJDs as of which 
     Outputs:
@@ -296,11 +296,11 @@ def calc_ast_pos(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.ar
     return q_ast, q_earth, v_ast
 
 # ********************************************************************************************************************* 
-def calc_ast_pos_all(elts: Dict[str, np.array], epoch: float, ts: np.array) -> np.array:
+def calc_ast_pos_all(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array:
     """
     Calculate asteroid positions from the given elements on the fly
     INPUTS:
-        elts: dictionary with keys 'a', 'e', etc. for 6 orbital elements.  values arrays of shape (N,)
+        elts:  DataFrame with columns 'a', 'e', etc. for 6 orbital elements.  rows arrays of shape (N,)
         epoch: MJD as of which these orbital elements apply
         ts: array of MJDs as of which 
     Outputs:

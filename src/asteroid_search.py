@@ -70,7 +70,7 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     Test asteroid search on ZTF easy batch
     """
     # Load all ZTF data with nearest asteroid calculations
-    ztf, elts = load_ztf_easy_batch(batch_size=elt_batch_size)
+    ztf, elts_np = load_ztf_easy_batch(batch_size=elt_batch_size)
 
     # Build a TensorFlow DataSet from ZTF DataFrame
     ds, ts, row_len = make_ztf_dataset(ztf=ztf, batch_size=time_batch_size)
@@ -87,11 +87,14 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     thresh_deg: float = 1.0
 
     # Pop asteroid number from and epoch from elts DataFrame
-    ast_nums = elts.pop('ast_num')    
-    epoch = elts.pop('epoch')[0]
+    element_id = elts_np.pop('element_id')
+    # Extract epoch, leaving it on
+    epoch = elts_np['epoch'][0]
 
     # The correct orbital elements as an array of shape Nx6
-    elts_true = elts.values
+    # cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    # elts_true = elts_np[cols_elt].values
+    elts_true = elts_np.values
 
     # Batch of perturbed orbital elements for asteroid model
     # ast_nums = np.unique(ztf.nearest_ast_num)
@@ -111,13 +114,13 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     # The number of observations is the TOTAL FOR THE ZTF DATA SET!
     # It's not just the size of this easy batch, b/c the easy batch has been harvested to be close!
     # num_obs: float = np.sum(row_len, dtype=np.float32)
-    num_obs: float = 5.7E6
+    num_obs: float = 5.69E6
 
     # The correct orbital elements as an array
     # elts_true = np.array([elts_np['a'], elts_np['e'], elts_np['inc'], elts_np['Omega'], 
     #                      elts_np['omega'], elts_np['f'], elts_np['epoch']]).transpose()
 
-    # Mask where data expected vs not
+    # Mask where data perturbed vs not
     mask_good = np.arange(elt_batch_size) < (elt_batch_size//2)
     mask_bad = ~mask_good
     # Perturb second half of orbital elements
