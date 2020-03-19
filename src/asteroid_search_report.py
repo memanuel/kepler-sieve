@@ -8,10 +8,11 @@ Thu Oct 17 15:24:10 2019
 
 # Core
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 # Local imports
-from asteroid_model import make_model_ast_pos
+from asteroid_model import make_model_ast_pos, elts_np2df, elts_df2dict
 
 
 # ********************************************************************************************************************* 
@@ -19,31 +20,22 @@ from asteroid_model import make_model_ast_pos
 keras = tf.keras
 
 # ********************************************************************************************************************* 
-def traj_diff(elts0: np.array, elts1: np.array, model_pos: keras.Model):
-    """Compute difference between two orbital elements trajectories"""
-    # Wrap up inputs
-    inputs0 = {
-        'a': elts0[:,0],
-        'e': elts0[:,1],
-        'inc': elts0[:,2],
-        'Omega': elts0[:,3],
-        'omega': elts0[:,4],
-        'f': elts0[:,5],
-        'epoch': elts0[:,6],
-    }
-    inputs1 = {
-        'a': elts1[:,0],
-        'e': elts1[:,1],
-        'inc': elts1[:,2],
-        'Omega': elts1[:,3],
-        'omega': elts1[:,4],
-        'f': elts1[:,5],
-        'epoch': elts1[:,6],
-    }
-    
+def traj_diff(elts0: pd.DataFrame, elts1: pd.DataFrame, model_pos: keras.Model):
+    """
+    Compute difference between two orbital elements trajectories
+    INPUTS:
+        elts0: First set of orbital elements as DataFrame
+        elts1: Second set of orbital elements as DataFrame
+        Element DataFrames must have columns: a, e, inc, Omega, omega, f, epoch
+    """
+    # Convert DataFrame to dict 
+    # TensorFlow interprets a DataFrame as a rectangular array, not like a dict
+    elts0_dict = elts_df2dict(elts0)
+    elts1_dict = elts_df2dict(elts1)
+
     # Predict position and velocity
-    q0, v0 = model_pos.predict(inputs0)
-    q1, v1 = model_pos.predict(inputs1)
+    q0, v0 = model_pos.predict(elts0_dict)
+    q1, v1 = model_pos.predict(elts1_dict)
     
     # Displacement between predicted trajsectories; shape (batch_size, traj_size, 3)
     dq = q1 - q0
@@ -129,8 +121,19 @@ def report_model_attribute_change(att0: np.array, att1: np.array, mask_good: np.
 # ********************************************************************************************************************* 
 def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float, 
                  mask_good: np.ndarray, batch_size: int, steps: int, 
-                 elts_true: np.ndarray, display: bool =True):
-    """Report summary of model on good and bad"""
+                 elts_true: pd.DataFrame, display: bool =True):
+    """
+    Report summary of model on good and bad
+    INPUTS:
+        model:          Keras model to be evaluated
+        ds:             Tensorflow DataSet
+        R_deg:          Resolution in degrees
+        mask_good:      Mask for good (unperturbed) elements
+        batch_size:     Number of orbital elements in a batch, e.g. 64
+        steps:          Number of batches to work through tf.Dataset once
+        elts_true:      True elements as DataFrame
+        display:        Whether to display additional details
+    """
 
     # Mask for perturbed ("bad") elements
     mask_bad = ~mask_good
@@ -147,12 +150,15 @@ def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float,
     R = R[0:batch_size]
     u_pred = u_pred[0:batch_size]
 
+    # Output elements from TF model is a numpy array; convert to a DataFrame
+    elts_out = elts_np2df(elts)
+
     # Model to predict position from elements
     ts = model.direction.ts
     model_pos = make_model_ast_pos(ts=ts, batch_size=batch_size)
 
     # Difference between predicted and true trajectory in Kepler 2 body model
-    traj_err = traj_diff(elts, elts_true, model_pos)
+    traj_err = traj_diff(elts0=elts_out, elts1=elts_true, model_pos=model_pos)
 
     # Consolidate the scores; create 2 extra columns for sigma and t_score
     scores = np.zeros((batch_size, score_cols+2))
@@ -175,8 +181,9 @@ def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float,
     scores[:, 4] = sigma
     scores[:, 5] = t_score
     
-    # Error in orbital elements
-    elt_err = np.abs(elts - elts_true)
+    # Error in orbital elements; express as an Nx6 numpy array, extracted from DataFrames
+    cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f']
+    elt_err = np.abs(elts_out[cols_elt].values - elts_true[cols_elt].values)
     # Convert angles from radians to degrees
     elt_err[:, 2:6] = np.rad2deg(elt_err[:, 2:6])
     # Mean element error on good and bad masks

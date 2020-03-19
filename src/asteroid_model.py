@@ -9,6 +9,7 @@ Sun Oct 13 11:56:50 2019
 
 # Core
 import tensorflow as tf
+import pandas as pd
 import numpy as np
 
 # Astronomy
@@ -53,6 +54,41 @@ space_dims = 3
 
 # Data type
 dtype = tf.float32
+
+# ********************************************************************************************************************* 
+# Different types for orbital elements
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def elts_np2dict(elts_np):
+    """Convert an Nx7 array of orbital elements into a dict"""
+    # Dictionary
+    elts_dict = {
+        'a': elts_np[:,0],
+        'e': elts_np[:,1],
+        'inc': elts_np[:,2],
+        'Omega': elts_np[:,3],
+        'omega': elts_np[:,4],
+        'f': elts_np[:,5],
+        'epoch': elts_np[:,6],
+    }
+    return elts_dict
+
+# ********************************************************************************************************************* 
+def elts_np2df(elts_np):
+    """Convert an Nx7 array of orbital elements into a DataFrame"""
+    # Dictionary
+    elts_dict = elts_np2dict(elts_np=elts_np)
+    # Return a DataFrame
+    return pd.DataFrame(elts_dict)
+
+# ********************************************************************************************************************* 
+def elts_df2dict(elts_df):
+    """Convert a DataFrame of orbital elements into a dict (built-in Dataframe.to_dict() method fails)"""
+    # Columns in the elements DataFrame
+    cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    # Return a dict
+    return {col: elts_df[col] for col in cols_elt}
 
 # ********************************************************************************************************************* 
 # Custom Layers
@@ -216,7 +252,7 @@ class AsteroidPosition(keras.layers.Layer):
         self.dq.assign(dq)
         self.dv.assign(dv)
 
-    def calibrate(self, elts, q_ast, v_ast):
+    def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by setting dq to recover q_ast"""
         # Unpack elements
         a = elts['a']
@@ -346,7 +382,7 @@ class AsteroidDirection(keras.layers.Layer):
         q_obs_np = q_earth_np + dq_topos_np
         self.q_obs = keras.backend.constant(q_obs_np, dtype=dtype, shape=q_obs_np.shape, name='q_obs')
 
-    def calibrate(self, elts, q_ast, v_ast):
+    def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by calibrating the underlying position layer"""
         # Calibrate the position model
         self.q_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)

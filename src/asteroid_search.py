@@ -44,7 +44,7 @@ tf_quiet()
 # gpu_grow_memory(verbose=True)
 
 # ********************************************************************************************************************* 
-def perturb_elts(elts, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask=None, random_seed: int = 42):
+def perturb_elts(elts: pd.DataFrame, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask=None, random_seed: int = 42):
     """Apply perturbations to orbital elements"""
     # Copy the elements
     elts_new = elts.copy()
@@ -100,7 +100,7 @@ def test_easy_batch(R_deg: float = 1.0,
        scores_01, traj_err_01, elt_orr_01, R_01, mask_good 
     """
     # Load all ZTF data with nearest asteroid calculations
-    ztf, elts_np = load_ztf_easy_batch(batch_size=elt_batch_size, thresh_deg=thresh_deg)
+    ztf, elts = load_ztf_easy_batch(batch_size=elt_batch_size, thresh_deg=thresh_deg)
 
     # Build a TensorFlow DataSet from ZTF DataFrame
     ds, ts, row_len = make_ztf_dataset(ztf=ztf, batch_size=time_batch_size)
@@ -112,13 +112,13 @@ def test_easy_batch(R_deg: float = 1.0,
         time_batch_size = traj_size
     steps = int(np.ceil(traj_size / time_batch_size))
 
-    # Pop asteroid number from and epoch from elts DataFrame
-    element_id = elts_np.pop('element_id')
-    # Extract epoch, leaving it on
-    epoch = elts_np['epoch'][0]
+    # The element_id is the same as the asteroid number on the easy batch
+    element_id = elts.element_id.values
+    # The epoch (scalar)
+    epoch = elts['epoch'][0]
 
     # The correct orbital elements as an array of shape Nx6
-    elts_true = elts_np.values
+    elts_true = elts.copy()
 
     # Get example batch
     batch_in, batch_out = list(ds.take(1))[0]
@@ -135,21 +135,17 @@ def test_easy_batch(R_deg: float = 1.0,
     # num_obs: float = np.sum(row_len, dtype=np.float32)
     num_obs: float = 5.69E6
 
-    # The correct orbital elements as an array
-    # elts_true = np.array([elts_np['a'], elts_np['e'], elts_np['inc'], elts_np['Omega'], 
-    #                      elts_np['omega'], elts_np['f'], elts_np['epoch']]).transpose()
-
     # Mask where data perturbed vs not
     mask_good = np.arange(elt_batch_size) < (elt_batch_size//2)
     mask_bad = ~mask_good
     # Perturb second half of orbital elements
-    # elts_np2 = perturb_elts(elts_np, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=0.0, mask=mask_bad)
-    elts_np2 = perturb_elts(elts_np, mask=mask_bad)
+    # elts_pert = perturb_elts(elts, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=0.0, mask=mask_bad)
+    elts_pert = perturb_elts(elts=elts, mask=mask_bad)
 
     # Orbits for calibration
     if use_calibration:
         print(f'Numerically integrating calibration trajectories q_cal...')
-        q_cal = calc_ast_pos(elts=elts_np2, epoch=epoch, ts=ts)
+        q_cal = calc_ast_pos(elts=elts_pert, epoch=epoch, ts=ts)
     else:
         q_cal = None
 
@@ -159,7 +155,7 @@ def test_easy_batch(R_deg: float = 1.0,
 
     # Build functional model for asteroid score
     model = make_model_asteroid_search(\
-        ts=ts, elts_np=elts_np2, max_obs=max_obs, num_obs=num_obs,
+        ts=ts, elts=elts_pert, max_obs=max_obs, num_obs=num_obs,
         elt_batch_size=elt_batch_size, time_batch_size=time_batch_size,
         R_deg=R_deg, thresh_deg=thresh_deg, R_is_trainable=R_is_trainable, alpha=alpha, beta=beta, 
         q_cal=q_cal, use_calibration=use_calibration)

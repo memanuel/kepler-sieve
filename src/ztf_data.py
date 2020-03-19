@@ -530,6 +530,48 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     return ztf_tbl
 
 # ********************************************************************************************************************* 
+def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0):
+    """
+    Generate a ZTF batch with all ZTF observations within a threshold of the given elements
+    INPUTS:
+        elts: Dataframe including element_id; 6 orbital elements
+    """
+    # Load all ZTF observations including nearest asteroid
+    ztf = load_ztf_nearest_ast()
+
+    # Orbital elements for best asteroids (dict of numpy arrays)
+    element_id = elts.element_id.values
+
+    # Unique dates
+    mjd = np.unique(ztf.mjd)
+
+    # Compute mjd0 and mjd1 from mjd_unq
+    mjd0 = np.floor(np.min(mjd))
+    mjd1 = np.ceil(np.max(mjd))
+
+    # Calculate positions in this date range, sampled daily
+    df_ast_daily, df_earth_daily, df_sun_daily = calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_id)
+
+    # Spline positions at ztf times
+    df_ast, df_earth, df_sun = spline_ast_vec_df(df_ast=df_ast_daily, df_earth=df_earth_daily, df_sun=df_sun_daily, 
+                                                 mjd=mjd, include_elts=False)
+    # Direction from palomar
+    df_dir = calc_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name='palomar')
+
+    # Calculate subset of ZTF data within threshold of this batch
+    progbar = True
+    ztf_tbl = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
+
+    # Combine rows into one big dataframe
+    ztf_batch = pd.concat(ztf_tbl.values())
+
+    # Remove duplicate rows
+    mask = ~ztf_batch.index.duplicated(keep='first')
+    ztf_batch = ztf_batch.loc[mask]
+
+    return ztf_tbl, ztf_batch
+
+# ********************************************************************************************************************* 
 def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     """
     Generate an "easy batch" to prototype asteroid search algorithm.

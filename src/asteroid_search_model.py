@@ -19,7 +19,7 @@ import time
 from datetime import timedelta
 
 # Local imports
-from asteroid_model import AsteroidDirection
+from asteroid_model import AsteroidDirection, elts_np2df
 from asteroid_integrate import calc_ast_pos
 from search_score_functions import score_mean, score_var, score_mean_var
 from astro_utils import deg2dist
@@ -63,54 +63,55 @@ log_R_max_ = np.log(R_max_)
 class OrbitalElements(keras.layers.Layer):
     """Custom layer to maintain state of candidate orbital elements and resolutions."""
 
-    def __init__(self, elts_np: dict, batch_size: int, R_deg: float, R_is_trainable: bool = True, **kwargs):
+    def __init__(self, elts: pd.DataFrame, batch_size: int, R_deg: float, R_is_trainable: bool = True, **kwargs):
         super(OrbitalElements, self).__init__(**kwargs)
         
         # Configuration for serialization
         self.cfg = {
-            'elts_np': elts_np,
+            'elts': elts,
             'batch_size': batch_size,
             'R_deg': R_deg,
+            'R_is_trainable': R_is_trainable,
         }
         # Save batch size, orbital elements as numpy array, and resolution in degrees
         self.batch_size = batch_size
-        self.elts_np = elts_np
+        self.elts = elts
         self.R_deg = R_deg
         
         # Control over a_, in range 0.0 to 1.0
         self.a_min = tf.constant(a_min_, dtype=tf.float32)
         self.log_a_range = tf.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=tf.float32)
-        self.a_ = tf.Variable(initial_value=self.inverse_a(elts_np['a']), trainable=True, 
+        self.a_ = tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, 
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='a_')
         
         # Control over e_, in range e_min to e_max
         self.e_min = tf.constant(e_min_, dtype=tf.float32)
         self.e_max = tf.constant(e_max_, dtype=tf.float32)
         # self.e_range = tf.constant(e_max_ - e_min_, dtype=tf.float32)
-        # self.e_ = tf.Variable(initial_value=self.inverse_e(elts_np['e']), trainable=True, 
+        # self.e_ = tf.Variable(initial_value=self.inverse_e(elts['e']), trainable=True, 
         #                      constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='e_')
-        self.e_ = tf.Variable(initial_value=elts_np['e'], trainable=True, 
+        self.e_ = tf.Variable(initial_value=elts['e'], trainable=True, 
                               constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
         # Control over inc_, in range -pi/2 to pi/2
         self.inc_max = tf.constant(np.pi/2*(1-2**-20), dtype=tf.float32)
         self.inc_min = -self.inc_max
         self.inc_range = tf.constant(self.inc_max - self.inc_min, dtype=tf.float32)
-        self.inc_ = tf.Variable(initial_value=self.inverse_inc(elts_np['inc']), trainable=True, 
+        self.inc_ = tf.Variable(initial_value=self.inverse_inc(elts['inc']), trainable=True, 
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='inc_')
         
         # Scale factor for unconstrained angles is 2*pi
         self.two_pi = tf.constant(2*np.pi, dtype=tf.float32)
         
-        self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts_np['Omega']), trainable=True, name='Omega_')
-        self.omega_ = tf.Variable(initial_value=self.inverse_angle(elts_np['omega']), trainable=True, name='omega_')
-        self.f_ = tf.Variable(initial_value=self.inverse_angle(elts_np['f']), trainable=True, name='f_')
+        self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, name='Omega_')
+        self.omega_ = tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, name='omega_')
+        self.f_ = tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, name='f_')
 
         # The epoch is not trainable
-        self.epoch = tf.Variable(initial_value=elts_np['epoch'], trainable=False, name='epoch')
+        self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, name='epoch')
         
         # Control of the resolution factor R_, in range 0.0 to 1.0
-        R_init = np.deg2rad(R_deg) * np.ones_like(elts_np['a'])
+        R_init = np.deg2rad(R_deg) * np.ones_like(elts['a'])
         # log_R_init  = np.log(R_init)
         self.R_min = tf.constant(R_min_, dtype=tf.float32)
         self.log_R_range = tf.constant(log_R_max_ - log_R_min_, dtype=tf.float32)
@@ -335,7 +336,7 @@ class TrajectoryScore(keras.layers.Layer):
 
 # ********************************************************************************************************************* 
 def make_model_asteroid_search(ts: tf.Tensor,
-                               elts_np: Dict,
+                               elts: pd.DataFrame,
                                max_obs: int,
                                num_obs: float,
                                site_name: str='geocenter',
@@ -366,7 +367,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
     ts = keras.backend.constant(ts, name='ts')
 
     # Set of trainable weights with candidate
-    elements_layer = OrbitalElements(elts_np=elts_np, batch_size=elt_batch_size, 
+    elements_layer = OrbitalElements(elts=elts, batch_size=elt_batch_size, 
                                      R_deg=R_deg, R_is_trainable=R_is_trainable, name='candidates')
     a, e, inc, Omega, omega, f, epoch, R = elements_layer(idx)
     
@@ -383,7 +384,9 @@ def make_model_asteroid_search(ts: tf.Tensor,
     R = Identity(name='R')(R)
 
     # The orbital elements; stack to shape (elt_batch_size, 7)
-    elts = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
+    elts_tf = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
+    # Convert to DataFrame
+    # elts_df = elts_np2df(elts_tf.numpy())
 
     # The predicted direction
     direction_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=elt_batch_size, name='u_pred')
@@ -394,12 +397,12 @@ def make_model_asteroid_search(ts: tf.Tensor,
             q_ast, q_earth, v_ast = q_cal
         else:
             print(f'Numerically integrating orbits for calibration...')
-            epoch0 = elts_np['epoch'][0]
-            q_ast, q_earth, v_ast = calc_ast_pos(elts=elts_np, epoch=epoch0, ts=ts)
+            epoch0 = elts['epoch'][0]
+            q_ast, q_earth, v_ast = calc_ast_pos(elts=elts, epoch=epoch0, ts=ts)
 
     # Calibrate the direction prediction layer
     if use_calibration:
-        direction_layer.calibrate(elts=elts_np, q_ast=q_ast, v_ast=v_ast)
+        direction_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
     # Tensor of predicted directions
     u_pred, r_pred = direction_layer(a, e, inc, Omega, omega, f, epoch)
 
@@ -418,7 +421,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
 
     # Wrap inputs and outputs
     inputs = (t, idx, row_len, u_obs)
-    outputs = (elts, R, u_pred, z, scores)
+    outputs = (elts_tf, R, u_pred, z, scores)
 
     # Create model with functional API
     model = keras.Model(inputs=inputs, outputs=outputs)
