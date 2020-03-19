@@ -30,7 +30,8 @@ from tqdm.auto import tqdm
 from utils import range_inc
 from astro_utils import date_to_mjd, deg2dist
 from ra_dec import radec2dir
-from asteroid_dataframe import spline_ast_vec_dir
+from asteroid_dataframe import calc_ast_data, spline_ast_vec_df, calc_ast_dir, spline_ast_vec_dir
+from asteroid_data import orbital_element_batch
 
 # Typing
 from typing import Optional, Dict
@@ -524,7 +525,78 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     return ztf_tbl
 
 # ********************************************************************************************************************* 
-def make_ztf_easy_batch(batch_size: int = 64, thresh_sec: float = 10.0):
+def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
+    """
+    Generate an "easy batch" to prototype asteroid search algorithm.
+    The easy batch consists of all ZTF observations whose nearest asteroid is
+    one of the 64 asteroids with the most hits at a 2.0 arc second threshold.
+    """
+    # Load all ZTF observations including nearest asteroid
+    ztf = load_ztf_nearest_ast()
+
+    # Asteroid numbers and hit counts
+    ast_num, hit_count = calc_hit_freq(ztf=ztf, thresh_sec=2.0)
+
+    # Sort the hit counts in descending order and find the top batch_size
+    idx = np.argsort(hit_count)[::-1][0:batch_size]
+
+    # Extract the asteroid number and hit count for this batch
+    ast_num_best = ast_num[idx]
+    # hit_count_best = hit_count[idx]
+
+    # Orbital elements for best asteroids (dict of numpy arrays)
+    element_id = np.sort(ast_num_best)
+    elts = orbital_element_batch(element_id)
+
+    # Unique dates
+    mjd = np.unique(ztf.mjd)
+
+    # Compute mjd0 and mjd1 from mjd_unq
+    mjd0 = np.floor(np.min(mjd))
+    mjd1 = np.ceil(np.max(mjd))
+
+    # Calculate positions in this date range, sampled daily
+    df_ast_daily, df_earth_daily, df_sun_daily = calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_id)
+
+    # Spline positions at ztf times
+    df_ast, df_earth, df_sun = spline_ast_vec_df(df_ast=df_ast_daily, df_earth=df_earth_daily, df_sun=df_sun_daily, 
+                                                 mjd=mjd, include_elts=False)
+    # Direction from palomar
+    df_dir = calc_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name='palomar')
+
+    # Calculate subset of ZTF data within threshold of this batch
+    progbar = True
+    ztf_tbl = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
+
+    # Combine rows into one big dataframe
+    ztf_batch = pd.concat(ztf_tbl.values())
+
+    # Remove duplicate rows
+    mask = ~ztf_batch.index.duplicated(keep='first')
+    ztf_batch = ztf_batch.loc[mask]
+
+    return ztf_batch
+
+# ********************************************************************************************************************* 
+def load_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
+    """
+    Load the ztf easy batch if available. Otherwise generate it.
+    """
+
+    # Name of the file
+    thresh_sec = np.round(thresh_deg*3600.0).astype(np.int32)
+    file_path = f'../data/ztf/ztf-easy-batch-n={batch_size}-thresh={thresh_sec}sec.h5'
+
+    # Try to load file if available, otherwise generate it on the fly and save it
+    try:
+        ztf_batch = pd.read_hdf(file_path)
+    except:
+        ztf_batch = make_ztf_easy_batch(batch_size=batch_size, thresh_deg=thresh_deg)
+        ztf_batch.to_hdf(file_path, key='ztf_batch', mode='w')
+    return ztf_batch
+
+# ********************************************************************************************************************* 
+def make_ztf_easy_batch_v1(batch_size: int = 64, thresh_sec: float = 10.0):
     """
     Generate an "easy batch" to prototype asteroid search algorithm.
     The easy batch consists of all ZTF observations whose nearest asteroid is

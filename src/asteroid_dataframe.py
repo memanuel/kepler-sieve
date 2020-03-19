@@ -467,12 +467,13 @@ def spline_ast_vec(n0: int, n1: int, mjd: np.ndarray,
                              include_elts=include_elts, progbar=progbar)
 
 # ********************************************************************************************************************* 
-def spline_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
+def calc_ast_dir(df_ast: pd.DataFrame, df_earth: pd.DataFrame, site_name: str) -> pd.DataFrame:
     """
     Generate a DataFrame of predicted directions given positions of asteroids and earth, and a site name.
     INPUTS:
-        df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
-        df_earth: Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        df_ast:    Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+        df_earth:  Position & velocity of earth in barycentric frame; heliocentric orbital elements
+        site_name: Name of observatory site, e.g. 'geocenter' or 'palomar'
     """
     # distinct asteroids or elements; get the name of the relevant column and array of distinct values
     id_col = 'asteroid_num' if 'asteroid_num' in df_ast.columns else 'element_id'
@@ -556,7 +557,7 @@ def spline_ast_vec_dir(n0: int, n1: int, mjd: np.ndarray,
 
     # Calculate predicted RA / DEC and direction with spline_ast_obs
     print(f'Computing astrometric asteroid directions for asteroid numbers {n0} to {n1}...')
-    df_dir = spline_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name=site_name)
+    df_dir = calc_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name=site_name)
 
     # Return earth and asteroid vectors plus aligned observations
     return df_ast, df_earth, df_dir
