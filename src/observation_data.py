@@ -17,14 +17,14 @@ from tqdm.auto import tqdm
 from utils import range_inc
 from astro_utils import datetime_to_mjd
 from asteroid_data import make_data_one_file, get_earth_sun_pos_file
-from asteroid_integrate import load_data as load_data_asteroids
+from asteroid_integrate import load_ast_elt
 
 # Aliases
 keras = tf.keras
 
 # ********************************************************************************************************************* 
 # Load asteroid names and orbital elements
-ast_elt = load_data_asteroids()
+ast_elt = load_ast_elt()
 ast_num_all = ast_elt.Num.to_numpy()
 
 # Load earth position data

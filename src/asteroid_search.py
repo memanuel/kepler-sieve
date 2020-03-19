@@ -20,7 +20,7 @@ from datetime import timedelta
 
 # Local imports
 from asteroid_search_model import make_model_asteroid_search
-from ztf_data import make_ztf_easy_batch
+from ztf_data import load_ztf_easy_batch
 from asteroid_data import make_ztf_dataset, orbital_element_batch
 from asteroid_integrate import calc_ast_pos
 from asteroid_search_report import report_model, report_training_progress
@@ -70,7 +70,7 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     Test asteroid search on ZTF easy batch
     """
     # Load all ZTF data with nearest asteroid calculations
-    ztf = make_ztf_easy_batch(batch_size=elt_batch_size)
+    ztf, elts = load_ztf_easy_batch(batch_size=elt_batch_size)
 
     # Build a TensorFlow DataSet from ZTF DataFrame
     ds, ts, row_len = make_ztf_dataset(ztf=ztf, batch_size=time_batch_size)
@@ -86,10 +86,17 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     R_deg: float = 0.5
     thresh_deg: float = 1.0
 
+    # Pop asteroid number from and epoch from elts DataFrame
+    ast_nums = elts.pop('ast_num')    
+    epoch = elts.pop('epoch')[0]
+
+    # The correct orbital elements as an array of shape Nx6
+    elts_true = elts.values
+
     # Batch of perturbed orbital elements for asteroid model
-    ast_nums = np.unique(ztf.nearest_ast_num)
-    elts_np = orbital_element_batch(ast_nums)
-    epoch = elts_np['epoch'][0]
+    # ast_nums = np.unique(ztf.nearest_ast_num)
+    # elts_np = orbital_element_batch(ast_nums)
+    # epoch = elts_np['epoch'][0]
 
     # Get example batch
     batch_in, batch_out = list(ds.take(1))[0]
@@ -107,8 +114,8 @@ def test_easy_batch(time_batch_size: int = 128, elt_batch_size: int = 64, epochs
     num_obs: float = 5.7E6
 
     # The correct orbital elements as an array
-    elts_true = np.array([elts_np['a'], elts_np['e'], elts_np['inc'], elts_np['Omega'], 
-                          elts_np['omega'], elts_np['f'], elts_np['epoch']]).transpose()
+    # elts_true = np.array([elts_np['a'], elts_np['e'], elts_np['inc'], elts_np['Omega'], 
+    #                      elts_np['omega'], elts_np['f'], elts_np['epoch']]).transpose()
 
     # Mask where data expected vs not
     mask_good = np.arange(elt_batch_size) < (elt_batch_size//2)
