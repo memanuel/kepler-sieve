@@ -291,4 +291,3 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
           f'{d_elt_err_g[3]:+8.6f},  {d_elt_err_g[4]:+8.6f}, {d_elt_err_g[5]:+8.6f}, {d_R_g:+8.6f}')
     print(f'd_err_b: {d_elt_err_b[0]:+8.6f},  {d_elt_err_b[1]:+8.6f}, {d_elt_err_b[2]:+8.6f}, '
           f'{d_elt_err_b[3]:+8.6f},  {d_elt_err_b[4]:+8.6f}, {d_elt_err_b[5]:+8.6f}, {d_R_b:+8.6f}')
-

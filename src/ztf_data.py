@@ -520,30 +520,37 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
         mask_close = (dist_i < thresh_dist)
         # Row numbers corresponding to close observations
         row_num_close = row_num[mask_close]
-        # The ztf_ids of these rows are the index on the ztf frame
-        # Don't need to save this, because it's the index on ztf_i below
-        # ztf_id = ztf.index[mask_close]
-        # Copy this slice and save it to the table
+        # Copy this slice
         ztf_i = ztf.loc[mask_close, cols_out].copy()
+        # Insert columns with the ztf_id and element_id
+        ztf_i.insert(loc=0, column='ztf_id', value=ztf_i.index.values)
+        ztf_i.insert(loc=1, column='element_id', value=element_id)
+        # Save it to the table (dict) of elements
         ztf_tbl[element_id] = ztf_i
 
     return ztf_tbl
 
 # ********************************************************************************************************************* 
-def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0):
+def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
     """
     Generate a ZTF batch with all ZTF observations within a threshold of the given elements
     INPUTS:
-        elts: Dataframe including element_id; 6 orbital elements
+        elts:       Dataframe including element_id; 6 orbital elements
+        thresh_deg: Threshold in degrees; only observations this close to elements are returned
+        near_ast:   Whether to include data on the neareast asteroid
     """
-    # Load all ZTF observations including nearest asteroid
-    ztf = load_ztf_nearest_ast()
+    # Load all ZTF observations; include nearest asteroid data if requested
+    ztf: pd.DataFrame
+    if near_ast:
+        # ZTF detections w/ nearest ast; need to regenerate unique times
+        ztf = load_ztf_nearest_ast() 
+        mjd = np.unique(ztf.mjd)
+    else:
+        # just the ZTF detections w/o nearest asteroid data
+        ztf, mjd = load_ztf_det_all()
 
-    # Orbital elements for best asteroids (dict of numpy arrays)
+    # element_id is the unique identifier for each orbital element considered
     element_id = elts.element_id.values
-
-    # Unique dates
-    mjd = np.unique(ztf.mjd)
 
     # Compute mjd0 and mjd1 from mjd_unq
     mjd0 = np.floor(np.min(mjd))
@@ -565,11 +572,10 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0):
     # Combine rows into one big dataframe
     ztf_batch = pd.concat(ztf_tbl.values())
 
-    # Remove duplicate rows
-    mask = ~ztf_batch.index.duplicated(keep='first')
-    ztf_batch = ztf_batch.loc[mask]
+    # Reset the index so it does not have duplicate indices
+    ztf_batch.reset_index(inplace=True, drop=True)
 
-    return ztf_tbl, ztf_batch
+    return ztf_batch
 
 # ********************************************************************************************************************* 
 def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
@@ -598,33 +604,8 @@ def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     # Add asteroid num to elts; name it element_id
     elts.insert(loc=0, column='element_id', value=element_id)
 
-    # Unique dates
-    mjd = np.unique(ztf.mjd)
-
-    # Compute mjd0 and mjd1 from mjd_unq
-    mjd0 = np.floor(np.min(mjd))
-    mjd1 = np.ceil(np.max(mjd))
-
-    # Calculate positions in this date range, sampled daily
-    df_ast_daily, df_earth_daily, df_sun_daily = calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_id)
-
-    # Spline positions at ztf times
-    df_ast, df_earth, df_sun = spline_ast_vec_df(df_ast=df_ast_daily, df_earth=df_earth_daily, df_sun=df_sun_daily, 
-                                                 mjd=mjd, include_elts=False)
-    # Direction from palomar
-    df_dir = calc_ast_dir(df_ast=df_ast, df_earth=df_earth, site_name='palomar')
-
-    # Calculate subset of ZTF data within threshold of this batch
-    progbar = True
-    ztf_tbl = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
-
-    # Combine rows into one big dataframe
-    ztf_batch = pd.concat(ztf_tbl.values())
-
-    # Remove duplicate rows
-    mask = ~ztf_batch.index.duplicated(keep='first')
-    ztf_batch = ztf_batch.loc[mask]
-
+    # Delegate to make_ztf_batch
+    ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=True)
     return ztf_batch, elts
 
 # ********************************************************************************************************************* 
