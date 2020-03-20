@@ -28,7 +28,7 @@ from tqdm.auto import tqdm
 
 # MSE imports
 from utils import range_inc
-from astro_utils import date_to_mjd, deg2dist
+from astro_utils import date_to_mjd, deg2dist, dist2deg
 from ra_dec import radec2dir
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df, calc_ast_dir, spline_ast_vec_dir
 from asteroid_data import orbital_element_batch
@@ -470,7 +470,8 @@ def calc_hit_freq(ztf, thresh_sec: float):
     return ast_num, hit_count
 
 # ********************************************************************************************************************* 
-def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float, progbar: bool=False) \
+def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float, 
+                      R_deg: float = 0.20, progbar: bool=False) \
                       -> Dict[np.int32, pd.DataFrame]:
     """
     Assemble Python dict of DataFrames with ZTF observations near a batch of orbital elements.
@@ -508,6 +509,9 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     # Dictionary of DataFrames that are close
     ztf_tbl = dict()
 
+    # Theshold for hits is 2.0 arc seconds
+    thresh_hit_sec = 2.0
+
     # Iterate over distinct element IDs
     iterates = tqdm(element_ids_unq) if progbar else element_ids_unq
     for element_id in iterates:
@@ -532,10 +536,25 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
             ztf_i.insert(loc=ztf_i.columns.size, column=col, value=0.0)
         ztf_i[cols_elt_dir] = u_elt[row_num_close]
         ztf_i['elt_r'] = r_elt[row_num_close]
-        # Save it to the table (dict) of elements
+        # Convert distance between element and observation to degrees
+        dist_deg = dist2deg(dist_i[mask_close])
+        # Save distance in arc seconds
+        ztf_i['elt_sec'] = dist_deg * 3600.0
+        # Compute score function with given resolution
+        score_arg = -0.5 * (dist_deg / R_deg)**2
+        ztf_i['score'] = np.exp(score_arg)
+        # Flag for hits; an entry is a hit if these elements are within threshold of the ZTF observation
+        ztf_i['is_hit'] = (ztf_i.elt_sec < thresh_hit_sec)
+        # Save ztf_i to the table (dict) of elements
         ztf_tbl[element_id] = ztf_i
 
-    return ztf_tbl
+    # Combine rows into one big dataframe
+    ztf_batch = pd.concat(ztf_tbl.values())
+
+    # Reset the index so it does not have duplicate indices
+    ztf_batch.reset_index(inplace=True, drop=True)
+
+    return ztf_batch
 
 # ********************************************************************************************************************* 
 def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
@@ -574,13 +593,13 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
 
     # Calculate subset of ZTF data within threshold of this batch
     progbar = True
-    ztf_tbl = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
+    ztf_batch = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
 
-    # Combine rows into one big dataframe
-    ztf_batch = pd.concat(ztf_tbl.values())
+    # # Combine rows into one big dataframe
+    # ztf_batch = pd.concat(ztf_tbl.values())
 
-    # Reset the index so it does not have duplicate indices
-    ztf_batch.reset_index(inplace=True, drop=True)
+    # # Reset the index so it does not have duplicate indices
+    # ztf_batch.reset_index(inplace=True, drop=True)
 
     return ztf_batch
 
@@ -592,10 +611,10 @@ def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     one of the 64 asteroids with the most hits at a 2.0 arc second threshold.
     """
     # Load all ZTF observations including nearest asteroid
-    ztf = load_ztf_nearest_ast()
+    ztf_ast = load_ztf_nearest_ast()
 
     # Asteroid numbers and hit counts
-    ast_num, hit_count = calc_hit_freq(ztf=ztf, thresh_sec=2.0)
+    ast_num, hit_count = calc_hit_freq(ztf=ztf_ast, thresh_sec=2.0)
 
     # Sort the hit counts in descending order and find the top batch_size
     idx = np.argsort(hit_count)[::-1][0:batch_size]
@@ -606,14 +625,10 @@ def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
 
     # Orbital elements for best asteroids (dict of numpy arrays)
     element_id = np.sort(ast_num_best)
-    # elts_dict = orbital_element_batch(element_id)
-    # elts = pd.DataFrame(elts_dict)
     elts = orbital_element_batch(element_id)
-    # Add asteroid num to elts; name it element_id
-    # elts.insert(loc=0, column='element_id', value=element_id)
 
     # Delegate to make_ztf_batch
-    ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=True)
+    ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=False)
     return ztf_batch, elts
 
 # ********************************************************************************************************************* 
@@ -635,3 +650,22 @@ def load_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
         ztf_batch.to_hdf(file_path, key='ztf_batch', mode='w')
         elts.to_hdf(file_path, key='elts', mode='a')
     return ztf_batch, elts
+
+# ********************************************************************************************************************* 
+def report_ztf_hit_noise(ztf):
+    """Report number of hits and breakdown of score between hits and noise"""
+    # Mean hist and score
+    mean_hits = np.sum(ztf.is_hit) / elt_batch_size
+    mean_score = np.sum(ztf.score) / elt_batch_size
+    mean_score_hits = np.sum(ztf[ztf.is_hit].score) / elt_batch_size
+    mean_score_noise = np.sum(ztf[~ztf.is_hit].score) / elt_batch_size
+    score_hit_pct = mean_score_hits / mean_score * 100.0
+    score_noise_pct = mean_score_noise / mean_score * 100.0
+
+    # Report
+    print(f'Mean for elements in easy batch:')
+    print(f'Hits:  {mean_hits:6.2f}')
+    print(f'Score: {mean_score:6.2f}')
+    print(f'\nScore due to Hits vs. Noise')
+    print(f'Hits:  {mean_score_hits:6.2f} / {score_hit_pct:5.2f}%')
+    print(f'Noise: {mean_score_noise:6.2f} / {score_noise_pct:5.2f}%')

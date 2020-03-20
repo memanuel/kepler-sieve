@@ -40,13 +40,13 @@ space_dims = 3
 light_speed_au_day = astropy.constants.c.to(au / day).value
 
 # ********************************************************************************************************************* 
-def make_ragged_tensors(t_np: np.array, u_np: np.array, ast_num_np: np.array, batch_size: int):
+def make_ragged_tensors(t_np: np.array, u_np: np.array, element_id_np: np.array, batch_size: int):
     """
-    Convert t, u, ast_num into ragged tensors
+    Convert t, u, element_id Numpy arrays into ragged tensors
     INPUTS:
         t_np: A numpy array with observation times as MJDs; size (N,)
         u_np: A numpy array with directions as MJDs; size (N,3)
-        ast_num_np: A numpy array with the asteroid numbers; size (N,)
+        element_id_np: A numpy array with the element_id's; size (N,)
         batch_size: Used to pad end of data set with times having zero observations
     """
     # Unique times and their indices
@@ -64,12 +64,12 @@ def make_ragged_tensors(t_np: np.array, u_np: np.array, ast_num_np: np.array, ba
 
     # Tensor with distinct times
     t = tf.convert_to_tensor(value=t_unq)
-    # Ragged tensors for direction u and asteroid number ast_num
+    # Ragged tensors for direction u and element_id
     u = tf.RaggedTensor.from_value_rowids(values=u_np, value_rowids=inv_idx)
-    ast_num = tf.RaggedTensor.from_value_rowids(values=ast_num_np, value_rowids=value_rowids)
+    element_id = tf.RaggedTensor.from_value_rowids(values=element_id_np, value_rowids=value_rowids)
 
-    # Return the tensors for t, u, ast_num
-    return t, u, ast_num
+    # Return the tensors for t, u, element_id
+    return t, u, element_id
     
 # ********************************************************************************************************************* 
 def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
@@ -85,16 +85,19 @@ def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
     t_np = ztf.mjd.values.astype(np.float32)
     cols_u = ['ux', 'uy', 'uz']
     u_np = ztf[cols_u].values.astype(np.float32)
-    ast_num_np = ztf.nearest_ast_num.values
+    # ast_num_np = ztf.nearest_ast_num.values
+    element_id_np = ztf.element_id.values
 
     # Sort arrays in increasing order of observation time; otherwise make_ragged_tensors won't work
     sort_idx = np.argsort(t_np)
     t_np = t_np[sort_idx]
     u_np = u_np[sort_idx]
-    ast_num_np = ast_num_np[sort_idx]
+    # ast_num_np = ast_num_np[sort_idx]
+    element_id_np = element_id_np[sort_idx]
 
-    # Convert to tensors (regular for t, ragged for u and ast_num)
-    t, u_r, ast_num_r = make_ragged_tensors(t_np=t_np, u_np=u_np, ast_num_np=ast_num_np, batch_size=batch_size)
+    # Convert to tensors (regular for t, ragged for u and element_id)
+    # t, u_r, ast_num_r = make_ragged_tensors(t_np=t_np, u_np=u_np, element_id_np=element_id_np, batch_size=batch_size)
+    t, u_r, element_id_r = make_ragged_tensors(t_np=t_np, u_np=u_np, element_id_np=element_id_np, batch_size=batch_size)
 
     # Set batch_size to all the times if it was not specified
     if batch_size is None:
@@ -119,12 +122,15 @@ def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
     # Index associated with time points
     idx = tf.range(t.shape[0], dtype=tf.int32)
     
-    # Pad ast_num_r into a regular tensor; use default -1 to indicate padded observation
-    ast_num = ast_num_r.to_tensor(default_value=-1)
+    # Pad element_id_r into a regular tensor; use default -1 to indicate padded observation
+    # ast_num = ast_num_r.to_tensor(default_value=-1)
+    element_id = element_id_r.to_tensor(default_value=-1)
     
     # Pad ast_num with entries for the last batch
-    pad_shape_ast_num = [[0,num_pad],[0,0]]
-    ast_num = tf.pad(ast_num, paddings=pad_shape_ast_num, mode='CONSTANT', constant_values=-1)
+    # pad_shape_ast_num = [[0,num_pad],[0,0]]
+    # ast_num = tf.pad(ast_num, paddings=pad_shape_ast_num, mode='CONSTANT', constant_values=-1)
+    pad_shape_elt_id = [[0,num_pad],[0,0]]
+    element_id = tf.pad(element_id, paddings=pad_shape_elt_id, mode='CONSTANT', constant_values=-1)
     
     # Wrap into tensorflow Dataset
     inputs = {
@@ -134,7 +140,8 @@ def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
         'u_obs': u, 
     }
     outputs = {
-        'ast_num': ast_num,
+        # 'ast_num': ast_num,
+        'element_id': element_id,
     }
     ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
     
