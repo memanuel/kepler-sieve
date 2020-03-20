@@ -154,7 +154,7 @@ def test_easy_batch(R_deg: float = 1.0,
 
     # Alpha and beta parameters for the objective function
     alpha = 1.0
-    beta = 0.0
+    beta = 1.0
 
     # Build functional model for asteroid score
     model = make_model_asteroid_search(\
@@ -228,12 +228,12 @@ def test_easy_batch(R_deg: float = 1.0,
     rows_per_epoch = steps_per_epoch * time_batch_size
     print_header(f'Training for {epochs} Epochs of Size {rows_per_epoch} ' 
                  f'Observation Days (Cycles/Epoch = {cycles_per_epoch})...')
-    print(f'R (degrees):    {R_deg:8.6f}')
-    print(f'thresh (deg):   {thresh_deg:8.6f}')
-    print(f'R_is_trainable: {R_is_trainable}')
+    print(f'R (degrees):      {R_deg:8.6f}')
+    print(f'thresh (deg):     {thresh_deg:8.6f}')
+    print(f'R_is_trainable:   {R_is_trainable}')
     print(f'alpha:          {alpha:5.1f}')
     print(f'beta:           {beta:5.1f}')
-    print(f'learning_rate:  {learning_rate:7.2e}')
+    print(f'learning_rate:    {learning_rate:7.2e}')
     print(f'clipvalue:      {clipvalue:5.2f}')
 
     train_time_0 = time.time()
@@ -283,17 +283,17 @@ if __name__ == '__main__':
 
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Search for asteroids.')
-    parser.add_argument('-R_deg', nargs='?', metavar='R_deg', type=float, default=1.0,
+    parser.add_argument('-R_deg', nargs='?', metavar='R_deg', type=float, default=0.2,
                         help='initial value of resolution factor, R, in degrees')
     parser.add_argument('-thresh_deg', nargs='?', metavar='thresh_deg', type=float, default=1.0,
                         help='threshold in degrees; observations further from candidate elements than this are ignored')
-    parser.add_argument('-R_is_trainable', default=False, action='store_true',
+    parser.add_argument('-R_is_trainable', default=True, action='store_true',
                         help='whether resolution R is trainable')
     parser.add_argument('-elt_batch_size', nargs='?', metavar='elt_batch_size', type=int, default=64,
                         help='the number of candidate orbital elements per batch')
     parser.add_argument('-epochs', nargs='?', metavar='elt_batch_size', type=int, default=10,
                         help='the number of epochs to train')
-    parser.add_argument('-cycles_per_epoch', nargs='?', metavar='elt_batch_size', type=int, default=10,
+    parser.add_argument('-cycles_per_epoch', nargs='?', metavar='elt_batch_size', type=int, default=50,
                         help='number of times to cycle through all data points before declaring an epoch complete')
     parser.add_argument('-gpu_num', nargs='?', metavar='gpu_num', type=int, default=1,
                         help='the GPU to use; defaults to 1 to avoid clash with Jupyter sessions')

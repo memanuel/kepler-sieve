@@ -51,7 +51,7 @@ e_max_: float = 1.0 - 2.0**-10
 
 # Range for resolution parameter R
 R_min_ = deg2dist(1.0/3600)
-R_max_ = deg2dist(10.0)
+R_max_ = deg2dist(1.0)
 log_R_min_ = np.log(R_min_)
 log_R_max_ = np.log(R_max_)
 
@@ -317,14 +317,14 @@ class TrajectoryScore(keras.layers.Layer):
         # Note; variance adds up over batches, not std dev.  
         # However, if the batch size is all of the observations, then std dev can be meaninfully averaged
         sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
+        sigma = tf.sqrt(sigma2)
 
-        # Assemble the objective function to be maximized
-        objective = raw_score - self.alpha * mu - self.beta * sigma2
-
-        # Minimum possible value of objective
-        # objective_min = num_obs * tf.dtypes.cast(-self.alpha * self.mu_max - self.beta * self.sigma2_max, tf.float32)
-        
-        # Return both the raw and t scores
+        # Assemble the objective function to be maximized; generalized version of t statistic
+        # when alpha=1.0, beta=0.0 it is the same as a t statistic
+        # objective = raw_score - self.alpha * mu - self.beta * sigma2
+        objective = (raw_score - self.alpha * mu) / (self.beta + sigma)
+       
+        # Return all the interesting outputs
         return raw_score, mu, sigma2, objective
 
     def get_config(self):
@@ -385,8 +385,6 @@ def make_model_asteroid_search(ts: tf.Tensor,
 
     # The orbital elements; stack to shape (elt_batch_size, 7)
     elts_tf = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
-    # Convert to DataFrame
-    # elts_df = elts_np2df(elts_tf.numpy())
 
     # The predicted direction
     direction_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=elt_batch_size, name='u_pred')
@@ -437,7 +435,6 @@ def make_model_asteroid_search(ts: tf.Tensor,
 
     # Add the loss function
     model.add_loss(-tf.reduce_sum(objective))
-    # model.add_loss(-tf.reduce_sum(tf.math.log(objective-objective_min)))
 
     return model
 
