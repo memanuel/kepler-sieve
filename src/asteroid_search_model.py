@@ -26,7 +26,7 @@ from astro_utils import deg2dist
 from tf_utils import tf_quiet, Identity
 
 # Typing
-from typing import Dict
+from typing import Optional
 
 # ********************************************************************************************************************* 
 # Aliases
@@ -341,7 +341,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
                                num_obs: float,
                                site_name: str='geocenter',
                                elt_batch_size: int=64, 
-                               time_batch_size: int=None,
+                               time_batch_size: Optional[int]=None,
                                R_deg: float = 5.0,
                                thresh_deg: float = 1.0,
                                R_is_trainable: bool = True,
@@ -353,7 +353,7 @@ def make_model_asteroid_search(ts: tf.Tensor,
 
     # The full trajectory size
     traj_size: int = ts.shape[0]
-    # Default for time_batch_size is full trajectory size
+    # If time_batch_size was not specifiued, use full trajectory size
     if time_batch_size is None:
         time_batch_size = traj_size
 

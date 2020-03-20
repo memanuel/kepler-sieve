@@ -149,13 +149,16 @@ def test_easy_batch(R_deg: float = 1.0,
     else:
         q_cal = None
 
+    # The observation site for ZTF data is Palomar Mountain.
+    site_name = 'palomar'
+
     # Alpha and beta parameters for the objective function
     alpha = 1.0
     beta = 0.0
 
     # Build functional model for asteroid score
     model = make_model_asteroid_search(\
-        ts=ts, elts=elts_pert, max_obs=max_obs, num_obs=num_obs,
+        ts=ts, elts=elts_pert, max_obs=max_obs, num_obs=num_obs, site_name=site_name,
         elt_batch_size=elt_batch_size, time_batch_size=time_batch_size,
         R_deg=R_deg, thresh_deg=thresh_deg, R_is_trainable=R_is_trainable, alpha=alpha, beta=beta, 
         q_cal=q_cal, use_calibration=use_calibration)

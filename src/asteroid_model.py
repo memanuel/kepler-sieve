@@ -14,7 +14,7 @@ import numpy as np
 
 # Astronomy
 import astropy
-from astropy.units import au, day
+from astropy.units import au, day, year
 
 # Local imports
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
@@ -157,7 +157,7 @@ class ElementToPosition(keras.layers.Layer):
         uy = tf.add(sO_x_cocf_sosf, cO_x_socf_cosf_x_ci, name='uy')
         uz = tf.multiply(socf_cosf, si, name='socf_cosf_x_si')
 
-        # Position components
+        # Position components; units are in AU
         qx = tf.multiply(r, ux, name='qx')
         qy = tf.multiply(r, uy, name='qy')
         qz = tf.multiply(r, uz, name='qz')
@@ -183,7 +183,7 @@ class ElementToPosition(keras.layers.Layer):
         vy = v0*(epcf*(ci*cocO - sosO)  - sf*(cosO + ci*socO))
         vz = v0*(epcf*co*si - sf*si*so)
 
-        # Assemble the velocity vector
+        # Assemble the velocity vector; units are in AU/year
         v = keras.layers.concatenate(inputs=[vx, vy, vz], axis=-1, name='v')
 
         return q, v
@@ -462,7 +462,7 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
 
 
 # ********************************************************************************************************************* 
-def make_model_ast_dir(ts: tf.Tensor, site_name: str = 'geocenter', batch_size:int =64) -> keras.Model:
+def make_model_ast_dir(ts: tf.Tensor, site_name: str, batch_size:int =64) -> keras.Model:
     """
     Compute direction from earth to asteroids in the solar system from
     the initial orbital elements with the Kepler model.

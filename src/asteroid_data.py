@@ -146,13 +146,13 @@ def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
     return ds, t, row_len
     
 # ********************************************************************************************************************* 
-def orbital_element_batch(ast_nums: np.ndarray):
+def orbital_element_batch(ast_nums: np.ndarray) -> pd.DataFrame:
     """
-    Return a batch of orbital elements
+    Return a batch of orbital elements as a DataFrame
     INPUTS:
         ast_nums: Numpy array of asteroid numbers to include in batch
     OUTPUTS:
-        elts: Dictionary with seven keys for a, e, inc, Omega, omega, f, epoch
+        elts: DataFrame with columns for a, e, inc, Omega, omega, f, epoch
     """
     # The orbital elements and epoch
     dtype = np.float32
@@ -165,7 +165,9 @@ def orbital_element_batch(ast_nums: np.ndarray):
     epoch = ast_elt.epoch_mjd[ast_nums].to_numpy().astype(dtype)
     
     # Wrap into dictionary
-    elts = {
+    elts_dict = {
+        # 'asteroid_num': ast_nums,
+        'element_id': ast_nums,
         'a': a,
         'e': e,
         'inc': inc,
@@ -174,7 +176,7 @@ def orbital_element_batch(ast_nums: np.ndarray):
         'f': f,
         'epoch': epoch
     }
-    
+    elts = pd.DataFrame(elts_dict)
     return elts
 
 # ********************************************************************************************************************* 
