@@ -496,6 +496,8 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     cols_nearest_ast = [col for col in cols_nearest_ast_all if col in ztf.columns]
     # All the output columns
     cols_out = cols_catalog + cols_radec + cols_dir + cols_nearest_ast
+    # Flag indicating whether we have nearest asteroid data
+    is_near_ast: bool = 'nearest_ast_num' in ztf.columns
 
     # Extract TimeStampID as (M,) array; name it row_num to emphasize that we use it to index into u_elt
     row_num = ztf.TimeStampID.values
@@ -506,11 +508,11 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     # Threshold as Cartesian distance
     thresh_dist = deg2dist(thresh_deg)    
 
+    # Theshold for hits is 2.0 arc seconds (completely separate from threshold above, for inclusion)
+    thresh_hit_sec = 2.0
+
     # Dictionary of DataFrames that are close
     ztf_tbl = dict()
-
-    # Theshold for hits is 2.0 arc seconds
-    thresh_hit_sec = 2.0
 
     # Iterate over distinct element IDs
     iterates = tqdm(element_ids_unq) if progbar else element_ids_unq
@@ -545,6 +547,10 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
         ztf_i['score'] = np.exp(score_arg)
         # Flag for hits; an entry is a hit if these elements are within threshold of the ZTF observation
         ztf_i['is_hit'] = (ztf_i.elt_sec < thresh_hit_sec)
+        # Flag for matches; a match is when the element_id matches the nearest asteroid
+        ztf_i['is_match'] = False
+        if is_near_ast:
+            ztf_i.is_match = (ztf_i.nearest_ast_num == ztf_i.element_id)
         # Save ztf_i to the table (dict) of elements
         ztf_tbl[element_id] = ztf_i
 
@@ -595,12 +601,6 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
     progbar = True
     ztf_batch = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
 
-    # # Combine rows into one big dataframe
-    # ztf_batch = pd.concat(ztf_tbl.values())
-
-    # # Reset the index so it does not have duplicate indices
-    # ztf_batch.reset_index(inplace=True, drop=True)
-
     return ztf_batch
 
 # ********************************************************************************************************************* 
@@ -628,7 +628,7 @@ def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     elts = orbital_element_batch(element_id)
 
     # Delegate to make_ztf_batch
-    ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=False)
+    ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=True)
     return ztf_batch, elts
 
 # ********************************************************************************************************************* 
@@ -652,20 +652,49 @@ def load_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     return ztf_batch, elts
 
 # ********************************************************************************************************************* 
-def report_ztf_hit_noise(ztf):
-    """Report number of hits and breakdown of score between hits and noise"""
-    # Mean hist and score
-    mean_hits = np.sum(ztf.is_hit) / elt_batch_size
-    mean_score = np.sum(ztf.score) / elt_batch_size
-    mean_score_hits = np.sum(ztf[ztf.is_hit].score) / elt_batch_size
-    mean_score_noise = np.sum(ztf[~ztf.is_hit].score) / elt_batch_size
+def report_ztf_score(ztf, display: bool = True):
+    """Report number of hits and breakdown of score between hits and noise on a ZTF batch"""
+    # Number of elements in this data set
+    num_elts = np.unique(ztf.element_id).size
+    num_rows = ztf.shape[0]
+    mean_rows = num_rows / num_elts
+
+    # Count hits
+    num_hits = np.sum(ztf.is_hit)
+    mean_hits = num_hits / num_elts
+    hit_pct = num_hits / num_rows * 100.0
+
+    # Count matches
+    num_matches = np.sum(ztf.is_match)
+    mean_matches = num_matches / num_elts
+    match_pct = num_matches / num_rows * 100.0
+
+    # Mean score by category
+    mean_score = np.sum(ztf.score) / num_elts
+    mean_score_hits = np.sum(ztf[ztf.is_hit].score) / num_elts
+    mean_score_match = np.sum(ztf[ztf.is_match].score) / num_elts
+    mean_score_noise = np.sum(ztf[~ztf.is_match].score) / num_elts
+
+    # Score breakdown by type
     score_hit_pct = mean_score_hits / mean_score * 100.0
+    score_match_pct = mean_score_match / mean_score * 100.0
     score_noise_pct = mean_score_noise / mean_score * 100.0
 
+    # Aggregation by element_id
+    ztf['score_match'] = ztf.score * ztf.is_match
+    ztf['score_noise'] = ztf.score * (~ztf.is_match)
+    cols_ztf = ['score', 'score_match', 'score_noise', 'is_hit', 'is_match']
+    score_by_elt = ztf[cols_ztf].groupby(by=ztf.element_id).sum()
+    score_agg= score_by_elt.agg(['mean', 'std'])
+
     # Report
-    print(f'Mean for elements in easy batch:')
-    print(f'Hits:  {mean_hits:6.2f}')
-    print(f'Score: {mean_score:6.2f}')
-    print(f'\nScore due to Hits vs. Noise')
-    print(f'Hits:  {mean_score_hits:6.2f} / {score_hit_pct:5.2f}%')
-    print(f'Noise: {mean_score_noise:6.2f} / {score_noise_pct:5.2f}%')
+    if display:
+        print(score_agg)
+        print(f'\nHits and Matches per element; Percentage of Rows:')
+        print(f'Hits:    {mean_hits:6.2f} / {hit_pct:5.2f}%')
+        print(f'Matches: {mean_matches:6.2f} / {match_pct:5.2f}%')
+        print(f'\nScore Contribution: Match vs. Noise')
+        print(f'Match: {mean_score_match:6.2f} / {score_match_pct:5.2f}%')
+        print(f'Noise: {mean_score_noise:6.2f} / {score_noise_pct:5.2f}%')
+
+    return score_by_elt, score_agg

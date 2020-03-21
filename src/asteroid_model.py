@@ -490,7 +490,6 @@ def make_model_ast_dir(ts: tf.Tensor, site_name: str, batch_size:int =64) -> ker
     ts = keras.backend.constant(ts, name='ts')
 
     # All the work done in a single layer
-    # u = AsteroidDirection(ts, batch_size, name='u')(a, e, inc, Omega, omega, f, epoch)
     ast_dir_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=batch_size, name='ast_dir_layer')
     u, r = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
 

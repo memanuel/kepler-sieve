@@ -21,9 +21,9 @@ import argparse
 
 # Local imports
 from asteroid_search_model import make_model_asteroid_search
-from ztf_data import load_ztf_easy_batch
+from ztf_data import load_ztf_easy_batch, make_ztf_batch, report_ztf_score
 from asteroid_data import make_ztf_dataset, orbital_element_batch
-from asteroid_integrate import calc_ast_pos
+from asteroid_integrate import calc_ast_pos, load_ast_elt
 from asteroid_search_report import report_model, report_training_progress
 from utils import print_header
 from tf_utils import tf_quiet, gpu_grow_memory, get_gpu_device
@@ -44,38 +44,76 @@ tf_quiet()
 # gpu_grow_memory(verbose=True)
 
 # ********************************************************************************************************************* 
-def perturb_elts(elts: pd.DataFrame, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask=None, random_seed: int = 42):
+# Constants
+ast_elt = load_ast_elt()
+
+# ********************************************************************************************************************* 
+def random_elts(size: int = 64, random_seed: int = 42):
+    """Generate a DataFrame of random orbital elements"""
+    pass
+
+# ********************************************************************************************************************* 
+def perturb_elts(elts: pd.DataFrame, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask_pert=None, random_seed: int = 42):
     """Apply perturbations to orbital elements"""
     # Copy the elements
     elts_new = elts.copy()
 
-    # Default for mask is all elements
-    if mask is None:
-        mask = np.ones_like(elts['a'], dtype=bool)
+    # Default for mask_pert is all elements
+    if mask_pert is None:
+        mask_pert = np.ones_like(elts['a'], dtype=bool)
 
     # Number of elements to perturb
-    num_shift = np.sum(mask)
+    num_shift = np.sum(mask_pert)
 
     # Set random seed
     np.random.seed(seed=random_seed)
 
     # Apply shift log(a)
     log_a = np.log(elts['a'])
-    log_a[mask] += np.random.normal(scale=sigma_a, size=num_shift)
+    log_a[mask_pert] += np.random.normal(scale=sigma_a, size=num_shift)
     elts_new['a'] = np.exp(log_a)
     
     # Apply shift to log(e)
     log_e = np.log(elts['e'])
-    log_e[mask] += np.random.normal(scale=sigma_e, size=num_shift)
+    log_e[mask_pert] += np.random.normal(scale=sigma_e, size=num_shift)
     elts_new['e'] = np.exp(log_e)
     
     # Apply shift directly to true anomaly f
     f = elts['f']
     sigma_f = np.deg2rad(sigma_f_deg)
-    f[mask] += np.random.normal(scale=sigma_f, size=num_shift)
+    f[mask_pert] += np.random.normal(scale=sigma_f, size=num_shift)
     elts_new['f'] = f
     
     return elts_new
+
+# ********************************************************************************************************************* 
+def report_initial_scores(elts_pert: pd.DataFrame):
+    """Report the initial scores of the perturbed elements"""
+    # ZTF batch of perturbed elements
+    file_path = '../data/ztf/ztf-easy-batch-pert.h5'
+    try:
+        ztfp = pd.read_hdf(file_path)
+    except:
+        ztfp = make_ztf_batch(elts=elts_pert, thresh_deg=thresh_deg, near_ast=True)
+        ztfp.to_hdf(file_path, key='ztfp', mode='w')
+    
+    # The orbital element_id's
+    element_id = np.unique(ztfp.element_id)
+    elt_batch_size = element_id.size
+
+    # True and perturbed half of ztfp
+    elt_id_pert = element_id[elt_batch_size//2]  # start of perturbed element_ids
+    mask_true = (ztfp.element_id < elt_id_pert)
+    mask_pert = ~mask_true
+    # ZTF including the scores on the true and perturbed part
+    ztf_t = ztfp[mask_true]
+    ztf_p = ztfp[mask_pert]
+
+    # Report the scores on each part
+    print(f'Unperturbed elements:')
+    report_ztf_score(ztf_t)
+    print(f'\nPerturbed elements:')
+    report_ztf_score(ztf_p)
 
 # ********************************************************************************************************************* 
 def test_easy_batch(R_deg: float = 1.0, 
@@ -97,7 +135,7 @@ def test_easy_batch(R_deg: float = 1.0,
         cycles_per_epoch: number of times to cycle through all data points before declaring an epoch
         use_calibration:  whether to calibrate trajectories with numerically integrated one
     OUTPUTS:
-       scores_01, traj_err_01, elt_orr_01, R_01, mask_good 
+       scores_01, traj_err_01, elt_orr_01, R_01, mask_true
     """
     # Load all ZTF data with nearest asteroid calculations
     ztf, elts = load_ztf_easy_batch(batch_size=elt_batch_size, thresh_deg=thresh_deg)
@@ -136,11 +174,23 @@ def test_easy_batch(R_deg: float = 1.0,
     num_obs: float = 5.69E6
 
     # Mask where data perturbed vs not
-    mask_good = np.arange(elt_batch_size) < (elt_batch_size//2)
-    mask_bad = ~mask_good
+    mask_true = np.arange(elt_batch_size) < (elt_batch_size//2)
+    mask_pert = ~mask_true
+
     # Perturb second half of orbital elements
-    # elts_pert = perturb_elts(elts, sigma_a=0.00, sigma_e=0.00, sigma_f_deg=0.0, mask=mask_bad)
-    elts_pert = perturb_elts(elts=elts, mask=mask_bad)
+    sigma_a = 0.05 
+    sigma_e = 0.01 
+    sigma_f_deg = 5.0
+    elts_pert = perturb_elts(elts, sigma_a=sigma_a, sigma_e=sigma_e, sigma_f_deg=sigma_f_deg, mask_pert=mask_pert)
+
+    # Report element shifts
+    print(f'Perturbing elements:')
+    print(f'sigma_a: {sigma_a:5.06f} (log)')
+    print(f'sigma_e: {sigma_e:5.06f} (log)')
+    print(f'sigma_f: {sigma_f_deg:5.06f} (degrees)\n')
+
+    # Report initial scores
+    report_initial_scores(elts_pert=elts_pert)
 
     # Orbits for calibration
     if use_calibration:
@@ -153,8 +203,10 @@ def test_easy_batch(R_deg: float = 1.0,
     site_name = 'palomar'
 
     # Alpha and beta parameters for the objective function
+    # objective = (score - alpha * mu) / (beta + sigma)
+    # when alpha = 1.0, beta = 0.0, this is the t-score
     alpha = 1.0
-    beta = 1.0
+    beta = 0.5
 
     # Build functional model for asteroid score
     model = make_model_asteroid_search(\
@@ -170,14 +222,21 @@ def test_easy_batch(R_deg: float = 1.0,
     beta_2 = 0.999          # default 0.999
     epsilon = 1.0E-7        # default 1.0E-7
     amsgrad = False         # default False
-    clipvalue = 5.0         # default not used
-    opt = keras.optimizers.Adam(learning_rate=learning_rate, 
-                                beta_1=beta_1, 
-                                beta_2=beta_2,
-                                epsilon=epsilon, 
-                                amsgrad=amsgrad,
-                                # clipvalue=clipvalue, 
-                                )
+    clipvalue = None        # default not used
+    # Optimizer arguments
+    opt_args = {
+        'learning_rate': learning_rate,
+        'beta_1': beta_1,
+        'beta_2': beta_2,
+        'epsilon': epsilon,
+        'amsgrad': amsgrad,
+    }
+    # Add the clip value if it was set
+    if clipvalue is not None:
+        opt_args['clipvalue'] = clipvalue
+    # Build the optimizer
+    opt = keras.optimizers.Adam(**opt_args)
+    # Compile the model
     model.compile(optimizer=opt)
     # Whether to display results
     display = False
@@ -189,7 +248,7 @@ def test_easy_batch(R_deg: float = 1.0,
     pred0 = model.predict_on_batch(ds)
     elts0, R0, u_pred0, z0, _ = pred0
     scores0, traj_err0, elt_err0 = \
-        report_model(model=model, ds=ds, R_deg=R_deg, mask_good=mask_good, 
+        report_model(model=model, ds=ds, R_deg=R_deg, mask_true=mask_true, 
                      batch_size=elt_batch_size, steps=steps, elts_true=elts_true, display=display)
 
     # Get intital gradients on entire data set
@@ -234,7 +293,9 @@ def test_easy_batch(R_deg: float = 1.0,
     print(f'alpha:          {alpha:5.1f}')
     print(f'beta:           {beta:5.1f}')
     print(f'learning_rate:    {learning_rate:7.2e}')
-    print(f'clipvalue:      {clipvalue:5.2f}')
+    if clipvalue is not None:
+        print(f'clipvalue:      {clipvalue:5.2f}')
+    print()
 
     train_time_0 = time.time()
     hist = model.fit(ds, epochs=epochs, steps_per_epoch=steps_per_epoch)
@@ -248,7 +309,7 @@ def test_easy_batch(R_deg: float = 1.0,
     pred1 = model.predict_on_batch(ds)
     elts1, R1, u_pred1, z1, _ = pred1
     scores1, traj_err1, elt_err1 = \
-        report_model(model=model, ds=ds, R_deg=R_deg, mask_good=mask_good, 
+        report_model(model=model, ds=ds, R_deg=R_deg, mask_true=mask_true, 
                      batch_size=elt_batch_size, steps=steps, elts_true=elts_true, display=display)
 
     # Unpack scores after training
@@ -272,15 +333,13 @@ def test_easy_batch(R_deg: float = 1.0,
     traj_err_01 = (traj_err0, traj_err1)
     elt_err_01 = (elt_err0, elt_err1)
     R_01 = (R0, R1)
-    report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good)
+    report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_true)
 
     # Return training results
-    return scores_01, traj_err_01, elt_err_01, R_01, mask_good
+    return scores_01, traj_err_01, elt_err_01, R_01, mask_true
 
 # ********************************************************************************************************************* 
-if __name__ == '__main__':
-    # test_easy_batch(elt_batch_size=64, time_batch_size=None, epochs=10)
-
+if __name__ == '__main__':    
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Search for asteroids.')
     parser.add_argument('-R_deg', nargs='?', metavar='R_deg', type=float, default=0.2,

@@ -45,14 +45,14 @@ def traj_diff(elts0: pd.DataFrame, elts1: pd.DataFrame, model_pos: keras.Model):
     return np.mean(distance, axis=-1)
     
 # ********************************************************************************************************************* 
-def report_model_attribute(att: np.array, mask_good: np.ndarray, att_name: str):
-    """Report mean and stdev of a model attribute on good and bad masks"""
+def report_model_attribute(att: np.array, mask_true: np.ndarray, att_name: str):
+    """Report mean and stdev of a model attribute on true and perturbed masks"""
     # Complementary mask
-    mask_bad = ~mask_good
+    mask_pert = ~mask_true
 
     # Attribute on masks
-    att_g = att[mask_good]
-    att_b = att[mask_bad]
+    att_g = att[mask_true]
+    att_b = att[mask_pert]
     mean_g = np.mean(att_g, axis=0)
     mean_b = np.mean(att_b, axis=0)
     mean_a = np.mean(att, axis=0)
@@ -61,31 +61,31 @@ def report_model_attribute(att: np.array, mask_good: np.ndarray, att_name: str):
     std_a = np.std(att, axis=0)
 
     print(f'\nMean & Std {att_name} by Category:')
-    print(f'Good: {mean_g:8.2f} +/- {std_g:8.2f}')
-    print(f'Bad:  {mean_b:8.2f} +/- {std_b:8.2f}')
+    print(f'True: {mean_g:8.2f} +/- {std_g:8.2f}')
+    print(f'Pert  {mean_b:8.2f} +/- {std_b:8.2f}')
     print(f'All:  {mean_a:8.2f} +/- {std_a:8.2f}')
     
 # ********************************************************************************************************************* 
-def report_model_attribute_change(att0: np.array, att1: np.array, mask_good: np.array, 
+def report_model_attribute_change(att0: np.array, att1: np.array, mask_true: np.array, 
                                   att_name: str, dp: int = 6, dp0: int = None):
-    """Report mean and stdev of a model attribute on good and bad masks"""
+    """Report mean and stdev of a model attribute on true and perturbed masks"""
     # Default arguments
     if dp0 is None:
         dp0 = dp
 
     # Complementary mask
-    mask_bad = ~mask_good
+    mask_pert = ~mask_true
     
     # Change
     chng = att1 - att0
     
     # Attribute on masks
-    att_g0 = att0[mask_good]
-    att_b0 = att0[mask_bad]
-    att_g1 = att1[mask_good]
-    att_b1 = att1[mask_bad]
-    chng_g = chng[mask_good]
-    chng_b = chng[mask_bad]
+    att_g0 = att0[mask_true]
+    att_b0 = att0[mask_pert]
+    att_g1 = att1[mask_true]
+    att_b1 = att1[mask_pert]
+    chng_g = chng[mask_true]
+    chng_b = chng[mask_pert]
 
     # Mean of attribute
     mean_g0 = np.mean(att_g0, axis=0)
@@ -111,24 +111,24 @@ def report_model_attribute_change(att0: np.array, att1: np.array, mask_good: np.
     pct_chng_a = mean_chng_a / mean_a0
 
     print(f'\nMean & Std Change in {att_name} by Category:')
-    print(f'Good: {mean_chng_g:+8.{dp}f} +/- {std_chng_g:8.{dp}f} -- from {mean_g0:8.{dp0}f} to {mean_g1:8.{dp0}f}'
+    print(f'True: {mean_chng_g:+8.{dp}f} +/- {std_chng_g:8.{dp}f} -- from {mean_g0:8.{dp0}f} to {mean_g1:8.{dp0}f}'
           f'     ({pct_chng_g:+3.1%})')
-    print(f'Bad:  {mean_chng_b:+8.{dp}f} +/- {std_chng_b:8.{dp}f} -- from {mean_b0:8.{dp0}f} to {mean_b1:8.{dp0}f}'
+    print(f'Pert: {mean_chng_b:+8.{dp}f} +/- {std_chng_b:8.{dp}f} -- from {mean_b0:8.{dp0}f} to {mean_b1:8.{dp0}f}'
           f'     ({pct_chng_b:+4.1%})')
     print(f'All:  {mean_chng_a:+8.{dp}f} +/- {std_chng_a:8.{dp}f} -- from {mean_a0:8.{dp0}f} to {mean_a1:8.{dp0}f}'
           f'     ({pct_chng_a:+4.1%})')
    
 # ********************************************************************************************************************* 
 def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float, 
-                 mask_good: np.ndarray, batch_size: int, steps: int, 
+                 mask_true: np.ndarray, batch_size: int, steps: int, 
                  elts_true: pd.DataFrame, display: bool =True):
     """
-    Report summary of model on good and bad
+    Report summary of model on true and perturbed
     INPUTS:
         model:          Keras model to be evaluated
         ds:             Tensorflow DataSet
         R_deg:          Resolution in degrees
-        mask_good:      Mask for good (unperturbed) elements
+        mask_true:      Mask for true (unperturbed) elements
         batch_size:     Number of orbital elements in a batch, e.g. 64
         steps:          Number of batches to work through tf.Dataset once
         elts_true:      True elements as DataFrame
@@ -136,7 +136,7 @@ def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float,
     """
 
     # Mask for perturbed ("bad") elements
-    mask_bad = ~mask_good
+    mask_pert = ~mask_true
     
     # Get scores on the whole data set
     pred = model.predict(ds, steps=steps)
@@ -186,38 +186,38 @@ def report_model(model: keras.Model, ds: tf.data.Dataset, R_deg: float,
     elt_err = np.abs(elts_out[cols_elt].values - elts_true[cols_elt].values)
     # Convert angles from radians to degrees
     elt_err[:, 2:6] = np.rad2deg(elt_err[:, 2:6])
-    # Mean element error on good and bad masks
-    elt_err_g = elt_err[mask_good]
-    elt_err_b = elt_err[mask_bad]
+    # Mean element error on true and perturbed masks
+    elt_err_g = elt_err[mask_true]
+    elt_err_b = elt_err[mask_pert]
     mean_err_g = np.mean(elt_err_g[0:6], axis=0)
     mean_err_b = np.mean(elt_err_b[0:6], axis=0)
 
     if display:
         # Report trajectory error
-        report_model_attribute(traj_err, mask_good, 'Trajectory Error (AU) vs. True Elements')
+        report_model_attribute(traj_err, mask_true, 'Trajectory Error (AU) vs. True Elements')
 
         # Report errors in orbital elements
         print('\nError in orbital elements:')
         print(f'(Angles shown in degrees)')
         print('      a          e         inc       Omega      omega     f')
-        print(f'Good: {mean_err_g[0]:8.6f},  {mean_err_g[1]:8.6f}, {mean_err_g[2]:8.6f}, '
+        print(f'True: {mean_err_g[0]:8.6f},  {mean_err_g[1]:8.6f}, {mean_err_g[2]:8.6f}, '
               f'{mean_err_g[3]:8.6f},  {mean_err_g[4]:8.6f}, {mean_err_g[5]:8.6f}, ')
-        print(f'Bad : {mean_err_b[0]:8.6f},  {mean_err_b[1]:8.6f}, {mean_err_b[2]:8.6f}, '
+        print(f'Pert: {mean_err_b[0]:8.6f},  {mean_err_b[1]:8.6f}, {mean_err_b[2]:8.6f}, '
               f'{mean_err_b[3]:8.6f},  {mean_err_b[4]:8.6f}, {mean_err_b[5]:8.6f}, ')
     
         # Report effective observations, mu, sigma, and t_score    
-        report_model_attribute(raw_score, mask_good, 'Raw Score')
-        report_model_attribute(mu, mask_good, 'Mu')
-        report_model_attribute(eff_obs, mask_good, 'Effective Observations')
-        report_model_attribute(sigma, mask_good, 'Sigma')
-        report_model_attribute(t_score, mask_good, 't_score')
-        report_model_attribute(objective, mask_good, 'Objective Function')
-        report_model_attribute(R, mask_good, 'Resolution R')
+        report_model_attribute(raw_score, mask_true, 'Raw Score')
+        report_model_attribute(mu, mask_true, 'Mu')
+        report_model_attribute(eff_obs, mask_true, 'Effective Observations')
+        report_model_attribute(sigma, mask_true, 'Sigma')
+        report_model_attribute(t_score, mask_true, 't_score')
+        report_model_attribute(objective, mask_true, 'Objective Function')
+        report_model_attribute(R, mask_true, 'Resolution R')
 
     return scores, traj_err, elt_err
 
 # ********************************************************************************************************************* 
-def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good, report_elt_change: bool = False):
+def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_true, report_elt_change: bool = False):
     """Report progress while model trained"""
     
     # Unpack inputs pairs
@@ -245,14 +245,14 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
     eff_obs1 = raw_score1 - mu1
 
     # Changes in trajectory errors
-    report_model_attribute_change(traj_err0, traj_err1, mask_good, 'Trajectory Error (AU)', dp=6)
-    report_model_attribute_change(raw_score0, raw_score1, mask_good, 'Raw Score', dp=0)
-    report_model_attribute_change(mu0, mu1, mask_good, 'Mu', dp=0)
-    report_model_attribute_change(eff_obs0, eff_obs1, mask_good, 'Effective Observations', dp=0)
-    report_model_attribute_change(sigma0, sigma1, mask_good, 'Sigma', dp=0)
-    report_model_attribute_change(t_score0, t_score1, mask_good, 't-score', dp=1)
-    report_model_attribute_change(objective0, objective1, mask_good, 'Objective Function', dp=0)
-    report_model_attribute_change(np.rad2deg(R0), np.rad2deg(R1), mask_good, 'Resolution R (degrees)', dp=4)
+    report_model_attribute_change(traj_err0, traj_err1, mask_true, 'Trajectory Error (AU)', dp=6)
+    report_model_attribute_change(raw_score0, raw_score1, mask_true, 'Raw Score', dp=0)
+    report_model_attribute_change(mu0, mu1, mask_true, 'Mu', dp=0)
+    report_model_attribute_change(eff_obs0, eff_obs1, mask_true, 'Effective Observations', dp=0)
+    report_model_attribute_change(sigma0, sigma1, mask_true, 'Sigma', dp=0)
+    report_model_attribute_change(t_score0, t_score1, mask_true, 't-score', dp=1)
+    report_model_attribute_change(objective0, objective1, mask_true, 'Objective Function', dp=0)
+    report_model_attribute_change(np.rad2deg(R0), np.rad2deg(R1), mask_true, 'Resolution R (degrees)', dp=4)
     
     # Unpack element errors
     err_a0 = elt_err0[:,0]
@@ -270,19 +270,19 @@ def report_training_progress(scores_01, traj_err_01, elt_err_01, R_01, mask_good
     
     # Report element errors if requested
     if report_elt_change:
-        report_model_attribute_change(err_a0, err_a1, mask_good, 'Error in semi-major axis, a', dp=6)
-        report_model_attribute_change(err_e0, err_e1, mask_good, 'Error in eccentricity, e', dp=6)
-        report_model_attribute_change(err_inc0, err_inc1, mask_good, 'Error in inclination, inc', dp=6)
-        report_model_attribute_change(err_f0, err_f1, mask_good, 'Error in true anomaly, f', dp=6)
+        report_model_attribute_change(err_a0, err_a1, mask_true, 'Error in semi-major axis, a', dp=6)
+        report_model_attribute_change(err_e0, err_e1, mask_true, 'Error in eccentricity, e', dp=6)
+        report_model_attribute_change(err_inc0, err_inc1, mask_true, 'Error in inclination, inc', dp=6)
+        report_model_attribute_change(err_f0, err_f1, mask_true, 'Error in true anomaly, f', dp=6)
     
     # Changes in element errors and R
     d_elt_err = elt_err1 - elt_err0
     d_R = R1 - R0
-    mask_bad = ~mask_good
-    d_elt_err_g = np.mean(d_elt_err[mask_good], axis=0)
-    d_elt_err_b = np.mean(d_elt_err[mask_bad], axis=0)
-    d_R_g = np.mean(d_R[mask_good])
-    d_R_b = np.mean(d_R[mask_bad])
+    mask_pert = ~mask_true
+    d_elt_err_g = np.mean(d_elt_err[mask_true], axis=0)
+    d_elt_err_b = np.mean(d_elt_err[mask_pert], axis=0)
+    d_R_g = np.mean(d_R[mask_true])
+    d_R_b = np.mean(d_R[mask_pert])
 
     print(f'\nChange in Orbital Element error by Category:')
     print(f'(Angles shown in degrees)')
