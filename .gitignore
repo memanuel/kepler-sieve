@@ -36,6 +36,7 @@ data/observations
 data/planets
 data/ztf
 data/ztf_ast
+data/ztf_elt
 
 # Windows symlinks
 data/asteroids_win

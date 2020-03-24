@@ -604,6 +604,29 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
     return ztf_batch
 
 # ********************************************************************************************************************* 
+def load_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
+    """
+    Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
+    INPUTS:
+        elts:       Dataframe including element_id; 6 orbital elements
+        thresh_deg: Threshold in degrees; only observations this close to elements are returned
+        near_ast:   Whether to include data on the neareast asteroid
+    """
+    # Hash of arguments
+    hash_id = hash((elts.values.tobytes(), thresh_deg, near_ast,))
+
+    # Name of file
+    file_path = f'../data/ztf_elt/ztf_elt_{hash_id}.h5'
+
+    # Try to load file if available
+    try:
+        ztf_elt = pd.read_hdf(file_path)
+    # Generate it on the fly if it's not available
+    except FileNotFoundError:
+        ztf_elt = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=near_ast)
+        ztf_elt.to_hdf(file_path, key='ztf_elt', mode='w')
+
+# ********************************************************************************************************************* 
 def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
     """
     Generate an "easy batch" to prototype asteroid search algorithm.

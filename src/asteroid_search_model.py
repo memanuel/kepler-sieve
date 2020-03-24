@@ -319,10 +319,12 @@ class TrajectoryScore(keras.layers.Layer):
         sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
         sigma = tf.sqrt(sigma2)
 
-        # Assemble the objective function to be maximized; generalized version of t statistic
-        # when alpha=1.0, beta=0.0 it is the same as a t statistic
+        # The t-statistic
+        # t_stat = (raw_score - mu) / sigma
+
+        # Assemble the objective function to be maximized
         # objective = raw_score - self.alpha * mu - self.beta * sigma2
-        objective = (raw_score - self.alpha * mu) / (self.beta + sigma)
+        objective = (raw_score - self.alpha * mu - self.beta + sigma)
        
         # Return all the interesting outputs
         return raw_score, mu, sigma2, objective

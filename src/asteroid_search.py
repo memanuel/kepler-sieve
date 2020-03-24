@@ -203,10 +203,9 @@ def test_easy_batch(R_deg: float = 1.0,
     site_name = 'palomar'
 
     # Alpha and beta parameters for the objective function
-    # objective = (score - alpha * mu) / (beta + sigma)
-    # when alpha = 1.0, beta = 0.0, this is the t-score
+    # objective = score - alpha * mu - beta * sigma
     alpha = 1.0
-    beta = 0.5
+    beta = 1.0
 
     # Build functional model for asteroid score
     model = make_model_asteroid_search(\

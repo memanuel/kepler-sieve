@@ -277,8 +277,8 @@ def calc_ast_data(elts: Dict[str, np.ndarray],
         df_earth:   Position & velocity of earth in barycentric frame
         df_sun:     Position & velocity of sun in barycentric frame
     """
-    # Extract the epoch
-    epoch = elts['epoch'][0]
+    # Extract the epocha
+    epoch = elts['epoch'].iloc[0]
 
     # Daily snapshots in range of data
     ts = np.arange(mjd0, mjd1, dtype=np.float64)
