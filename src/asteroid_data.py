@@ -153,59 +153,6 @@ def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
     return ds, t, row_len
     
 # ********************************************************************************************************************* 
-def orbital_element_batch(ast_nums: np.ndarray) -> pd.DataFrame:
-    """
-    Return a batch of orbital elements as a DataFrame
-    INPUTS:
-        ast_nums: Numpy array of asteroid numbers to include in batch
-    OUTPUTS:
-        elts: DataFrame with columns for a, e, inc, Omega, omega, f, epoch
-    """
-    # The orbital elements and epoch
-    dtype = np.float32
-    a = ast_elt.a[ast_nums].to_numpy().astype(dtype)
-    e = ast_elt.e[ast_nums].to_numpy().astype(dtype)
-    inc = ast_elt.inc[ast_nums].to_numpy().astype(dtype)
-    Omega = ast_elt.Omega[ast_nums].to_numpy().astype(dtype)
-    omega = ast_elt.omega[ast_nums].to_numpy().astype(dtype)
-    f = ast_elt.f[ast_nums].to_numpy().astype(dtype)
-    epoch = ast_elt.epoch_mjd[ast_nums].to_numpy().astype(dtype)
-    
-    # Wrap into dictionary
-    elts_dict = {
-        # 'asteroid_num': ast_nums,
-        'element_id': ast_nums,
-        'a': a,
-        'e': e,
-        'inc': inc,
-        'Omega': Omega,
-        'omega': omega,
-        'f': f,
-        'epoch': epoch
-    }
-    elts = pd.DataFrame(elts_dict)
-    return elts
-
-# ********************************************************************************************************************* 
-def orbital_element_batch_by_ast_num(n0: int, batch_size: int=64):
-    """
-    Return a batch of orbital elements for asteroids in a batch of consecutive asteroid numbers.
-    DEPRECATED.
-    INPUTS:
-        n0: first asteroid number, e.g. 1
-        batch_size: number of asteroids in batch
-    OUTPUTS:
-        elts: Dictionary with seven keys for a, e, inc, Omega, omega, f, epoch
-    """
-    # Get start and end index location of this asteroid number
-    i0: int = ast_elt.index.get_loc(n0)
-    i1: int = i0 + batch_size
-    ast_nums = np.arange(i0, i1+1, dytpe=np.int32)
-
-    # Delegate to orbital_element_batch
-    return orbital_element_batch(ast_nums)
-
-# ********************************************************************************************************************* 
 def get_earth_sun_pos_file():
     """Get the position and velocity of earth and sun consistent with the asteroid data; look up from data file"""
     # selected data type for TF tensors

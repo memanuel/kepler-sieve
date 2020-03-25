@@ -31,7 +31,7 @@ from utils import range_inc
 from astro_utils import date_to_mjd, deg2dist, dist2deg
 from ra_dec import radec2dir
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df, calc_ast_dir, spline_ast_vec_dir
-from asteroid_data import orbital_element_batch
+from candidate_element import orbital_element_batch
 
 # Typing
 from typing import Optional, Dict
@@ -508,6 +508,9 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
     # Threshold as Cartesian distance
     thresh_dist = deg2dist(thresh_deg)    
 
+    # Threshold value of z = 1- s^2 / 2
+    thresh_z = 1.0 - thresh_dist**2 / 2.0
+
     # Theshold for hits is 2.0 arc seconds (completely separate from threshold above, for inclusion)
     thresh_hit_sec = 2.0
 
@@ -538,17 +541,24 @@ def make_ztf_near_elt(ztf: pd.DataFrame, df_dir: pd.DataFrame, thresh_deg: float
             ztf_i.insert(loc=ztf_i.columns.size, column=col, value=0.0)
         ztf_i[cols_elt_dir] = u_elt[row_num_close]
         ztf_i['elt_r'] = r_elt[row_num_close]
+        # Save the distance in a column named s
+        ztf_i['s'] = dist_i[mask_close]
         # Convert distance between element and observation to degrees
-        dist_deg = dist2deg(dist_i[mask_close])
+        # dist_deg = dist2deg(dist_i[mask_close])
+        dist_deg = dist2deg(ztf_i.s)
         # Save distance in arc seconds
-        ztf_i['elt_sec'] = dist_deg * 3600.0
+        ztf_i['dist_sec'] = dist_deg * 3600.0
+        # Save the quantity z = 1 - s^2 / 2
+        ztf_i['z'] = 1.0 - ztf_i.s**2 / 2.0
+        # Save the quantity v = (1 - z) / (1 - thresh_z); for random observations, v will uniform on [0, 1]
+        ztf_i['v'] = (1.0 - ztf_i.z) / (1.0 - thresh_z)
         # Compute score function with given resolution
         score_arg = -0.5 * (dist_deg / R_deg)**2
         ztf_i['score'] = np.exp(score_arg)
         # Flag for hits; an entry is a hit if these elements are within threshold of the ZTF observation
-        ztf_i['is_hit'] = (ztf_i.elt_sec < thresh_hit_sec)
+        ztf_i['is_hit'] = (ztf_i.dist_sec < thresh_hit_sec)
         # Flag for matches; a match is when the element_id matches the nearest asteroid
-        ztf_i['is_match'] = False
+        # ztf_i['is_match'] = False
         if is_near_ast:
             ztf_i.is_match = (ztf_i.nearest_ast_num == ztf_i.element_id)
         # Save ztf_i to the table (dict) of elements
@@ -604,6 +614,26 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
     return ztf_batch
 
 # ********************************************************************************************************************* 
+def elt_hash(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
+    """
+    Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
+    INPUTS:
+        elts:       Dataframe including element_id; 6 orbital elements
+        thresh_deg: Threshold in degrees; only observations this close to elements are returned
+        near_ast:   Whether to include data on the neareast asteroid
+    OUTPUTS:
+        hash_id:    Unique ID for these inputs
+    """
+    # Columns of the Dataframe to hash
+    cols_to_hash = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    # Tuple of int64; one per orbital element candidate
+    hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
+    # Combine the element hash tuple with the threshold and near_ast flags
+    thresh_int = int(thresh_deg*2**48)
+    hash_id = hash(hash_df + (thresh_int, near_ast,))
+
+    return hash_id
+# ********************************************************************************************************************* 
 def load_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
     """
     Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
@@ -611,9 +641,12 @@ def load_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
         elts:       Dataframe including element_id; 6 orbital elements
         thresh_deg: Threshold in degrees; only observations this close to elements are returned
         near_ast:   Whether to include data on the neareast asteroid
+    OUTPUTS:
+        ztf_elt:    Dataframe including ZTF observation (mjd, ra, dec, ...)
+                    elt_ux, elt_uy, elt_uz, 
     """
-    # Hash of arguments
-    hash_id = hash((elts.values.tobytes(), thresh_deg, near_ast,))
+    # Get hash of arguments
+    hash_id = elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=near_ast)
 
     # Name of file
     file_path = f'../data/ztf_elt/ztf_elt_{hash_id}.h5'
@@ -625,6 +658,8 @@ def load_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
     except FileNotFoundError:
         ztf_elt = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=near_ast)
         ztf_elt.to_hdf(file_path, key='ztf_elt', mode='w')
+    
+    return ztf_elt
 
 # ********************************************************************************************************************* 
 def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):

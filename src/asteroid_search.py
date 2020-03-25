@@ -25,6 +25,7 @@ from ztf_data import load_ztf_easy_batch, make_ztf_batch, report_ztf_score
 from asteroid_data import make_ztf_dataset, orbital_element_batch
 from asteroid_integrate import calc_ast_pos, load_ast_elt
 from asteroid_search_report import report_model, report_training_progress
+from candidate_element import perturb_elts
 from utils import print_header
 from tf_utils import tf_quiet, gpu_grow_memory, get_gpu_device
 
@@ -46,45 +47,6 @@ tf_quiet()
 # ********************************************************************************************************************* 
 # Constants
 ast_elt = load_ast_elt()
-
-# ********************************************************************************************************************* 
-def random_elts(size: int = 64, random_seed: int = 42):
-    """Generate a DataFrame of random orbital elements"""
-    pass
-
-# ********************************************************************************************************************* 
-def perturb_elts(elts: pd.DataFrame, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask_pert=None, random_seed: int = 42):
-    """Apply perturbations to orbital elements"""
-    # Copy the elements
-    elts_new = elts.copy()
-
-    # Default for mask_pert is all elements
-    if mask_pert is None:
-        mask_pert = np.ones_like(elts['a'], dtype=bool)
-
-    # Number of elements to perturb
-    num_shift = np.sum(mask_pert)
-
-    # Set random seed
-    np.random.seed(seed=random_seed)
-
-    # Apply shift log(a)
-    log_a = np.log(elts['a'])
-    log_a[mask_pert] += np.random.normal(scale=sigma_a, size=num_shift)
-    elts_new['a'] = np.exp(log_a)
-    
-    # Apply shift to log(e)
-    log_e = np.log(elts['e'])
-    log_e[mask_pert] += np.random.normal(scale=sigma_e, size=num_shift)
-    elts_new['e'] = np.exp(log_e)
-    
-    # Apply shift directly to true anomaly f
-    f = elts['f']
-    sigma_f = np.deg2rad(sigma_f_deg)
-    f[mask_pert] += np.random.normal(scale=sigma_f, size=num_shift)
-    elts_new['f'] = f
-    
-    return elts_new
 
 # ********************************************************************************************************************* 
 def report_initial_scores(elts_pert: pd.DataFrame):

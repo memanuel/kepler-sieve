@@ -41,7 +41,7 @@ def ztf_obs_by_month(ztf):
 
     # Plot the number of observations by month
     fig, ax = plt.subplots()
-    ax.set_title('Alerce Asteroid Observations by Month')
+    ax.set_title('ZTF Asteroid Observations by Month')
     ax.set_xlabel('Month')
     ax.set_ylabel('Asteroid Observations')
     # ax.bar(x=x_values, height=y_values, tick_label=month_strs, color='blue')
