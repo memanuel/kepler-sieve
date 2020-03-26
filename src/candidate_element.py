@@ -16,6 +16,9 @@ from scipy.optimize import minimize
 # Astronomy
 import rebound
 
+# Utility
+from tqdm.auto import tqdm
+
 # Plotting
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -23,7 +26,7 @@ import matplotlib as mpl
 # Local
 from asteroid_integrate import load_ast_elt
 from planets import make_sim_planets
-from astro_utils import mjd_to_datetime
+from astro_utils import mjd_to_datetime, deg2dist, dist2deg
 
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
@@ -215,8 +218,8 @@ def random_elts(element_id_start: np.int32 = 0,
     return elts
 
 # ********************************************************************************************************************* 
-def score_by_elt(ztf_elt):
-    """Score the ztf observations by element"""
+def score_by_elt(ztf_elt, thresh_deg=None, fit_mixture: bool = False):
+    """Score the ztf observations by element"""   
     # Add log(v) column
     ztf_elt['log_v'] = np.log(ztf_elt.v)
 
@@ -231,12 +234,51 @@ def score_by_elt(ztf_elt):
         'std': 'log_v_std',
     }
     elt_score.rename(columns=col_name_tbl, inplace=True)
+
     # Add t-score column
-    elt_score['t'] = elt_score.log_v_mean * np.sqrt(elt_score.n_obs)
+    elt_score['t'] = -elt_score.log_v_mean * np.sqrt(elt_score.n_obs)
     # Add column with hit count
     elt_score['hits'] = hit_count
 
-    # Return score grouped by element
+    # Add columns with output of mixture model fit: log_like, h, lambda
+    mixture_cols = ['log_like', 'h']
+    if fit_mixture:
+        # Distinct element_ids
+        element_ids = np.unique(ztf_elt.element_id)
+
+        # Array for lambdas
+        lams = np.zeros(element_ids.size)
+        # Create placeholder columns
+        for col in mixture_cols:
+            elt_score[col] = 0.0
+
+        # Set low iteration count
+        maxiter = 10
+        # Threshold distance
+        thresh_dist = deg2dist(thresh_deg)
+
+        # Iterate through unique elements
+        iterates = tqdm(list(enumerate(element_ids)))
+        for i, element_id in iterates:
+            # Extract v for this element
+            mask = ztf_elt.element_id == element_id
+            v = ztf_elt[mask].v
+            # Fit mixture model
+            log_like, h, lam = mixture_fit(v, maxiter=maxiter)
+            # Save mixture fit to elt_score frame
+            elt_score.loc[element_id, mixture_cols] = np.array([log_like, h])
+            lams[i] = lam
+
+        # Fit width
+        mu_v = thresh_dist / lams
+        # Convert from z to s
+        mu_s = np.sqrt(2.0*mu_v)
+        # Convert from s to arc seconds
+        mu_deg = dist2deg(mu_s)
+        mu_sec = 3600.0 * mu_deg
+        # Save to elt_score frame
+        elt_score['mu_sec'] = mu_sec
+
     return elt_score
 
 # ********************************************************************************************************************* 
@@ -246,12 +288,25 @@ def score_batches(elt_score_tbl: dict):
     INPUTS:
         elt_score_tbl: Dict. key = batch_name, value= elt_score DataFrame
     """
+    
+    # Column collections
+    cols_t = ['t_mean', 't_std']
+    cols_log_like = ['log_like_mean', 'log_like_std']
     # Initialize batch_score frame
-    batch_score = pd.DataFrame(columns=['t_mean', 't_std']) 
+    cols_all = cols_t + cols_log_like
+    batch_score = pd.DataFrame(columns=cols_all) 
+    
     # Iterate through scores in the table
     for batch_name, elt_score in elt_score_tbl.items():
+        # Was the mixture model fit?
+        has_mixture: bool = 'log_like' in elt_score.columns
+        # The mean and standard of the t-score
         t_mean, t_std = elt_score['t'].agg(['mean', 'std'])
-        batch_score.loc[batch_name] = [t_mean, t_std]
+        batch_score.loc[batch_name, cols_t] = [t_mean, t_std]
+        # The mixture columns if available
+        if has_mixture:
+            log_like_mean, log_like_std = elt_score['log_like'].agg(['mean', 'std'])
+            batch_score.loc[batch_name, cols_log_like] = [log_like_mean, log_like_std]
         
     return batch_score
 
@@ -404,7 +459,8 @@ def hl2x(h, lam):
 # ********************************************************************************************************************* 
 def x2hl(x):
     """Convert x array to h and lam after unconstrained optimization"""
-    h = sigmoid(x[0])
+    tiny = 2.0**-50
+    h = sigmoid(x[0]) + tiny
     lam = np.exp(x[1])
     return h, lam
     
@@ -469,7 +525,7 @@ def mixture_hessian(x, v):
     return hess_F
 
 # ********************************************************************************************************************* 
-def mixture_fit(v):
+def mixture_fit(v, maxiter: int = 20):
     """
     Fit a mixture distribution to observed v
     """
@@ -484,12 +540,18 @@ def mixture_fit(v):
     jac = mixture_jacobian
     hess = mixture_hessian
 
-    # Minimize objective with scipy.minimize, Newton Conjugate Gradient method
-    res = minimize(fun=fun, x0=x0, args=v, method='Newton-CG', jac=jac, hess=hess)
+    # Additional options for minimize
+    options = {
+        'maxiter': maxiter,
+        'disp': False,
+    }
 
-    # Extract result and convert to h, lam
-    h, lam = x2hl(res.x)
+    # Minimize objective with scipy.minimize, Newton Conjugate Gradient method
+    res = minimize(fun=fun, x0=x0, args=v, method='Newton-CG', jac=jac, hess=hess, options=options)
+
     # Extract the log likelihood
     log_like = -res.fun
-    # Return parameters and likelihood
-    return h, lam, log_like
+    # Extract result and convert to h, lam
+    h, lam = x2hl(res.x)
+    # Return log likelihood and parameters
+    return (log_like, h, lam,)
