@@ -11,6 +11,7 @@ Wed Mar 25 09:55 2020
 import numpy as np
 import pandas as pd
 from scipy.special import expit as sigmoid, logit
+from scipy.optimize import minimize
 
 # Astronomy
 import rebound
@@ -221,6 +222,7 @@ def score_by_elt(ztf_elt):
 
     # Group by element_id
     elt_score = ztf_elt['log_v'].groupby(ztf_elt.element_id).agg(['count', 'mean', 'std'])
+    hit_count = ztf_elt['is_hit'].groupby(ztf_elt.element_id).agg(['sum']).rename(columns={'sum':'hits'})
 
     # Rename columns
     col_name_tbl = {
@@ -231,6 +233,8 @@ def score_by_elt(ztf_elt):
     elt_score.rename(columns=col_name_tbl, inplace=True)
     # Add t-score column
     elt_score['t'] = elt_score.log_v_mean * np.sqrt(elt_score.n_obs)
+    # Add column with hit count
+    elt_score['hits'] = hit_count
 
     # Return score grouped by element
     return elt_score
@@ -392,6 +396,19 @@ def mixture_log_like(h, lam, x):
     return L_tot, grad, hess
 
 # ********************************************************************************************************************* 
+def hl2x(h, lam):
+    """Convert h and lam to array logit(h), log(lam) for unconstrained optimization"""
+    x = np.array([logit(h), np.log(lam)])
+    return x
+
+# ********************************************************************************************************************* 
+def x2hl(x):
+    """Convert x array to h and lam after unconstrained optimization"""
+    h = sigmoid(x[0])
+    lam = np.exp(x[1])
+    return h, lam
+    
+# ********************************************************************************************************************* 
 def mixture_objective_all(x, v):
     """
     Optimization function for unconstrained minimization
@@ -402,8 +419,9 @@ def mixture_objective_all(x, v):
     Return the negative of the log likelihood so it is a minimization
     """
     # Unpack h, lam from x and apply transformations
-    h = sigmoid(x[0])
-    lam = np.exp(x[1])
+    # h = sigmoid(x[0])
+    # lam = np.exp(x[1])
+    h, lam = x2hl(x)
 
     # Delegate to log_like
     L, grad_L, hess_L = mixture_log_like(h=h, lam=lam, x=v)
@@ -449,3 +467,29 @@ def mixture_hessian(x, v):
     """Hessian of objective function"""
     F, grad_F, hess_F = mixture_objective_all(x=x, v=v)
     return hess_F
+
+# ********************************************************************************************************************* 
+def mixture_fit(v):
+    """
+    Fit a mixture distribution to observed v
+    """
+    # Initial guess
+    h0 = 0.5
+    lam0 = 1.0
+    # Convert to array
+    x0 = hl2x(h0, lam0)
+
+    # Alias inputs to minimize
+    fun = mixture_objective
+    jac = mixture_jacobian
+    hess = mixture_hessian
+
+    # Minimize objective with scipy.minimize, Newton Conjugate Gradient method
+    res = minimize(fun=fun, x0=x0, args=v, method='Newton-CG', jac=jac, hess=hess)
+
+    # Extract result and convert to h, lam
+    h, lam = x2hl(res.x)
+    # Extract the log likelihood
+    log_like = -res.fun
+    # Return parameters and likelihood
+    return h, lam, log_like
