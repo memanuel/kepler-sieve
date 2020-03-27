@@ -472,6 +472,7 @@ def calc_hit_freq(ztf, thresh_sec: float):
 # ********************************************************************************************************************* 
 def make_ztf_near_elt(ztf: pd.DataFrame, 
                       df_dir: pd.DataFrame, 
+                      df_ast: pd.DataFrame,
                       thresh_deg: float, 
                       progbar: bool=False) \
                       -> Dict[np.int32, pd.DataFrame]:
@@ -491,13 +492,15 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
     cols_catalog = ['ObjectID', 'CandidateID', 'TimeStampID', 'mjd']
     cols_radec = ['ra', 'dec']
     cols_dir = ['ux', 'uy', 'uz']
+    cols_elt_qv = ['qx', 'qy', 'qz', 'vx', 'vy', 'vz']
     cols_elt_dir = ['elt_ux', 'elt_uy', 'elt_uz']
     # Add nearest asteroid data to columns if available
     cols_nearest_ast_all = ['nearest_ast_num', 'nearest_ast_dist', 
                             'ast_ra', 'ast_dec', 'ast_ux', 'ast_uy', 'ast_uz']
     cols_nearest_ast = [col for col in cols_nearest_ast_all if col in ztf.columns]
-    # All the output columns
-    cols_out = cols_catalog + cols_radec + cols_dir + cols_nearest_ast
+    # All the columns pertaining to ZTF and nearest_ast
+    # The calculated information with the position, velocity and direction is separate
+    cols_ztf = cols_catalog + cols_radec + cols_dir + cols_nearest_ast
     # Flag indicating whether we have nearest asteroid data
     is_near_ast: bool = 'nearest_ast_num' in ztf.columns
 
@@ -521,8 +524,10 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
     # Iterate over distinct element IDs
     iterates = tqdm(element_ids_unq) if progbar else element_ids_unq
     for element_id in iterates:
-        # projected directions with this element id
+        # Projected directions with this element id
         mask_elt = (df_dir.element_id == element_id)
+        # Position and velocity of this candidate element
+        qv_elt = df_ast.loc[mask_elt, cols_elt_qv].values
         # Directions of this candidate element at the unique time stamps
         u_elt = df_dir.loc[mask_elt, cols_dir].values
         r_elt = df_dir.loc[mask_elt, 'delta'].values
@@ -535,15 +540,23 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
         # Row numbers corresponding to close observations
         row_num_close = row_num[mask_close]
         # Copy this slice
-        ztf_i = ztf.loc[mask_close, cols_out].copy()
+        ztf_i = ztf.loc[mask_close, cols_ztf].copy()
+
         # Insert columns with the ztf_id and element_id
         ztf_i.insert(loc=0, column='ztf_id', value=ztf_i.index.values)
         ztf_i.insert(loc=1, column='element_id', value=element_id)
+
+        # Insert columns with the predicted position and velocity
+        for col in cols_elt_qv:
+            ztf_i.insert(loc=ztf_i.columns.size, column=col, value=0.0)
+        ztf_i[cols_elt_qv] = qv_elt[row_num_close]
+
         # Insert columns with the predicted directions of the elements
         for col in cols_elt_dir:
             ztf_i.insert(loc=ztf_i.columns.size, column=col, value=0.0)
         ztf_i[cols_elt_dir] = u_elt[row_num_close]
         ztf_i['elt_r'] = r_elt[row_num_close]
+
         # Save the distance in a column named s
         ztf_i['s'] = s
         # Convert distance between element and observation to degrees
@@ -614,7 +627,8 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
 
     # Calculate subset of ZTF data within threshold of this batch
     progbar = True
-    ztf_batch = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, thresh_deg=thresh_deg, progbar=progbar)
+    ztf_batch = make_ztf_near_elt(ztf=ztf, df_dir=df_dir, df_ast=df_ast,
+                                  thresh_deg=thresh_deg, progbar=progbar)
 
     return ztf_batch
 

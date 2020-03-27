@@ -250,15 +250,16 @@ def get_earth_pos_flex(ts: np.ndarray, heliocentric: bool) -> np.array:
     return q_earth
 
 # ********************************************************************************************************************* 
-def get_sun_pos_vel(ts: np.ndarray) -> np.array:
+def get_sun_pos_vel(ts: np.ndarray, dtype = np.float64) -> np.array:
     """
     Get barycentric position and velocity of sun consistent with asteroid data at the specified times (MJDs)
     INPUTS:
-        ts: Array of times expressed as MJDs
+        ts:    Array of times expressed as MJDs
+        dtype: Desired datatype
     """
     # Compute interpolated position at desired times
-    q_sun = sun_interp(ts)
-    v_sun = sun_interp_v(ts)
+    q_sun = sun_interp(ts).astype(dtype)
+    v_sun = sun_interp_v(ts).astype(dtype)
     return q_sun, v_sun
 
 # ********************************************************************************************************************* 
