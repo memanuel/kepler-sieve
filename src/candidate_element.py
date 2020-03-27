@@ -93,12 +93,14 @@ def orbital_element_batch_by_ast_num(n0: int, batch_size: int=64):
     return orbital_element_batch(ast_nums)
 
 # ********************************************************************************************************************* 
-def perturb_elts(elts: pd.DataFrame, sigma_a=0.05, sigma_e=0.10, 
-                 sigma_f_deg=5.0, sigma_Omega_deg=0.0, sigma_omega_deg=0.0,
+def perturb_elts(elts: pd.DataFrame, 
+                 sigma_a=0.00, sigma_e=0.00, sigma_inc_deg=0.0,
+                 sigma_f_deg=1.0, sigma_Omega_deg=0.0, sigma_omega_deg=0.0,
                  mask_pert=None, random_seed: int = 42):
     """Apply perturbations to orbital elements"""
-    # Copy the elements
-    elts_new = elts.copy()
+    # Copy the elements; overwrite the original reference to prevent accidentally changing them
+    # This can happen due to separate handles to the same numpy array! Caused an obscure bug.
+    elts = elts.copy()
 
     # Default for mask_pert is all elements
     if mask_pert is None:
@@ -113,32 +115,38 @@ def perturb_elts(elts: pd.DataFrame, sigma_a=0.05, sigma_e=0.10,
     # Apply shift log(a)
     log_a = np.log(elts['a'])
     log_a[mask_pert] += np.random.normal(scale=sigma_a, size=num_shift)
-    elts_new['a'] = np.exp(log_a)
+    elts['a'] = np.exp(log_a)
     
     # Apply shift to log(e)
     log_e = np.log(elts['e'])
     log_e[mask_pert] += np.random.normal(scale=sigma_e, size=num_shift)
-    elts_new['e'] = np.exp(log_e)
+    elts['e'] = np.exp(log_e)
+    
+    # Apply shift directly to inclination inc
+    inc = elts['inc']
+    sigma_inc = np.deg2rad(sigma_inc_deg)
+    inc[mask_pert] += np.random.normal(scale=sigma_inc, size=num_shift)
+    elts['inc'] = inc
     
     # Apply shift directly to true anomaly f
     f = elts['f']
     sigma_f = np.deg2rad(sigma_f_deg)
     f[mask_pert] += np.random.normal(scale=sigma_f, size=num_shift)
-    elts_new['f'] = f
+    elts['f'] = f
     
     # Apply shift directly to Omega
     Omega = elts['Omega']
     sigma_Omega = np.deg2rad(sigma_Omega_deg)
     Omega[mask_pert] += np.random.normal(scale=sigma_Omega, size=num_shift)
-    elts_new['Omega'] = Omega
+    elts['Omega'] = Omega
 
     # Apply shift directly to omega
     omega = elts['omega']
     sigma_omega = np.deg2rad(sigma_omega_deg)
     omega[mask_pert] += np.random.normal(scale=sigma_omega, size=num_shift)
-    elts_new['omega'] = omega
+    elts['omega'] = omega
 
-    return elts_new
+    return elts
 
 # ********************************************************************************************************************* 
 def random_elts(element_id_start: np.int32 = 0, 

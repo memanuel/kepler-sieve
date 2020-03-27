@@ -23,7 +23,7 @@ from asteroid_model import AsteroidDirection, elts_np2df
 from asteroid_integrate import calc_ast_pos
 from search_score_functions import score_mean, score_var, score_mean_var
 from candidate_element import perturb_elts
-from astro_utils import deg2dist
+from astro_utils import deg2dist, dist2deg
 from tf_utils import tf_quiet, Identity
 
 # Typing
@@ -133,7 +133,14 @@ class OrbitalElements(keras.layers.Layer):
         self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, name='epoch')
         
         # The threshold in degrees is not trainable
-        self.trhesh_deg = tf.Variable(initial_value=thresh_deg, trainable=False, name='thresh_deg')
+        # self.thresh_deg = tf.Variable(initial_value=thresh_deg, trainable=False, name='thresh_deg')
+        # The threshold distance; its square; and associated z value
+        # thresh_s = deg2dist(thresh_deg)
+        # thresh_s2 = thresh_s**2
+        # thresh_z = 1.0 - thresh_s2 / 2.0
+        # self.thresh_s = tf.Variable(initial_value=thresh_s, trainable=False, name='thresh_s')
+        # self.thresh_s2 = tf.Variable(initial_value=thresh_s, trainable=False, name='thresh_s2')
+        # self.thresh_z = tf.Variable(initial_value=thresh_s, trainable=False, name='thresh_z')
 
         # Control of the hit rate h_, in range h_min to h_max
         self.h_min = tf.constant(h_min_, dtype=tf.float32)
@@ -290,10 +297,10 @@ class DirectionDifference(keras.layers.Layer):
         # print(f'x.shape = {x.shape}')
         
         # The difference in directions; size (batch_size, traj_size, max_obs, 3)
-        z = tf.subtract(y, x, name='z')
-        # print(f'z.shape = {z.shape}')
+        du = tf.subtract(y, x, name='du')
+        # print(f'du.shape = {du.shape}')
 
-        return z
+        return du
     
     def get_config(self):
         return self.cfg
@@ -306,7 +313,7 @@ class TrajectoryScore(keras.layers.Layer):
         """
         INPUTS:
             batch_size: this is element_batch_size, the number of orbital elements per batch
-            thresh_deg: threshold in degrees for observations to be included in the batch.  impacts mu, sigma2
+            thresh_deg: threshold in degrees for observations to be included in batches.  impacts mu, sigma2
             alpha: multiplicative factor on mu in objective function
             beta: multiplicative factor on sigma2 in objective function
         """
@@ -322,19 +329,20 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Save sizes and parameters
         self.batch_size = batch_size
-        # Convert threshold from degrees to Cartesian distance
-        self.thresh = deg2dist(thresh_deg)
-        self.thresh2 = self.thresh**2
+        # The threshold distance; its square; and associated z value
+        self.thresh_s = deg2dist(thresh_deg)
+        self.thresh_s2 = self.thresh_s**2
+        self.thresh_z = 1.0 - self.thresh_s2 / 2.0
         # Tuning factors (get rid of these)
         self.alpha = alpha
         self.beta = beta
         
-    def call(self, z: tf.Tensor, R: tf.Tensor, num_obs: float):
+    def call(self, du: tf.Tensor, h: tf.Tensor, lam: tf.Tensor, R: tf.Tensor, num_obs: float):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
-            z: difference in direction between u_pred and u_obs
-            R: resolution factor in Cartesian distance for score function
+            du: difference in direction between u_pred and u_obs
+            R:  resolution factor in Cartesian distance for score function
             num_obs: total number of observations (real, not padded!)
         """
         # The scaling coefficient for scores; score = exp(-1/2 A epsilon^2)
@@ -344,13 +352,13 @@ class TrajectoryScore(keras.layers.Layer):
         B = tf.reshape(-0.5 * A, (self.batch_size, 1, 1,))
         # print(f'B.shape = {B.shape}')
         
-        # Argument to the exponential
-        z2 = K.sum(tf.square(z), axis=(-1))
-        arg = tf.multiply(B, z2)
+        # Squared distance bewteen predicted and observed directions
+        s2 = K.sum(tf.square(du), axis=(-1))
+        arg = tf.multiply(B, s2)
         # print(f'arg.shape = {arg.shape}')
         
         # Filter to only include terms where z2 is within the threshold distance^2
-        is_close = z2 < self.thresh2
+        is_close = s2 < self.thresh_s2
         close_idx = tf.where(is_close)
         raw_scores = tf.scatter_nd(indices=close_idx, updates=tf.exp(arg[is_close]), shape=arg.shape)
         
@@ -359,7 +367,7 @@ class TrajectoryScore(keras.layers.Layer):
         # print(f'raw_score.shape = {raw_score.shape}')
         
         # The expected score and variance per observation
-        mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh)
+        mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh_s2)
 
         # The expected score
         mu = tf.multiply(num_obs, mu_per_obs, name='mu')
@@ -468,17 +476,17 @@ def make_model_asteroid_search(ts: tf.Tensor,
                                          traj_size=time_batch_size, 
                                          max_obs=max_obs, 
                                          name='z')
-    z = dir_diff_layer(u_obs, u_pred, idx)
+    du = dir_diff_layer(u_obs, u_pred, idx)
 
     # Calculate score compoments
-    score_layer = TrajectoryScore(batch_size=elt_batch_size, alpha=alpha, beta=beta, thresh_deg=thresh_deg)
-    raw_score,  mu, sigma2, objective  = score_layer(z, R, num_obs)
+    score_layer = TrajectoryScore(batch_size=elt_batch_size, thresh_deg=thresh_deg, alpha=alpha, beta=beta)
+    raw_score,  mu, sigma2, objective  = score_layer(du, h, lam, R, num_obs)
     # Stack the scores
     scores = tf.stack(values=[raw_score, mu, sigma2, objective], axis=1, name='scores')
 
     # Wrap inputs and outputs
     inputs = (t, idx, row_len, u_obs)
-    outputs = (elts_tf, R, u_pred, z, scores)
+    outputs = (elts_tf, R, u_pred, du, scores)
 
     # Create model with functional API
     model = keras.Model(inputs=inputs, outputs=outputs)

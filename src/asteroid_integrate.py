@@ -10,9 +10,13 @@ Fri Aug 23 16:13:28 2019
 import numpy as np
 import pandas as pd
 import rebound
+
+# Utility
 from datetime import datetime
 from tqdm import tqdm as tqdm_console
 import argparse
+
+# Types
 from typing import List, Tuple, Dict, Optional
 
 # Local imports
@@ -394,6 +398,82 @@ def calc_ast_pos_all(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array
         'v_earth': v_earth,
         'v_sun': v_sun,
     }
+    return pos_tbl
+
+# ********************************************************************************************************************* 
+def elt_hash(elts: pd.DataFrame, epoch: float, ts: np.ndarray):
+    """
+    Hash of inputs to calc_ast_pos
+    INPUTS:
+        elts: DataFrame with columns 'a', 'e', etc. for 6 orbital elements.  rows arrays of shape (N,)
+        epoch: MJD as of which these orbital elements apply
+        ts: array of MJDs as of which 
+    OUTPUTS:
+        hash_id:    Unique ID for these inputs
+    """
+    # Columns of the Dataframe to hash
+    cols_to_hash = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    # Tuple of int64; one per orbital element candidate
+    hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
+    # Combine the element hash tuple with the epoch and times
+    ts_int = (ts* 2**40).astype(np.int64)
+    hash_ts = hash(tuple(ts_int))
+    hash_id = hash(hash_df + (epoch, hash_ts,))
+
+    return hash_id
+    
+# ********************************************************************************************************************* 
+def load_ast_pos(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array:
+    """
+    Load asteroid positions from the given elements if in the cache, otherwise calculate them
+    INPUTS:
+        elts: DataFrame with columns 'a', 'e', etc. for 6 orbital elements.  rows arrays of shape (N,)
+        epoch: MJD as of which these orbital elements apply
+        ts: array of MJDs as of which 
+    Outputs:
+        q_ast:   positions of asteroids at input times; shape (num_ast, traj_size, 3,)
+        q_earth: position of earth at input times; shape (traj_size, 3,)
+        v_ast:   velocity of asteroids at input times    
+    """
+    # Delegate to load_ast_pos_all
+    pos_tbl = load_ast_pos_all(elts=elts, epoch=epoch, ts=ts)
+    # Grab q_ast, q_earth and v_ast
+    q_ast = pos_tbl['q_ast']
+    q_earth = pos_tbl['q_earth']
+    v_ast = pos_tbl['v_ast']
+
+    return q_ast, q_earth, v_ast
+
+# ********************************************************************************************************************* 
+def load_ast_pos_all(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array:
+    """
+    Load asteroid positions from the given elements if in the cache, otherwise calculate them
+    INPUTS:
+        elts: DataFrame with columns 'a', 'e', etc. for 6 orbital elements.  rows arrays of shape (N,)
+        epoch: MJD as of which these orbital elements apply
+        ts: array of MJDs as of which 
+    Outputs:
+        q_ast:   positions of asteroids at input times; shape (num_ast, traj_size, 3,)
+        q_earth: position of earth at input times; shape (traj_size, 3,)
+        v_ast:   velocity of asteroids at input times
+    """
+    # Get hash of arguments
+    hash_id = elt_hash(elts=elts, epoch=epoch, ts=ts)
+
+    # Name of file
+    file_path = f'../data/elt_sim/elt_sim_{hash_id}.h5'
+    # Keys in this file
+    pos_tbl_keys = ['q_ast', 'q_earth', 'q_sun',
+                    'v_ast', 'v_earth', 'v_sun']
+
+    # Try to load file if available
+    try:
+        pos_tbl = np.load(file_path)
+    # Generate it on the fly if it's not available
+    except FileNotFoundError:
+        pos_tbl = calc_ast_pos_all(elts=elts, epoch=epoch, ts=ts)
+        np.savez(file_path, **pos_tbl)
+    
     return pos_tbl
 
 # ********************************************************************************************************************* 
