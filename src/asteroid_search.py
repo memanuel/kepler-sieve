@@ -22,7 +22,8 @@ import argparse
 # Local imports
 from asteroid_search_model import make_model_asteroid_search
 from ztf_data import load_ztf_easy_batch, make_ztf_batch, report_ztf_score
-from asteroid_data import make_ztf_dataset, orbital_element_batch
+from candidate_element import orbital_element_batch
+from asteroid_data import make_ztf_dataset
 from asteroid_integrate import calc_ast_pos, load_ast_elt
 from asteroid_search_report import report_model, report_training_progress
 from candidate_element import perturb_elts

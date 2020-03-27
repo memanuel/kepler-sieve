@@ -22,6 +22,7 @@ from datetime import timedelta
 from asteroid_model import AsteroidDirection, elts_np2df
 from asteroid_integrate import calc_ast_pos
 from search_score_functions import score_mean, score_var, score_mean_var
+from candidate_element import perturb_elts
 from astro_utils import deg2dist
 from tf_utils import tf_quiet, Identity
 
@@ -49,6 +50,16 @@ a_max_: float = 32.0
 e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
 
+# Range for hit rate h
+h_min_ = 2.0**-12
+h_max_ = 1.0 - h_min_
+
+# Range for exponential decay parameter lambda
+lam_min_ = 2.0**-6
+lam_max_ = 2.0**24
+log_lam_min_ = np.log(lam_min_)
+log_lam_max_ = np.log(lam_max_)
+
 # Range for resolution parameter R
 R_min_ = deg2dist(1.0/3600)
 R_max_ = deg2dist(1.0)
@@ -63,20 +74,30 @@ log_R_max_ = np.log(R_max_)
 class OrbitalElements(keras.layers.Layer):
     """Custom layer to maintain state of candidate orbital elements and resolutions."""
 
-    def __init__(self, elts: pd.DataFrame, batch_size: int, R_deg: float, R_is_trainable: bool = True, **kwargs):
+    def __init__(self, 
+                elts: pd.DataFrame, 
+                batch_size: int, 
+                h: float = 0.5,
+                lam: float = 1.0,
+                thresh_deg: float = 1.0,
+                R_deg: float = 1.0, 
+                R_is_trainable: bool = True, 
+                **kwargs):
         super(OrbitalElements, self).__init__(**kwargs)
         
         # Configuration for serialization
         self.cfg = {
             'elts': elts,
             'batch_size': batch_size,
+            'h': h,
+            'lam': lam,
+            'thresh_deg': thresh_deg,
             'R_deg': R_deg,
             'R_is_trainable': R_is_trainable,
         }
-        # Save batch size, orbital elements as numpy array, and resolution in degrees
+        # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
         self.elts = elts
-        self.R_deg = R_deg
         
         # Control over a_, in range 0.0 to 1.0
         self.a_min = tf.constant(a_min_, dtype=tf.float32)
@@ -103,6 +124,7 @@ class OrbitalElements(keras.layers.Layer):
         # Scale factor for unconstrained angles is 2*pi
         self.two_pi = tf.constant(2*np.pi, dtype=tf.float32)
         
+        # Angle variables Omega, omega and f
         self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, name='Omega_')
         self.omega_ = tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, name='omega_')
         self.f_ = tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, name='f_')
@@ -110,13 +132,29 @@ class OrbitalElements(keras.layers.Layer):
         # The epoch is not trainable
         self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, name='epoch')
         
+        # The threshold in degrees is not trainable
+        self.trhesh_deg = tf.Variable(initial_value=thresh_deg, trainable=False, name='thresh_deg')
+
+        # Control of the hit rate h_, in range h_min to h_max
+        self.h_min = tf.constant(h_min_, dtype=tf.float32)
+        self.h_max = tf.constant(h_max_, dtype=tf.float32)
+        self.h_ = tf.Variable(initial_value=h, trainable=True, 
+                              constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
+
+        # Control of the exponential decay paramater lam_, in range lam_min to lam_max
+        lam_init = lam * np.ones_like(elts['a'])
+        self.lam_min = tf.constant(h_min_, dtype=tf.float32)
+        self.log_lam_range = tf.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
+        self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, 
+                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='h_')
+
         # Control of the resolution factor R_, in range 0.0 to 1.0
         R_init = np.deg2rad(R_deg) * np.ones_like(elts['a'])
-        # log_R_init  = np.log(R_init)
         self.R_min = tf.constant(R_min_, dtype=tf.float32)
         self.log_R_range = tf.constant(log_R_max_ - log_R_min_, dtype=tf.float32)
         self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=R_is_trainable, 
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
+
         
     def get_a(self):
         """Transformed value of a"""
@@ -160,6 +198,18 @@ class OrbitalElements(keras.layers.Layer):
     def get_f(self):
         return self.get_angle(self.f_)
 
+    def get_h(self):
+        """Transformed value of h"""
+        return self.h_
+
+    def get_lam(self):
+        """Transformed value of lambda"""
+        return self.lam_min * tf.exp(self.lam_ * self.log_lam_range)
+
+    def inverse_lam(self, lam):
+        """Inverse transform value of lam"""
+        return tf.math.log(lam / self.lam_min) / self.log_lam_range
+
     def get_R(self):
         """Transformed value of R"""
         return self.R_min * tf.exp(self.R_ * self.log_R_range)
@@ -171,15 +221,19 @@ class OrbitalElements(keras.layers.Layer):
     def call(self, inputs):
         """Return the current orbital elements and resolution"""
         # print(f'type(inputs)={type(inputs)}.')
-        # Transform a, e, and R from log to linear
+        # Transform a, e from log to linear
         a = self.get_a()
         e = self.get_e()
+        # Angles transformed by factor of 2*pi
         inc = self.get_inc()
         Omega = self.get_Omega()
         omega = self.get_omega()
         f = self.get_f()
+        # Transform search parameters h and lambda
+        h = self.get_h()
+        lam = self.get_lam()
         R = self.get_R()
-        return a, e, inc, Omega, omega, f, self.epoch, R
+        return a, e, inc, Omega, omega, f, self.epoch, h, lam, R
 
     def get_config(self):
         return self.cfg
@@ -247,13 +301,14 @@ class DirectionDifference(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, batch_size: int, alpha: float, beta: float, thresh_deg: float, **kwargs):
+    def __init__(self, batch_size: int, thresh_deg: float, 
+                 alpha: float, beta: float, **kwargs):
         """
         INPUTS:
             batch_size: this is element_batch_size, the number of orbital elements per batch
+            thresh_deg: threshold in degrees for observations to be included in the batch.  impacts mu, sigma2
             alpha: multiplicative factor on mu in objective function
             beta: multiplicative factor on sigma2 in objective function
-            thresh_deg: threshold in degrees for observations to be included in the batch.  impacts mu, sigma2
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
@@ -267,17 +322,13 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Save sizes and parameters
         self.batch_size = batch_size
-        self.alpha = alpha
-        self.beta = beta
         # Convert threshold from degrees to Cartesian distance
         self.thresh = deg2dist(thresh_deg)
         self.thresh2 = self.thresh**2
+        # Tuning factors (get rid of these)
+        self.alpha = alpha
+        self.beta = beta
         
-        # Max values of mu and sigma2
-        # A_min = 1.0 / R_max_**2
-        # self.mu_max = score_mean(A_min)
-        # self.sigma2_max = score_var(A_min)
-
     def call(self, z: tf.Tensor, R: tf.Tensor, num_obs: float):
         """
         Score candidate trajectories in current batch based on how well they match observations
@@ -344,6 +395,8 @@ def make_model_asteroid_search(ts: tf.Tensor,
                                site_name: str='geocenter',
                                elt_batch_size: int=64, 
                                time_batch_size: Optional[int]=None,
+                               h: float = 0.5,
+                               lam: float = 1.0,
                                R_deg: float = 5.0,
                                thresh_deg: float = 1.0,
                                R_is_trainable: bool = True,
@@ -370,8 +423,10 @@ def make_model_asteroid_search(ts: tf.Tensor,
 
     # Set of trainable weights with candidate
     elements_layer = OrbitalElements(elts=elts, batch_size=elt_batch_size, 
-                                     R_deg=R_deg, R_is_trainable=R_is_trainable, name='candidates')
-    a, e, inc, Omega, omega, f, epoch, R = elements_layer(idx)
+                                     h=h, lam=lam,
+                                     R_deg=R_deg, R_is_trainable=R_is_trainable, 
+                                     name='candidates')
+    a, e, inc, Omega, omega, f, epoch, h, lam, R = elements_layer(idx)
     
     # Alias the orbital elements; a, e, inc, Omega, omega, and f are trainable; epoch is fixed
     a = Identity(name='a')(a)
@@ -383,6 +438,8 @@ def make_model_asteroid_search(ts: tf.Tensor,
     epoch = Identity(name='epoch')(epoch)
 
     # Alias the resolution output
+    h = Identity(name='h')(h)
+    lam = Identity(name='lam')(lam)
     R = Identity(name='R')(R)
 
     # The orbital elements; stack to shape (elt_batch_size, 7)
@@ -439,37 +496,6 @@ def make_model_asteroid_search(ts: tf.Tensor,
     model.add_loss(-tf.reduce_sum(objective))
 
     return model
-
-# ********************************************************************************************************************* 
-def perturb_elts(elts, sigma_a=0.05, sigma_e=0.10, sigma_f_deg=5.0, mask=None):
-    """Apply perturbations to orbital elements"""
-    # Copy the elements
-    elts_new = elts.copy()
-
-    # Default for mask is all elements
-    if mask is None:
-        mask = np.ones_like(elts['a'], dtype=bool)
-
-    # Number of elements to perturb
-    num_shift = np.sum(mask)
-    
-    # Apply shift log(a)
-    log_a = np.log(elts['a'])
-    log_a[mask] += np.random.normal(scale=sigma_a, size=num_shift)
-    elts_new['a'] = np.exp(log_a)
-    
-    # Apply shift to log(e)
-    log_e = np.log(elts['e'])
-    log_e[mask] += np.random.normal(scale=sigma_e, size=num_shift)
-    elts_new['e'] = np.exp(log_e)
-    
-    # Apply shift directly to true anomaly f
-    f = elts['f']
-    sigma_f = np.deg2rad(sigma_f_deg)
-    f[mask] += np.random.normal(scale=sigma_f, size=num_shift)
-    elts_new['f'] = f
-    
-    return elts_new
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

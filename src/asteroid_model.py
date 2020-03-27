@@ -19,7 +19,7 @@ from astropy.units import au, day, year
 # Local imports
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
 from asteroid_data import make_dataset_ast_pos, make_dataset_ast_dir, get_earth_pos, get_sun_pos_vel
-from asteroid_data import orbital_element_batch
+from candidate_element import orbital_element_batch
 from ra_dec import calc_topos
 from tf_utils import tf_quiet, gpu_grow_memory, Identity
 
