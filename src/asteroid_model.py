@@ -211,12 +211,9 @@ class AsteroidPosition(keras.layers.Layer):
             'batch_size': batch_size,
         }
 
-        # Get the row_lengths from ts
-        row_lengths = ts.row_lengths()
-
-        # Save ts, row_lenghts and batch_size to the layer for re-use
+        # Save ts, row_lengths and batch_size to the layer for re-use
         self.ts = ts
-        self.row_lengths = row_lengths
+        self.row_lengths = ts.row_lengths()
         self.batch_size = batch_size
         
         # Flatten the times
@@ -226,19 +223,19 @@ class AsteroidPosition(keras.layers.Layer):
         q_sun_np, v_sun_np = get_sun_pos_vel(ts_flat, dtype=dtype_np)        
 
         # Convert q_sun and v_sun into ragged tensors; these will be constant
-        self.q_sun = tf.RaggedTensor.from_row_lengths(values=q_sun_np, row_lengths=row_lengths)
-        self.v_sun = tf.RaggedTensor.from_row_lengths(values=q_sun_np, row_lengths=row_lengths)        
+        self.q_sun = tf.RaggedTensor.from_row_lengths(values=q_sun_np, row_lengths=self.row_lengths)
+        self.v_sun = tf.RaggedTensor.from_row_lengths(values=q_sun_np, row_lengths=self.row_lengths)
 
         # The adjustment dq to correct the Kepler approximation to match the numerical integration
-        self.dq = tf.RaggedTensor.from_row_lengths(values=np.zeros_like(q_sun_np), row_lengths=row_lengths)
+        self.dq = tf.RaggedTensor.from_row_lengths(values=np.zeros_like(q_sun_np), row_lengths=self.row_lengths)
 
         # The adjustment vq to correct the Kepler approximation to match the numerical integration
-        self.dv = tf.RaggedTensor.from_row_lengths(values=np.zeros_like(v_sun_np), row_lengths=row_lengths)
+        self.dv = tf.RaggedTensor.from_row_lengths(values=np.zeros_like(v_sun_np), row_lengths=self.row_lengths)
 
     def update_dq_dv(self, dq, dv):
         """Update the value of dq and dv"""
-        self.dq.assign(dq)
-        self.dv.assign(dv)
+        self.dq = dq
+        self.dv = dv
 
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by setting dq to recover q_ast"""
@@ -250,6 +247,10 @@ class AsteroidPosition(keras.layers.Layer):
         omega = elts['omega']
         f = elts['f']
         epoch = elts['epoch']
+
+        # Convert q_ast and v_ast into ragged tensors
+        q_ast = tf.RaggedTensor.from_row_lengths(values=q_ast, row_lengths=self.row_lengths)
+        v_ast = tf.RaggedTensor.from_row_lengths(values=v_ast, row_lengths=self.row_lengths)
 
         # Zero out calibration and predict with these elements
         self.update_dq_dv(self.dq*0.0, self.dv*0.0)
