@@ -246,112 +246,36 @@ class OrbitalElements(keras.layers.Layer):
         return self.cfg
 
 # ********************************************************************************************************************* 
-class DirectionDifference(keras.layers.Layer):
-    """Compute the difference in direction between observed and predicted directions"""
-    def __init__(self, batch_size: int, traj_size: int, max_obs: int, **kwargs):
-        super(DirectionDifference, self).__init__(**kwargs)
-
-        # Configuration for serialization
-        self.cfg = {
-            'batch_size': batch_size,
-            'traj_size': traj_size,
-            'max_obs': max_obs,
-        }
-
-        # Save sizes
-        self.batch_size = batch_size
-        self.traj_size = traj_size
-        self.max_obs = max_obs
-    
-    def call(self, u_obs, u_pred, idx):
-        """
-        INPUTS:
-            u_obs: observed directions, PADDED to a regular tensor; shape (traj_size, max_obs, 3,)
-            u_pred: predicted directions; shape (batch_size, traj_size, 3,)
-        """
-        # Get sizes
-        batch_size = self.batch_size
-        traj_size = self.traj_size
-        max_obs = self.max_obs
-
-        # Slice of the full trajectory
-        i0 = idx[0]
-        i1 = idx[-1] + 1
-        u_pred_slice = u_pred[:,i0:i1]
-        # Manually set the shapes to work around documented bug on slices losing shape info
-        u_slice_shape = (batch_size, traj_size, 3)
-        u_pred_slice.set_shape(u_slice_shape)
-
-        # Debug
-        # print(f'u_obs.shape = {u_obs.shape}')
-        # print(f'u_pred.shape = {u_pred.shape}')
-        # print(f'u_pred_slice.shape = {u_pred_slice.shape}')
-        # print(f'batch_size={batch_size}, traj_size={traj_size}, max_obs={max_obs}.')
-        # print(f'i0={i0}, i1={i1}.')
-
-        # The observations; broadcast to shape (1, traj_size, max_obs, 3)
-        y = tf.broadcast_to(u_obs, (1, traj_size, max_obs, space_dims))
-        # print(f'y.shape = {y.shape}')
-        # The predicted directions; reshape to (batch_size, traj_size, 1, 3)
-        x = tf.reshape(u_pred_slice, (batch_size, traj_size, 1, space_dims))
-        # print(f'x.shape = {x.shape}')
-        
-        # The difference in directions; size (batch_size, traj_size, max_obs, 3)
-        du = tf.subtract(y, x, name='du')
-        # print(f'du.shape = {du.shape}')
-
-        return du
-    
-    def get_config(self):
-        return self.cfg
-
-# ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, batch_size: int, thresh_deg: float, 
-                 alpha: float, beta: float, **kwargs):
+    def __init__(self, thresh_deg: float, **kwargs):
         """
         INPUTS:
-            batch_size: this is element_batch_size, the number of orbital elements per batch
-            thresh_deg: threshold in degrees for observations to be included in batches.  impacts mu, sigma2
-            alpha: multiplicative factor on mu in objective function
-            beta: multiplicative factor on sigma2 in objective function
+            thresh_deg: threshold in degrees for observations to be included in original data
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
         # Configuration for seralization
         self.cfg = {
-            'batch_size': batch_size,
-            'alpha': alpha,
-            'beta': beta,
             'thresh_deg': thresh_deg
         }
 
-        # Save sizes and parameters
-        self.batch_size = batch_size
         # The threshold distance; its square; and associated z value
         self.thresh_s = deg2dist(thresh_deg)
         self.thresh_s2 = self.thresh_s**2
         self.thresh_z = 1.0 - self.thresh_s2 / 2.0
-        # Tuning factors (get rid of these)
-        self.alpha = alpha
-        self.beta = beta
         
-    def call(self, du: tf.Tensor, h: tf.Tensor, lam: tf.Tensor, R: tf.Tensor, num_obs: float):
+    def call(self, u_pred: tf.Tensor, u_obs: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
-            du: difference in direction between u_pred and u_obs
-            R:  resolution factor in Cartesian distance for score function
-            num_obs: total number of observations (real, not padded!)
+            u_pred: predicted directions with current batch of elements
+            u_obs:  observed directions with current batch of elements
+            h:      fraction of hits in mixture model
+            lam:    exponential decay parameter in mixture model
         """
-        # The scaling coefficient for scores; score = exp(-1/2 A epsilon^2)
-        A = 1.0 / R**2
-        
-        # The coefficient that multiplies epsilon^2
-        B = tf.reshape(-0.5 * A, (self.batch_size, 1, 1,))
-        # print(f'B.shape = {B.shape}')
-        
+        # Difference between actual and predicted directions
+        du = keras.layers.subtract(inputs=[u_pred, u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
         s2 = K.sum(tf.square(du), axis=(-1))
         arg = tf.multiply(B, s2)
@@ -390,6 +314,152 @@ class TrajectoryScore(keras.layers.Layer):
 
     def get_config(self):
         return self.cfg
+
+# # ********************************************************************************************************************* 
+# class DirectionDifference(keras.layers.Layer):
+#     """Compute the difference in direction between observed and predicted directions"""
+#     def __init__(self, batch_size: int, traj_size: int, max_obs: int, **kwargs):
+#         super(DirectionDifference, self).__init__(**kwargs)
+
+#         # Configuration for serialization
+#         self.cfg = {
+#             'batch_size': batch_size,
+#             'traj_size': traj_size,
+#             'max_obs': max_obs,
+#         }
+
+#         # Save sizes
+#         self.batch_size = batch_size
+#         self.traj_size = traj_size
+#         self.max_obs = max_obs
+    
+#     def call(self, u_obs, u_pred, idx):
+#         """
+#         INPUTS:
+#             u_obs: observed directions, PADDED to a regular tensor; shape (traj_size, max_obs, 3,)
+#             u_pred: predicted directions; shape (batch_size, traj_size, 3,)
+#         """
+#         # Get sizes
+#         batch_size = self.batch_size
+#         traj_size = self.traj_size
+#         max_obs = self.max_obs
+
+#         # Slice of the full trajectory
+#         i0 = idx[0]
+#         i1 = idx[-1] + 1
+#         u_pred_slice = u_pred[:,i0:i1]
+#         # Manually set the shapes to work around documented bug on slices losing shape info
+#         u_slice_shape = (batch_size, traj_size, 3)
+#         u_pred_slice.set_shape(u_slice_shape)
+
+#         # Debug
+#         # print(f'u_obs.shape = {u_obs.shape}')
+#         # print(f'u_pred.shape = {u_pred.shape}')
+#         # print(f'u_pred_slice.shape = {u_pred_slice.shape}')
+#         # print(f'batch_size={batch_size}, traj_size={traj_size}, max_obs={max_obs}.')
+#         # print(f'i0={i0}, i1={i1}.')
+
+#         # The observations; broadcast to shape (1, traj_size, max_obs, 3)
+#         y = tf.broadcast_to(u_obs, (1, traj_size, max_obs, space_dims))
+#         # print(f'y.shape = {y.shape}')
+#         # The predicted directions; reshape to (batch_size, traj_size, 1, 3)
+#         x = tf.reshape(u_pred_slice, (batch_size, traj_size, 1, space_dims))
+#         # print(f'x.shape = {x.shape}')
+        
+#         # The difference in directions; size (batch_size, traj_size, max_obs, 3)
+#         du = tf.subtract(y, x, name='du')
+#         # print(f'du.shape = {du.shape}')
+
+#         return du
+    
+#     def get_config(self):
+#         return self.cfg
+
+# # ********************************************************************************************************************* 
+# class TrajectoryScore(keras.layers.Layer):
+#     """Score candidate trajectories"""
+#     def __init__(self, batch_size: int, thresh_deg: float, 
+#                  alpha: float, beta: float, **kwargs):
+#         """
+#         INPUTS:
+#             batch_size: this is element_batch_size, the number of orbital elements per batch
+#             thresh_deg: threshold in degrees for observations to be included in batches.  impacts mu, sigma2
+#             alpha: multiplicative factor on mu in objective function
+#             beta: multiplicative factor on sigma2 in objective function
+#         """
+#         super(TrajectoryScore, self).__init__(**kwargs)
+
+#         # Configuration for seralization
+#         self.cfg = {
+#             'batch_size': batch_size,
+#             'alpha': alpha,
+#             'beta': beta,
+#             'thresh_deg': thresh_deg
+#         }
+
+#         # Save sizes and parameters
+#         self.batch_size = batch_size
+#         # The threshold distance; its square; and associated z value
+#         self.thresh_s = deg2dist(thresh_deg)
+#         self.thresh_s2 = self.thresh_s**2
+#         self.thresh_z = 1.0 - self.thresh_s2 / 2.0
+#         # Tuning factors (get rid of these)
+#         self.alpha = alpha
+#         self.beta = beta
+        
+#     def call(self, du: tf.Tensor, h: tf.Tensor, lam: tf.Tensor, R: tf.Tensor, num_obs: float):
+#         """
+#         Score candidate trajectories in current batch based on how well they match observations
+#         INPUTS:
+#             du: difference in direction between u_pred and u_obs
+#             R:  resolution factor in Cartesian distance for score function
+#             num_obs: total number of observations (real, not padded!)
+#         """
+#         # The scaling coefficient for scores; score = exp(-1/2 A epsilon^2)
+#         A = 1.0 / R**2
+        
+#         # The coefficient that multiplies epsilon^2
+#         B = tf.reshape(-0.5 * A, (self.batch_size, 1, 1,))
+#         # print(f'B.shape = {B.shape}')
+        
+#         # Squared distance bewteen predicted and observed directions
+#         s2 = K.sum(tf.square(du), axis=(-1))
+#         arg = tf.multiply(B, s2)
+#         # print(f'arg.shape = {arg.shape}')
+        
+#         # Filter to only include terms where z2 is within the threshold distance^2
+#         is_close = s2 < self.thresh_s2
+#         close_idx = tf.where(is_close)
+#         raw_scores = tf.scatter_nd(indices=close_idx, updates=tf.exp(arg[is_close]), shape=arg.shape)
+        
+#         # The score function
+#         raw_score = K.sum(raw_scores, axis=(1,2))
+#         # print(f'raw_score.shape = {raw_score.shape}')
+        
+#         # The expected score and variance per observation
+#         mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh_s2)
+
+#         # The expected score
+#         mu = tf.multiply(num_obs, mu_per_obs, name='mu')
+        
+#         # The expected variance
+#         # Note; variance adds up over batches, not std dev.  
+#         # However, if the batch size is all of the observations, then std dev can be meaninfully averaged
+#         sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
+#         sigma = tf.sqrt(sigma2)
+
+#         # The t-statistic
+#         # t_stat = (raw_score - mu) / sigma
+
+#         # Assemble the objective function to be maximized
+#         # objective = raw_score - self.alpha * mu - self.beta * sigma2
+#         objective = (raw_score - self.alpha * mu - self.beta + sigma)
+       
+#         # Return all the interesting outputs
+#         return raw_score, mu, sigma2, objective
+
+#     def get_config(self):
+#         return self.cfg
 
 # ********************************************************************************************************************* 
 # Functional API model
