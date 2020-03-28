@@ -54,7 +54,6 @@ space_dims = 3
 
 # Data type
 dtype = tf.float32
-dtype_np = np.float32
 
 # ********************************************************************************************************************* 
 # Different types for orbital elements
@@ -365,7 +364,7 @@ class AsteroidDirection(keras.layers.Layer):
         # Take a one time snapshot of the topos adjustment; displacement from geocenter to selected observatory
         dq_topos_ap = calc_topos(obstime_mjd=ts, site_name=site_name)
         # Convert dq_topos to a numpy array with units of au
-        dq_topos_np = dq_topos_ap.to(au).value.astype(dtype_np)
+        dq_topos_np = dq_topos_ap.to(au).value
         # Convert dq_topos to a keras constant
         # self.dq_topos = keras.backend.constant(value=dq_topos_np, dtype=dtype, shape=traj_shape, name='dq_topos')
 

@@ -39,6 +39,9 @@ space_dims = 3
 # Speed of light; express this in AU / day
 light_speed_au_day = astropy.constants.c.to(au / day).value
 
+# Data type
+dtype = tf.float32
+
 # ********************************************************************************************************************* 
 def make_ragged_tensors(t_np: np.array, u_np: np.array, element_id_np: np.array, batch_size: int):
     """

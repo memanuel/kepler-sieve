@@ -40,6 +40,9 @@ tf_quiet()
 # Constants
 space_dims = 3
 
+# Data type
+dtype = tf.float32
+
 # ********************************************************************************************************************* 
 # Transformations of orbital elements for search
 # Range for a
@@ -51,11 +54,11 @@ e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
 
 # Range for hit rate h
-h_min_ = 2.0**-12
+h_min_ = 2.0**-8
 h_max_ = 1.0 - h_min_
 
 # Range for exponential decay parameter lambda
-lam_min_ = 2.0**-6
+lam_min_ = 1.0
 lam_max_ = 2.0**24
 log_lam_min_ = np.log(lam_min_)
 log_lam_max_ = np.log(lam_max_)
@@ -248,69 +251,87 @@ class OrbitalElements(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, thresh_deg: float, **kwargs):
+    def __init__(self, u_obs: tf.Tensor, row_lengths: tf.Tensor, thresh_deg: float, **kwargs):
         """
         INPUTS:
-            thresh_deg: threshold in degrees for observations to be included in original data
+            u_obs:  observed directions
+            row_lengths: Number of observations for each element; shape [elt_batch_size]
+            thresh_deg: threshold in degrees for observations to be included
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
         # Configuration for seralization
         self.cfg = {
+            'u_obs': u_obs,
+            'row_lengths': row_lengths,
             'thresh_deg': thresh_deg
         }
 
-        # The threshold distance; its square; and associated z value
-        self.thresh_s = deg2dist(thresh_deg)
-        self.thresh_s2 = self.thresh_s**2
-        self.thresh_z = 1.0 - self.thresh_s2 / 2.0
+        # Sizes of the data as keras constants
+        self.elt_batch_size = keras.backend.constant(value=row_lengths.shape[0], dtype=tf.int32)
+        self.data_size = keras.backend.constant(value=tf.reduce_sum(row_lengths), dtype=tf.int32)
+        self.row_lengths = keras.backend.constant(value=row_lengths, shape=row_lengths.shape, dtype=tf.int32)
+        u_shape = (self.data_size, space_dims,)        
+
+        # Save the observed directions as a keras
+        self.u_obs = keras.backend.constant(value=u_obs, shape=u_shape, dtype=dtype)
+
+        # The threshold distance and its square
+        self.thresh_s = keras.backend.constant(value=deg2dist(thresh_deg), dtype=dtype, name='thresh_s')
+        self.thresh_s2 = keras.backend.constant(value=self.thresh_s**2, dtype=dtype, name='thresh_s2')
         
-    def call(self, u_pred: tf.Tensor, u_obs: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
+    def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
             u_pred: predicted directions with current batch of elements
-            u_obs:  observed directions with current batch of elements
             h:      fraction of hits in mixture model
             lam:    exponential decay parameter in mixture model
         """
         # Difference between actual and predicted directions
-        du = keras.layers.subtract(inputs=[u_pred, u_obs], name='du')
+        du = keras.layers.subtract(inputs=[u_pred, self.u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
-        s2 = K.sum(tf.square(du), axis=(-1))
-        arg = tf.multiply(B, s2)
-        # print(f'arg.shape = {arg.shape}')
+        # s2 = K.sum(tf.square(du), axis=(-1))
+        s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
         
         # Filter to only include terms where z2 is within the threshold distance^2
         is_close = s2 < self.thresh_s2
-        close_idx = tf.where(is_close)
-        raw_scores = tf.scatter_nd(indices=close_idx, updates=tf.exp(arg[is_close]), shape=arg.shape)
         
-        # The score function
-        raw_score = K.sum(raw_scores, axis=(1,2))
-        # print(f'raw_score.shape = {raw_score.shape}')
-        
-        # The expected score and variance per observation
-        mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh_s2)
+        # Relative distance v on data inside threshold
+        v = tf.divide(s2[is_close], self.thresh_s2, name='v')
 
-        # The expected score
-        mu = tf.multiply(num_obs, mu_per_obs, name='mu')
-        
-        # The expected variance
-        # Note; variance adds up over batches, not std dev.  
-        # However, if the batch size is all of the observations, then std dev can be meaninfully averaged
-        sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
-        sigma = tf.sqrt(sigma2)
+        # Row_lengths, for close observations only
+        is_close_r = tf.RaggedTensor.from_row_lengths(is_close, row_lengths=self.row_lengths, name='is_close_r')
+        row_lengths_close = tf.reduce_sum(tf.cast(is_close_r, tf.int32), axis=1, name='row_lengths_close')
 
-        # The t-statistic
-        # t_stat = (raw_score - mu) / sigma
+        # Shape of parameters
+        close_size = tf.reduce_sum(row_lengths_close)
+        param_shape = (close_size,)
 
-        # Assemble the objective function to be maximized
-        # objective = raw_score - self.alpha * mu - self.beta * sigma2
-        objective = (raw_score - self.alpha * mu - self.beta + sigma)
-       
-        # Return all the interesting outputs
-        return raw_score, mu, sigma2, objective
+        # Upsample h and lambda
+        h_vec = tf.reshape(tensor=tf.repeat(h, row_lengths_close), shape=param_shape, name='h_vec')
+        lam_vec = tf.reshape(tensor=tf.repeat(h, row_lengths_close), shape=param_shape, name='lam_vec')
+
+        # Probability according to mixture model
+        # p = h_vec * tf.exp(-lam_vec * v) + (1.0 - h_vec)
+        p_hit_cond = tf.exp(-lam_vec * v, name='p_hit_cond') 
+        p_hit = tf.multiply(h_vec, p_hit_cond, name='p_hit')
+        p_miss = tf.subtract(1.0, h_vec, name='p_miss')
+        p = tf.add(p_hit, p_miss, name='p')
+        log_p_flat = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
+
+        # The objective function is the NEGATIVE of the log likelihood
+        # (Take negative b/c TensorFlow minimizes the objective)
+        score = -tf.reduce_sum(log_p_flat, name='score')
+
+        # Rearrange to ragged tensors
+        log_p = tf.RaggedTensor.from_row_lengths(log_p_flat, row_lengths=row_lengths_close, name='log_p')
+
+        # Log likelihood by element
+        log_like = tf.reduce_sum(log_p, axis=1)
+
+        # Return the score log likelihood by element
+        return score, log_like
 
     def get_config(self):
         return self.cfg
