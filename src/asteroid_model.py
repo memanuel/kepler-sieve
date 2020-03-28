@@ -199,8 +199,8 @@ class AsteroidPosition(keras.layers.Layer):
     def __init__(self, ts, batch_size: int, **kwargs):
         """
         INPUTS:
-            ts: Fixed tensor of time snapshots at which to simulate the position; 
-                ragged tensor of shape [elt_batch_size, (traj_size),]; each element has a different number of time snaps
+            ts: Ragged tensor of time snapshots at which to simulate the position.
+                Shape [elt_batch_size, (traj_size),]; each element has a different number of time snaps
             batch_size: the number of elements to simulate at a time, e.g. 64; not to be confused with traj_size!
         """
         super(AsteroidPosition, self).__init__(**kwargs)
@@ -343,7 +343,8 @@ class AsteroidDirection(keras.layers.Layer):
     def __init__(self, ts, site_name: str, batch_size: int, **kwargs):
         """
         INPUTS:
-            ts: fixed tensor of time snapshots at which to simulate the position
+            ts: Ragged tensor of time snapshots at which to simulate the position.
+                Shape [elt_batch_size, (traj_size),]; each element has a different number of time snaps
             site_name: name of the observatory site, used for topos adjustment, e.g. 'geocenter' or 'palomar'
             batch_size: the number of elements to simulate at a time, e.g. 64; not to be confused with traj_size!
         """
@@ -355,26 +356,31 @@ class AsteroidDirection(keras.layers.Layer):
             'site_name': site_name,
             'batch_size': batch_size,
         }
-        # Save the times
+        # Save ts and row_lengths to the layer for re-use
         self.ts = ts
-        
+        self.row_lengths = ts.row_lengths()
+
         # Build layer to compute positions
         self.q_layer = AsteroidPosition(ts=ts, batch_size=batch_size, name='q_ast')
         
+        # Flatten the times
+        ts_flat = ts.values
+
         # Take a one time snapshot of the earth's position at these times in barycentric coordinates
-        q_earth_np = get_earth_pos(ts)
-        traj_size = ts.shape[0]
-        q_earth_np = q_earth_np.reshape(1, traj_size, space_dims)
-        # self.q_earth = keras.backend.constant(q_earth_np, dtype=tf.float32, shape=q_earth_np.shape, name='q_earth')
+        q_earth_np = get_earth_pos(ts_flat, dtype=dtype_np)
+        
+        # Convert q_earth to a ragged tensor
+        self.q_earth = tf.RaggedTensor.from_row_lengths(values=q_earth_np, row_lengths=self.row_lengths)
 
         # Take a one time snapshot of the topos adjustment; displacement from geocenter to selected observatory
-        dq_topos_ap = calc_topos(obstime_mjd=ts, site_name=site_name)
+        dq_topos_ap = calc_topos(obstime_mjd=ts_flat, site_name=site_name)
         # Convert dq_topos to a numpy array with units of au
-        dq_topos_np = dq_topos_ap.to(au).value
+        dq_topos_np = dq_topos_ap.to(au).value.astype(dtype_np)
+        # Convert dq_topos to a ragged tensor
+        self.dq_topos = tf.RaggedTensor.from_row_lengths(values=dq_topos_np, row_lengths=self.row_lengths)
 
         # Position of the observatory in barycentric frame as a Keras constant
-        q_obs_np = q_earth_np + dq_topos_np
-        self.q_obs = keras.backend.constant(q_obs_np, dtype=dtype, shape=q_obs_np.shape, name='q_obs')
+        self.q_obs = self.q_earth + self.dq_topos
 
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by calibrating the underlying position layer"""
@@ -388,15 +394,18 @@ class AsteroidDirection(keras.layers.Layer):
         # Relative displacement from observatory to asteroid; instantaneous, before light time adjustment
         q_rel_inst = tf.subtract(q_ast, self.q_obs, name='q_rel_inst')
         # Distance between earth and asteroid, before light time adjustment
-        r_inst = tf.norm(q_rel_inst, axis=-1, keepdims=True, name='r_earth_inst')
+        r_inst_flat = tf.norm(q_rel_inst.values, axis=-1, keepdims=True, name='r_earth_inst')
 
         # Light time in days from asteroid to earth in days (time units is days)
-        light_time = tf.divide(r_inst, light_speed_au_day)
+        light_time_flat = tf.divide(r_inst_flat, light_speed_au_day)
+        light_time = tf.RaggedTensor.from_row_lengths(values=light_time_flat, row_lengths=self.row_lengths)
+        
         # Adjusted relative position, accounting for light time; simulation velocity units are AU /day
         dq_lt = tf.multiply(v_ast, light_time)
         q_rel = tf.subtract(q_rel_inst, dq_lt)
         # Adjusted distance to earth, accounting for light time
-        r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
+        r_flat = tf.norm(q_rel.values, axis=-1, keepdims=True, name='r')
+        r = tf.RaggedTensor.from_row_lengths(values=r_flat, row_lengths=self.row_lengths)
         # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)    
         u = tf.divide(q_rel, r)
 
@@ -418,7 +427,8 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
     Inputs for the model are 6 orbital elements, the epoch, and the desired times for position outputs.
     Outputs of the model are the position of the asteroid relative to the sun.
     INPUTS;
-        ts: times to evaluate asteroid position in heliocentric coordinates
+        ts: Ragged tensor of time snapshots at which to simulate the position.
+            Shape [elt_batch_size, (traj_size),]; each element has a different number of time snaps
         batch_size: defaults to None for variable batch size
     """
     # Inputs: 6 orbital elements; epoch;
@@ -434,11 +444,12 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
     inputs = (a, e, inc, Omega, omega, f, epoch)
     
     # Output times are a constant
-    ts = keras.backend.constant(ts, name='ts')
+    # ts = keras.backend.constant(ts, name='ts')
 
     # Call asteroid position layer
     ast_pos_layer = AsteroidPosition(ts, batch_size, name='ast_pos_layer')
     q, v = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
+
     # Alias outputs
     q = Identity(name='q')(q)
     v = Identity(name='v')(v)
@@ -481,7 +492,7 @@ def make_model_ast_dir(ts: tf.Tensor, site_name: str, batch_size:int =64) -> ker
     inputs = (a, e, inc, Omega, omega, f, epoch)
     
     # Output times are a constant
-    ts = keras.backend.constant(ts, name='ts')
+    # ts = keras.backend.constant(ts, name='ts')
 
     # All the work done in a single layer
     ast_dir_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=batch_size, name='ast_dir_layer')

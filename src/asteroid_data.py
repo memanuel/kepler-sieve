@@ -209,14 +209,15 @@ earth_interp_helio = scipy.interpolate.interp1d(x=ts, y=q_earth_helio, kind='cub
 earth_interp_bary = earth_interp
 
 # ********************************************************************************************************************* 
-def get_earth_pos(ts: np.ndarray) -> np.array:
+def get_earth_pos(ts: np.ndarray, dtype = np.float64) -> np.array:
     """
     Get position of earth consistent with asteroid data at the specified times (MJDs) in barycentric frame
     INPUTS:
         ts: Array of times expressed as MJDs
+        dtype: Desired datatype, e.g. np.float64 or np.float32
     """
     # Compute interpolated position at desired times
-    q_earth = earth_interp(ts)
+    q_earth = earth_interp(ts).astype(dtype)
 
     return q_earth
 
@@ -255,7 +256,7 @@ def get_sun_pos_vel(ts: np.ndarray, dtype = np.float64) -> np.array:
     Get barycentric position and velocity of sun consistent with asteroid data at the specified times (MJDs)
     INPUTS:
         ts:    Array of times expressed as MJDs
-        dtype: Desired datatype
+        dtype: Desired datatype, e.g. np.float64 or np.float32
     """
     # Compute interpolated position at desired times
     q_sun = sun_interp(ts).astype(dtype)
