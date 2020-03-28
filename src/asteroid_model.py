@@ -213,7 +213,7 @@ class AsteroidPosition(keras.layers.Layer):
         }
 
         # Save ts, row_lengths and elt_batch_size to the layer for re-use
-        self.ts = keras.backend.constant(ts, shape=ts.shape, dtype=dtype)
+        self.ts = keras.backend.constant(value=ts, shape=ts.shape, dtype=dtype)
         self.row_lengths = keras.backend.constant(value=row_lengths, shape=row_lengths.shape, dtype=tf.int32)
         self.elt_batch_size = keras.backend.constant(value=row_lengths.shape[0], dtype=tf.int32)
 
@@ -270,11 +270,9 @@ class AsteroidPosition(keras.layers.Layer):
         row_lengths = self.row_lengths
 
         # Times, elements all have shape (data_size, 1,)
-        # target_shape = (1,)
         elt_shape = (self.data_size, 1,)
 
         # Time relative to epoch; call this t
-        # epoch_t  = keras.layers.Reshape(target_shape, name='epoch_t')(tf.repeat(epoch, row_lengths))
         epoch_t = tf.reshape(tf.repeat(epoch, row_lengths), elt_shape)
         t = keras.layers.subtract([self.ts, epoch_t], name='t')
 
@@ -289,12 +287,7 @@ class AsteroidPosition(keras.layers.Layer):
         # ******************************************************************
         # Predict orbital elements over time
 
-        # Repeat the constant orbital elements to be vectors of shape (batch_size, traj_size, 1)
-        # a_t  = keras.layers.Reshape(target_shape, name='a_t')(tf.repeat(a, row_lengths))
-        # e_t  = keras.layers.Reshape(target_shape, name='e_t')(tf.repeat(e, row_lengths))
-        # inc_t  = keras.layers.Reshape(target_shape, name='inc_t')(tf.repeat(inc, row_lengths))
-        # Omega_t  = keras.layers.Reshape(target_shape, name='Omega_t')(tf.repeat(Omega, row_lengths))
-        # omega_t  = keras.layers.Reshape(target_shape, name='omega_t')(tf.repeat(omega, row_lengths))
+        # Repeat the constant orbital elements to be vectors of shape elt_shape = (data_size, 1)
         a_t = tf.reshape(tensor=tf.repeat(a, row_lengths), shape=elt_shape, name='a_t')
         e_t = tf.reshape(tensor=tf.repeat(e, row_lengths), shape=elt_shape, name='e_t')
         inc_t = tf.reshape(tensor=tf.repeat(inc, row_lengths), shape=elt_shape, name='inc_t')
@@ -302,8 +295,6 @@ class AsteroidPosition(keras.layers.Layer):
         omega_t = tf.reshape(tensor=tf.repeat(omega, row_lengths), shape=elt_shape, name='omega_t')
         
         # Repeat initial mean anomaly M0 and mean motion N0 to match shape of outputs
-        # M0_t  = keras.layers.Reshape(target_shape, name='M0_t')(tf.repeat(M, row_lengths))
-        # N0_t  = keras.layers.Reshape(target_shape, name='N0_t')(tf.repeat(N, row_lengths))
         M0_t = tf.reshape(tensor=tf.repeat(M, row_lengths), shape=elt_shape, name='M0_t')
         N0_t = tf.reshape(tensor=tf.repeat(N, row_lengths), shape=elt_shape, name='N0_t')
         # Compute the mean anomaly M(t) as a function of time
@@ -334,47 +325,53 @@ class AsteroidDirection(keras.layers.Layer):
     """
     Layer to compute the direction from earth to asteroid.
     """
-    def __init__(self, ts, site_name: str, batch_size: int, **kwargs):
+    def __init__(self, ts, row_lengths, site_name: str, **kwargs):
         """
         INPUTS:
             ts: Ragged tensor of time snapshots at which to simulate the position.
                 Shape [elt_batch_size, (traj_size),]; each element has a different number of time snaps
-            site_name: name of the observatory site, used for topos adjustment, e.g. 'geocenter' or 'palomar'
-            batch_size: the number of elements to simulate at a time, e.g. 64; not to be confused with traj_size!
+            row_lengths: Number of observations for each element; shape [elt_batch_size]
+            site_name: name of the observatory site, used for topos adjustment, e.g. 'geocenter' or 'palomar'            
         """
         super(AsteroidDirection, self).__init__(**kwargs)
 
         # Configuration for serialization
         self.cfg = {
             'ts': ts,
+            'row_lengths': row_lengths,
             'site_name': site_name,
-            'batch_size': batch_size,
         }
-        # Save ts and row_lengths to the layer for re-use
-        self.ts = ts
-        self.row_lengths = ts.row_lengths()
+
+        # Save ts, row_lengths and elt_batch_size to the layer for re-use
+        self.ts = keras.backend.constant(value=ts, shape=ts.shape, dtype=dtype)
+        self.row_lengths = keras.backend.constant(value=row_lengths, shape=row_lengths.shape, dtype=tf.int32)
+        self.elt_batch_size = keras.backend.constant(value=row_lengths.shape[0], dtype=tf.int32)
+
+        # Save the data size
+        self.data_size = keras.backend.constant(value=tf.reduce_sum(row_lengths), dtype=tf.int32)
+
+        # Shape of trajectories is flat: (data_size, 3,)
+        traj_shape = (self.data_size, space_dims)
 
         # Build layer to compute positions
-        self.q_layer = AsteroidPosition(ts=ts, batch_size=batch_size, name='q_ast')
+        self.q_layer = AsteroidPosition(ts=ts, row_lengths=row_lengths, name='q_ast')
         
-        # Flatten the times
-        ts_flat = ts.values
-
         # Take a one time snapshot of the earth's position at these times in barycentric coordinates
-        q_earth_np = get_earth_pos(ts_flat, dtype=dtype_np)
-        
-        # Convert q_earth to a ragged tensor
-        self.q_earth = tf.RaggedTensor.from_row_lengths(values=q_earth_np, row_lengths=self.row_lengths)
+        q_earth_np = get_earth_pos(ts)
 
+        # Convert q_earth into a keras constant
+        # self.q_earth = keras.backend.constant(q_earth_np, dtype=dtype, shape=traj_shape, name='q_earth')
+        
         # Take a one time snapshot of the topos adjustment; displacement from geocenter to selected observatory
-        dq_topos_ap = calc_topos(obstime_mjd=ts_flat, site_name=site_name)
+        dq_topos_ap = calc_topos(obstime_mjd=ts, site_name=site_name)
         # Convert dq_topos to a numpy array with units of au
         dq_topos_np = dq_topos_ap.to(au).value.astype(dtype_np)
-        # Convert dq_topos to a ragged tensor
-        self.dq_topos = tf.RaggedTensor.from_row_lengths(values=dq_topos_np, row_lengths=self.row_lengths)
+        # Convert dq_topos to a keras constant
+        # self.dq_topos = keras.backend.constant(value=dq_topos_np, dtype=dtype, shape=traj_shape, name='dq_topos')
 
         # Position of the observatory in barycentric frame as a Keras constant
-        self.q_obs = self.q_earth + self.dq_topos
+        q_obs_np = q_earth_np + dq_topos_np
+        self.q_obs = keras.backend.constant(value=q_obs_np, dtype=dtype, shape=traj_shape, name='q_obs')
 
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by calibrating the underlying position layer"""
@@ -386,22 +383,29 @@ class AsteroidDirection(keras.layers.Layer):
         q_ast, v_ast = self.q_layer(a, e, inc, Omega, omega, f, epoch)
 
         # Relative displacement from observatory to asteroid; instantaneous, before light time adjustment
-        q_rel_inst = tf.subtract(q_ast, self.q_obs, name='q_rel_inst')
+        # q_rel_inst = tf.subtract(q_ast, self.q_obs, name='q_rel_inst')
+        q_rel_inst = keras.layers.subtract(inputs=[q_ast, self.q_obs], name='q_rel_inst')
+
         # Distance between earth and asteroid, before light time adjustment
-        r_inst_flat = tf.norm(q_rel_inst.values, axis=-1, keepdims=True, name='r_earth_inst')
+        r_inst = tf.norm(q_rel_inst, axis=-1, keepdims=True, name='r_earth_inst')
 
         # Light time in days from asteroid to earth in days (time units is days)
-        light_time_flat = tf.divide(r_inst_flat, light_speed_au_day)
-        light_time = tf.RaggedTensor.from_row_lengths(values=light_time_flat, row_lengths=self.row_lengths)
+        # light_time_flat = tf.divide(r_inst_flat, light_speed_au_day)
+        # light_time = tf.RaggedTensor.from_row_lengths(values=light_time_flat, row_lengths=self.row_lengths)
+        light_time = tf.divide(r_inst, light_speed_au_day)
         
         # Adjusted relative position, accounting for light time; simulation velocity units are AU /day
         dq_lt = tf.multiply(v_ast, light_time)
         q_rel = tf.subtract(q_rel_inst, dq_lt)
         # Adjusted distance to earth, accounting for light time
-        r_flat = tf.norm(q_rel.values, axis=-1, keepdims=True, name='r')
-        r = tf.RaggedTensor.from_row_lengths(values=r_flat, row_lengths=self.row_lengths)
+        r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
+
+        # Convert q_rel and r to ragged tensors
+        # q_rel = tf.RaggedTensor.from_row_lengths(values=q_rel_flat, row_lengths=self.row_lengths, name='q_rel')
+        # r = tf.RaggedTensor.from_row_lengths(values=r_flat, row_lengths=self.row_lengths, name='r')
+
         # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)    
-        u = tf.divide(q_rel, r)
+        u = tf.divide(q_rel, r, name='u')
 
         return u, r
     
@@ -469,41 +473,44 @@ def make_model_ast_pos(ts: tf.Tensor, row_lengths, elt_batch_size: int) -> keras
 
 
 # ********************************************************************************************************************* 
-def make_model_ast_dir(ts: tf.Tensor, site_name: str, batch_size:int =64) -> keras.Model:
+def make_model_ast_dir(ts: tf.Tensor, row_lengths, site_name: str, elt_batch_size:int =64) -> keras.Model:
     """
     Compute direction from earth to asteroids in the solar system from
     the initial orbital elements with the Kepler model.
     Factory function that returns a functional model.
     Inputs for the model are 6 orbital elements, the epoch, and the desired times for position outputs.
     Outputs of the model are the unit vector (direction) pointing from earth to the asteroid
-    INPUTS;
+    INPUTS:
         ts: times to evaluate asteroid direction from earth
+        row_lengths: Number of observations for each element; shape [elt_batch_size]
         site_name: name of the observatory site for topos adjustment, e.g. 'geocenter' or 'palomar'
-        batch_size: defaults to None for variable batch size
+        elt_batch_size: the number of elements simulated at once, e.g. 64.
     """
     # Inputs: 6 orbital elements; epoch
-    a = keras.Input(shape=(), batch_size=batch_size, name='a')
-    e = keras.Input(shape=(), batch_size=batch_size, name='e')
-    inc = keras.Input(shape=(), batch_size=batch_size, name='inc')
-    Omega = keras.Input(shape=(), batch_size=batch_size, name='Omega')
-    omega = keras.Input(shape=(), batch_size=batch_size, name='omega')
-    f = keras.Input(shape=(), batch_size=batch_size, name='f')
-    epoch = keras.Input(shape=(), batch_size=batch_size, name='epoch')
+    a = keras.Input(shape=(), batch_size=elt_batch_size, name='a')
+    e = keras.Input(shape=(), batch_size=elt_batch_size, name='e')
+    inc = keras.Input(shape=(), batch_size=elt_batch_size, name='inc')
+    Omega = keras.Input(shape=(), batch_size=elt_batch_size, name='Omega')
+    omega = keras.Input(shape=(), batch_size=elt_batch_size, name='omega')
+    f = keras.Input(shape=(), batch_size=elt_batch_size, name='f')
+    epoch = keras.Input(shape=(), batch_size=elt_batch_size, name='epoch')
 
     # Wrap these up into one tuple of inputs for the model
     inputs = (a, e, inc, Omega, omega, f, epoch)
     
-    # Output times are a constant
-    # ts = keras.backend.constant(ts, name='ts')
+    # Build asteroid direction layer
+    ast_dir_layer = AsteroidDirection(ts=ts, row_lengths=row_lengths, site_name=site_name, name='ast_dir_layer')
 
-    # All the work done in a single layer
-    ast_dir_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=batch_size, name='ast_dir_layer')
-    u, r = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
+    # Define output tensors u, r by applying the position layer to the input tensors with the elements 
+    u_flat, r_flat = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
 
-    # Alias outputs
-    u = Identity(name='u')(u)
-    r = Identity(name='r')(r)
-
+    # Convert u, r to ragged tensors matching the element batch
+    # u = tf.RaggedTensor.from_row_lengths(values=u_flat, row_lengths=row_lengths, name='u')
+    # r = tf.RaggedTensor.from_row_lengths(values=r_flat, row_lengths=row_lengths, name='r')
+    ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths)
+    u = tf.keras.layers.Lambda(function=ragged_map_func, name='u')(u_flat)
+    r = tf.keras.layers.Lambda(function=ragged_map_func, name='r')(r_flat)
+    
     # Wrap the outputs
     outputs = (u, r)
     
