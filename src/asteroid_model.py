@@ -213,7 +213,7 @@ class AsteroidPosition(keras.layers.Layer):
 
         # Save ts, row_lengths and batch_size to the layer for re-use
         self.ts = ts
-        self.row_lengths = ts.row_lengths()
+        self.row_lengths = tf.cast(ts.row_lengths(), dtype=tf.int32)
         self.batch_size = batch_size
         
         # Flatten the times
@@ -273,7 +273,10 @@ class AsteroidPosition(keras.layers.Layer):
         # Time relative to epoch
         t = self.ts - tf.reshape(epoch, (self.batch_size, 1))
 
-        # Reshape t to (batch_size, traj_size, 1); traj_size is variable (ragged)
+        # Total number of rows
+        data_size = tf.reduce_sum(self.row_lengths)
+
+        # Reshape t to (batch_size, traj_size, 1); traj_size is variable (ragged)        
         target_shape = (-1, 1)
         t_vec = keras.layers.Reshape(target_shape, name='t_vec')(t.values)
 
@@ -447,7 +450,7 @@ def make_model_ast_pos(ts: tf.Tensor, batch_size:int =64) -> keras.Model:
     # ts = keras.backend.constant(ts, name='ts')
 
     # Call asteroid position layer
-    ast_pos_layer = AsteroidPosition(ts, batch_size, name='ast_pos_layer')
+    ast_pos_layer = AsteroidPosition(ts=ts, batch_size=batch_size, name='ast_pos_layer')
     q, v = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
 
     # Alias outputs
