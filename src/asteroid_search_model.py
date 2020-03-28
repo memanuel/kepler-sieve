@@ -42,6 +42,7 @@ space_dims = 3
 
 # Data type
 dtype = tf.float32
+dtype_np = np.float32
 
 # ********************************************************************************************************************* 
 # Transformations of orbital elements for search
@@ -58,16 +59,16 @@ h_min_ = 2.0**-8
 h_max_ = 1.0 - h_min_
 
 # Range for exponential decay parameter lambda
-lam_min_ = 1.0
+lam_min_ = 2.0**-2
 lam_max_ = 2.0**24
 log_lam_min_ = np.log(lam_min_)
 log_lam_max_ = np.log(lam_max_)
 
-# Range for resolution parameter R
-R_min_ = deg2dist(1.0/3600)
-R_max_ = deg2dist(1.0)
-log_R_min_ = np.log(R_min_)
-log_R_max_ = np.log(R_max_)
+# # Range for resolution parameter R
+# R_min_ = deg2dist(1.0/3600)
+# R_max_ = deg2dist(1.0)
+# log_R_min_ = np.log(R_min_)
+# log_R_max_ = np.log(R_max_)
 
 # ********************************************************************************************************************* 
 # Custom Layers
@@ -79,25 +80,23 @@ class OrbitalElements(keras.layers.Layer):
 
     def __init__(self, 
                 elts: pd.DataFrame, 
-                batch_size: int, 
-                h: float = 0.5,
+                elt_batch_size: int, 
+                h: float = 0.125,
                 lam: float = 1.0,
-                thresh_deg: float = 1.0,
-                R_deg: float = 1.0, 
-                R_is_trainable: bool = True, 
                 **kwargs):
         super(OrbitalElements, self).__init__(**kwargs)
         
         # Configuration for serialization
         self.cfg = {
             'elts': elts,
-            'batch_size': batch_size,
+            'elt_batch_size': elt_batch_size,
             'h': h,
             'lam': lam,
-            'thresh_deg': thresh_deg,
-            'R_deg': R_deg,
-            'R_is_trainable': R_is_trainable,
         }
+
+        # Alias elt_batch_size to batch_size for legibility
+        batch_size = elt_batch_size
+
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
         self.elts = elts
@@ -135,37 +134,20 @@ class OrbitalElements(keras.layers.Layer):
         # The epoch is not trainable
         self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, name='epoch')
         
-        # The threshold in degrees is not trainable
-        # self.thresh_deg = tf.Variable(initial_value=thresh_deg, trainable=False, name='thresh_deg')
-        # The threshold distance; its square; and associated z value
-        # thresh_s = deg2dist(thresh_deg)
-        # thresh_s2 = thresh_s**2
-        # thresh_z = 1.0 - thresh_s2 / 2.0
-        # self.thresh_s = tf.Variable(initial_value=thresh_s, trainable=False, name='thresh_s')
-        # self.thresh_s2 = tf.Variable(initial_value=thresh_s, trainable=False, name='thresh_s2')
-        # self.thresh_z = tf.Variable(initial_value=thresh_s, trainable=False, name='thresh_z')
-
         # Control of the hit rate h_, in range h_min to h_max
+        h_init = h * np.ones_like(elts['a'])
         self.h_min = tf.constant(h_min_, dtype=tf.float32)
         self.h_max = tf.constant(h_max_, dtype=tf.float32)
-        self.h_ = tf.Variable(initial_value=h, trainable=True, 
+        self.h_ = tf.Variable(initial_value=h_init, trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
 
         # Control of the exponential decay paramater lam_, in range lam_min to lam_max
         lam_init = lam * np.ones_like(elts['a'])
         self.lam_min = tf.constant(h_min_, dtype=tf.float32)
         self.log_lam_range = tf.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
-        self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, 
-                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='h_')
+        self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, dtype=dtype,
+                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='lam_')
 
-        # Control of the resolution factor R_, in range 0.0 to 1.0
-        R_init = np.deg2rad(R_deg) * np.ones_like(elts['a'])
-        self.R_min = tf.constant(R_min_, dtype=tf.float32)
-        self.log_R_range = tf.constant(log_R_max_ - log_R_min_, dtype=tf.float32)
-        self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=R_is_trainable, 
-                              constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
-
-        
     def get_a(self):
         """Transformed value of a"""
         return self.a_min * tf.exp(self.a_ * self.log_a_range)
@@ -220,16 +202,8 @@ class OrbitalElements(keras.layers.Layer):
         """Inverse transform value of lam"""
         return tf.math.log(lam / self.lam_min) / self.log_lam_range
 
-    def get_R(self):
-        """Transformed value of R"""
-        return self.R_min * tf.exp(self.R_ * self.log_R_range)
-
-    def inverse_R(self, R):
-        """Inverse transform value of R"""
-        return tf.math.log(R / self.R_min) / self.log_R_range
-
-    def call(self, inputs):
-        """Return the current orbital elements and resolution"""
+    def call(self, inputs=None):
+        """Return the current orbital elements and mixture model parameters"""
         # print(f'type(inputs)={type(inputs)}.')
         # Transform a, e from log to linear
         a = self.get_a()
@@ -242,8 +216,7 @@ class OrbitalElements(keras.layers.Layer):
         # Transform search parameters h and lambda
         h = self.get_h()
         lam = self.get_lam()
-        R = self.get_R()
-        return a, e, inc, Omega, omega, f, self.epoch, h, lam, R
+        return a, e, inc, Omega, omega, f, self.epoch, h, lam
 
     def get_config(self):
         return self.cfg
@@ -251,10 +224,9 @@ class OrbitalElements(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, u_obs: tf.Tensor, row_lengths: tf.Tensor, thresh_deg: float, **kwargs):
+    def __init__(self, row_lengths: tf.Tensor, thresh_deg: float, **kwargs):
         """
         INPUTS:
-            u_obs:  observed directions
             row_lengths: Number of observations for each element; shape [elt_batch_size]
             thresh_deg: threshold in degrees for observations to be included
         """
@@ -262,7 +234,6 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Configuration for seralization
         self.cfg = {
-            'u_obs': u_obs,
             'row_lengths': row_lengths,
             'thresh_deg': thresh_deg
         }
@@ -273,35 +244,39 @@ class TrajectoryScore(keras.layers.Layer):
         self.row_lengths = keras.backend.constant(value=row_lengths, shape=row_lengths.shape, dtype=tf.int32)
         u_shape = (self.data_size, space_dims,)        
 
-        # Save the observed directions as a keras
-        self.u_obs = keras.backend.constant(value=u_obs, shape=u_shape, dtype=dtype)
+        # Save the observed directions as a keras constant
+        # self.u_obs = keras.backend.constant(value=u_obs, shape=u_shape, dtype=dtype)
 
         # The threshold distance and its square
         self.thresh_s = keras.backend.constant(value=deg2dist(thresh_deg), dtype=dtype, name='thresh_s')
         self.thresh_s2 = keras.backend.constant(value=self.thresh_s**2, dtype=dtype, name='thresh_s2')
         
-    def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
+    def call(self, u_pred: tf.Tensor, u_obs: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
             u_pred: predicted directions with current batch of elements
+            u_obs:  observed directions
             h:      fraction of hits in mixture model
             lam:    exponential decay parameter in mixture model
         """
         # Difference between actual and predicted directions
-        du = keras.layers.subtract(inputs=[u_pred, self.u_obs], name='du')
+        du = keras.layers.subtract(inputs=[u_pred, u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
-        # s2 = K.sum(tf.square(du), axis=(-1))
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
         
         # Filter to only include terms where z2 is within the threshold distance^2
-        is_close = s2 < self.thresh_s2
+        # is_close = s2 < self.thresh_s2
+        is_close = tf.math.less(s2, self.thresh_s2, name='is_close')
         
         # Relative distance v on data inside threshold
-        v = tf.divide(s2[is_close], self.thresh_s2, name='v')
+        # v = tf.divide(s2[is_close], self.thresh_s2, name='v')
+        v = tf.divide(tf.boolean_mask(tensor=s2, mask=is_close), self.thresh_s2, name='v')
 
         # Row_lengths, for close observations only
-        is_close_r = tf.RaggedTensor.from_row_lengths(is_close, row_lengths=self.row_lengths, name='is_close_r')
+        # is_close_r = tf.RaggedTensor.from_row_lengths(values=is_close, row_lengths=self.row_lengths, name='is_close_r')
+        ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths)
+        is_close_r = tf.keras.layers.Lambda(function=ragged_map_func, name='is_close_r')(is_close)
         row_lengths_close = tf.reduce_sum(tf.cast(is_close_r, tf.int32), axis=1, name='row_lengths_close')
 
         # Shape of parameters
@@ -309,8 +284,10 @@ class TrajectoryScore(keras.layers.Layer):
         param_shape = (close_size,)
 
         # Upsample h and lambda
-        h_vec = tf.reshape(tensor=tf.repeat(h, row_lengths_close), shape=param_shape, name='h_vec')
-        lam_vec = tf.reshape(tensor=tf.repeat(h, row_lengths_close), shape=param_shape, name='lam_vec')
+        h_rep = tf.repeat(input=h, repeats=row_lengths_close, name='h_rep')
+        h_vec = tf.reshape(tensor=h_rep, shape=param_shape, name='h_vec')
+        lam_rep = tf.repeat(input=lam, repeats=row_lengths_close, name='lam_rep')
+        lam_vec = tf.reshape(tensor=lam_rep, shape=param_shape, name='lam_vec')
 
         # Probability according to mixture model
         # p = h_vec * tf.exp(-lam_vec * v) + (1.0 - h_vec)
@@ -320,212 +297,82 @@ class TrajectoryScore(keras.layers.Layer):
         p = tf.add(p_hit, p_miss, name='p')
         log_p_flat = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
 
-        # The objective function is the NEGATIVE of the log likelihood
-        # (Take negative b/c TensorFlow minimizes the objective)
-        score = -tf.reduce_sum(log_p_flat, name='score')
-
         # Rearrange to ragged tensors
-        log_p = tf.RaggedTensor.from_row_lengths(log_p_flat, row_lengths=row_lengths_close, name='log_p')
+        log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
+        # ragged_map_func_close = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
+        # log_p = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
 
         # Log likelihood by element
-        log_like = tf.reduce_sum(log_p, axis=1)
+        log_like = tf.reduce_sum(log_p, axis=1, name='log_like')
 
-        # Return the score log likelihood by element
-        return score, log_like
+        # Return the log likelihood by element
+        return log_like
 
     def get_config(self):
         return self.cfg
-
-# # ********************************************************************************************************************* 
-# class DirectionDifference(keras.layers.Layer):
-#     """Compute the difference in direction between observed and predicted directions"""
-#     def __init__(self, batch_size: int, traj_size: int, max_obs: int, **kwargs):
-#         super(DirectionDifference, self).__init__(**kwargs)
-
-#         # Configuration for serialization
-#         self.cfg = {
-#             'batch_size': batch_size,
-#             'traj_size': traj_size,
-#             'max_obs': max_obs,
-#         }
-
-#         # Save sizes
-#         self.batch_size = batch_size
-#         self.traj_size = traj_size
-#         self.max_obs = max_obs
-    
-#     def call(self, u_obs, u_pred, idx):
-#         """
-#         INPUTS:
-#             u_obs: observed directions, PADDED to a regular tensor; shape (traj_size, max_obs, 3,)
-#             u_pred: predicted directions; shape (batch_size, traj_size, 3,)
-#         """
-#         # Get sizes
-#         batch_size = self.batch_size
-#         traj_size = self.traj_size
-#         max_obs = self.max_obs
-
-#         # Slice of the full trajectory
-#         i0 = idx[0]
-#         i1 = idx[-1] + 1
-#         u_pred_slice = u_pred[:,i0:i1]
-#         # Manually set the shapes to work around documented bug on slices losing shape info
-#         u_slice_shape = (batch_size, traj_size, 3)
-#         u_pred_slice.set_shape(u_slice_shape)
-
-#         # Debug
-#         # print(f'u_obs.shape = {u_obs.shape}')
-#         # print(f'u_pred.shape = {u_pred.shape}')
-#         # print(f'u_pred_slice.shape = {u_pred_slice.shape}')
-#         # print(f'batch_size={batch_size}, traj_size={traj_size}, max_obs={max_obs}.')
-#         # print(f'i0={i0}, i1={i1}.')
-
-#         # The observations; broadcast to shape (1, traj_size, max_obs, 3)
-#         y = tf.broadcast_to(u_obs, (1, traj_size, max_obs, space_dims))
-#         # print(f'y.shape = {y.shape}')
-#         # The predicted directions; reshape to (batch_size, traj_size, 1, 3)
-#         x = tf.reshape(u_pred_slice, (batch_size, traj_size, 1, space_dims))
-#         # print(f'x.shape = {x.shape}')
-        
-#         # The difference in directions; size (batch_size, traj_size, max_obs, 3)
-#         du = tf.subtract(y, x, name='du')
-#         # print(f'du.shape = {du.shape}')
-
-#         return du
-    
-#     def get_config(self):
-#         return self.cfg
-
-# # ********************************************************************************************************************* 
-# class TrajectoryScore(keras.layers.Layer):
-#     """Score candidate trajectories"""
-#     def __init__(self, batch_size: int, thresh_deg: float, 
-#                  alpha: float, beta: float, **kwargs):
-#         """
-#         INPUTS:
-#             batch_size: this is element_batch_size, the number of orbital elements per batch
-#             thresh_deg: threshold in degrees for observations to be included in batches.  impacts mu, sigma2
-#             alpha: multiplicative factor on mu in objective function
-#             beta: multiplicative factor on sigma2 in objective function
-#         """
-#         super(TrajectoryScore, self).__init__(**kwargs)
-
-#         # Configuration for seralization
-#         self.cfg = {
-#             'batch_size': batch_size,
-#             'alpha': alpha,
-#             'beta': beta,
-#             'thresh_deg': thresh_deg
-#         }
-
-#         # Save sizes and parameters
-#         self.batch_size = batch_size
-#         # The threshold distance; its square; and associated z value
-#         self.thresh_s = deg2dist(thresh_deg)
-#         self.thresh_s2 = self.thresh_s**2
-#         self.thresh_z = 1.0 - self.thresh_s2 / 2.0
-#         # Tuning factors (get rid of these)
-#         self.alpha = alpha
-#         self.beta = beta
-        
-#     def call(self, du: tf.Tensor, h: tf.Tensor, lam: tf.Tensor, R: tf.Tensor, num_obs: float):
-#         """
-#         Score candidate trajectories in current batch based on how well they match observations
-#         INPUTS:
-#             du: difference in direction between u_pred and u_obs
-#             R:  resolution factor in Cartesian distance for score function
-#             num_obs: total number of observations (real, not padded!)
-#         """
-#         # The scaling coefficient for scores; score = exp(-1/2 A epsilon^2)
-#         A = 1.0 / R**2
-        
-#         # The coefficient that multiplies epsilon^2
-#         B = tf.reshape(-0.5 * A, (self.batch_size, 1, 1,))
-#         # print(f'B.shape = {B.shape}')
-        
-#         # Squared distance bewteen predicted and observed directions
-#         s2 = K.sum(tf.square(du), axis=(-1))
-#         arg = tf.multiply(B, s2)
-#         # print(f'arg.shape = {arg.shape}')
-        
-#         # Filter to only include terms where z2 is within the threshold distance^2
-#         is_close = s2 < self.thresh_s2
-#         close_idx = tf.where(is_close)
-#         raw_scores = tf.scatter_nd(indices=close_idx, updates=tf.exp(arg[is_close]), shape=arg.shape)
-        
-#         # The score function
-#         raw_score = K.sum(raw_scores, axis=(1,2))
-#         # print(f'raw_score.shape = {raw_score.shape}')
-        
-#         # The expected score and variance per observation
-#         mu_per_obs, sigma2_per_obs = score_mean_var(A, thresh=self.thresh_s2)
-
-#         # The expected score
-#         mu = tf.multiply(num_obs, mu_per_obs, name='mu')
-        
-#         # The expected variance
-#         # Note; variance adds up over batches, not std dev.  
-#         # However, if the batch size is all of the observations, then std dev can be meaninfully averaged
-#         sigma2 = tf.multiply(num_obs, sigma2_per_obs, name='sigma2')
-#         sigma = tf.sqrt(sigma2)
-
-#         # The t-statistic
-#         # t_stat = (raw_score - mu) / sigma
-
-#         # Assemble the objective function to be maximized
-#         # objective = raw_score - self.alpha * mu - self.beta * sigma2
-#         objective = (raw_score - self.alpha * mu - self.beta + sigma)
-       
-#         # Return all the interesting outputs
-#         return raw_score, mu, sigma2, objective
-
-#     def get_config(self):
-#         return self.cfg
 
 # ********************************************************************************************************************* 
 # Functional API model
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def make_model_asteroid_search(ts: tf.Tensor,
-                               elts: pd.DataFrame,
-                               max_obs: int,
-                               num_obs: float,
+def make_model_asteroid_search(elts: pd.DataFrame,
+                               ztf_elt: pd.DataFrame,
                                site_name: str='geocenter',
-                               elt_batch_size: int=64, 
-                               time_batch_size: Optional[int]=None,
                                h: float = 0.5,
                                lam: float = 1.0,
-                               R_deg: float = 5.0,
-                               thresh_deg: float = 1.0,
-                               R_is_trainable: bool = True,
-                               alpha: float = 2.0,
-                               beta: float = 0.0,
-                               q_cal = None,
-                               use_calibration: bool = True):
-    """Make functional API model for scoring elements"""
+                               thresh_deg: float = 1.0):
+    """
+    Make functional API model for scoring elements
+    INPUTS:
+        elts:       DataFrame with initial guess for orbital elements.
+                    Columns: element_id, a, e, inc, Omega, omega, f, epoch
+                    Output of orbital_element_batch, perturb_elts or random_elts
+        ztf_elt:    DataFrame with ZTF observations within thresh_deg degrees of
+                    of the orbits predicted by these elements.
+                    Output of make_ztf_batch or load_ztf_batch
+        site_name:  Used for topos adjustment, e.g. 'geocenter' or 'palomar'
+        h:          Initial value of hit probability in mixture model
+        lam:        Initial value of exponential decay parameter in mixture model
+    """
 
-    # The full trajectory size
-    traj_size: int = ts.shape[0]
-    # If time_batch_size was not specifiued, use full trajectory size
-    if time_batch_size is None:
-        time_batch_size = traj_size
+    # Element batch size comes from elts
+    elt_batch_size = elts.shape[0]
 
-    # Inputs
-    t = keras.Input(shape=(), batch_size=time_batch_size, dtype=tf.float32, name='t' )
-    idx = keras.Input(shape=(), batch_size=time_batch_size, dtype=tf.int32, name='idx')
-    row_len = keras.Input(shape=(), batch_size=time_batch_size, dtype=tf.int32, name='row_len')
-    u_obs = keras.Input(shape=(max_obs, space_dims), batch_size=time_batch_size, dtype=tf.float32, name='u_obs')
+    # Numpy array and tensor of observation times; flat, shape (data_size,)
+    ts_np = ztf_elt.mjd.values.astype(dtype_np)
+    ts = keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype, name='ts')
+
+    # Get observation count per element
+    row_lengths_np = ztf_elt.element_id.groupby(ztf_elt.element_id).count()
+    row_lengths = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, 
+                                         dtype=tf.int32, name='row_lengths')
+
+    # Shape of the observed trajectories
+    data_size = ztf_elt.shape[0]
+    traj_shape = (data_size, space_dims)
+
+    # Input is observed directions as a ragged tensor of shape (elt_batch_size, (num_obs), 3,)
+    u_obs = keras.Input(shape=(3,), batch_size=data_size, name='u_obs')
+
+    # # Flatten the ragged tensor of observations
+    # ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths)
+    # u_obs_r = tf.keras.layers.Lambda(function=ragged_map_func, name='u_obs_r')(u_obs)
+    # u_obs_flat = u_obs_r.values
+
+    # Dummy inputs: weights on the elements
+    elt_wts = keras.Input(shape=(), batch_size=elt_batch_size, name='elt_wt')
+
+    # # Observed directions; extract from ztf_elt DataFrame
+    # cols_u_obs = ['ux', 'uy', 'uz']
+    # u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
+    # u_obs = keras.backend.constant(value=u_obs_np, dtype=dtype, name='u_obs')
+
+    # Set of trainable weights with candidate orbital elements; initialize according to elts
+    elements_layer = OrbitalElements(elts=elts, elt_batch_size=elt_batch_size, h=h, lam=lam, name='candidates')
     
-    # Output times are a constant
-    ts = keras.backend.constant(ts, name='ts')
-
-    # Set of trainable weights with candidate
-    elements_layer = OrbitalElements(elts=elts, batch_size=elt_batch_size, 
-                                     h=h, lam=lam,
-                                     R_deg=R_deg, R_is_trainable=R_is_trainable, 
-                                     name='candidates')
-    a, e, inc, Omega, omega, f, epoch, h, lam, R = elements_layer(idx)
+    # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
+    a, e, inc, Omega, omega, f, epoch, h, lam = elements_layer(inputs=None)
     
     # Alias the orbital elements; a, e, inc, Omega, omega, and f are trainable; epoch is fixed
     a = Identity(name='a')(a)
@@ -536,48 +383,40 @@ def make_model_asteroid_search(ts: tf.Tensor,
     f = Identity(name='f')(f)
     epoch = Identity(name='epoch')(epoch)
 
-    # Alias the resolution output
+    # Alias the mixture model parameters
     h = Identity(name='h')(h)
     lam = Identity(name='lam')(lam)
-    R = Identity(name='R')(R)
 
     # The orbital elements; stack to shape (elt_batch_size, 7)
     elts_tf = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
 
     # The predicted direction
-    direction_layer = AsteroidDirection(ts=ts, site_name=site_name, batch_size=elt_batch_size, name='u_pred')
+    direction_layer = AsteroidDirection(ts=ts, row_lengths=row_lengths, site_name=site_name, name='direction_layer')
 
-    # Compute numerical orbits for calibration if necessary
-    if use_calibration:
-        if q_cal is not None:
-            q_ast, q_earth, v_ast = q_cal
-        else:
-            print(f'Numerically integrating orbits for calibration...')
-            epoch0 = elts['epoch'][0]
-            q_ast, q_earth, v_ast = calc_ast_pos(elts=elts, epoch=epoch0, ts=ts)
+    # Calibration arrays (flat)
+    cols_q_ast = ['qx', 'qy', 'qz']
+    cols_v_ast = ['vx', 'vy', 'vz']
+    q_ast = ztf_elt[cols_q_ast].values.astype(dtype_np)
+    v_ast = ztf_elt[cols_v_ast].values.astype(dtype_np)
 
-    # Calibrate the direction prediction layer
-    if use_calibration:
-        direction_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
+    # Run calibration
+    direction_layer.q_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
+
     # Tensor of predicted directions
     u_pred, r_pred = direction_layer(a, e, inc, Omega, omega, f, epoch)
 
-    # Difference in direction between u_obs and u_pred
-    dir_diff_layer = DirectionDifference(batch_size=elt_batch_size, 
-                                         traj_size=time_batch_size, 
-                                         max_obs=max_obs, 
-                                         name='z')
-    du = dir_diff_layer(u_obs, u_pred, idx)
+    # Score layer for these observations
+    score_layer = TrajectoryScore(row_lengths=row_lengths, thresh_deg=thresh_deg, name='score_layer')
 
-    # Calculate score compoments
-    score_layer = TrajectoryScore(batch_size=elt_batch_size, thresh_deg=thresh_deg, alpha=alpha, beta=beta)
-    raw_score,  mu, sigma2, objective  = score_layer(du, h, lam, R, num_obs)
-    # Stack the scores
-    scores = tf.stack(values=[raw_score, mu, sigma2, objective], axis=1, name='scores')
+    # Compute the log likelihood by element from the predicted direction and mixture model parameters
+    log_like = score_layer(u_pred, u_obs=u_obs, h=h, lam=lam)
+
+    # Compute the weighted sum log likelihood so inputs and outputs are connected
+    # log_like_wtd = tf.reduce_sum(tf.multiply(elt_wts, log_like), name='log_like_wtd')
 
     # Wrap inputs and outputs
-    inputs = (t, idx, row_len, u_obs)
-    outputs = (elts_tf, R, u_pred, du, scores)
+    inputs = (u_obs)
+    outputs = (log_like, elts_tf, u_pred)
 
     # Create model with functional API
     model = keras.Model(inputs=inputs, outputs=outputs)
@@ -585,14 +424,11 @@ def make_model_asteroid_search(ts: tf.Tensor,
     # Bind the custom layers to model
     model.elements = elements_layer
     model.direction = direction_layer
-    model.dir_diff = dir_diff_layer
     model.score = score_layer
     
-    # Log transform
-    # objective_min = 0.0
-
-    # Add the loss function
-    model.add_loss(-tf.reduce_sum(objective))
+    # Add the loss function - the NEGATIVE of the log likelihood
+    # (Take negative b/c TensorFlow minimizes the loss function)
+    model.add_loss(-tf.reduce_sum(log_like))
 
     return model
 
