@@ -361,7 +361,7 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     # u_obs_flat = u_obs_r.values
 
     # Dummy inputs: weights on the elements
-    elt_wts = keras.Input(shape=(), batch_size=elt_batch_size, name='elt_wt')
+    # elt_wts = keras.Input(shape=(), batch_size=elt_batch_size, name='elt_wt')
 
     # # Observed directions; extract from ztf_elt DataFrame
     # cols_u_obs = ['ux', 'uy', 'uz']
