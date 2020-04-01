@@ -169,16 +169,13 @@ class OrbitalElements(keras.layers.Layer):
 
         # # Control of the exponential decay paramater lam_, in range lam_min to lam_max
         # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
-        # self.lam_min = keras.backend.constant(lam_min_, dtype=tf.float32)
-        # self.log_lam_range = keras.backend.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
-        # self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, dtype=dtype,
-        #                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='lam_')
 
         # Control of the resolution paramater R_, in range R_min to R_max
         self.R_min = keras.backend.constant(R_min_, dtype=tf.float32)
         self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=tf.float32)
         self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=True, dtype=dtype,
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
+    @tf.function
     def get_a(self):
         """Transformed value of a"""
         return self.a_min * tf.exp(self.a_ * self.log_a_range)
@@ -187,6 +184,7 @@ class OrbitalElements(keras.layers.Layer):
         """Inverse transform value of a"""
         return tf.math.log(a / self.a_min) / self.log_a_range
 
+    @tf.function
     def get_e(self):
         """Transformed value of e"""
         # return self.e_min + self.e_ * self.e_range
@@ -196,6 +194,7 @@ class OrbitalElements(keras.layers.Layer):
     #    """Inverse transform value of e"""
     #    return (e - self.e_min) / self.e_range
 
+    @tf.function
     def get_inc(self):
         """Transformed value of inc"""
         return self.inc_min + self.inc_ * self.inc_range
@@ -204,27 +203,33 @@ class OrbitalElements(keras.layers.Layer):
         """Inverse transform value of inc"""
         return (inc - self.inc_min) / self.inc_range
 
+    @tf.function
     def get_angle(self, angle_):
         """Forward transform of an unconstrained angle variable (Omega, omega, f)"""
-        return self.two_pi * angle_
+        return tf.multiply(self.two_pi, angle_)
 
     def inverse_angle(self, angle):
         """Forward transform of an unconstrained angle variable (Omega, omega, f)"""
-        return angle / self.two_pi
+        return tf.divide(angle, self.two_pi)
 
+    @tf.function
     def get_Omega(self):
         return self.get_angle(self.Omega_)
 
+    @tf.function
     def get_omega(self):
         return self.get_angle(self.omega_)
 
+    @tf.function
     def get_f(self):
         return self.get_angle(self.f_)
 
+    @tf.function
     def get_h(self):
         """Transformed value of h"""
         return self.h_
 
+    @tf.function
     def get_R(self):
         """Transformed value of R"""
         return self.R_min * tf.exp(self.R_ * self.log_R_range)
@@ -233,15 +238,18 @@ class OrbitalElements(keras.layers.Layer):
         """Inverse transform value of R"""
         return tf.math.log(R / self.R_min) / self.log_R_range
 
+    @tf.function
     def get_R_deg(self):
         """Transformed value of R in degrees"""
         R = self.get_R()        
         return dist2deg(R)
 
+    @tf.function
     def R_to_lam(self, R):
         """Convert a resolution R to an exponential decay term lambda"""
         return tf.divide(self.half_thresh_s2, tf.square(R))
 
+    @tf.function
     def get_lam(self):
         """Transformed value of lambda"""
         # return self.lam_min * tf.exp(self.lam_ * self.log_lam_range)
@@ -480,15 +488,17 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     model.position = model.direction.q_layer
     model.score = score_layer
 
+    # Save the batch size to the model
+    model.elt_batch_size = elt_batch_size
+  
     # Save the learning rate on the model object to facilitate adaptive training
     model.learning_rate = 1.0E-4
-  
+    model.clipnorm = 5.0
+    model.clipvalue = None
+
     # Add the loss function - the NEGATIVE of the log likelihood
     # (Take negative b/c TensorFlow minimizes the loss function)
     model.add_loss(-tf.reduce_sum(log_like))
-
-    def reduce_learning_rate(self):
-        reduce_learning_rate(self)
 
     # Compile the model
     compile_search_model(model)
@@ -496,11 +506,12 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     return model
 
 # ********************************************************************************************************************* 
-def make_adam_opt(learning_rate=1.0E-4, clipvalue=5.0):
+def make_adam_opt(learning_rate=1.0E-4, clipnorm=5.0, clipvalue=None):
     """
     Build Adam optimizer for training 
     Default settings are:
     learning_rate = 1.0E-3
+    clipnorm = None
     clipvalue = None
     These are changed based on trial and error.
     Other arguments left at default settings
@@ -520,7 +531,10 @@ def make_adam_opt(learning_rate=1.0E-4, clipvalue=5.0):
         'epsilon': epsilon,
         'amsgrad': amsgrad,
     }
-    # Add the clip value if it was set
+    # Add clipnorm if it was set
+    if clipnorm is not None:
+        opt_args['clipnorm'] = clipnorm
+    # Add clipvalue if it was set
     if clipvalue is not None:
         opt_args['clipvalue'] = clipvalue
 
@@ -531,15 +545,95 @@ def make_adam_opt(learning_rate=1.0E-4, clipvalue=5.0):
 # ********************************************************************************************************************* 
 def compile_search_model(model):
     """Recompile this model with the current learning rate"""
-    optimizer = make_adam_opt(learning_rate=model.learning_rate)
+    optimizer = make_adam_opt(learning_rate=model.learning_rate, clipnorm=model.clipnorm, clipvalue=model.clipvalue)
     model.compile(optimizer=optimizer)
 
 # ********************************************************************************************************************* 
-def reduce_learning_rate(model, lr_factor = 2.0):
-    """Reduce the learning rate and recompile the model"""    
-    model.learning_rate = model.learning_rate / lr_factor
+def adjust_learning_rate(model, lr_factor = 0.5, verbose=False):
+    """Reduce the learning rate and recompile the model"""
+    if verbose:
+        print(f'Changing learning rate by factor {lr_factor:8.6f} from '
+              f'{model.learning_rate:8.3e} to {model.learning_rate*lr_factor:8.3e}.')
+    model.learning_rate = model.learning_rate * lr_factor
     compile_search_model(model)
 
+# ********************************************************************************************************************* 
+def ast_search_adaptive(model, learning_rate=1.0E-4, clipnorm=10.0, clipvalue=None, 
+                        max_epochs: int = 1000,
+                        batch_size: int = 64):
+    """
+    Run asteroid search model adaptively.  
+    Start with a high learning rate, gradually reduce it if early stopping triggered
+    """
+    
+    # Start timer
+    t0 = time.time()
+    
+    # Set the specified learning rate and clipvalue to the model
+    model.learning_rate = learning_rate
+    model.clipnorm = clipnorm
+    model.clipvalue = clipvalue
+    
+    # Recompile the model
+    compile_search_model(model)
+    
+    # Early stopping callback
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='loss', patience=0, restore_best_weights=True)]
+
+    # Define one epoch as a number of batches
+    steps_per_epoch: int = 1
+    samples_per_epoch: int = steps_per_epoch * batch_size
+    x_trn: np.ndarray = np.ones(samples_per_epoch)
+
+    # Set number of epochs for one episode of training
+    epochs_per_episode: int = min(100, max_epochs)
+    training_episode: int = 1
+
+    # Set the learning rate factor
+    lr_factor_up: float = 2.0**0.125
+    lr_factor_dn: float = 0.5
+        
+    # Verbose flag for training
+    verbose = 0
+    
+    # Run first episode of training
+    print(f'Training episode 1, learning_rate={model.learning_rate:8.3e}.')
+    hist = model.fit(x=x_trn, batch_size=batch_size, epochs=epochs_per_episode, steps_per_epoch=steps_per_epoch, 
+                     callbacks=callbacks, shuffle=False, verbose=verbose)
+    
+    # Update training counters and loss
+    log_like = -hist.history['loss'][-1]
+    episode_length: int = hist.epoch[-1]+1
+    current_epoch: int = episode_length
+    training_episode += 1
+    # Status message
+    print(f'Epoch {current_epoch:4}. Elapsed time = {elapsed_time:0f} sec')
+    print(f'Log Likelihood: {log_like:8.2f}')
+    
+    # Continue training until max_epochs have elapsed
+    while current_epoch < max_epochs:        
+        # If the last training ran without early stopping, increase the learning rate
+        if episode_length == epochs_per_episode:
+            adjust_learning_rate(model, lr_factor_up, verbose=False)
+        # If the last training hit early stopping, decrease the learning rate
+        else:
+            adjust_learning_rate(model, lr_factor_dn, verbose=False)
+        # Train for another episode
+        print(f'\nTraining episode {training_episode}, current_epoch {current_epoch}, learning_rate={model.learning_rate:8.3e}.')
+        hist = model.fit(x=x_trn, batch_size=batch_size, epochs=epochs_per_episode, steps_per_epoch=steps_per_epoch, 
+                         callbacks=callbacks, shuffle=False, verbose=verbose)
+
+        # Update training counters
+        log_like = -hist.history['loss'][-1]
+        episode_length = hist.epoch[-1] + 1
+        current_epoch += episode_length
+        training_episode += 1
+        t1 = time.time()
+        elapsed_time = (t1 - t0)
+        # Status message
+        print(f'Epoch {current_epoch:4}. Elapsed time = {elapsed_time:0f} sec')
+        print(f'Log Likelihood: {log_like:8.2f}')
+        
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     pass
