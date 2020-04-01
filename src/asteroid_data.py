@@ -43,119 +43,6 @@ light_speed_au_day = astropy.constants.c.to(au / day).value
 dtype = tf.float32
 
 # ********************************************************************************************************************* 
-def make_ragged_tensors(t_np: np.array, u_np: np.array, element_id_np: np.array, batch_size: int):
-    """
-    Convert t, u, element_id Numpy arrays into ragged tensors
-    INPUTS:
-        t_np: A numpy array with observation times as MJDs; size (N,)
-        u_np: A numpy array with directions as MJDs; size (N,3)
-        element_id_np: A numpy array with the element_id's; size (N,)
-        batch_size: Used to pad end of data set with times having zero observations
-    """
-    # Unique times and their indices
-    t_unq, inv_idx, = np.unique(t_np, return_inverse=True)
-    
-    # Pad t_unq with extra times so it has an even multiple of batch_size
-    data_size: int = t_unq.shape[0]
-    if batch_size is not None:
-        num_pad: int = -data_size % batch_size
-        t_unq = np.pad(t_unq, pad_width=(0,num_pad), mode='constant')
-        t_unq[data_size:] = t_unq[data_size-1] + np.arange(num_pad)
-
-    # The row IDs for the ragged tensorflow are what numpy calls the inverse indices    
-    value_rowids = inv_idx 
-
-    # Tensor with distinct times
-    t = tf.convert_to_tensor(value=t_unq)
-    # Ragged tensors for direction u and element_id
-    u = tf.RaggedTensor.from_value_rowids(values=u_np, value_rowids=inv_idx)
-    element_id = tf.RaggedTensor.from_value_rowids(values=element_id_np, value_rowids=value_rowids)
-
-    # Return the tensors for t, u, element_id
-    return t, u, element_id
-    
-# ********************************************************************************************************************* 
-def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
-    """
-    Create a tf.Dataset from ZTF DataFrame
-    INPUTS:
-        ztf: A DataFrame of ZTF data.  Columns must include mjd, ux, uy, uz.
-        batch_size: Batch size used for TensorFlow DataSet.  None wraps all data into one big batch.
-    Outputs:
-        ds: A TensorFlow DataSet object.
-    """
-    # Extract inputs for make_ragged_tensors from ztf DataFrame
-    t_np = ztf.mjd.values.astype(np.float32)
-    cols_u = ['ux', 'uy', 'uz']
-    u_np = ztf[cols_u].values.astype(np.float32)
-    # ast_num_np = ztf.nearest_ast_num.values
-    element_id_np = ztf.element_id.values
-
-    # Sort arrays in increasing order of observation time; otherwise make_ragged_tensors won't work
-    sort_idx = np.argsort(t_np)
-    t_np = t_np[sort_idx]
-    u_np = u_np[sort_idx]
-    # ast_num_np = ast_num_np[sort_idx]
-    element_id_np = element_id_np[sort_idx]
-
-    # Convert to tensors (regular for t, ragged for u and element_id)
-    # t, u_r, ast_num_r = make_ragged_tensors(t_np=t_np, u_np=u_np, element_id_np=element_id_np, batch_size=batch_size)
-    t, u_r, element_id_r = make_ragged_tensors(t_np=t_np, u_np=u_np, element_id_np=element_id_np, batch_size=batch_size)
-
-    # Set batch_size to all the times if it was not specified
-    if batch_size is None:
-        batch_size = u_r.shape[0]
-
-    # Number of entries to pad at the end so batches all divisible by batch_size    
-    num_pad = t.shape[0] - u_r.shape[0]
-
-    # Get row lengths
-    row_len = tf.cast(u_r.row_lengths(), tf.int32)
-    # Pad row len with zeros for the last batch
-    row_len = tf.pad(row_len, paddings=[[0,num_pad]], mode='CONSTANT', constant_values=0)
-    
-    # Pad u_r into a regular tensor
-    pad_default = np.array([0.0, 0.0, 65536.0])
-    u = u_r.to_tensor(default_value=pad_default)
-    
-    # Pad u with entries for the last batch
-    pad_shape_u = [[0,num_pad], [0,0], [0,0]]
-    u = tf.pad(u, paddings=pad_shape_u, mode='CONSTANT', constant_values=65536.0)
-        
-    # Index associated with time points
-    idx = tf.range(t.shape[0], dtype=tf.int32)
-    
-    # Pad element_id_r into a regular tensor; use default -1 to indicate padded observation
-    # ast_num = ast_num_r.to_tensor(default_value=-1)
-    element_id = element_id_r.to_tensor(default_value=-1)
-    
-    # Pad ast_num with entries for the last batch
-    # pad_shape_ast_num = [[0,num_pad],[0,0]]
-    # ast_num = tf.pad(ast_num, paddings=pad_shape_ast_num, mode='CONSTANT', constant_values=-1)
-    pad_shape_elt_id = [[0,num_pad],[0,0]]
-    element_id = tf.pad(element_id, paddings=pad_shape_elt_id, mode='CONSTANT', constant_values=-1)
-    
-    # Wrap into tensorflow Dataset
-    inputs = {
-        't': t,
-        'idx': idx,
-        'row_len': row_len,
-        'u_obs': u, 
-    }
-    outputs = {
-        # 'ast_num': ast_num,
-        'element_id': element_id,
-    }
-    ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
-    
-    # Batch the dataset
-    drop_remainder: bool = False
-    buffer_size = 16384
-    ds = ds.batch(batch_size, drop_remainder=drop_remainder).shuffle(buffer_size).repeat()
-    # Return the dataset as well as tensors with the time snapshots and row lengths
-    return ds, t, row_len
-    
-# ********************************************************************************************************************* 
 def get_earth_sun_pos_file():
     """Get the position and velocity of earth and sun consistent with the asteroid data; look up from data file"""
     # selected data type for TF tensors
@@ -282,92 +169,13 @@ def get_sun_pos_vel(ts: np.ndarray, dtype = np.float64) -> np.array:
 #     return q_earth, q_sun
 
 # ********************************************************************************************************************* 
-# Build TensorFlow data sets with directions of asteroids - using spline_ast_vec_dir
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def make_dataset_ast_dir_spline(n0: int, n1: int, site_name: str = 'geocenter', 
-                                N_t: int = 1000, batch_size: int = 64) -> tf.data.Dataset:
-    """
-    Create a tf.Dataset for testing asteroid direction model.
-    Data comes from output of spline_ast_vec_dir in asteroid_dataframe.
-    INPUTS:
-        n0: First asteroid number; inclusive, e.g. 1
-        n1: Last asteroid number; exclusive, e.g. 65
-        site_name: Name of site, e.g. 'palomar'
-        N_t: Number of times to sample, e.g. 1000
-        batch_size: batch_size for this dataset
-    """
-    # DataFrame of asteroid snapshots
-    ast_elt_all = load_ast_elt()    
-
-    # Elements of selected asteroids
-    # ast_elt = ast_elt_all.loc[ast_nums]
-    mask = (n0 <= ast_elt_all.Num) & (ast_elt_all.Num < n1)
-    ast_elt = ast_elt_all[mask]
-    N_ast = ast_elt.shape[0]
-
-    # Range of times for sampling
-    dt0 = datetime(2000, 1, 1)
-    dt1 = datetime(2040, 1, 1)
-    mjd0 = datetime_to_mjd(dt0)
-    mjd1 = datetime_to_mjd(dt1)
-
-    # Data type for this dataset
-    dtype = np.float32
-
-    # Select a random subset of times; these must be sorted
-    np.random.seed(42)
-    ts = np.sort(np.random.uniform(low=mjd0, high=mjd1, size=N_t).astype(dtype=dtype))
-
-    # dict with inputs
-    inputs = {
-        'a': ast_elt.a.values.astype(dtype),
-        'e': ast_elt.e.values.astype(dtype),
-        'inc': ast_elt.inc.values.astype(dtype),
-        'Omega': ast_elt.Omega.values.astype(dtype),
-        'omega': ast_elt.omega.values.astype(dtype),
-        'f': ast_elt.f.values.astype(dtype),
-        'epoch': ast_elt.epoch_mjd.values.astype(dtype),
-        'asteroid_num': ast_elt.Num.values.astype(np.int32),
-        'ts': np.tile(ts, reps=(N_ast,1,)),
-    }
-
-    # Build splined direction at selected times
-    df_ast, df_earth, df_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=ts, site_name=site_name)
-
-    # Extract outputs: u, r
-    cols_u = ['ux', 'uy', 'uz']
-    u_flat = df_dir[cols_u].values
-    r_flat = df_dir.delta.values
-
-    # Reshape outputs into rectangular arrays; shape is (ast_num, time_idx, space)
-    u = u_flat.reshape((N_ast, N_t, space_dims))
-    r = r_flat.reshape((N_ast, N_t))
-
-    # Outputs as Python dict
-    outputs = {
-        'u': u, 
-        'r': r,
-    }
-
-    # Wrap into a dataset
-    ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
-
-    # Batch the dataset and return it
-    drop_remainder = True
-    ds = ds.batch(batch_size=batch_size, drop_remainder=drop_remainder)
-
-    return ds
-
-# ********************************************************************************************************************* 
-# Build TensorFlow data sets with positions and velocities of asteroids - manually from integration outputs
+# Dataset of predicted asteroid directions
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str, np.array]]:
     """
-    Wrap the data in one file of asteroid trajectory data into a TF Dataset
+    Wrap the data in one file of asteroid trajectory data into dictionary of numpy arrays
     INPUTS:
         n0: the first asteroid in the file, e.g. 0
         n1: the last asteroid in the file (exclusive), e.g. 1000
@@ -460,125 +268,333 @@ def make_data_one_file(n0: int, n1: int) -> Tuple[Dict[str, np.array], Dict[str,
     return inputs, outputs
 
 # ********************************************************************************************************************* 
-def make_dataset_pos_file(n0: int, n1: int, include_vel: bool) -> tf.data.Dataset:
-    """
-    Wrap the data in one file of asteroid trajectory data into a TF Dataset
-    INPUTS:
-        n0: the first asteroid in the file, e.g. 0
-        n1: the last asteroid in the file (exclusive), e.g. 1000
-    OUTPUTS:
-        ds: a tf.data.Dataset object for this 
-    """
-    # Load data
-    inputs_all, outputs_all = make_data_one_file(n0, n1)
+# All of the stuff below this line is old, probably want to get rid of it.
+# The old approach had TF data sets to pass observation data
+# The new approach sets a threshold for near observations (e.g. 1 degree) allowing the each search model
+# to load all relevant observations as a constant in the model itself.
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+# Build TensorFlow data sets
+# ********************************************************************************************************************* 
+
+# # ********************************************************************************************************************* 
+# def make_ragged_tensors(t_np: np.array, u_np: np.array, element_id_np: np.array, batch_size: int):
+#     """
+#     Convert t, u, element_id Numpy arrays into ragged tensors
+#     INPUTS:
+#         t_np: A numpy array with observation times as MJDs; size (N,)
+#         u_np: A numpy array with directions as MJDs; size (N,3)
+#         element_id_np: A numpy array with the element_id's; size (N,)
+#         batch_size: Used to pad end of data set with times having zero observations
+#     """
+#     # Unique times and their indices
+#     t_unq, inv_idx, = np.unique(t_np, return_inverse=True)
     
-    # Use all inputs
-    inputs = inputs_all
+#     # Pad t_unq with extra times so it has an even multiple of batch_size
+#     data_size: int = t_unq.shape[0]
+#     if batch_size is not None:
+#         num_pad: int = -data_size % batch_size
+#         t_unq = np.pad(t_unq, pad_width=(0,num_pad), mode='constant')
+#         t_unq[data_size:] = t_unq[data_size-1] + np.arange(num_pad)
+
+#     # The row IDs for the ragged tensorflow are what numpy calls the inverse indices    
+#     value_rowids = inv_idx 
+
+#     # Tensor with distinct times
+#     t = tf.convert_to_tensor(value=t_unq)
+#     # Ragged tensors for direction u and element_id
+#     u = tf.RaggedTensor.from_value_rowids(values=u_np, value_rowids=inv_idx)
+#     element_id = tf.RaggedTensor.from_value_rowids(values=element_id_np, value_rowids=value_rowids)
+
+#     # Return the tensors for t, u, element_id
+#     return t, u, element_id
     
-    # Wrap up selected outputs
-    outputs ={'q': outputs_all['q']}
-    if include_vel:
-        outputs['v'] = outputs_all['v']
+# # ********************************************************************************************************************* 
+# def make_ztf_dataset(ztf: pd.DataFrame, batch_size: int= None):
+#     """
+#     Create a tf.Dataset from ZTF DataFrame
+#     INPUTS:
+#         ztf: A DataFrame of ZTF data.  Columns must include mjd, ux, uy, uz.
+#         batch_size: Batch size used for TensorFlow DataSet.  None wraps all data into one big batch.
+#     Outputs:
+#         ds: A TensorFlow DataSet object.
+#     """
+#     # Extract inputs for make_ragged_tensors from ztf DataFrame
+#     t_np = ztf.mjd.values.astype(np.float32)
+#     cols_u = ['ux', 'uy', 'uz']
+#     u_np = ztf[cols_u].values.astype(np.float32)
+#     # ast_num_np = ztf.nearest_ast_num.values
+#     element_id_np = ztf.element_id.values
+
+#     # Sort arrays in increasing order of observation time; otherwise make_ragged_tensors won't work
+#     sort_idx = np.argsort(t_np)
+#     t_np = t_np[sort_idx]
+#     u_np = u_np[sort_idx]
+#     # ast_num_np = ast_num_np[sort_idx]
+#     element_id_np = element_id_np[sort_idx]
+
+#     # Convert to tensors (regular for t, ragged for u and element_id)
+#     # t, u_r, ast_num_r = make_ragged_tensors(t_np=t_np, u_np=u_np, element_id_np=element_id_np, batch_size=batch_size)
+#     t, u_r, element_id_r = make_ragged_tensors(t_np=t_np, u_np=u_np, element_id_np=element_id_np, batch_size=batch_size)
+
+#     # Set batch_size to all the times if it was not specified
+#     if batch_size is None:
+#         batch_size = u_r.shape[0]
+
+#     # Number of entries to pad at the end so batches all divisible by batch_size    
+#     num_pad = t.shape[0] - u_r.shape[0]
+
+#     # Get row lengths
+#     row_len = tf.cast(u_r.row_lengths(), tf.int32)
+#     # Pad row len with zeros for the last batch
+#     row_len = tf.pad(row_len, paddings=[[0,num_pad]], mode='CONSTANT', constant_values=0)
     
-    # Wrap into a dataset
-    ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))    
-    return ds
-
-# ********************************************************************************************************************* 
-def make_dataset_pos_n(n: int, include_vel: bool):
-    """Convert the nth file, with asteroids (n-1)*1000 to n*1000, to a tf Dataset"""
-    batch_size: int = 1000
-    n0 = batch_size*n
-    n1 = n0 + batch_size
-    return make_dataset_pos_file(n0, n1, include_vel)
-
-# ********************************************************************************************************************* 
-def combine_datasets_pos(n0: int, n1: int, include_vel: bool = False, 
-                     batch_size: int = 64, progbar: bool = False):
-    """Combine datasets in [n0, n1) into one large dataset"""
-    # Iteration range for adding to the initial dataset
-    ns = range(n0+1, n1)
-    ns = tqdm(ns) if progbar else ns
-    # Initial dataset
-    ds = make_dataset_pos_n(n0, include_vel)
-    # Extend initial dataset
-    for n in ns:
-        try:
-            ds_new = make_dataset_pos_n(n, include_vel)
-            ds = ds.concatenate(ds_new)
-        except:
-            pass
-    # Batch the dataset
-    drop_remainder: bool = True    
-    return ds.batch(batch_size, drop_remainder=drop_remainder)
-
-# ********************************************************************************************************************* 
-def make_dataset_ast_pos(n0: int, num_files: int, include_vel: bool = False):
-    """Create a dataset spanning files [n0, n1); user friendly API for combine_datasets"""
-    n1: int = n0 + num_files
-    progbar: bool = False
-    return combine_datasets_pos(n0=n0, n1=n1, include_vel=include_vel, progbar=progbar)
-
-# ********************************************************************************************************************* 
-# Datasets where the output is the asteroid direction from earth (ux, uy, uz)
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def make_dataset_dir_file(n0: int, n1: int) -> tf.data.Dataset:
-    """
-    Wrap the data in one file of asteroid trajectory data into a TF Dataset
-    INPUTS:
-        n0: the first asteroid in the file, e.g. 0
-        n1: the last asteroid in the file (exclusive), e.g. 1000
-    OUTPUTS:
-    """
-    # Load data
-    inputs_all, outputs_all = make_data_one_file(n0, n1)
+#     # Pad u_r into a regular tensor
+#     pad_default = np.array([0.0, 0.0, 65536.0])
+#     u = u_r.to_tensor(default_value=pad_default)
     
-    # Use all inputs
-    inputs = inputs_all
+#     # Pad u with entries for the last batch
+#     pad_shape_u = [[0,num_pad], [0,0], [0,0]]
+#     u = tf.pad(u, paddings=pad_shape_u, mode='CONSTANT', constant_values=65536.0)
+        
+#     # Index associated with time points
+#     idx = tf.range(t.shape[0], dtype=tf.int32)
     
-    # Wrap up selected outputs
-    outputs ={
-        'u': outputs_all['u'],
-        'r': outputs_all['r']
-    }
-
-    # Wrap into a dataset
-    ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))    
-    return ds
-
+#     # Pad element_id_r into a regular tensor; use default -1 to indicate padded observation
+#     # ast_num = ast_num_r.to_tensor(default_value=-1)
+#     element_id = element_id_r.to_tensor(default_value=-1)
+    
+#     # Pad ast_num with entries for the last batch
+#     # pad_shape_ast_num = [[0,num_pad],[0,0]]
+#     # ast_num = tf.pad(ast_num, paddings=pad_shape_ast_num, mode='CONSTANT', constant_values=-1)
+#     pad_shape_elt_id = [[0,num_pad],[0,0]]
+#     element_id = tf.pad(element_id, paddings=pad_shape_elt_id, mode='CONSTANT', constant_values=-1)
+    
+#     # Wrap into tensorflow Dataset
+#     inputs = {
+#         't': t,
+#         'idx': idx,
+#         'row_len': row_len,
+#         'u_obs': u, 
+#     }
+#     outputs = {
+#         # 'ast_num': ast_num,
+#         'element_id': element_id,
+#     }
+#     ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
+    
+#     # Batch the dataset
+#     drop_remainder: bool = False
+#     buffer_size = 16384
+#     ds = ds.batch(batch_size, drop_remainder=drop_remainder).shuffle(buffer_size).repeat()
+#     # Return the dataset as well as tensors with the time snapshots and row lengths
+#     return ds, t, row_len
+    
 # ********************************************************************************************************************* 
-def make_dataset_dir_n(n: int):
-    """Convert the nth file, with asteroids (n-1)*1000 to n*1000, to a tf Dataset with direction from earth"""
-    batch_size: int = 1000
-    n0 = batch_size*n
-    n1 = n0 + batch_size
-    return make_dataset_dir_file(n0, n1)
-
+# Build TensorFlow data sets with directions of asteroids - using spline_ast_vec_dir
 # ********************************************************************************************************************* 
-def combine_datasets_dir(n0: int, n1: int, batch_size: int = 64, progbar: bool = False):
-    """Combine datasets in [n0, n1) into one large dataset"""
-    # Iteration range for adding to the initial dataset
-    ns = range(n0+1, n1)
-    ns = tqdm(ns) if progbar else ns
-    # Initial dataset
-    ds = make_dataset_dir_n(n0)
-    # Extend initial dataset
-    for n in ns:
-        try:
-            ds_new = make_dataset_dir_n(n)
-            ds = ds.concatenate(ds_new)
-        except:
-            pass
-    # Batch the dataset
-    drop_remainder: bool = True
-    return ds.batch(batch_size, drop_remainder=drop_remainder)
 
-# ********************************************************************************************************************* 
-def make_dataset_ast_dir(n0: int, num_files: int):
-    """Create a dataset spanning files [n0, n1); user friendly API for combine_datasets"""
-    n1: int = n0 + num_files
-    progbar: bool = False
-    ds = combine_datasets_dir(n0=n0, n1=n1, progbar=progbar)
-    return ds
+# # ********************************************************************************************************************* 
+# def make_dataset_ast_dir_spline(n0: int, n1: int, site_name: str = 'geocenter', 
+#                                 N_t: int = 1000, batch_size: int = 64) -> tf.data.Dataset:
+#     """
+#     Create a tf.Dataset for testing asteroid direction model.
+#     Data comes from output of spline_ast_vec_dir in asteroid_dataframe.
+#     INPUTS:
+#         n0: First asteroid number; inclusive, e.g. 1
+#         n1: Last asteroid number; exclusive, e.g. 65
+#         site_name: Name of site, e.g. 'palomar'
+#         N_t: Number of times to sample, e.g. 1000
+#         batch_size: batch_size for this dataset
+#     """
+#     # DataFrame of asteroid snapshots
+#     ast_elt_all = load_ast_elt()    
+
+#     # Elements of selected asteroids
+#     # ast_elt = ast_elt_all.loc[ast_nums]
+#     mask = (n0 <= ast_elt_all.Num) & (ast_elt_all.Num < n1)
+#     ast_elt = ast_elt_all[mask]
+#     N_ast = ast_elt.shape[0]
+
+#     # Range of times for sampling
+#     dt0 = datetime(2000, 1, 1)
+#     dt1 = datetime(2040, 1, 1)
+#     mjd0 = datetime_to_mjd(dt0)
+#     mjd1 = datetime_to_mjd(dt1)
+
+#     # Data type for this dataset
+#     dtype = np.float32
+
+#     # Select a random subset of times; these must be sorted
+#     np.random.seed(42)
+#     ts = np.sort(np.random.uniform(low=mjd0, high=mjd1, size=N_t).astype(dtype=dtype))
+
+#     # dict with inputs
+#     inputs = {
+#         'a': ast_elt.a.values.astype(dtype),
+#         'e': ast_elt.e.values.astype(dtype),
+#         'inc': ast_elt.inc.values.astype(dtype),
+#         'Omega': ast_elt.Omega.values.astype(dtype),
+#         'omega': ast_elt.omega.values.astype(dtype),
+#         'f': ast_elt.f.values.astype(dtype),
+#         'epoch': ast_elt.epoch_mjd.values.astype(dtype),
+#         'asteroid_num': ast_elt.Num.values.astype(np.int32),
+#         'ts': np.tile(ts, reps=(N_ast,1,)),
+#     }
+
+#     # Build splined direction at selected times
+#     df_ast, df_earth, df_dir = spline_ast_vec_dir(n0=n0, n1=n1, mjd=ts, site_name=site_name)
+
+#     # Extract outputs: u, r
+#     cols_u = ['ux', 'uy', 'uz']
+#     u_flat = df_dir[cols_u].values
+#     r_flat = df_dir.delta.values
+
+#     # Reshape outputs into rectangular arrays; shape is (ast_num, time_idx, space)
+#     u = u_flat.reshape((N_ast, N_t, space_dims))
+#     r = r_flat.reshape((N_ast, N_t))
+
+#     # Outputs as Python dict
+#     outputs = {
+#         'u': u, 
+#         'r': r,
+#     }
+
+#     # Wrap into a dataset
+#     ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))
+
+#     # Batch the dataset and return it
+#     drop_remainder = True
+#     ds = ds.batch(batch_size=batch_size, drop_remainder=drop_remainder)
+
+#     return ds
+
+# # ********************************************************************************************************************* 
+# # Build TensorFlow data sets with positions and velocities of asteroids - manually from integration outputs
+# # ********************************************************************************************************************* 
+
+
+# # ********************************************************************************************************************* 
+# def make_dataset_pos_file(n0: int, n1: int, include_vel: bool) -> tf.data.Dataset:
+#     """
+#     Wrap the data in one file of asteroid trajectory data into a TF Dataset
+#     INPUTS:
+#         n0: the first asteroid in the file, e.g. 0
+#         n1: the last asteroid in the file (exclusive), e.g. 1000
+#     OUTPUTS:
+#         ds: a tf.data.Dataset object for this 
+#     """
+#     # Load data
+#     inputs_all, outputs_all = make_data_one_file(n0, n1)
+    
+#     # Use all inputs
+#     inputs = inputs_all
+    
+#     # Wrap up selected outputs
+#     outputs ={'q': outputs_all['q']}
+#     if include_vel:
+#         outputs['v'] = outputs_all['v']
+    
+#     # Wrap into a dataset
+#     ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))    
+#     return ds
+
+# # ********************************************************************************************************************* 
+# def make_dataset_pos_n(n: int, include_vel: bool):
+#     """Convert the nth file, with asteroids (n-1)*1000 to n*1000, to a tf Dataset"""
+#     batch_size: int = 1000
+#     n0 = batch_size*n
+#     n1 = n0 + batch_size
+#     return make_dataset_pos_file(n0, n1, include_vel)
+
+# # ********************************************************************************************************************* 
+# def combine_datasets_pos(n0: int, n1: int, include_vel: bool = False, 
+#                      batch_size: int = 64, progbar: bool = False):
+#     """Combine datasets in [n0, n1) into one large dataset"""
+#     # Iteration range for adding to the initial dataset
+#     ns = range(n0+1, n1)
+#     ns = tqdm(ns) if progbar else ns
+#     # Initial dataset
+#     ds = make_dataset_pos_n(n0, include_vel)
+#     # Extend initial dataset
+#     for n in ns:
+#         try:
+#             ds_new = make_dataset_pos_n(n, include_vel)
+#             ds = ds.concatenate(ds_new)
+#         except:
+#             pass
+#     # Batch the dataset
+#     drop_remainder: bool = True    
+#     return ds.batch(batch_size, drop_remainder=drop_remainder)
+
+# # ********************************************************************************************************************* 
+# def make_dataset_ast_pos(n0: int, num_files: int, include_vel: bool = False):
+#     """Create a dataset spanning files [n0, n1); user friendly API for combine_datasets"""
+#     n1: int = n0 + num_files
+#     progbar: bool = False
+#     return combine_datasets_pos(n0=n0, n1=n1, include_vel=include_vel, progbar=progbar)
+
+# # ********************************************************************************************************************* 
+# # Datasets where the output is the asteroid direction from earth (ux, uy, uz)
+# # ********************************************************************************************************************* 
+
+# # ********************************************************************************************************************* 
+# def make_dataset_dir_file(n0: int, n1: int) -> tf.data.Dataset:
+#     """
+#     Wrap the data in one file of asteroid trajectory data into a TF Dataset
+#     INPUTS:
+#         n0: the first asteroid in the file, e.g. 0
+#         n1: the last asteroid in the file (exclusive), e.g. 1000
+#     OUTPUTS:
+#     """
+#     # Load data
+#     inputs_all, outputs_all = make_data_one_file(n0, n1)
+    
+#     # Use all inputs
+#     inputs = inputs_all
+    
+#     # Wrap up selected outputs
+#     outputs ={
+#         'u': outputs_all['u'],
+#         'r': outputs_all['r']
+#     }
+
+#     # Wrap into a dataset
+#     ds = tf.data.Dataset.from_tensor_slices((inputs, outputs))    
+#     return ds
+
+# # ********************************************************************************************************************* 
+# def make_dataset_dir_n(n: int):
+#     """Convert the nth file, with asteroids (n-1)*1000 to n*1000, to a tf Dataset with direction from earth"""
+#     batch_size: int = 1000
+#     n0 = batch_size*n
+#     n1 = n0 + batch_size
+#     return make_dataset_dir_file(n0, n1)
+
+# # ********************************************************************************************************************* 
+# def combine_datasets_dir(n0: int, n1: int, batch_size: int = 64, progbar: bool = False):
+#     """Combine datasets in [n0, n1) into one large dataset"""
+#     # Iteration range for adding to the initial dataset
+#     ns = range(n0+1, n1)
+#     ns = tqdm(ns) if progbar else ns
+#     # Initial dataset
+#     ds = make_dataset_dir_n(n0)
+#     # Extend initial dataset
+#     for n in ns:
+#         try:
+#             ds_new = make_dataset_dir_n(n)
+#             ds = ds.concatenate(ds_new)
+#         except:
+#             pass
+#     # Batch the dataset
+#     drop_remainder: bool = True
+#     return ds.batch(batch_size, drop_remainder=drop_remainder)
+
+# # ********************************************************************************************************************* 
+# def make_dataset_ast_dir(n0: int, num_files: int):
+#     """Create a dataset spanning files [n0, n1); user friendly API for combine_datasets"""
+#     n1: int = n0 + num_files
+#     progbar: bool = False
+#     ds = combine_datasets_dir(n0=n0, n1=n1, progbar=progbar)
+#     return ds

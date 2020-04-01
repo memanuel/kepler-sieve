@@ -233,7 +233,7 @@ def score_by_elt(ztf_elt, thresh_deg=None, fit_mixture: bool = False):
 
     # Group by element_id
     elt_score = ztf_elt['log_v'].groupby(ztf_elt.element_id).agg(['count', 'mean', 'std'])
-    hit_count = ztf_elt['is_hit'].groupby(ztf_elt.element_id).agg(['sum']).rename(columns={'sum':'hits'})
+    hit_count = ztf_elt['is_hit'].groupby(ztf_elt.element_id.astype(np.int32)).agg(['sum']).rename(columns={'sum':'hits'})
 
     # Rename columns
     col_name_tbl = {
@@ -285,6 +285,7 @@ def score_by_elt(ztf_elt, thresh_deg=None, fit_mixture: bool = False):
         mu_deg = dist2deg(mu_s)
         mu_sec = 3600.0 * mu_deg
         # Save to elt_score frame
+        elt_score['lambda'] = lams
         elt_score['mu_sec'] = mu_sec
 
     return elt_score
@@ -298,10 +299,10 @@ def score_batches(elt_score_tbl: dict):
     """
     
     # Column collections
+    cols_log_like = ['log_like_sum', 'log_like_mean', 'log_like_std']
     cols_t = ['t_mean', 't_std']
-    cols_log_like = ['log_like_mean', 'log_like_std']
     # Initialize batch_score frame
-    cols_all = cols_t + cols_log_like
+    cols_all = cols_log_like + cols_t
     batch_score = pd.DataFrame(columns=cols_all) 
     
     # Iterate through scores in the table
@@ -313,8 +314,8 @@ def score_batches(elt_score_tbl: dict):
         batch_score.loc[batch_name, cols_t] = [t_mean, t_std]
         # The mixture columns if available
         if has_mixture:
-            log_like_mean, log_like_std = elt_score['log_like'].agg(['mean', 'std'])
-            batch_score.loc[batch_name, cols_log_like] = [log_like_mean, log_like_std]
+            log_like_sum, log_like_mean, log_like_std = elt_score['log_like'].agg(['sum', 'mean', 'std'])
+            batch_score.loc[batch_name, cols_log_like] = [log_like_sum, log_like_mean, log_like_std]
         
     return batch_score
 

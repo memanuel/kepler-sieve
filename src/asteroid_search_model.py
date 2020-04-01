@@ -290,8 +290,10 @@ class TrajectoryScore(keras.layers.Layer):
         lam_vec = tf.reshape(tensor=lam_rep, shape=param_shape, name='lam_vec')
 
         # Probability according to mixture model
-        # p = h_vec * tf.exp(-lam_vec * v) + (1.0 - h_vec)
-        p_hit_cond = tf.exp(-lam_vec * v, name='p_hit_cond') 
+        emlx = tf.exp(-lam_vec * v, name='emlx')
+        p_hit_cond_num = tf.multiply(emlx, lam_vec, name='p_hit_cond_num')
+        p_hit_cond_den = tf.subtract(1.0, tf.exp(-lam_vec), name='p_hit_cond_den')
+        p_hit_cond = tf.divide(p_hit_cond_num, p_hit_cond_den, name='p_hit_cond')
         p_hit = tf.multiply(h_vec, p_hit_cond, name='p_hit')
         p_miss = tf.subtract(1.0, h_vec, name='p_miss')
         p = tf.add(p_hit, p_miss, name='p')
@@ -416,6 +418,7 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     # Bind the custom layers to model
     model.elements = elements_layer
     model.direction = direction_layer
+    model.position = model.direction.q_layer
     model.score = score_layer
     
     # Add the loss function - the NEGATIVE of the log likelihood
