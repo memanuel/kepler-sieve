@@ -441,10 +441,6 @@ def make_model_ast_pos(ts_np: np.ndarray, row_lengths_np: np.ndarray) -> keras.M
     OUTPUTS:
         model: A tf.keras model to predict asteroid position and velocity (q, v,)
     """
-    # Convert ts and row_lengths to keras constants
-    # ts = keras.backend.constant(value=ts, shape=ts.shape, dtype=dtype)
-    # row_lengths = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
-
     # Infer elt_batch_size from row_lengths
     elt_batch_size: int = row_lengths_np.shape[0]
 

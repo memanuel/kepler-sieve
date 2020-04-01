@@ -79,37 +79,35 @@ class OrbitalElements(keras.layers.Layer):
     """Custom layer to maintain state of candidate orbital elements and resolutions."""
 
     def __init__(self, 
-                elts: pd.DataFrame, 
-                elt_batch_size: int, 
-                h: float = 0.125,
-                lam: float = 1.0,
-                **kwargs):
+                 elts: pd.DataFrame, 
+                 h: float = 0.125,
+                 lam: float = 1.0,
+                 **kwargs):
         super(OrbitalElements, self).__init__(**kwargs)
         
         # Configuration for serialization
         self.cfg = {
             'elts': elts,
-            'elt_batch_size': elt_batch_size,
             'h': h,
             'lam': lam,
         }
 
-        # Alias elt_batch_size to batch_size for legibility
-        batch_size = elt_batch_size
+        # Infer batch size from elts DataFrame
+        batch_size = elts.shape[0]
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
         self.elts = elts
         
         # Control over a_, in range 0.0 to 1.0
-        self.a_min = tf.constant(a_min_, dtype=tf.float32)
-        self.log_a_range = tf.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=tf.float32)
+        self.a_min = keras.backend.constant(a_min_, dtype=tf.float32)
+        self.log_a_range = keras.backend.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=tf.float32)
         self.a_ = tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, 
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='a_')
         
         # Control over e_, in range e_min to e_max
-        self.e_min = tf.constant(e_min_, dtype=tf.float32)
-        self.e_max = tf.constant(e_max_, dtype=tf.float32)
+        self.e_min = keras.backend.constant(e_min_, dtype=tf.float32)
+        self.e_max = keras.backend.constant(e_max_, dtype=tf.float32)
         # self.e_range = tf.constant(e_max_ - e_min_, dtype=tf.float32)
         # self.e_ = tf.Variable(initial_value=self.inverse_e(elts['e']), trainable=True, 
         #                      constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='e_')
@@ -117,14 +115,14 @@ class OrbitalElements(keras.layers.Layer):
                               constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
         # Control over inc_, in range -pi/2 to pi/2
-        self.inc_max = tf.constant(np.pi/2*(1-2**-20), dtype=tf.float32)
+        self.inc_max = keras.backend.constant(np.pi/2*(1-2**-20), dtype=tf.float32)
         self.inc_min = -self.inc_max
-        self.inc_range = tf.constant(self.inc_max - self.inc_min, dtype=tf.float32)
+        self.inc_range = keras.backend.constant(self.inc_max - self.inc_min, dtype=tf.float32)
         self.inc_ = tf.Variable(initial_value=self.inverse_inc(elts['inc']), trainable=True, 
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='inc_')
         
         # Scale factor for unconstrained angles is 2*pi
-        self.two_pi = tf.constant(2*np.pi, dtype=tf.float32)
+        self.two_pi = keras.backend.constant(2*np.pi, dtype=tf.float32)
         
         # Angle variables Omega, omega and f
         self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, name='Omega_')
@@ -136,15 +134,15 @@ class OrbitalElements(keras.layers.Layer):
         
         # Control of the hit rate h_, in range h_min to h_max
         h_init = h * np.ones_like(elts['a'])
-        self.h_min = tf.constant(h_min_, dtype=tf.float32)
-        self.h_max = tf.constant(h_max_, dtype=tf.float32)
+        self.h_min = keras.backend.constant(h_min_, dtype=tf.float32)
+        self.h_max = keras.backend.constant(h_max_, dtype=tf.float32)
         self.h_ = tf.Variable(initial_value=h_init, trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
 
         # Control of the exponential decay paramater lam_, in range lam_min to lam_max
         lam_init = lam * np.ones_like(elts['a'])
-        self.lam_min = tf.constant(h_min_, dtype=tf.float32)
-        self.log_lam_range = tf.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
+        self.lam_min = keras.backend.constant(h_min_, dtype=tf.float32)
+        self.log_lam_range = keras.backend.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
         self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, dtype=dtype,
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='lam_')
 
@@ -202,6 +200,7 @@ class OrbitalElements(keras.layers.Layer):
         """Inverse transform value of lam"""
         return tf.math.log(lam / self.lam_min) / self.log_lam_range
 
+    @tf.function
     def call(self, inputs=None):
         """Return the current orbital elements and mixture model parameters"""
         # print(f'type(inputs)={type(inputs)}.')
@@ -224,34 +223,37 @@ class OrbitalElements(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, row_lengths: tf.Tensor, thresh_deg: float, **kwargs):
+    def __init__(self, u_obs_np, row_lengths_np: np.ndarray, thresh_deg: float, **kwargs):
         """
         INPUTS:
-            row_lengths: Number of observations for each element; shape [elt_batch_size]
+            u_obs_np:       Observed positions; shape [data_size, 3]
+            row_lengths_np: Number of observations for each element; shape [elt_batch_size]
             thresh_deg: threshold in degrees for observations to be included
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
         # Configuration for seralization
         self.cfg = {
-            'row_lengths': row_lengths,
+            'u_obs_np': u_obs_np,
+            'row_lengths_np': row_lengths_np,
             'thresh_deg': thresh_deg
         }
 
         # Sizes of the data as keras constants
-        self.elt_batch_size = keras.backend.constant(value=row_lengths.shape[0], dtype=tf.int32)
-        self.data_size = keras.backend.constant(value=tf.reduce_sum(row_lengths), dtype=tf.int32)
-        self.row_lengths = keras.backend.constant(value=row_lengths, shape=row_lengths.shape, dtype=tf.int32)
+        self.elt_batch_size = keras.backend.constant(value=row_lengths_np.shape[0], dtype=tf.int32)
+        self.data_size = keras.backend.constant(value=tf.reduce_sum(row_lengths_np), dtype=tf.int32)
+        self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
         u_shape = (self.data_size, space_dims,)        
 
         # Save the observed directions as a keras constant
-        # self.u_obs = keras.backend.constant(value=u_obs, shape=u_shape, dtype=dtype)
+        self.u_obs = keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
 
         # The threshold distance and its square
         self.thresh_s = keras.backend.constant(value=deg2dist(thresh_deg), dtype=dtype, name='thresh_s')
         self.thresh_s2 = keras.backend.constant(value=self.thresh_s**2, dtype=dtype, name='thresh_s2')
-        
-    def call(self, u_pred: tf.Tensor, u_obs: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
+
+    @tf.function        
+    def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
@@ -261,16 +263,14 @@ class TrajectoryScore(keras.layers.Layer):
             lam:    exponential decay parameter in mixture model
         """
         # Difference between actual and predicted directions
-        du = keras.layers.subtract(inputs=[u_pred, u_obs], name='du')
+        du = keras.layers.subtract(inputs=[u_pred, self.u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
         
         # Filter to only include terms where z2 is within the threshold distance^2
-        # is_close = s2 < self.thresh_s2
         is_close = tf.math.less(s2, self.thresh_s2, name='is_close')
         
         # Relative distance v on data inside threshold
-        # v = tf.divide(s2[is_close], self.thresh_s2, name='v')
         v = tf.divide(tf.boolean_mask(tensor=s2, mask=is_close), self.thresh_s2, name='v')
 
         # Row_lengths, for close observations only
@@ -298,9 +298,9 @@ class TrajectoryScore(keras.layers.Layer):
         log_p_flat = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
 
         # Rearrange to ragged tensors
-        log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
-        # ragged_map_func_close = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
-        # log_p = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
+        # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
+        ragged_map_func_close = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
+        log_p = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
 
         # Log likelihood by element
         log_like = tf.reduce_sum(log_p, axis=1, name='log_like')
@@ -339,40 +339,29 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     # Element batch size comes from elts
     elt_batch_size = elts.shape[0]
 
+    # Dummy input; this does absolutely nothing, but otherwise keras pukes
+    # Did I mention that sometimes I HATE keras?
+    x = keras.Input(shape=(), batch_size=elt_batch_size, name='x')
+
     # Numpy array and tensor of observation times; flat, shape (data_size,)
     ts_np = ztf_elt.mjd.values.astype(dtype_np)
-    ts = keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype, name='ts')
 
     # Get observation count per element
     row_lengths_np = ztf_elt.element_id.groupby(ztf_elt.element_id).count()
-    row_lengths = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, 
-                                         dtype=tf.int32, name='row_lengths')
 
     # Shape of the observed trajectories
     data_size = ztf_elt.shape[0]
     traj_shape = (data_size, space_dims)
 
-    # Input is observed directions as a ragged tensor of shape (elt_batch_size, (num_obs), 3,)
-    u_obs = keras.Input(shape=(3,), batch_size=data_size, name='u_obs')
-
-    # # Flatten the ragged tensor of observations
-    # ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths)
-    # u_obs_r = tf.keras.layers.Lambda(function=ragged_map_func, name='u_obs_r')(u_obs)
-    # u_obs_flat = u_obs_r.values
-
-    # Dummy inputs: weights on the elements
-    # elt_wts = keras.Input(shape=(), batch_size=elt_batch_size, name='elt_wt')
-
-    # # Observed directions; extract from ztf_elt DataFrame
-    # cols_u_obs = ['ux', 'uy', 'uz']
-    # u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
-    # u_obs = keras.backend.constant(value=u_obs_np, dtype=dtype, name='u_obs')
+    # Observed directions; extract from ztf_elt DataFrame
+    cols_u_obs = ['ux', 'uy', 'uz']
+    u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
 
     # Set of trainable weights with candidate orbital elements; initialize according to elts
-    elements_layer = OrbitalElements(elts=elts, elt_batch_size=elt_batch_size, h=h, lam=lam, name='candidates')
+    elements_layer = OrbitalElements(elts=elts, h=h, lam=lam, name='candidates')
     
     # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
-    a, e, inc, Omega, omega, f, epoch, h, lam = elements_layer(inputs=None)
+    a, e, inc, Omega, omega, f, epoch, h, lam = elements_layer(inputs=x)
     
     # Alias the orbital elements; a, e, inc, Omega, omega, and f are trainable; epoch is fixed
     a = Identity(name='a')(a)
@@ -387,11 +376,15 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     h = Identity(name='h')(h)
     lam = Identity(name='lam')(lam)
 
-    # The orbital elements; stack to shape (elt_batch_size, 7)
+    # Stack the current orbital elements; shape is [elt_batch_size, 7,]
     elts_tf = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
 
-    # The predicted direction
-    direction_layer = AsteroidDirection(ts=ts, row_lengths=row_lengths, site_name=site_name, name='direction_layer')
+    # Stack mixture model parameters
+    mixture = tf.stack(values=[h, lam], axis=1, name='mixture')
+
+    # The predicted direction; shape is [data_size, 3,]
+    direction_layer = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
+                                        site_name=site_name, name='direction_layer')
 
     # Calibration arrays (flat)
     cols_q_ast = ['qx', 'qy', 'qz']
@@ -402,21 +395,20 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     # Run calibration
     direction_layer.q_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
 
-    # Tensor of predicted directions
+    # Tensor of predicted directions.  Shape is [data_size, 3,]
     u_pred, r_pred = direction_layer(a, e, inc, Omega, omega, f, epoch)
 
     # Score layer for these observations
-    score_layer = TrajectoryScore(row_lengths=row_lengths, thresh_deg=thresh_deg, name='score_layer')
+    score_layer = TrajectoryScore(row_lengths_np=row_lengths_np, u_obs_np=u_obs_np,
+                                  thresh_deg=thresh_deg, name='score_layer')
 
     # Compute the log likelihood by element from the predicted direction and mixture model parameters
-    log_like = score_layer(u_pred, u_obs=u_obs, h=h, lam=lam)
-
-    # Compute the weighted sum log likelihood so inputs and outputs are connected
-    # log_like_wtd = tf.reduce_sum(tf.multiply(elt_wts, log_like), name='log_like_wtd')
+    # Shape is [elt_batch_size,]
+    log_like = score_layer(u_pred, h=h, lam=lam)
 
     # Wrap inputs and outputs
-    inputs = (u_obs)
-    outputs = (log_like, elts_tf, u_pred)
+    inputs = (x,)
+    outputs = (log_like, elts_tf, mixture, u_pred)
 
     # Create model with functional API
     model = keras.Model(inputs=inputs, outputs=outputs)
