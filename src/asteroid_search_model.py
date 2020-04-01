@@ -27,7 +27,7 @@ from astro_utils import deg2dist, dist2deg
 from tf_utils import tf_quiet, Identity
 
 # Typing
-from typing import Optional
+from typing import Optional, Union
 
 # ********************************************************************************************************************* 
 # Aliases
@@ -58,17 +58,34 @@ e_max_: float = 1.0 - 2.0**-10
 h_min_ = 2.0**-8
 h_max_ = 1.0 - h_min_
 
-# Range for exponential decay parameter lambda
-lam_min_ = 2.0**-2
-lam_max_ = 2.0**24
-log_lam_min_ = np.log(lam_min_)
-log_lam_max_ = np.log(lam_max_)
+# # Range for exponential decay parameter lambda
+# lam_min_ = 1.0
+# lam_max_ = 2.0**24
+# log_lam_min_ = np.log(lam_min_)
+# log_lam_max_ = np.log(lam_max_)
 
-# # Range for resolution parameter R
-# R_min_ = deg2dist(1.0/3600)
-# R_max_ = deg2dist(1.0)
-# log_R_min_ = np.log(R_min_)
-# log_R_max_ = np.log(R_max_)
+# Range for resolution R: 1.0 arc second to 2.0 degrees
+thresh_s_1deg = deg2dist(1.0)
+R_min_ = deg2dist(1.0 / 3600.0)
+R_max_ = deg2dist(2.0)
+log_R_min_ = np.log(R_min_)
+log_R_max_ = np.log(R_max_)
+
+# ********************************************************************************************************************* 
+def R2lam(R, thresh_s):
+    """Convert a resolution and threshold in degrees to a decay parameter lambda"""
+    # Squares
+    R2 = R**2
+    thresh_s2 = thresh_s**2
+    lam = thresh_s2 / (2.0 * R2)
+    return lam
+
+def Rdeg2lam(R_deg, thresh_deg):
+    """Convert a resolution and threshold in degrees to a decay parameter lambda"""
+    # Convert from degrees to Cartesian distance
+    R = deg2dist(R_deg)
+    thresh_s = deg2dist(thresh_deg)
+    return R2lam(R=R, thresh_s=thresh_s)
 
 # ********************************************************************************************************************* 
 # Custom Layers
@@ -80,8 +97,9 @@ class OrbitalElements(keras.layers.Layer):
 
     def __init__(self, 
                  elts: pd.DataFrame, 
-                 h: float = 0.125,
-                 lam: float = 1.0,
+                 h: Union[float, np.ndarray] = 0.125,
+                 R: Union[float, np.ndarray] = deg2dist(1.0),
+                 thresh_deg: float = 1.0,
                  **kwargs):
         super(OrbitalElements, self).__init__(**kwargs)
         
@@ -89,11 +107,22 @@ class OrbitalElements(keras.layers.Layer):
         self.cfg = {
             'elts': elts,
             'h': h,
-            'lam': lam,
+            'R': R,
         }
 
         # Infer batch size from elts DataFrame
         batch_size = elts.shape[0]
+        elt_shape = (batch_size,)
+
+        # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
+        self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
+
+        # If h was passed as a scalar, promote it to an array
+        h_init = h if isinstance(h, np.ndarray) else np.full(shape=elt_shape, fill_value=h)
+        # If lam was passed as a scalar, promote it to an array
+        # lam_init = lam if isinstance(lam, np.ndarray) else np.full(shape=elt_shape, fill_value=lam)
+        # If R was passed as a scalar, promote it to an array
+        R_init = R if isinstance(R, np.ndarray) else np.full(shape=elt_shape, fill_value=R)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -133,19 +162,23 @@ class OrbitalElements(keras.layers.Layer):
         self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, name='epoch')
         
         # Control of the hit rate h_, in range h_min to h_max
-        h_init = h * np.ones_like(elts['a'])
         self.h_min = keras.backend.constant(h_min_, dtype=tf.float32)
         self.h_max = keras.backend.constant(h_max_, dtype=tf.float32)
         self.h_ = tf.Variable(initial_value=h_init, trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
 
-        # Control of the exponential decay paramater lam_, in range lam_min to lam_max
-        lam_init = lam * np.ones_like(elts['a'])
-        self.lam_min = keras.backend.constant(h_min_, dtype=tf.float32)
-        self.log_lam_range = keras.backend.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
-        self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, dtype=dtype,
-                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='lam_')
+        # # Control of the exponential decay paramater lam_, in range lam_min to lam_max
+        # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
+        # self.lam_min = keras.backend.constant(lam_min_, dtype=tf.float32)
+        # self.log_lam_range = keras.backend.constant(log_lam_max_ - log_lam_min_, dtype=tf.float32)
+        # self.lam_ = tf.Variable(initial_value=self.inverse_lam(lam_init), trainable=True, dtype=dtype,
+        #                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='lam_')
 
+        # Control of the resolution paramater R_, in range R_min to R_max
+        self.R_min = keras.backend.constant(R_min_, dtype=tf.float32)
+        self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=tf.float32)
+        self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=True, dtype=dtype,
+                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
     def get_a(self):
         """Transformed value of a"""
         return self.a_min * tf.exp(self.a_ * self.log_a_range)
@@ -192,9 +225,28 @@ class OrbitalElements(keras.layers.Layer):
         """Transformed value of h"""
         return self.h_
 
+    def get_R(self):
+        """Transformed value of R"""
+        return self.R_min * tf.exp(self.R_ * self.log_R_range)
+
+    def inverse_R(self, R):
+        """Inverse transform value of R"""
+        return tf.math.log(R / self.R_min) / self.log_R_range
+
+    def get_R_deg(self):
+        """Transformed value of R in degrees"""
+        R = self.get_R()        
+        return dist2deg(R)
+
+    def R_to_lam(self, R):
+        """Convert a resolution R to an exponential decay term lambda"""
+        return tf.divide(self.half_thresh_s2, tf.square(R))
+
     def get_lam(self):
         """Transformed value of lambda"""
-        return self.lam_min * tf.exp(self.lam_ * self.log_lam_range)
+        # return self.lam_min * tf.exp(self.lam_ * self.log_lam_range)
+        R = self.get_R()
+        return self.R_to_lam(R)
 
     def inverse_lam(self, lam):
         """Inverse transform value of lam"""
@@ -215,7 +267,8 @@ class OrbitalElements(keras.layers.Layer):
         # Transform search parameters h and lambda
         h = self.get_h()
         lam = self.get_lam()
-        return a, e, inc, Omega, omega, f, self.epoch, h, lam
+        R = self.get_R()
+        return (a, e, inc, Omega, omega, f, self.epoch, h, lam, R,)
 
     def get_config(self):
         return self.cfg
@@ -321,9 +374,10 @@ class TrajectoryScore(keras.layers.Layer):
 def make_model_asteroid_search(elts: pd.DataFrame,
                                ztf_elt: pd.DataFrame,
                                site_name: str='geocenter',
+                               thresh_deg: float = 1.0,
                                h: float = 0.5,
-                               lam: float = 1.0,
-                               thresh_deg: float = 1.0):
+                               # lam: float = 1.0,
+                               R_deg: float = 1.0):
     """
     Make functional API model for scoring elements
     INPUTS:
@@ -336,6 +390,7 @@ def make_model_asteroid_search(elts: pd.DataFrame,
         site_name:  Used for topos adjustment, e.g. 'geocenter' or 'palomar'
         h:          Initial value of hit probability in mixture model
         lam:        Initial value of exponential decay parameter in mixture model
+        R_deg:      Initial value of resolution parameter (in degrees) in mixture model
     """
 
     # Element batch size comes from elts
@@ -359,11 +414,14 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     cols_u_obs = ['ux', 'uy', 'uz']
     u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
 
+    # Convert resolution from degrees to Cartesian distance
+    R_s = deg2dist(R_deg)
+
     # Set of trainable weights with candidate orbital elements; initialize according to elts
-    elements_layer = OrbitalElements(elts=elts, h=h, lam=lam, name='candidates')
+    elements_layer = OrbitalElements(elts=elts, h=h, R=R_s, name='candidates')
     
     # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
-    a, e, inc, Omega, omega, f, epoch, h, lam = elements_layer(inputs=x)
+    a, e, inc, Omega, omega, f, epoch, h, lam, R, = elements_layer(inputs=x)
     
     # Alias the orbital elements; a, e, inc, Omega, omega, and f are trainable; epoch is fixed
     a = Identity(name='a')(a)
@@ -377,12 +435,13 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     # Alias the mixture model parameters
     h = Identity(name='h')(h)
     lam = Identity(name='lam')(lam)
+    R = Identity(name='R')(R)
 
     # Stack the current orbital elements; shape is [elt_batch_size, 7,]
     elts_tf = tf.stack(values=[a, e, inc, Omega, omega, f, epoch], axis=1, name='elts')
 
     # Stack mixture model parameters
-    mixture = tf.stack(values=[h, lam], axis=1, name='mixture')
+    mixture = tf.stack(values=[h, lam, R,], axis=1, name='mixture')
 
     # The predicted direction; shape is [data_size, 3,]
     direction_layer = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
@@ -410,7 +469,7 @@ def make_model_asteroid_search(elts: pd.DataFrame,
 
     # Wrap inputs and outputs
     inputs = (x,)
-    outputs = (log_like, elts_tf, mixture, u_pred)
+    outputs = (log_like, elts_tf, mixture)
 
     # Create model with functional API
     model = keras.Model(inputs=inputs, outputs=outputs)
@@ -420,12 +479,66 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     model.direction = direction_layer
     model.position = model.direction.q_layer
     model.score = score_layer
-    
+
+    # Save the learning rate on the model object to facilitate adaptive training
+    model.learning_rate = 1.0E-4
+  
     # Add the loss function - the NEGATIVE of the log likelihood
     # (Take negative b/c TensorFlow minimizes the loss function)
     model.add_loss(-tf.reduce_sum(log_like))
 
+    def reduce_learning_rate(self):
+        reduce_learning_rate(self)
+
+    # Compile the model
+    compile_search_model(model)
+
     return model
+
+# ********************************************************************************************************************* 
+def make_adam_opt(learning_rate=1.0E-4, clipvalue=5.0):
+    """
+    Build Adam optimizer for training 
+    Default settings are:
+    learning_rate = 1.0E-3
+    clipvalue = None
+    These are changed based on trial and error.
+    Other arguments left at default settings
+    """
+
+    # Settings for other arguments; leave at defaults
+    beta_1 = 0.900          # default 0.900
+    beta_2 = 0.999          # default 0.999
+    epsilon = 1.0E-7        # default 1.0E-7
+    amsgrad = False         # default False
+
+    # Optimizer arguments - wrap as dict.  Point is to permit clip=None
+    opt_args = {
+        'learning_rate': learning_rate,
+        'beta_1': beta_1,
+        'beta_2': beta_2,
+        'epsilon': epsilon,
+        'amsgrad': amsgrad,
+    }
+    # Add the clip value if it was set
+    if clipvalue is not None:
+        opt_args['clipvalue'] = clipvalue
+
+    # Build the optimizer
+    opt = keras.optimizers.Adam(**opt_args)
+    return opt
+    
+# ********************************************************************************************************************* 
+def compile_search_model(model):
+    """Recompile this model with the current learning rate"""
+    optimizer = make_adam_opt(learning_rate=model.learning_rate)
+    model.compile(optimizer=optimizer)
+
+# ********************************************************************************************************************* 
+def reduce_learning_rate(model, lr_factor = 2.0):
+    """Reduce the learning rate and recompile the model"""    
+    model.learning_rate = model.learning_rate / lr_factor
+    compile_search_model(model)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
