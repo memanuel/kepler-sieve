@@ -175,8 +175,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Initialize best_loss and best_weights
         self.x_eval = tf.ones(shape=self.batch_size, dtype=dtype)
-        self.best_loss = self.current_loss()
-        self.best_weights = self.candidate_elements.get_weights()        
+        self.best_losses = [self.current_loss()]
+        self.best_weights_list = [self.candidate_elements.get_weights()]
+        self.training_times = [0.0]
         
     def call(self, inputs=None):
         # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
@@ -206,6 +207,10 @@ class AsteroidSearchModel(tf.keras.Model):
     def current_loss(self):
         return self.evaluate(self.x_eval, verbose=0)
 
+    def best_loss(self):
+        """Best loss so far"""
+        return self.best_losses[-1]
+
     def recompile(self):
         """Recompile this model with its current learning rate"""
         # Note: important not to name this method compile, that breaks relationship with tf.keras.Model
@@ -229,9 +234,34 @@ class AsteroidSearchModel(tf.keras.Model):
         # Recompile with the new learning rate
         self.recompile()
 
+    def save_best_weights(self, current_loss):
+        """Save the best weights and their loss"""        
+        self.best_weights_list.append(self.candidate_elements.get_weights())
+        self.best_losses.append(current_loss)
+        self.training_times.append(time.time() - self.t0)
+    
     def restore_best_weights(self):
         """Restore the best weights"""
-        self.candidate_elements.set_weights(self.best_weights)
+        # If there is more than one item on best_weights, pop it;
+        # we only restore the same weights at most one time, except for the initial weights.
+        if len(self.best_weights_list) > 1:
+            best_weights = self.best_weights_list.pop()
+            best_loss = self.best_losses.pop()
+            _ = self.training_times.pop()
+        else:
+            best_weights = self.best_weights_list[0]
+            best_loss = self.best_losses[0]
+        # Restore the weights to the saved ones
+        self.candidate_elements.set_weights(best_weights)
+        # Adjust the learning rate down
+        self.adjust_learning_rate(lr_factor_dn, verbose=True)
+        # Return the associated loss
+        return best_loss
+
+    def update_early_stop(self):
+        """Update early stopping monitor"""
+        self.early_stop = tf.keras.callbacks.EarlyStopping(
+            monitor='loss', patience=0, baseline=self.best_loss(), min_delta=1.0, restore_best_weights=True)
     
     def adaptive_episode_end(self, hist, verbose: int = 1):
         """Post-processing after one episode of adaptive training"""
@@ -239,29 +269,28 @@ class AsteroidSearchModel(tf.keras.Model):
         self.episode_length = len(hist.epoch)
         self.current_epoch += self.episode_length
         self.training_episode += 1
+        # Update timers
         self.episode_time = (time.time() - self.t0)
+        self.t0 = time.time()
 
         # Update best loss and weights
         current_loss: float = self.current_loss()
         if verbose > 1:
             print(f'Updating best_loss & best_weights at end of episode {self.training_episode-1}')
-        if current_loss < self.best_loss:
+        if current_loss < self.best_loss():
             if verbose > 1:
-                print(f'New best_loss = {current_loss:8.2f}.  Old best_loss was {self.best_loss:8.2f}')
-            self.best_loss = current_loss
-            self.best_weights = self.candidate_elements.get_weights()
+                print(f'New best_loss = {current_loss:8.2f}.  Old best_loss was {self.best_loss():8.2f}')
+            self.save_best_weights(current_loss)
         else:
             if verbose > 0:
-                print(f'Manually restoring best weights to recover best_loss = {self.best_loss:8.2f}')
-            self.restore_best_weights()
-            current_loss = self.current_loss()
+                print(f'Manually restoring best weights to recover best_loss = {self.best_loss():8.2f}')
+            current_loss = self.restore_best_weights()            
 
         # Log likelihood is negative of the loss
         log_like = -current_loss        
 
         # Update early_stop
-        early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=0, baseline=self.best_loss, 
-                                                      restore_best_weights=True)
+        self.update_early_stop()
 
         # Update loss history and training time
         self.loss_hist += hist.history['loss']
@@ -276,50 +305,58 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_batches: int = 10000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
+                        min_learning_rate: float = 1.0E-7,
                         verbose: int = 1):
         """
         Run asteroid search model adaptively.  
-        Start with a high learning rate, gradually reduce it if early stopping triggered
+        Start with a high learning rate, gradually reduce it if early stopping triggered.
+        INPUTS:
+            max_batches: The maximum number of batches processed in the adaptive training.
+            batches_per_epoch: The number of batches processed in one epoch of training
+            epochs_per_episode: The number of epochs that comprise one episode of training
+            min_learning_rate: Minimum for the learning rate; terminate early if LR drops below this
+            verbose: Integer controlling verbosity level (passed on to tf.keras.model.fit)
         """
 
         # Start timer
         self.t0 = time.time()
 
         # Early stopping callback
-        early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=0, restore_best_weights=True)
-        callbacks = [early_stop]
+        self.update_early_stop()
+        callbacks = [self.early_stop]
 
         # Define one epoch as a number of batches        
         samples_per_epoch: int = batches_per_epoch * self.batch_size
-        max_epochs: int = max_batches // batches_per_epoch
+        max_epochs: int = max_batches // batches_per_epoch + self.current_epoch
         x_trn = tf.ones(samples_per_epoch, dtype=dtype)
 
         # Set the learning rate factor
-        lr_factor_up: float = 1.0
-        lr_factor_dn: float = 0.5
+        self.lr_factor_dn: float = 0.5
+        # self.lr_factor_up: float = 1.0
 
         # Run first episode of training
         hist = self.fit(x=x_trn, batch_size=self.batch_size, epochs=epochs_per_episode, 
                         steps_per_epoch=batches_per_epoch, 
-                        callbacks=callbacks, shuffle=False, verbose=verbose)            
+                        callbacks=callbacks, shuffle=False, verbose=verbose)
+        # Episode end processing; includes LR adjustment
         self.adaptive_episode_end(hist)
 
-        # Continue training until max_epochs have elapsed
-        while self.current_epoch < max_epochs:        
-            # If the last training ran without early stopping, increase the learning rate
-            if self.episode_length == epochs_per_episode:
-                if lr_factor_up != 1.0:
-                    self.adjust_learning_rate(lr_factor_up, verbose=False)
-            # If the last training hit early stopping, decrease the learning rate
-            else:
-                self.adjust_learning_rate(lr_factor_dn, verbose=True)
-            # Train for another episode
+        # Continue training until max_epochs have elapsed or learning_rate has dropped too low
+        while self.current_epoch < max_epochs and min_learning_rate < self.learning_rate:
+            # Status update for this episode
             print(f'\nTraining episode {self.training_episode}: Epoch {self.current_epoch:4}')
             print(f'learning_rate={self.learning_rate:8.3e}, total training time {self.total_training_time:0.0f} sec.')
+            # Train for another episode
             hist = self.fit(x=x_trn, batch_size=self.batch_size, epochs=self.current_epoch+epochs_per_episode, 
                             steps_per_epoch=batches_per_epoch, initial_epoch=self.current_epoch,
-                            callbacks=callbacks,  shuffle=False, verbose=verbose)        
-            self.adaptive_episode_end(hist)        
+                            callbacks=callbacks,  shuffle=False, verbose=verbose)
+            # Episode end processing; includes LR adjustment
+            self.adaptive_episode_end(hist)
+
+        if self.current_epoch == max_epochs:
+            print(f'Reached epoch {self.max_epochs}.')
+        if self.learning_rate < min_learning_rate:
+            print(f'Learning rate {self.learning_rate:8.3e} below minimum {learning_rate_min:8.3e}.')
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     pass
