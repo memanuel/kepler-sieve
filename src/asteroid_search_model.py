@@ -493,8 +493,12 @@ def make_model_asteroid_search(elts: pd.DataFrame,
   
     # Save the learning rate on the model object to facilitate adaptive training
     model.learning_rate = 1.0E-4
-    model.clipnorm = 5.0
+    model.clipnorm = 1.0
     model.clipvalue = None
+
+    # Initialize best_loss and best_weights
+    model.best_loss = np.inf
+    model.best_weights = model.elements.get_weights()
 
     # Add the loss function - the NEGATIVE of the log likelihood
     # (Take negative b/c TensorFlow minimizes the loss function)
@@ -506,7 +510,7 @@ def make_model_asteroid_search(elts: pd.DataFrame,
     return model
 
 # ********************************************************************************************************************* 
-def make_adam_opt(learning_rate=1.0E-4, clipnorm=5.0, clipvalue=None):
+def make_adam_opt(learning_rate=1.0E-4, clipnorm=1.0, clipvalue=None):
     """
     Build Adam optimizer for training 
     Default settings are:
@@ -549,7 +553,7 @@ def compile_search_model(model):
     model.compile(optimizer=optimizer)
 
 # ********************************************************************************************************************* 
-def adjust_learning_rate(model, lr_factor = 0.5, verbose=False):
+def adjust_learning_rate(model, lr_factor, verbose=False):
     """Reduce the learning rate and recompile the model"""
     if verbose:
         print(f'Changing learning rate by factor {lr_factor:8.6f} from '
@@ -558,9 +562,8 @@ def adjust_learning_rate(model, lr_factor = 0.5, verbose=False):
     compile_search_model(model)
 
 # ********************************************************************************************************************* 
-def ast_search_adaptive(model, learning_rate=1.0E-4, clipnorm=10.0, clipvalue=None, 
-                        max_epochs: int = 1000,
-                        batch_size: int = 64):
+def ast_search_adaptive(model, learning_rate=None, clipnorm=None,
+                        batch_size: int = 64, max_epochs: int = 100):
     """
     Run asteroid search model adaptively.  
     Start with a high learning rate, gradually reduce it if early stopping triggered
@@ -569,70 +572,92 @@ def ast_search_adaptive(model, learning_rate=1.0E-4, clipnorm=10.0, clipvalue=No
     # Start timer
     t0 = time.time()
     
-    # Set the specified learning rate and clipvalue to the model
-    model.learning_rate = learning_rate
-    model.clipnorm = clipnorm
-    model.clipvalue = clipvalue
+    # Set the learning rate and clipnorm to the model if they were specified
+    if learning_rate is not None:
+        model.learning_rate = learning_rate
+    if clipnorm is not None:
+        model.clipnorm = clipnorm
     
     # Recompile the model
     compile_search_model(model)
     
     # Early stopping callback
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='loss', patience=0, restore_best_weights=True)]
+    early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=0, restore_best_weights=True)
+    callbacks = [early_stop]
 
     # Define one epoch as a number of batches
-    steps_per_epoch: int = 1
+    steps_per_epoch: int = 200
+    # steps_per_epoch: int = 10
     samples_per_epoch: int = steps_per_epoch * batch_size
     x_trn: np.ndarray = np.ones(samples_per_epoch)
 
     # Set number of epochs for one episode of training
-    epochs_per_episode: int = min(100, max_epochs)
+    epochs_per_episode: int = 5 # min(10, max_epochs)
     training_episode: int = 1
 
+    # Epoch and episode counters
+    episode_length: int = 0
+    model.current_epoch: int = 0
+    model.best_loss: float = np.inf
+    model.best_weights: np.ndarray
+
     # Set the learning rate factor
-    lr_factor_up: float = 2.0**0.125
+    lr_factor_up: float = 1.0 # 2.0**0.125
     lr_factor_dn: float = 0.5
         
     # Verbose flag for training
-    verbose = 0
+    verbose = 1
     
+    def after_episode():
+        nonlocal episode_length, training_episode
+        # Update training counters
+        episode_length = hist.epoch[-1] + 1
+        model.current_epoch += episode_length
+        training_episode += 1
+        elapsed_time = (time.time() - t0)
+
+        # Update best loss and weights
+        current_loss: float = hist.history['loss'][-1]
+        print(f'Updating best_loss at end of episode {training_episode}')
+        if current_loss < model.best_loss:
+            print(f'New best_loss = {current_loss:8.2f}.  Old best_loss was {model.best_loss:8.2f}')
+            model.best_loss = current_loss
+            model.best_weights = model.elements.get_weights()
+        else:
+            print(f'Manually restoring best weights to recover best_loss = {model.best_loss:8.2f}')
+            model.elements.set_weights(model.best_weights)
+            current_loss = model.best_loss
+
+        # Log likelihood is negative of the loss
+        log_like = -current_loss        
+        
+        # Update early_stop
+        early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=0, baseline=model.best_loss, restore_best_weights=True)
+
+        # Status message
+        print(f'Epoch {model.current_epoch:4}. Elapsed time = {elapsed_time:0.0f} sec')
+        print(f'Log Likelihood: {log_like:8.2f}')
+
     # Run first episode of training
-    print(f'Training episode 1, learning_rate={model.learning_rate:8.3e}.')
     hist = model.fit(x=x_trn, batch_size=batch_size, epochs=epochs_per_episode, steps_per_epoch=steps_per_epoch, 
-                     callbacks=callbacks, shuffle=False, verbose=verbose)
-    
-    # Update training counters and loss
-    log_like = -hist.history['loss'][-1]
-    episode_length: int = hist.epoch[-1]+1
-    current_epoch: int = episode_length
-    training_episode += 1
-    # Status message
-    print(f'Epoch {current_epoch:4}. Elapsed time = {elapsed_time:0f} sec')
-    print(f'Log Likelihood: {log_like:8.2f}')
+                     callbacks=callbacks, shuffle=False, verbose=verbose)            
+    after_episode()
     
     # Continue training until max_epochs have elapsed
-    while current_epoch < max_epochs:        
+    while model.current_epoch < max_epochs:        
         # If the last training ran without early stopping, increase the learning rate
         if episode_length == epochs_per_episode:
-            adjust_learning_rate(model, lr_factor_up, verbose=False)
+            # adjust_learning_rate(model, lr_factor_up, verbose=False)
+            pass
         # If the last training hit early stopping, decrease the learning rate
         else:
             adjust_learning_rate(model, lr_factor_dn, verbose=False)
         # Train for another episode
-        print(f'\nTraining episode {training_episode}, current_epoch {current_epoch}, learning_rate={model.learning_rate:8.3e}.')
+        print(f'\nTraining episode {training_episode}:')
+        print(f'Epoch {model.current_epoch:4}, learning_rate={model.learning_rate:8.3e}, clipnorm={model.clipnorm:6.3f}.')
         hist = model.fit(x=x_trn, batch_size=batch_size, epochs=epochs_per_episode, steps_per_epoch=steps_per_epoch, 
-                         callbacks=callbacks, shuffle=False, verbose=verbose)
-
-        # Update training counters
-        log_like = -hist.history['loss'][-1]
-        episode_length = hist.epoch[-1] + 1
-        current_epoch += episode_length
-        training_episode += 1
-        t1 = time.time()
-        elapsed_time = (t1 - t0)
-        # Status message
-        print(f'Epoch {current_epoch:4}. Elapsed time = {elapsed_time:0f} sec')
-        print(f'Log Likelihood: {log_like:8.2f}')
+                         callbacks=callbacks, shuffle=False, verbose=verbose)        
+        after_episode()
         
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
