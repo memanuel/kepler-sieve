@@ -20,8 +20,10 @@ from datetime import timedelta
 import argparse
 
 # Local imports
-from asteroid_search_model import make_model_asteroid_search
-from ztf_data import load_ztf_easy_batch, make_ztf_batch, report_ztf_score
+# from asteroid_search_model import make_model_asteroid_search
+# from ztf_data import load_ztf_easy_batch, make_ztf_batch, report_ztf_score
+from asteroid_search_model import AsteroidSearchModel
+from ztf_element import make_ztf_batch, report_ztf_score
 from candidate_element import orbital_element_batch
 from asteroid_data import make_ztf_dataset
 from asteroid_element import load_ast_elt

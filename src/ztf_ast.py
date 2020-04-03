@@ -2,6 +2,7 @@
 Harvard IACS Masters Thesis
 ZTF Data
 Calculate distances between ZTF observations and known asteroids.
+Load DataFrame of ZTF observations augmented with nearest asteroid information.
 
 Michael S. Emanuel
 27-Feb-2020
