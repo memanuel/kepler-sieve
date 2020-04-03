@@ -16,8 +16,8 @@ from tqdm.auto import tqdm
 # Local imports
 from utils import range_inc
 from astro_utils import datetime_to_mjd
+from asteroid_element import load_ast_elt
 from asteroid_data import make_data_one_file, get_earth_sun_pos_file
-from asteroid_integrate import load_ast_elt
 
 # Aliases
 keras = tf.keras

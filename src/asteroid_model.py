@@ -57,41 +57,6 @@ space_dims = 3
 dtype = tf.float32
 
 # ********************************************************************************************************************* 
-# Different types for orbital elements
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def elts_np2dict(elts_np):
-    """Convert an Nx7 array of orbital elements into a dict"""
-    # Dictionary
-    elts_dict = {
-        'a': elts_np[:,0],
-        'e': elts_np[:,1],
-        'inc': elts_np[:,2],
-        'Omega': elts_np[:,3],
-        'omega': elts_np[:,4],
-        'f': elts_np[:,5],
-        'epoch': elts_np[:,6],
-    }
-    return elts_dict
-
-# ********************************************************************************************************************* 
-def elts_np2df(elts_np):
-    """Convert an Nx7 array of orbital elements into a DataFrame"""
-    # Dictionary
-    elts_dict = elts_np2dict(elts_np=elts_np)
-    # Return a DataFrame
-    return pd.DataFrame(elts_dict)
-
-# ********************************************************************************************************************* 
-def elts_df2dict(elts_df):
-    """Convert a DataFrame of orbital elements into a dict (built-in Dataframe.to_dict() method fails)"""
-    # Columns in the elements DataFrame
-    cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
-    # Return a dict
-    return {col: elts_df[col] for col in cols_elt}
-
-# ********************************************************************************************************************* 
 # Custom Layers
 # ********************************************************************************************************************* 
 

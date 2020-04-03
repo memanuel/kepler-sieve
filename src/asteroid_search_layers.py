@@ -19,10 +19,9 @@ import time
 from datetime import timedelta
 
 # Local imports
-from asteroid_model import AsteroidDirection, elts_np2df
+from asteroid_model import AsteroidDirection
 from asteroid_integrate import calc_ast_pos
-from search_score_functions import score_mean, score_var, score_mean_var
-from candidate_element import perturb_elts
+from candidate_element import elts_np2df, perturb_elts
 from astro_utils import deg2dist, dist2deg
 from tf_utils import tf_quiet, Identity
 

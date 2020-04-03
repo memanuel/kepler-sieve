@@ -22,7 +22,7 @@ from tqdm.auto import tqdm
 
 # Local imports
 from astro_utils import datetime_to_mjd
-from asteroid_integrate import load_ast_elt
+from asteroid_element import load_ast_elt
 from asteroid_dataframe import spline_ast_vec_dir
 from rebound_utils import load_sim_np
 

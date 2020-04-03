@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 # Local
-from asteroid_integrate import load_ast_elt
+from asteroid_element import load_ast_elt
 from planets import make_sim_planets
 from astro_utils import mjd_to_datetime, deg2dist, dist2deg
 
@@ -36,6 +36,45 @@ ast_elt = load_ast_elt()
 # Set plot style variables
 mpl.rcParams['figure.figsize'] = [16.0, 10.0]
 mpl.rcParams['font.size'] = 16
+
+# ********************************************************************************************************************* 
+# Convert between different representations for orbital elements: Numpy table, dictionary and DataFrame
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def elts_np2dict(elts_np):
+    """Convert an Nx7 array of orbital elements into a dict"""
+    # Dictionary
+    elts_dict = {
+        'a': elts_np[:,0],
+        'e': elts_np[:,1],
+        'inc': elts_np[:,2],
+        'Omega': elts_np[:,3],
+        'omega': elts_np[:,4],
+        'f': elts_np[:,5],
+        'epoch': elts_np[:,6],
+    }
+    return elts_dict
+
+# ********************************************************************************************************************* 
+def elts_np2df(elts_np):
+    """Convert an Nx7 array of orbital elements into a DataFrame"""
+    # Dictionary
+    elts_dict = elts_np2dict(elts_np=elts_np)
+    # Return a DataFrame
+    return pd.DataFrame(elts_dict)
+
+# ********************************************************************************************************************* 
+def elts_df2dict(elts_df):
+    """Convert a DataFrame of orbital elements into a dict (built-in Dataframe.to_dict() method fails)"""
+    # Columns in the elements DataFrame
+    cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    # Return a dict
+    return {col: elts_df[col] for col in cols_elt}
+
+# ********************************************************************************************************************* 
+# Generate candidate elements from known asteroids (including perturbations)
+# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def orbital_element_batch(ast_nums: np.ndarray) -> pd.DataFrame:
@@ -149,6 +188,10 @@ def perturb_elts(elts: pd.DataFrame,
     return elts
 
 # ********************************************************************************************************************* 
+# Generate candidate elements by randomly sampling elements of known asteroids
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
 def random_elts(element_id_start: np.int32 = 0, 
                 size: np.int32 = 64, 
                 random_seed: np.int32 = 42,
@@ -225,6 +268,10 @@ def random_elts(element_id_start: np.int32 = 0,
     elts = pd.DataFrame(elts_dict)
 
     return elts
+
+# ********************************************************************************************************************* 
+# Report summary attributes of ZTF elements generated from different candidates (EDA of elements and ZTF interaction)
+# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def score_by_elt(ztf_elt, thresh_deg=None, fit_mixture: bool = False):
