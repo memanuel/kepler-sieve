@@ -32,6 +32,7 @@ from astro_utils import date_to_mjd, deg2dist, dist2deg, dist2sec
 from ra_dec import radec2dir
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df, calc_ast_dir, spline_ast_vec_dir
 from candidate_element import orbital_element_batch
+from ztf_ast import load_ztf_nearest_ast
 
 # Typing
 from typing import Optional, Dict
@@ -265,211 +266,6 @@ def load_ztf_det_all(verbose: bool = False):
     return df, mjd_unq
 
 # ********************************************************************************************************************* 
-def ztf_ast_file_name(n0: int, n1: Optional[int]):
-    """File name for data file with ZTF observations and nearest asteroid."""
-    # Handle special case that we want all asteroids (n0=0, n1=None)
-    if (n0==0 and n1 is None):
-        file_name = 'ztf-nearest-ast.h5'
-    # Handle special case that we want all asteroids starting from n0 (n1=None)
-    elif (n1 is None):
-        file_name = f'ztf-nearest-ast-{n0:06d}.h5'
-    # General case: n0 and n1 both specified
-    else:
-        file_name = f'ztf-nearest-ast-{n0:06d}-{n1:06d}.h5'
-    return file_name
-
-# ********************************************************************************************************************* 
-def ztf_ast_file_path(n0: int, n1: int):
-    """File path for data file with ZTF observations and nearest asteroid."""
-    file_name = ztf_ast_file_name(n0=n0, n1=n1)   
-    file_path = os.path.join(ztf_ast_dir_name, file_name)
-    return file_path
-
-# ********************************************************************************************************************* 
-def ztf_calc_nearest_ast(ztf: pd.DataFrame, 
-                         ast_dir: pd.DataFrame, 
-                         thresh_deg: float = 180.0,
-                         progbar: bool = False,
-                         verbose: bool = False):
-    """
-    Calculate the nearest asteroid to each observation in the ZTF data.
-    INPUTS:
-        ztf:     DataFrame of ZTF observations.  
-                 Columns used include TimeStampID, ux, uy, uz, nearest_ast_num, nearest_ast_dist
-        ast_dir: DataFrame of theoretical asteroid directions from observatory with observations.
-                 mjd must match up with thos of mjd_unq (unique, sorted time stamps in ztf)
-        thresh:  Threshold in degrees to consider an observation close to an asteroid
-        progbar: Whether to display a tqdm progress bar
-        verbose:  Whether to print status messages to console
-    OUTPUTS:
-        DataFrame ztf with the columns for nearest asteroid
-    """
-    # Distinct asteroid numbers in ast_dir
-    asteroid_nums = np.unique(ast_dir.asteroid_num)
-    # Range of asteroid numbers
-    # ast_min: int = np.min(asteroid_nums)
-    # ast_max: int = np.max(asteroid_nums)
-
-    # Convert threshold from degrees to magnitude of direction difference
-    thresh_dist = np.sin(np.deg2rad(thresh_deg/2.0))*2.0
-
-    # Add columns for nearest asteroid number and distance if not already present
-    if 'nearest_ast_num' not in ztf.columns:
-        ztf.insert(loc=ztf.columns.size, column='nearest_ast_num', value=np.int32(-1))
-    if 'nearest_ast_dist' not in ztf.columns:
-        ztf.insert(loc=ztf.columns.size, column='nearest_ast_dist', value=2.0)
-    # Add columns for RA, DEC, and direction of nearest asteroid
-    cols_nearest_ast_radec = ['ast_ra', 'ast_dec']
-    cols_nearest_ast_dir = ['ast_ux', 'ast_uy', 'ast_uz']
-    for col in (cols_nearest_ast_radec + cols_nearest_ast_dir):
-        if col not in ztf.columns:
-            ztf.insert(loc=ztf.columns.size, column=col, value=np.nan)
-        
-    # Extract directions of the ZTF observations as an Mx3 array
-    cols_radec = ['ra', 'dec']
-    cols_dir = ['ux', 'uy', 'uz']
-    # radec_ztf = ztf[cols_radec].values
-    u_ztf = ztf[cols_dir].values
-
-    # Extract TimeStampID as M array
-    row_num = ztf.TimeStampID.values
-
-    # Check asteroid distance one at a time
-    iterates = tqdm(asteroid_nums) if progbar else asteroid_nums
-    for asteroid_num in iterates:
-        # Mask for this asteroid in the ast_dir DataFrame
-        mask_ast = (ast_dir.asteroid_num == asteroid_num)
-
-        # Directions of this asteroid at the unique time stamps
-        radec_ast_unq = ast_dir.loc[mask_ast, cols_radec].values
-        u_ast_unq = ast_dir.loc[mask_ast, cols_dir].values
-
-        # Difference bewteen ztf direction and this asteroid direction
-        dist_i = np.linalg.norm(u_ztf - u_ast_unq[row_num], axis=1)
-
-        # Is this the closest seen so far?
-        mask_close = (dist_i < thresh_dist) & (dist_i < ztf.nearest_ast_dist)
-        # Row numbers corresponding to close observations
-        row_num_close = row_num[mask_close]
-        # Update nearest asteroid number and distance columns
-        ztf.nearest_ast_num[mask_close] = asteroid_num
-        ztf.nearest_ast_dist[mask_close] = dist_i
-        # Save the RA, DEC and direction columns
-        ztf.loc[mask_close, cols_nearest_ast_radec] = radec_ast_unq[row_num_close]
-        ztf.loc[mask_close, cols_nearest_ast_dir] = u_ast_unq[row_num_close]
-
-    return ztf
-
-# ********************************************************************************************************************* 
-def load_ztf_nearest_ast(n0: int=0, 
-                         n1: int=None,
-                         dir_name: str = '../data/ztf_ast'):
-    """
-    Load the nearest asteroid to each observation in the ZTF data.
-    INPUTS:
-        n0:       First asteroid number to process, inclusive (e.g. 0)
-        n1:       Last asteroid number to process, exclusive (e.g. 1000)
-        dir_name: Directory with h5 file
-    OUTPUTS:
-        DataFrame ztf with the columns for nearest asteroid
-    """
-    # File path
-    file_path = ztf_ast_file_path(n0=n0, n1=n1)
-
-    # Load the data file if its available, and regeneration was not requested
-    try:
-        df = pd.read_hdf(file_path)
-    except:
-        raise ValueError(f'ztf_load_nearest_ast: unable to load file {file_path}.')
-    return df
-
-# ********************************************************************************************************************* 
-def ztf_nearest_ast(ztf: pd.DataFrame, 
-                    n0: int, 
-                    n1: int,
-                    thresh_deg: float = 180.0,
-                    dir_name: str = '../data/ztf_ast',
-                    regen: bool = False,
-                    progbar: bool = False,
-                    verbose: bool = False):
-    """
-    Load or calculate the nearest asteroid to each observation in the ZTF data.
-    INPUTS:
-        ztf:      DataFrame of ZTF observations.  
-                  Columns used include TimeStampID, ux, uy, uz, nearest_ast_num, nearest_ast_dist
-        n0:       First asteroid number to process, inclusive (e.g. 0)
-        n1:       Last asteroid number to process, exclusive (e.g. 1000)
-        thresh:   Threshold in degrees to consider an observation close to an asteroid
-        dir_name: Directory with h5 file
-        regen:    Flag; force regeneration of file whether or not on disk
-        progbar:  Whether to display a tqdm progress bar
-        verbose:  Whether to print status messages to console
-    OUTPUTS:
-        DataFrame ztf with the columns for nearest asteroid
-    """
-    # File name and path
-    file_name = ztf_ast_file_name(n0=n0, n1=n1)
-    file_path = os.path.join(dir_name, file_name)
-
-    # Load the data file if its available, and regeneration was not requested
-    if not regen:
-        try:
-            df = pd.read_hdf(file_path)
-            if verbose:
-                print(f'Loaded {file_path} from disk.')
-            return df
-        except:
-            if verbose:
-                print(f'Unable to load {file_path}, computing nearest asteroids from {n0} to {n1}...')
-    else:
-        if verbose:
-            print(f'Regenerating {file_path}, computing nearest asteroids from {n0} to {n1}...')
-    
-    # If we get here, we need to build the ztf_ast DataFrame by calculation
-
-    # Unique times in ztf data
-    mjd_unq = np.unique(ztf.mjd)
-
-    # Observatory for ZTF data is always Palomar Mountain
-    site_name = 'palomar'
-
-    # Build splined positions and observations at unique observation times
-    ast_pos, earth_pos, ast_dir = \
-        spline_ast_vec_dir(n0=n0, n1=n1, mjd=mjd_unq, site_name=site_name, progbar=progbar)
-
-    # Calculate nearest asteroid in this block with  ztf_calc_nearest_ast
-    ztf_ast = ztf_calc_nearest_ast(ztf=ztf, ast_dir=ast_dir, thresh_deg=thresh_deg, 
-                                   progbar=progbar, verbose=verbose)
-
-    # Save assembled DataFrame to disk and return it
-    ztf_ast.to_hdf(file_path, key='ztf_ast', mode='w')
-    return ztf_ast
-
-# ********************************************************************************************************************* 
-def calc_hit_freq(ztf, thresh_sec: float):
-    """
-    Calculate number of close hits by asteroid number
-    INPUTS:
-        ztf: DataFrame with distance to nearest asteroid
-        thresh_sec: Threshold in arc seconds for close observations
-    """
-    # Threshold distance and flag indicating whether observations are within threshold
-    thresh_deg = thresh_sec / 3600.0
-    thresh_dist = deg2dist(thresh_deg)
-    is_close = ztf.nearest_ast_dist < thresh_dist
-    # View of ztf limited to close observations
-    ztfc = ztf[is_close]
-
-    # Group close observations by asteroid number
-    close_by_ast = ztfc.groupby(ztfc.nearest_ast_num)
-    close_by_ast_count = close_by_ast.size()
-    ast_num = close_by_ast_count.index.values
-    hit_count = close_by_ast_count.values
-
-    # Return numbers and counts
-    return ast_num, hit_count
-
-# ********************************************************************************************************************* 
 def make_ztf_near_elt(ztf: pd.DataFrame, 
                       df_dir: pd.DataFrame, 
                       df_ast: pd.DataFrame,
@@ -685,98 +481,137 @@ def load_ztf_batch(elts: pd.DataFrame,
     
     return ztf_elt
 
-# ********************************************************************************************************************* 
-def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
-    """
-    Generate an "easy batch" to prototype asteroid search algorithm.
-    The easy batch consists of all ZTF observations whose nearest asteroid is
-    one of the 64 asteroids with the most hits at a 2.0 arc second threshold.
-    """
-    # Load all ZTF observations including nearest asteroid
-    ztf_ast = load_ztf_nearest_ast()
+# # ********************************************************************************************************************* 
+def ztf_elt_summary(ztf_elt: pd.DataFrame, elt_name: str):
+    """Report summary attributes of a ztf_elt dataframe"""
+    # Calculate summary statistics
+    num_obs = ztf_elt.shape[0]
+    batch_size = np.unique(ztf_elt.element_id).size
+    obs_per_batch = num_obs / batch_size
+    num_hits = np.sum(ztf_elt.is_hit)
+    hits_per_batch = num_hits / batch_size
+    hit_rate = np.mean(ztf_elt.is_hit)    
 
-    # Asteroid numbers and hit counts
-    ast_num, hit_count = calc_hit_freq(ztf=ztf_ast, thresh_sec=2.0)
-
-    # Sort the hit counts in descending order and find the top batch_size
-    idx = np.argsort(hit_count)[::-1][0:batch_size]
-
-    # Extract the asteroid number and hit count for this batch
-    ast_num_best = ast_num[idx]
-    # hit_count_best = hit_count[idx]
-
-    # Orbital elements for best asteroids (dict of numpy arrays)
-    element_id = np.sort(ast_num_best)
-    elts = orbital_element_batch(element_id)
-
-    # Delegate to make_ztf_batch
-    ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=True)
-    return ztf_batch, elts
-
-# ********************************************************************************************************************* 
-def load_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
-    """
-    Load the ztf easy batch if available. Otherwise generate it.
-    """
-
-    # Name of the file
-    thresh_sec = np.round(thresh_deg*3600.0).astype(np.int32)
-    file_path = f'../data/ztf/ztf-easy-batch-n={batch_size}-thresh={thresh_sec}sec.h5'
-
-    # Try to load file if available, otherwise generate it on the fly and save it
-    try:
-        ztf_batch = pd.read_hdf(file_path, key='ztf_batch')
-        elts = pd.read_hdf(file_path, key='elts')
-    except:
-        ztf_batch, elts = make_ztf_easy_batch(batch_size=batch_size, thresh_deg=thresh_deg)
-        ztf_batch.to_hdf(file_path, key='ztf_batch', mode='w')
-        elts.to_hdf(file_path, key='elts', mode='a')
-    return ztf_batch, elts
+    # Score by element; use log_v as a proxy.  This has E[log(v)] = 0, Var[log(v)] = 1 b/c V ~ Unif[0, 1]
+    score_func = lambda x: -1.0 - np.log(x)
+    # ztf_elt['score'] = 1.0 - np.log(ztf_elt.v)
+    # score_by_elt = ztf_elt['v'].apply(np.log).groupby(ztf_elt.element_id).agg(['sum', 'count'])
+    score_by_elt = ztf_elt['v'].apply(score_func).groupby(ztf_elt.element_id).agg(['sum', 'count'])
+    score_by_elt.rename(columns={'sum': 'score_sum', 'count': 'num_obs'}, inplace=True)
+    score_by_elt['t_score'] = score_by_elt['score_sum'] / np.sqrt(score_by_elt['num_obs'])    
+    # Summarize log_v for the elements
+    mean_score_sum = np.mean(score_by_elt.score_sum)
+    mean_t_score = np.mean(score_by_elt.t_score)
+    
+    # Report results
+    print(f'ZTF Element Dataframe {elt_name}:')
+    print(f'                  Total     (Per Batch)')
+    print(f'Observations   : {num_obs:8d}   ({obs_per_batch:9.0f})')
+    print(f'Hits           : {num_hits:8d}   ({hits_per_batch:9.2f})')
+    # print(f'Hit Rate    : {hit_rate*100:8.4f}%')
+    print(f'\nSummarize score = sum(-1.0 - log(v)) by batch.  (Mean=0, Variance=num_obs)')
+    print(f'Mean score     :  {mean_score_sum:9.2f}')
+    print(f'Sqrt(batch_obs):  {np.sqrt(obs_per_batch):9.2f}')
+    print(f'Mean t_score   :  {mean_t_score:9.2f}')
+    
+    return score_by_elt
 
 # ********************************************************************************************************************* 
-def report_ztf_score(ztf, display: bool = True):
-    """Report number of hits and breakdown of score between hits and noise on a ZTF batch"""
-    # Number of elements in this data set
-    num_elts = np.unique(ztf.element_id).size
-    num_rows = ztf.shape[0]
-    mean_rows = num_rows / num_elts
+# OLD STUFF
+# ********************************************************************************************************************* 
 
-    # Count hits
-    num_hits = np.sum(ztf.is_hit)
-    mean_hits = num_hits / num_elts
-    hit_pct = num_hits / num_rows * 100.0
+# # ********************************************************************************************************************* 
+# def make_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
+#     """
+#     Generate an "easy batch" to prototype asteroid search algorithm.
+#     The easy batch consists of all ZTF observations whose nearest asteroid is
+#     one of the 64 asteroids with the most hits at a 2.0 arc second threshold.
+#     """
+#     # Load all ZTF observations including nearest asteroid
+#     ztf_ast = load_ztf_nearest_ast()
 
-    # Count matches
-    num_matches = np.sum(ztf.is_match)
-    mean_matches = num_matches / num_elts
-    match_pct = num_matches / num_rows * 100.0
+#     # Asteroid numbers and hit counts
+#     ast_num, hit_count = calc_hit_freq(ztf=ztf_ast, thresh_sec=2.0)
 
-    # Mean score by category
-    mean_score = np.sum(ztf.score) / num_elts
-    mean_score_hits = np.sum(ztf[ztf.is_hit].score) / num_elts
-    mean_score_match = np.sum(ztf[ztf.is_match].score) / num_elts
-    mean_score_noise = np.sum(ztf[~ztf.is_match].score) / num_elts
+#     # Sort the hit counts in descending order and find the top batch_size
+#     idx = np.argsort(hit_count)[::-1][0:batch_size]
 
-    # Score breakdown by type
-    score_hit_pct = mean_score_hits / mean_score * 100.0
-    score_match_pct = mean_score_match / mean_score * 100.0
-    score_noise_pct = mean_score_noise / mean_score * 100.0
+#     # Extract the asteroid number and hit count for this batch
+#     ast_num_best = ast_num[idx]
+#     # hit_count_best = hit_count[idx]
 
-    # Aggregation by element_id
-    ztf['score_match'] = ztf.score * ztf.is_match
-    ztf['score_noise'] = ztf.score * (~ztf.is_match)
-    cols_ztf = ['score', 'score_match', 'score_noise', 'is_hit', 'is_match']
-    score_by_elt = ztf[cols_ztf].groupby(by=ztf.element_id).sum()
-    score_agg= score_by_elt.agg(['mean', 'std'])
+#     # Orbital elements for best asteroids (dict of numpy arrays)
+#     element_id = np.sort(ast_num_best)
+#     elts = orbital_element_batch(element_id)
 
-    # Report
-    if display:
-        print(score_agg)
-        print(f'\nHits and Matches per element; Percentage of Rows:')
-        print(f'Hits:    {mean_hits:6.2f} / {hit_pct:5.2f}%')
-        print(f'Matches: {mean_matches:6.2f} / {match_pct:5.2f}%')
-        print(f'\nScore Contribution: Match vs. Noise')
-        print(f'Match: {mean_score_match:6.2f} / {score_match_pct:5.2f}%')
-        print(f'Noise: {mean_score_noise:6.2f} / {score_noise_pct:5.2f}%')
+#     # Delegate to make_ztf_batch
+#     ztf_batch = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=True)
+#     return ztf_batch, elts
 
-    return score_by_elt, score_agg
+# # ********************************************************************************************************************* 
+# def load_ztf_easy_batch(batch_size: int = 64, thresh_deg: float = 1.0):
+#     """
+#     Load the ztf easy batch if available. Otherwise generate it.
+#     """
+
+#     # Name of the file
+#     thresh_sec = np.round(thresh_deg*3600.0).astype(np.int32)
+#     file_path = f'../data/ztf/ztf-easy-batch-n={batch_size}-thresh={thresh_sec}sec.h5'
+
+#     # Try to load file if available, otherwise generate it on the fly and save it
+#     try:
+#         ztf_batch = pd.read_hdf(file_path, key='ztf_batch')
+#         elts = pd.read_hdf(file_path, key='elts')
+#     except:
+#         ztf_batch, elts = make_ztf_easy_batch(batch_size=batch_size, thresh_deg=thresh_deg)
+#         ztf_batch.to_hdf(file_path, key='ztf_batch', mode='w')
+#         elts.to_hdf(file_path, key='elts', mode='a')
+#     return ztf_batch, elts
+
+# # ********************************************************************************************************************* 
+# def report_ztf_score(ztf, display: bool = True):
+#     """Report number of hits and breakdown of score between hits and noise on a ZTF batch"""
+#     # Number of elements in this data set
+#     num_elts = np.unique(ztf.element_id).size
+#     num_rows = ztf.shape[0]
+#     mean_rows = num_rows / num_elts
+
+#     # Count hits
+#     num_hits = np.sum(ztf.is_hit)
+#     mean_hits = num_hits / num_elts
+#     hit_pct = num_hits / num_rows * 100.0
+
+#     # Count matches
+#     num_matches = np.sum(ztf.is_match)
+#     mean_matches = num_matches / num_elts
+#     match_pct = num_matches / num_rows * 100.0
+
+#     # Mean score by category
+#     mean_score = np.sum(ztf.score) / num_elts
+#     mean_score_hits = np.sum(ztf[ztf.is_hit].score) / num_elts
+#     mean_score_match = np.sum(ztf[ztf.is_match].score) / num_elts
+#     mean_score_noise = np.sum(ztf[~ztf.is_match].score) / num_elts
+
+#     # Score breakdown by type
+#     score_hit_pct = mean_score_hits / mean_score * 100.0
+#     score_match_pct = mean_score_match / mean_score * 100.0
+#     score_noise_pct = mean_score_noise / mean_score * 100.0
+
+#     # Aggregation by element_id
+#     ztf['score_match'] = ztf.score * ztf.is_match
+#     ztf['score_noise'] = ztf.score * (~ztf.is_match)
+#     cols_ztf = ['score', 'score_match', 'score_noise', 'is_hit', 'is_match']
+#     score_by_elt = ztf[cols_ztf].groupby(by=ztf.element_id).sum()
+#     score_agg= score_by_elt.agg(['mean', 'std'])
+
+#     # Report
+#     if display:
+#         print(score_agg)
+#         print(f'\nHits and Matches per element; Percentage of Rows:')
+#         print(f'Hits:    {mean_hits:6.2f} / {hit_pct:5.2f}%')
+#         print(f'Matches: {mean_matches:6.2f} / {match_pct:5.2f}%')
+#         print(f'\nScore Contribution: Match vs. Noise')
+#         print(f'Match: {mean_score_match:6.2f} / {score_match_pct:5.2f}%')
+#         print(f'Noise: {mean_score_noise:6.2f} / {score_noise_pct:5.2f}%')
+
+#     return score_by_elt, score_agg

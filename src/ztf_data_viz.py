@@ -13,7 +13,7 @@ import pandas as pd
 
 # Local
 from astro_utils import dist2rad, dist2deg, deg2dist
-from ztf_data import calc_hit_freq
+from ztf_ast import calc_hit_freq
 
 # Plotting
 import matplotlib.pyplot as plt

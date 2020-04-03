@@ -2,7 +2,8 @@
 Harvard IACS Masters Thesis
 ztf_nearest.py
 Search ZTF DataFrame against calculated asteroid orbits and implied direction from Palomar.
-Find the nearest asteroid to each ZTF observation.
+Find the nearest asteroid to each ZTF observation as a batch program that can
+be run from the command line.
 
 Michael S. Emanuel
 11-Mar-2020
@@ -17,8 +18,9 @@ from multiprocessing import Pool, cpu_count
 from tqdm.auto import tqdm
 
 # MSE imports
-from asteroid_integrate import load_data as load_orbital_elts
-from ztf_data import load_ztf_det_all, load_ztf_nearest_ast, ztf_nearest_ast, ztf_ast_file_path
+from asteroid_element import load_ast_elt
+from ztf_data import load_ztf_det_all
+from ztf_ast import load_ztf_nearest_ast, ztf_nearest_ast, ztf_ast_file_path
 
 # Typing
 from typing import Optional
@@ -74,7 +76,7 @@ def calc_ast_block_numbers(block_size: int, n0: int=0, n1: Optional[int] = None)
                     and block_size=1000, then blocks = [0, 1, ... 541, 1000, 1001, ... 1256]    
     """
     # Load distinct asteroid numbers
-    orb_elt = load_orbital_elts()
+    orb_elt = load_ast_elt()
     ast_nums = orb_elt.Num.values.astype(np.int32)
     # Filter for n0 <= ast_num
     filter_left = (n0 <= ast_nums)
@@ -184,7 +186,7 @@ def nearest_ast_reduction(ast_blocks: np.ndarray, block_size: int, progbar: bool
 
 # ********************************************************************************************************************* 
 def main():
-    """Main routine for integrating the orbits of known asteroids"""
+    """Main routine for calculating nearest asteroid to each ZTF observation"""
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Find the nearest asteroid to ZTF data.')
     parser.add_argument('-n0', nargs='?', metavar='n0', type=int, default=0,

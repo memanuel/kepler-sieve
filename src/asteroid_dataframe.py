@@ -22,7 +22,8 @@ from tqdm.auto import tqdm
 # Local imports
 from utils import range_inc
 from astro_utils import datetime_to_mjd
-from asteroid_element import load_ast_elt, calc_ast_pos_all
+from asteroid_element import load_ast_elt
+from asteroid_integrate import calc_ast_pos_all
 from rebound_utils import load_sim_np
 from ra_dec import qv2dir, dir2radec, calc_topos, astrometric_dir, direction_diff
 
