@@ -288,9 +288,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # If the overall loss has gotten worse, reduce the learning rate
         if loss_new > loss_old:
             self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
-
-        
-        
+       
     def update_early_stop(self):
         """Update early stopping monitor"""
         self.early_stop = tf.keras.callbacks.EarlyStopping(
@@ -305,6 +303,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Update timers
         self.episode_time = (time.time() - self.t0)
+        total_training_time += self.episode_time
         self.t0 = time.time()
 
         # Save weights and apply best to each element
@@ -377,7 +376,8 @@ class AsteroidSearchModel(tf.keras.Model):
         if self.current_epoch == max_epochs:
             print(f'Reached epoch {max_epochs}.')
         if self.learning_rate <= min_learning_rate:
-            print(f'Learning rate {self.learning_rate:8.3e} <= minimum {learning_rate_min:8.3e}.')
+            print(f'Learning rate {self.learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
+
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     pass

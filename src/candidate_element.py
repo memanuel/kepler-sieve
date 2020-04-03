@@ -151,7 +151,8 @@ def perturb_elts(elts: pd.DataFrame,
 # ********************************************************************************************************************* 
 def random_elts(element_id_start: np.int32 = 0, 
                 size: np.int32 = 64, 
-                random_seed: np.int32 = 42):
+                random_seed: np.int32 = 42,
+                dtype = np.float64):
     """
     Generate a DataFrame of random orbital elements
     INPUTS:
@@ -211,13 +212,13 @@ def random_elts(element_id_start: np.int32 = 0,
     # Elements as a Python dict with required columns in order
     elts_dict = {
         'element_id': element_id,
-        'a': a,
-        'e': e,
-        'f': f,
-        'inc': inc,
-        'Omega': Omega,
-        'omega': omega,
-        'epoch': epoch
+        'a': a.astype(dtype),
+        'e': e.astype(dtype),
+        'f': f.astype(dtype),
+        'inc': inc.astype(dtype),
+        'Omega': Omega.astype(dtype),
+        'omega': omega.astype(dtype),
+        'epoch': epoch.astype(dtype)
     }
 
     # Convert these arrays to a DataFrame

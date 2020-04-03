@@ -65,9 +65,10 @@ h_max_ = 1.0 - h_min_
 # log_lam_max_ = np.log(lam_max_)
 
 # Range for resolution R: 1.0 arc second to 2.0 degrees
-thresh_s_1deg = deg2dist(1.0)
-R_min_ = deg2dist(1.0 / 3600.0)
-R_max_ = deg2dist(2.0)
+R_min_sec_ = 1.0
+R_max_deg_ = 2.0
+R_min_ = deg2dist(R_min_sec_ / 3600.0)
+R_max_ = deg2dist(R_max_deg_)
 log_R_min_ = np.log(R_min_)
 log_R_max_ = np.log(R_max_)
 
