@@ -238,7 +238,7 @@ def calc_ast_pos_all(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array
     return pos_tbl
 
 # ********************************************************************************************************************* 
-def elt_hash(elts: pd.DataFrame, epoch: float, ts: np.ndarray):
+def ast_elt_hash(elts: pd.DataFrame, epoch: float, ts: np.ndarray):
     """
     Hash of inputs to calc_ast_pos
     INPUTS:
@@ -295,7 +295,7 @@ def load_ast_pos_all(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array
         v_ast:   velocity of asteroids at input times
     """
     # Get hash of arguments
-    hash_id = elt_hash(elts=elts, epoch=epoch, ts=ts)
+    hash_id = ast_elt_hash(elts=elts, epoch=epoch, ts=ts)
 
     # Name of file
     file_path = f'../data/elt_sim/elt_sim_{hash_id}.h5'

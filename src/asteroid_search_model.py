@@ -24,6 +24,7 @@ from candidate_element import elts_np2df
 from asteroid_search_layers import CandidateElements, TrajectoryScore
 from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
+from ztf_element import ztf_elt_hash
 from astro_utils import deg2dist, dist2deg
 from tf_utils import tf_quiet, Identity
 
@@ -44,6 +45,9 @@ space_dims = 3
 # Data type
 dtype = tf.float32
 dtype_np = np.float32
+
+# Save directory for candidate elements
+# savedir = '../data/candidate_elt'
 
 # ********************************************************************************************************************* 
 def make_adam_opt(learning_rate=1.0E-4, clipnorm=1.0, clipvalue=None):
@@ -83,6 +87,26 @@ def make_adam_opt(learning_rate=1.0E-4, clipnorm=1.0, clipvalue=None):
     return opt
     
 # ********************************************************************************************************************* 
+def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float):
+    """
+    Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
+    INPUTS:
+        elts:       Dataframe including element_id; 6 orbital elements; and 2 mixture params h, R
+        thresh_deg: Threshold in degrees; only observations this close to elements are returned
+    OUTPUTS:
+        hash_id:    Unique ID for these inputs
+    """
+    # Columns of the Dataframe to hash
+    cols_to_hash = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch', 'h', 'R']
+    # Tuple of int64; one per orbital element candidate
+    hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
+    # Combine the element hash tuple with the threshold
+    thresh_int = int(thresh_deg*2**48)
+    hash_id = hash(hash_df + (thresh_int, ))
+
+    return hash_id
+    
+# ********************************************************************************************************************* 
 # Custom model for Asteroid Search
 # ********************************************************************************************************************* 
 
@@ -94,7 +118,6 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def __init__(self, elts: pd.DataFrame, ztf_elt: pd.DataFrame, 
                  site_name: str='geocenter', thresh_deg: float = 1.0, 
-                 # h: float = 1.0/64.0, R_deg: float = 1.0, 
                  learning_rate: float = 2.0**-13, clipnorm: float = 1.0,
                  **kwargs):
         """
@@ -117,6 +140,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Batch size comes from elts
         self.batch_size = elts.shape[0]
 
+        # The element_id for the elements in this batch
+        self.elts_element_id = keras.backend.constant(value=elts.element_id, dtype=tf.int32)
+
         # Numpy array and tensor of observation times; flat, shape (data_size,)
         ts_np = ztf_elt.mjd.values.astype(dtype_np)
 
@@ -134,12 +160,6 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Set of trainable weights with candidate orbital elements; initialize according to elts
         self.candidate_elements = CandidateElements(elts=elts, name='candidate_elements')
-
-        # Stack the current orbital elements; shape is [elt_batch_size, 7,]
-        self.orbital_elements = tf.keras.layers.Concatenate(axis=-1, name='orbital_elements') 
-
-        # Stack mixture model parameters
-        self.mixture_params = tf.keras.layers.Concatenate(axis=-1, name='mixture_params')
 
         # The predicted direction; shape is [data_size, 3,]
         self.direction = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
@@ -184,6 +204,10 @@ class AsteroidSearchModel(tf.keras.Model):
         self.loss_hist = []
         self.training_times = []
         self.save_weights()
+
+        # Save hash IDs for elts and ztf_elts
+        self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=thresh_deg)
+        self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=False)
     
     # @tf.function
     def call(self, inputs=None):
@@ -195,11 +219,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
         a, e, inc, Omega, omega, f, epoch, h, lam, R, = self.candidate_elements(inputs=inputs)
         
-        # Stack the current orbital elements
-        orbital_elements = self.orbital_elements([a, e, inc, Omega, omega, f, epoch,])
+        # Stack the current orbital elements.  Shape is [batch_size, 7,]
+        orbital_elements = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
-        # Stack mixture model parameters
-        mixture_params = self.mixture_params([h, lam, R,])
+        # Stack mixture model parameters. Shape is [batch_size, 3,]
+        mixture_params = keras.backend.stack([h, lam, R])
 
         # Tensor of predicted directions.  Shape is [data_size, 3,]
         u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
@@ -229,6 +253,38 @@ class AsteroidSearchModel(tf.keras.Model):
     def current_loss(self):
         """Calculate loss function with current inputs"""
         return self.evaluate(self.x_eval, verbose=0)
+
+    def candidates_df(self):
+        """The current candidates as a DataFrame."""
+        # Generate the outputs
+        log_like, orbital_elements, mixture_params = self.calc_outputs()
+        
+        # Build DataFrame of orbital elements
+        elts = elts_np2df(orbital_elements.numpy().T)
+        # print(f'elts.shape={elts.shape}')
+        # print(f'self.elts_element_id.numpy().shape = {self.elts_element_id.numpy().shape}')
+        
+        # Add column with the element_id
+        elts.insert(loc=0, column='element_id', value=self.elts_element_id.numpy())
+        
+        # Add columns for the mixture parameters
+        elts['h'] = mixture_params[0].numpy()
+        elts['lam'] = mixture_params[1].numpy()
+        elts['R'] = mixture_params[2].numpy()
+
+        # Add column with log likelihood
+        elts['log_like'] = log_like.numpy()
+
+        return elts
+
+    def save_candidates(self):
+        """Save current candidates and log likelihoods to disk"""
+        # Name of file
+        file_path = f'../data/candidate_elt/candidate_elt_{self.elts_hash_id}.h5'
+        # Generate DataFrame
+        elts = self.candidates_df()
+        # Save to disk
+        elts.to_hdf(file_path, key='elts', mode='w')
 
     def best_loss(self):
         """Best loss so far"""
@@ -336,7 +392,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_batches: int = 10000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
-                        min_learning_rate: float = 1.0E-7,
+                        min_learning_rate: float = 2.0**-20,
                         verbose: int = 1):
         """
         Run asteroid search model adaptively.  
