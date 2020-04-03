@@ -19,7 +19,6 @@ from astropy.units import au, day, year
 # Local imports
 from orbital_element import MeanToTrueAnomaly, TrueToMeanAnomaly
 from asteroid_data import get_earth_pos, get_sun_pos_vel
-from candidate_element import orbital_element_batch
 from ra_dec import calc_topos
 from tf_utils import tf_quiet, gpu_grow_memory, Identity
 
@@ -207,14 +206,15 @@ class AsteroidPosition(keras.layers.Layer):
 
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by setting dq to recover q_ast"""
-        # Unpack elements
-        a = elts['a']
-        e = elts['e']
-        inc = elts['inc']
-        Omega = elts['Omega']
-        omega = elts['omega']
-        f = elts['f']
-        epoch = elts['epoch']
+
+        # Unpack elements; save as constants of the correct data type
+        a = keras.backend.constant(value=elts['a'], dtype=dtype)
+        e = keras.backend.constant(value=elts['e'], dtype=dtype)
+        inc = keras.backend.constant(value=elts['inc'], dtype=dtype)
+        Omega = keras.backend.constant(value=elts['Omega'], dtype=dtype)
+        omega = keras.backend.constant(value=elts['omega'], dtype=dtype)
+        f = keras.backend.constant(value=elts['f'], dtype=dtype)
+        epoch = keras.backend.constant(value=elts['epoch'], dtype=dtype)
 
         # Zero out calibration and predict with these elements
         self.update_dq_dv(self.dq*0.0, self.dv*0.0)

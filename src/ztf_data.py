@@ -31,7 +31,6 @@ from utils import range_inc
 from astro_utils import date_to_mjd, deg2dist, dist2deg, dist2sec
 from ra_dec import radec2dir
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df, calc_ast_dir, spline_ast_vec_dir
-from candidate_element import orbital_element_batch
 from ztf_ast import load_ztf_nearest_ast
 
 # Typing

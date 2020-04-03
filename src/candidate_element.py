@@ -77,16 +77,43 @@ def elts_df2dict(elts_df):
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def orbital_element_batch(ast_nums: np.ndarray) -> pd.DataFrame:
+def add_mixture_params(elts: pd.DataFrame, h: float, R_deg: float, dtype):
+    """
+    Add two columns to a DataFrame of orbital elements for the mixture parameters h and R.
+    INPUTS:
+        elts: DataFrame with columns a, e, inc, Omega, omega, f, epoch
+        h:    Hit rate
+        R:    Resolution parameter (Cartesian distance)
+    OUTPUTS:
+        Modifies elts in place by adding columns h and R
+    """
+    # Number of asteroids in this batch
+    N_ast = elts.shape[0]
+
+    # Convert R from degrees to Cartesian
+    R = deg2dist(R_deg)
+
+    # Add columns for R and h
+    elts['h'] = np.full(fill_value=h, shape=N_ast, dtype=dtype)
+    elts['R'] = np.full(fill_value=R, shape=N_ast, dtype=dtype)
+
+# ********************************************************************************************************************* 
+def asteroid_elts(ast_nums: np.ndarray, 
+                  h: float = 1.0/64.0,
+                  R_deg: float = 1.0,
+                  dtype = np.float64) -> pd.DataFrame:
     """
     Return a batch of orbital elements as a DataFrame
     INPUTS:
         ast_nums: Numpy array of asteroid numbers to include in batch
+        h:        Initial value of hit probability in mixture model
+        R_deg:    Initial value of resolution parameter (in degrees) in mixture model
+        dtype:    Data type for the DataFrame.
     OUTPUTS:
-        elts: DataFrame with columns for a, e, inc, Omega, omega, f, epoch
+        elts:     DataFrame with columns for a, e, inc, Omega, omega, f, epoch.
+                  Also includes h and R for mixture model
     """
     # The orbital elements and epoch
-    dtype = np.float32
     a = ast_elt.a[ast_nums].values.astype(dtype)
     e = ast_elt.e[ast_nums].values.astype(dtype)
     inc = ast_elt.inc[ast_nums].values.astype(dtype)
@@ -110,26 +137,11 @@ def orbital_element_batch(ast_nums: np.ndarray) -> pd.DataFrame:
 
     # Convert dict to DataFrame
     elts = pd.DataFrame(elts_dict)
+
+    # Add mixture parameters
+    add_mixture_params(elts=elts, h=h, R_deg=R_deg, dtype=dtype)
+
     return elts
-
-# ********************************************************************************************************************* 
-def orbital_element_batch_by_ast_num(n0: int, batch_size: int=64):
-    """
-    Return a batch of orbital elements for asteroids in a batch of consecutive asteroid numbers.
-    DEPRECATED.
-    INPUTS:
-        n0: first asteroid number, e.g. 1
-        batch_size: number of asteroids in batch
-    OUTPUTS:
-        elts: Dictionary with seven keys for a, e, inc, Omega, omega, f, epoch
-    """
-    # Get start and end index location of this asteroid number
-    i0: int = ast_elt.index.get_loc(n0)
-    i1: int = i0 + batch_size
-    ast_nums = np.arange(i0, i1+1, dytpe=np.int32)
-
-    # Delegate to orbital_element_batch
-    return orbital_element_batch(ast_nums)
 
 # ********************************************************************************************************************* 
 def perturb_elts(elts: pd.DataFrame, 
@@ -194,6 +206,8 @@ def perturb_elts(elts: pd.DataFrame,
 # ********************************************************************************************************************* 
 def random_elts(element_id_start: np.int32 = 0, 
                 size: np.int32 = 64, 
+                h: float = 1.0/64.0,
+                R_deg: float = 1.0,
                 random_seed: np.int32 = 42,
                 dtype = np.float64):
     """
@@ -201,10 +215,14 @@ def random_elts(element_id_start: np.int32 = 0,
     INPUTS:
         element_id_start: First element_id used to label these elements
         size:             Number of elements to draw
+        h:                Initial value of hit probability in mixture model
+        R_deg:            Initial value of resolution parameter (in degrees) in mixture model
         random_seed:      Random seed for the elements
+        dtype:            Data type for the DataFrame.
     OUTPUTS:
         elts:        DataFrame of random orbital elemnents.
-                     Columns include element_id, a, e, inc, Omega, omega, f, epoch
+                     Columns include element_id, a, e, inc, Omega, omega, f, epoch.
+                     Also includes h and R for mixture model.
     """
     # Set random state
     np.random.seed(random_seed)
@@ -266,6 +284,9 @@ def random_elts(element_id_start: np.int32 = 0,
 
     # Convert these arrays to a DataFrame
     elts = pd.DataFrame(elts_dict)
+
+    # Add mixture parameters
+    add_mixture_params(elts=elts, h=h, R_deg=R_deg, dtype=dtype)
 
     return elts
 

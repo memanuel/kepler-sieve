@@ -57,12 +57,6 @@ e_max_: float = 1.0 - 2.0**-10
 h_min_ = 2.0**-8
 h_max_ = 1.0 - h_min_
 
-# # Range for exponential decay parameter lambda
-# lam_min_ = 1.0
-# lam_max_ = 2.0**24
-# log_lam_min_ = np.log(lam_min_)
-# log_lam_max_ = np.log(lam_max_)
-
 # Range for resolution R: 1.0 arc second to 2.0 degrees
 R_min_sec_ = 1.0
 R_max_deg_ = 2.0
@@ -97,8 +91,6 @@ class CandidateElements(keras.layers.Layer):
 
     def __init__(self, 
                  elts: pd.DataFrame, 
-                 h: Union[float, np.ndarray] = 0.125,
-                 R: Union[float, np.ndarray] = deg2dist(1.0),
                  thresh_deg: float = 1.0,
                  **kwargs):
         super(CandidateElements, self).__init__(**kwargs)
@@ -106,8 +98,6 @@ class CandidateElements(keras.layers.Layer):
         # Configuration for serialization
         self.cfg = {
             'elts': elts,
-            'h': h,
-            'R': R,
         }
 
         # Infer batch size from elts DataFrame
@@ -118,11 +108,11 @@ class CandidateElements(keras.layers.Layer):
         self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
 
         # If h was passed as a scalar, promote it to an array
-        h_init = h if isinstance(h, np.ndarray) else np.full(shape=elt_shape, fill_value=h)
+        # h_init = h if isinstance(h, np.ndarray) else np.full(shape=elt_shape, fill_value=h)
         # If lam was passed as a scalar, promote it to an array
         # lam_init = lam if isinstance(lam, np.ndarray) else np.full(shape=elt_shape, fill_value=lam)
         # If R was passed as a scalar, promote it to an array
-        R_init = R if isinstance(R, np.ndarray) else np.full(shape=elt_shape, fill_value=R)
+        # R_init = R if isinstance(R, np.ndarray) else np.full(shape=elt_shape, fill_value=R)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -131,7 +121,7 @@ class CandidateElements(keras.layers.Layer):
         # Control over a_, in range 0.0 to 1.0
         self.a_min = keras.backend.constant(a_min_, dtype=dtype)
         self.log_a_range = keras.backend.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=dtype)
-        self.a_ = tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, 
+        self.a_ = tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='a_')
         
         # Control over e_, in range e_min to e_max
@@ -140,31 +130,31 @@ class CandidateElements(keras.layers.Layer):
         # self.e_range = tf.constant(e_max_ - e_min_, dtype=dtype)
         # self.e_ = tf.Variable(initial_value=self.inverse_e(elts['e']), trainable=True, 
         #                      constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='e_')
-        self.e_ = tf.Variable(initial_value=elts['e'], trainable=True, 
+        self.e_ = tf.Variable(initial_value=elts['e'], trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
         # Control over inc_, in range -pi/2 to pi/2
         self.inc_max = keras.backend.constant(np.pi/2*(1-2**-20), dtype=dtype)
         self.inc_min = -self.inc_max
         self.inc_range = keras.backend.constant(self.inc_max - self.inc_min, dtype=dtype)
-        self.inc_ = tf.Variable(initial_value=self.inverse_inc(elts['inc']), trainable=True, 
+        self.inc_ = tf.Variable(initial_value=self.inverse_inc(elts['inc']), trainable=True, dtype=dtype,
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='inc_')
         
         # Scale factor for unconstrained angles is 2*pi
         self.two_pi = keras.backend.constant(2*np.pi, dtype=dtype)
         
         # Angle variables Omega, omega and f
-        self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, name='Omega_')
-        self.omega_ = tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, name='omega_')
-        self.f_ = tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, name='f_')
+        self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, dtype=dtype, name='Omega_')
+        self.omega_ = tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, dtype=dtype, name='omega_')
+        self.f_ = tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, dtype=dtype, name='f_')
 
         # The epoch is not trainable
-        self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, name='epoch')
+        self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, dtype=dtype, name='epoch')
         
         # Control of the hit rate h_, in range h_min to h_max
         self.h_min = keras.backend.constant(h_min_, dtype=dtype)
         self.h_max = keras.backend.constant(h_max_, dtype=dtype)
-        self.h_ = tf.Variable(initial_value=h_init, trainable=True, dtype=dtype,
+        self.h_ = tf.Variable(initial_value=elts['h'], trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
 
         # # Control of the exponential decay paramater lam_, in range lam_min to lam_max
@@ -173,7 +163,7 @@ class CandidateElements(keras.layers.Layer):
         # Control of the resolution paramater R_, in range R_min to R_max
         self.R_min = keras.backend.constant(R_min_, dtype=dtype)
         self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=dtype)
-        self.R_ = tf.Variable(initial_value=self.inverse_R(R_init), trainable=True, dtype=dtype,
+        self.R_ = tf.Variable(initial_value=self.inverse_R(elts['R']), trainable=True, dtype=dtype,
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
     @tf.function
     def get_a(self):

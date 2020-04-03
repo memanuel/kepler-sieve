@@ -87,22 +87,26 @@ def make_adam_opt(learning_rate=1.0E-4, clipnorm=1.0, clipvalue=None):
 # ********************************************************************************************************************* 
 
 class AsteroidSearchModel(tf.keras.Model):
-    def __init__(self, elts: pd.DataFrame, ztf_elt: pd.DataFrame, site_name: str='geocenter', 
-                 thresh_deg: float = 1.0, h: float = 0.01, R_deg: float = 1.0, 
-                 learning_rate: float = 1.0E-4, clipnorm: float = 1.0,
+    """
+    Custom keras model that searches for orbital elements and mixture model parameters
+    consistent with a batch of observations generated from the initially guessed candidate elements.
+    """
+
+    def __init__(self, elts: pd.DataFrame, ztf_elt: pd.DataFrame, 
+                 site_name: str='geocenter', thresh_deg: float = 1.0, 
+                 # h: float = 1.0/64.0, R_deg: float = 1.0, 
+                 learning_rate: float = 2.0**-13, clipnorm: float = 1.0,
                  **kwargs):
         """
-        Functional API model for scoring elements
         INPUTS:
             elts:       DataFrame with initial guess for orbital elements.
                         Columns: element_id, a, e, inc, Omega, omega, f, epoch
-                        Output of orbital_element_batch, perturb_elts or random_elts
+                        Output of asteroid_elts, perturb_elts or random_elts
             ztf_elt:    DataFrame with ZTF observations within thresh_deg degrees of
                         of the orbits predicted by these elements.
                         Output of make_ztf_batch or load_ztf_batch
             site_name:  Used for topos adjustment, e.g. 'geocenter' or 'palomar'
             h:          Initial value of hit probability in mixture model
-            lam:        Initial value of exponential decay parameter in mixture model
             R_deg:      Initial value of resolution parameter (in degrees) in mixture model
             learning_rate: Initial value of learning rate
             clipnorm:   Initila value of clipnorm for gradient clipping
@@ -121,18 +125,15 @@ class AsteroidSearchModel(tf.keras.Model):
         self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=(self.batch_size,), dtype=tf.int32)
 
         # Shape of the observed trajectories
-        self.data_size = ztf_elt.shape[0]
+        self.data_size: int = ztf_elt.shape[0]
         self.traj_shape = (self.data_size, space_dims)
 
         # Observed directions; extract from ztf_elt DataFrame
         cols_u_obs = ['ux', 'uy', 'uz']
         u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
 
-        # Convert resolution from degrees to Cartesian distance
-        R_s = deg2dist(R_deg)
-
         # Set of trainable weights with candidate orbital elements; initialize according to elts
-        self.candidate_elements = CandidateElements(elts=elts, h=h, R=R_s, name='candidate_elements')
+        self.candidate_elements = CandidateElements(elts=elts, name='candidate_elements')
 
         # Stack the current orbital elements; shape is [elt_batch_size, 7,]
         self.orbital_elements = tf.keras.layers.Concatenate(axis=-1, name='orbital_elements') 
@@ -158,8 +159,8 @@ class AsteroidSearchModel(tf.keras.Model):
                                      thresh_deg=thresh_deg, name='score')
 
         # Save the learning rate on the model object to facilitate adaptive training
-        self.learning_rate = learning_rate
-        self.clipnorm = clipnorm
+        self.learning_rate: float = learning_rate
+        self.clipnorm: float = clipnorm
 
         # Initialize loss history and total training time
         self.loss_hist: list = []
@@ -174,7 +175,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.current_epoch: int = 0
 
         # Start training timer
-        self.t0 = time.time()
+        self.t0: float = time.time()
 
         # Initialize lists of weights, log likelihoods, losses and training times
         self.x_eval = tf.ones(shape=self.batch_size, dtype=dtype)
@@ -183,13 +184,20 @@ class AsteroidSearchModel(tf.keras.Model):
         self.loss_hist = []
         self.training_times = []
         self.save_weights()
-        
+    
+    # @tf.function
     def call(self, inputs=None):
+        """
+        Predict directions from current elements and score them.  
+        inputs is a dummmy with no affect on the results; it is there to satisfy keras.Model API
+        """
+
         # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
         a, e, inc, Omega, omega, f, epoch, h, lam, R, = self.candidate_elements(inputs=inputs)
         
         # Stack the current orbital elements
         orbital_elements = self.orbital_elements([a, e, inc, Omega, omega, f, epoch,])
+
         # Stack mixture model parameters
         mixture_params = self.mixture_params([h, lam, R,])
 
@@ -201,7 +209,7 @@ class AsteroidSearchModel(tf.keras.Model):
         log_like = self.score(u_pred, h=h, lam=lam)
         
         # Add the loss function - the NEGATIVE of the log likelihood
-        # (Take negative b/c TensorFlow minimizes the loss function)
+        # (Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood)
         self.add_loss(-tf.reduce_sum(log_like))
         
         # Wrap outputs
@@ -210,13 +218,16 @@ class AsteroidSearchModel(tf.keras.Model):
         return outputs
 
     def calc_outputs(self):
+        """Calculate the outputs; no input required (uses cached x_eval)"""
         return self(self.x_eval)
     
     def calc_log_like(self):
+        """Calculate the log likelihood as tensor of shape [batch_size,]"""
         log_like, orbital_elements, mixture_params = self.calc_outputs()
         return log_like
 
     def current_loss(self):
+        """Calculate loss function with current inputs"""
         return self.evaluate(self.x_eval, verbose=0)
 
     def best_loss(self):
@@ -238,7 +249,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.clipnorm = clipnorm
         
     def adjust_learning_rate(self, lr_factor, verbose: int =1):
-        """Reduce the learning rate and recompile the model"""
+        """Adjust the learning rate and recompile the model"""
         if verbose:
             print(f'Changing learning rate by factor {lr_factor:8.6f} from '
                   f'{self.learning_rate:8.3e} to {self.learning_rate*lr_factor:8.3e}.')
@@ -303,7 +314,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Update timers
         self.episode_time = (time.time() - self.t0)
-        total_training_time += self.episode_time
+        self.total_training_time += self.episode_time
         self.t0 = time.time()
 
         # Save weights and apply best to each element

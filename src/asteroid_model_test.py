@@ -206,19 +206,10 @@ def test_ast_dir(use_spline: bool = False, site_name: str = 'geocenter') -> bool
     
     return (isOK_mse and isOK_post)
 
-# # ********************************************************************************************************************* 
-# def test_ast_pos_layer():
-#     """Test custom layer for asteroid positions"""
-#     ast_pos_layer = AsteroidPosition(batch_size=64)
-#     ts = np.arange(51544, 58744, dtype=np.float32)
-#     a,e,inc,Omega,omega,f, epoch = orbital_element_batch(1).values()
-#     q_ast, v_ast = ast_pos_layer(ts,a,e,inc,Omega,omega,f,epoch)
-#     return q_ast, v_ast
-
 # ********************************************************************************************************************* 
 def main():
-    # test_ast_pos()
-    # test_ast_dir(use_spline=False, site_name='geocenter')
+    test_ast_pos()
+    test_ast_dir(use_spline=False, site_name='geocenter')
     test_ast_dir(use_spline=True, site_name='palomar')
 
 # ********************************************************************************************************************* 
