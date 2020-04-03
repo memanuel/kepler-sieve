@@ -173,11 +173,16 @@ class AsteroidSearchModel(tf.keras.Model):
         self.episode_length: int = 0
         self.current_epoch: int = 0
 
-        # Initialize best_loss and best_weights
+        # Start training timer
+        self.t0 = time.time()
+
+        # Initialize lists of weights, log likelihoods, losses and training times
         self.x_eval = tf.ones(shape=self.batch_size, dtype=dtype)
-        self.best_losses = [self.current_loss()]
-        self.best_weights_list = [self.candidate_elements.get_weights()]
-        self.training_times = [0.0]
+        self.weights_list = []
+        self.log_likes = []
+        self.loss_hist = []
+        self.training_times = []
+        self.save_weights()
         
     def call(self, inputs=None):
         # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
@@ -204,12 +209,19 @@ class AsteroidSearchModel(tf.keras.Model):
         
         return outputs
 
+    def calc_outputs(self):
+        return self(self.x_eval)
+    
+    def calc_log_like(self):
+        log_like, orbital_elements, mixture_params = self.calc_outputs()
+        return log_like
+
     def current_loss(self):
         return self.evaluate(self.x_eval, verbose=0)
 
     def best_loss(self):
         """Best loss so far"""
-        return self.best_losses[-1]
+        return self.loss_hist[-1]
 
     def recompile(self):
         """Recompile this model with its current learning rate"""
@@ -234,72 +246,81 @@ class AsteroidSearchModel(tf.keras.Model):
         # Recompile with the new learning rate
         self.recompile()
 
-    def save_best_weights(self, current_loss):
-        """Save the best weights and their loss"""        
-        self.best_weights_list.append(self.candidate_elements.get_weights())
-        self.best_losses.append(current_loss)
+    def save_weights(self):
+        """Save the current weights and associated log likelihood"""
+        log_like = self.calc_log_like()
+        self.weights_list.append(self.candidate_elements.get_weights())
+        self.log_likes.append(log_like)
         self.training_times.append(time.time() - self.t0)
-    
-    def restore_best_weights(self):
-        """Restore the best weights"""
-        # If there is more than one item on best_weights, pop it;
-        # we only restore the same weights at most one time, except for the initial weights.
-        if len(self.best_weights_list) > 1:
-            best_weights = self.best_weights_list.pop()
-            best_loss = self.best_losses.pop()
-            _ = self.training_times.pop()
-        else:
-            best_weights = self.best_weights_list[0]
-            best_loss = self.best_losses[0]
-        # Restore the weights to the saved ones
-        self.candidate_elements.set_weights(best_weights)
-        # Adjust the learning rate down
-        self.adjust_learning_rate(lr_factor_dn, verbose=True)
-        # Return the associated loss
-        return best_loss
+        self.loss_hist.append(-tf.reduce_sum(log_like))
 
+    def update_weights(self):
+        """"Restore the weights for each element to the prior iteration if they got worse"""
+        # Quit early if we don't have at least 2 entries on the lists of weights and log likes
+        n = len(self.weights_list)
+        if n < 2:
+            return
+
+        # Get weights, log likelihoods and loss from the last 2 iterations
+        weights_old, weights_new = self.weights_list[n-2:n]
+        log_like_old, log_like_new = self.log_likes[n-2:n]
+        loss_old, loss_new = self.loss_hist[n-2:n]
+
+        # Test whether each element has improved
+        is_better = tf.math.greater(log_like_new, log_like_old)
+
+        # Calculate the best weights and associated log likelihoods
+        best_weights = tf.where(condition=is_better, x=weights_new, y=weights_old)
+        best_log_like = tf.where(condition=is_better, x=log_like_new, y=log_like_old)
+
+        # Apply the best weights to the model
+        self.candidate_elements.set_weights(best_weights)
+        
+        # Overwrite the weights that got worse so they will be used at most once in an update
+        weights_old2 = self.weights_list[n-3] if n > 2 else weights_old
+        weights_new_update = tf.where(condition=is_better, x=weights_new, y=weights_old2)
+        self.weights[-1] = weights_new_update
+
+        # Update the log_likes and loss_hist lists to reflect these updates
+        self.log_likes[-1] = best_log_like
+        self.loss_hist[-1] = -tf.reduce_sum(best_log_like)
+        
+        # If the overall loss has gotten worse, reduce the learning rate
+        if loss_new > loss_old:
+            self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
+
+        
+        
     def update_early_stop(self):
         """Update early stopping monitor"""
         self.early_stop = tf.keras.callbacks.EarlyStopping(
             monitor='loss', patience=0, baseline=self.best_loss(), min_delta=1.0, restore_best_weights=True)
     
-    def adaptive_episode_end(self, hist, verbose: int = 1):
+    def episode_end(self, hist, verbose: int = 1):
         """Post-processing after one episode of adaptive training"""
         # Update training counters
         self.episode_length = len(hist.epoch)
         self.current_epoch += self.episode_length
         self.training_episode += 1
+
         # Update timers
         self.episode_time = (time.time() - self.t0)
         self.t0 = time.time()
 
-        # Update best loss and weights
-        current_loss: float = self.current_loss()
-        if verbose > 1:
-            print(f'Updating best_loss & best_weights at end of episode {self.training_episode-1}')
-        if current_loss < self.best_loss():
-            if verbose > 1:
-                print(f'New best_loss = {current_loss:8.2f}.  Old best_loss was {self.best_loss():8.2f}')
-            self.save_best_weights(current_loss)
-        else:
-            if verbose > 0:
-                print(f'Manually restoring best weights to recover best_loss = {self.best_loss():8.2f}')
-            current_loss = self.restore_best_weights()            
+        # Save weights and apply best to each element
+        self.save_weights()
+        self.update_weights()
 
-        # Log likelihood is negative of the loss
-        log_like = -current_loss        
+        # Current log likelihood (total)
+        log_like_cur = -self.current_loss()
 
         # Update early_stop
         self.update_early_stop()
 
-        # Update loss history and training time
-        self.loss_hist += hist.history['loss']
-        self.total_training_time += self.episode_time
-
         # Status message
         if verbose > 0:
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
-            print(f'Log Likelihood: {log_like:8.2f}')        
+            print(f'Log Likelihood: {log_like_cur:8.2f}')        
         
     def search_adaptive(self, 
                         max_batches: int = 10000, 
@@ -339,7 +360,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         steps_per_epoch=batches_per_epoch, 
                         callbacks=callbacks, shuffle=False, verbose=verbose)
         # Episode end processing; includes LR adjustment
-        self.adaptive_episode_end(hist)
+        self.episode_end(hist)
 
         # Continue training until max_epochs have elapsed or learning_rate has dropped too low
         while self.current_epoch < max_epochs and min_learning_rate < self.learning_rate:
@@ -351,12 +372,12 @@ class AsteroidSearchModel(tf.keras.Model):
                             steps_per_epoch=batches_per_epoch, initial_epoch=self.current_epoch,
                             callbacks=callbacks,  shuffle=False, verbose=verbose)
             # Episode end processing; includes LR adjustment
-            self.adaptive_episode_end(hist)
+            self.episode_end(hist)
 
         if self.current_epoch == max_epochs:
-            print(f'Reached epoch {self.max_epochs}.')
-        if self.learning_rate < min_learning_rate:
-            print(f'Learning rate {self.learning_rate:8.3e} below minimum {learning_rate_min:8.3e}.')
+            print(f'Reached epoch {max_epochs}.')
+        if self.learning_rate <= min_learning_rate:
+            print(f'Learning rate {self.learning_rate:8.3e} <= minimum {learning_rate_min:8.3e}.')
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     pass
