@@ -12,7 +12,8 @@ import pandas as pd
 import tensorflow as tf
 
 # Local imports
-from asteroid_model import make_model_ast_pos, elts_np2df, elts_df2dict
+from candidate_element import elts_np2df, elts_df2dict
+from asteroid_model import make_model_ast_pos
 
 
 # ********************************************************************************************************************* 
@@ -39,10 +40,10 @@ def traj_diff(elts0: pd.DataFrame, elts1: pd.DataFrame, model_pos: keras.Model):
     
     # Displacement between predicted trajsectories; shape (batch_size, traj_size, 3)
     dq = q1 - q0
-    # Distance between predicted trajsectories; shape (batch_size, traj_size)
-    distance = np.linalg.norm(dq, axis=-1)
+    # Distance between predicted trajectories; shape (batch_size, traj_size)
+    distance = tf.reduce_sum(dq**2, axis=-1)
     # Return norm of the difference by row
-    return np.mean(distance, axis=-1)
+    return tf.reduce_mean(distance, axis=-1)
     
 # ********************************************************************************************************************* 
 def report_model_attribute(att: np.array, mask_true: np.ndarray, att_name: str):

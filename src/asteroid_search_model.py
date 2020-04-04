@@ -18,15 +18,17 @@ from tensorflow.python.keras import backend as K
 import time
 from datetime import timedelta
 
-# Local imports
-from asteroid_model import AsteroidDirection
+# MSE imports
+from asteroid_model import AsteroidDirection, make_model_ast_pos
 from candidate_element import elts_np2df
 from asteroid_search_layers import CandidateElements, TrajectoryScore
 from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
+from asteroid_search_report import traj_diff
 from astro_utils import deg2dist, dist2deg
 from tf_utils import tf_quiet, Identity
+from utils import print_header
 
 # Typing
 from typing import Optional, Union
@@ -178,6 +180,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.score = TrajectoryScore(row_lengths_np=row_lengths_np, u_obs_np=u_obs_np,
                                      thresh_deg=thresh_deg, name='score')
 
+        # Position model - used for comparing trajectories of fitted and known orbital elements
+        self.model_pos: keras.Model = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
+
         # Save the learning rate on the model object to facilitate adaptive training
         self.learning_rate: float = learning_rate
         self.clipnorm: float = clipnorm
@@ -208,6 +213,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # Save hash IDs for elts and ztf_elts
         self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=thresh_deg)
         self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=False)
+        # File name for saving training profess
+        self.file_path = f'../data/candidate_elt/candidate_elt_{self.elts_hash_id}.h5'
     
     # @tf.function
     def call(self, inputs=None):
@@ -254,41 +261,13 @@ class AsteroidSearchModel(tf.keras.Model):
         """Calculate loss function with current inputs"""
         return self.evaluate(self.x_eval, verbose=0)
 
-    def candidates_df(self):
-        """The current candidates as a DataFrame."""
-        # Generate the outputs
-        log_like, orbital_elements, mixture_params = self.calc_outputs()
-        
-        # Build DataFrame of orbital elements
-        elts = elts_np2df(orbital_elements.numpy().T)
-        # print(f'elts.shape={elts.shape}')
-        # print(f'self.elts_element_id.numpy().shape = {self.elts_element_id.numpy().shape}')
-        
-        # Add column with the element_id
-        elts.insert(loc=0, column='element_id', value=self.elts_element_id.numpy())
-        
-        # Add columns for the mixture parameters
-        elts['h'] = mixture_params[0].numpy()
-        elts['lam'] = mixture_params[1].numpy()
-        elts['R'] = mixture_params[2].numpy()
-
-        # Add column with log likelihood
-        elts['log_like'] = log_like.numpy()
-
-        return elts
-
-    def save_candidates(self):
-        """Save current candidates and log likelihoods to disk"""
-        # Name of file
-        file_path = f'../data/candidate_elt/candidate_elt_{self.elts_hash_id}.h5'
-        # Generate DataFrame
-        elts = self.candidates_df()
-        # Save to disk
-        elts.to_hdf(file_path, key='elts', mode='w')
-
     def best_loss(self):
         """Best loss so far"""
         return self.loss_hist[-1]
+
+    def traj_err(self, elts0, elts1):
+        """Calculate difference in trajectories from two sets of orbital elements"""
+        return traj_diff(elts_ast, elts0, elts1)
 
     def recompile(self):
         """Recompile this model with its current learning rate"""
@@ -312,6 +291,71 @@ class AsteroidSearchModel(tf.keras.Model):
         self.learning_rate = self.learning_rate * lr_factor
         # Recompile with the new learning rate
         self.recompile()
+
+    def candidates_df(self):
+        """The current candidates as a DataFrame."""
+        # Generate the outputs
+        log_like, orbital_elements, mixture_params = self.calc_outputs()
+        
+        # Build DataFrame of orbital elements
+        elts = elts_np2df(orbital_elements.numpy().T)
+        # print(f'elts.shape={elts.shape}')
+        # print(f'self.elts_element_id.numpy().shape = {self.elts_element_id.numpy().shape}')
+        
+        # Add column with the element_id
+        elts.insert(loc=0, column='element_id', value=self.elts_element_id.numpy())
+        
+        # Add columns for the mixture parameters
+        elts['h'] = mixture_params[0].numpy()
+        elts['lam'] = mixture_params[1].numpy()
+        elts['R'] = mixture_params[2].numpy()
+        elts['R_deg'] = dist2deg(elts.R)
+        elts['R_sec'] = 3600.0 * elts.R_deg
+
+        # Add column with log likelihood
+        elts['log_like'] = log_like.numpy()
+
+        return elts
+
+    def save_candidates(self, verbose: bool=False):
+        """Save current candidates and log likelihoods to disk"""
+        # Generate DataFrame
+        candidate_elts = self.candidates_df()
+        
+        # Status message
+        if verbose:
+            print(f'Saving candidate elements DataFrame in {self.file_path}.')
+        
+        # Save to disk
+        candidate_elts.to_hdf(self.file_path, key='candidate_elts', mode='w')
+
+        # Auxiliary information
+        aux_dict = {
+            'learning_rate': self.learning_rate,
+        }
+        aux_df = pd.DataFrame(aux_dict, index=aux_dict.keys())        
+        aux_df.to_hdf(self.file_path, key='aux', mode='a')
+
+    def load_candidates(self, verbose: bool=False):
+        """Load candidate elements"""
+        try:
+            # Load DataFrames for candidate elements and auxiliary data
+            candidate_elts = pd.read_hdf(self.file_path, key='candidate_elts')
+            aux = pd.read_hdf(self.file_path, key='aux')
+
+            # Status message
+            if verbose:
+                print(f'Loading candidate elements DataFrame from {self.file_path}.')
+
+            # Regenerate candidate_elements layer of this model
+            self.candidate_elements = CandidateElements(elts=candidate_elts, name='candidate_elements')
+
+            # Restore auxiliary data: learning_rate
+            self.learning_rate = aux['learning_rate']
+
+        except FileNotFound:
+            if verbose:
+                print(f'Unable to find {self.file_path}.')
 
     def save_weights(self):
         """Save the current weights and associated log likelihood"""
@@ -393,6 +437,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
                         min_learning_rate: float = 2.0**-20,
+                        regenerate: bool=False,
                         verbose: int = 1):
         """
         Run asteroid search model adaptively.  
@@ -404,6 +449,10 @@ class AsteroidSearchModel(tf.keras.Model):
             min_learning_rate: Minimum for the learning rate; terminate early if LR drops below this
             verbose: Integer controlling verbosity level (passed on to tf.keras.model.fit)
         """
+
+        # Try to load candidates
+        if not regenerate:
+            self.load_candidates(verbose=True)
 
         # Start timer
         self.t0 = time.time()
@@ -441,9 +490,15 @@ class AsteroidSearchModel(tf.keras.Model):
             self.episode_end(hist)
 
         if self.current_epoch == max_epochs:
-            print(f'Reached epoch {max_epochs}.')
+            print_header(f'Terminating: Reached final epoch {max_epochs}.')
         if self.learning_rate <= min_learning_rate:
-            print(f'Learning rate {self.learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
+            print_header(f'Terminating: Learning rate {self.learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
+
+        # Save training progress to disk
+        self.save_candidates(verbose=True)
+
+    def plot_log_likes(self):
+        pass
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
