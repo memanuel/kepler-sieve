@@ -215,7 +215,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.clipnorm: float = clipnorm
 
         # Initialize loss history and total training time
-        self.total_training_time: float = 0.0
+        self.training_time: float = 0.0
 
         # Compile the model with its learning rate and clipnorm
         self.recompile()
@@ -235,7 +235,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.episode_t0: float = time.time()
 
         # Cached values of total log likelihood and loss
-        self.total_log_like: float = 0.0
+        # self.log_like_total: float = 0.0
+        self.log_like_mean: float = 0.0
         self.loss: float = 0.0
 
         # Initialize lists with training history
@@ -244,7 +245,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.weights_hist = []
 
         # Log likelihoods and losses
-        self.total_log_like_hist = []
+        # self.log_like_total_hist = []
+        self.log_like_mean_hist = []
         self.loss_hist = []
 
         # Training counters and times
@@ -291,7 +293,7 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Add the loss function - the NEGATIVE of the log likelihood
         # (Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood)
-        self.add_loss(-tf.reduce_sum(log_like))
+        self.add_loss(-tf.reduce_mean(log_like))
         
         # Wrap outputs
         outputs = (log_like, orbital_elements, mixture_params)
@@ -309,8 +311,9 @@ class AsteroidSearchModel(tf.keras.Model):
     def calc_log_like(self):
         """Calculate the log likelihood as tensor of shape [batch_size,]"""
         log_like, orbital_elements, mixture_params = self.calc_outputs()
-        total_log_like = tf.reduce_sum(log_like).numpy()
-        return log_like, total_log_like
+        # log_like_total = tf.reduce_sum(log_like).numpy()
+        log_like_mean = tf.reduce_mean(log_like).numpy()
+        return log_like, log_like_mean
 
     def calc_loss(self):
         """Calculate loss function with current inputs"""
@@ -356,21 +359,23 @@ class AsteroidSearchModel(tf.keras.Model):
         # Generate the outputs
         log_like, orbital_elements, mixture_params = self.calc_outputs()
         # Caclulat total log likelihood and loss; save them to cache
-        self.total_log_like = tf.reduce_sum(log_like).numpy()
+        # self.log_like_total = tf.reduce_sum(log_like).numpy()
+        self.log_like_mean = tf.reduce_mean(log_like).numpy()
         self.loss = self.calc_loss()
 
         # Write history of weights, elements, and mixture parameters
         self.weights_hist.append(self.candidate_elements.get_weights())
         
         # Write history of log likelihood and loss
-        self.total_log_like_hist.append(self.total_log_like)
+        # self.log_like_total_hist.append(self.log_like_total)
+        self.log_like_mean_hist.append(self.log_like_mean)
         self.loss_hist.append(self.loss)
 
         # Write history of training counters and time
         self.episode_hist.append(self.current_episode)
         self.epoch_hist.append(self.current_epoch)
         self.batch_hist.append(self.current_batch)
-        self.training_time_hist.append(self.total_training_time)
+        self.training_time_hist.append(self.training_time)
 
         # Delegate to save_train_hist to write history DataFrames
         self.save_train_hist(log_like=log_like, orbital_elements=orbital_elements, mixture_params=mixture_params)
@@ -386,8 +391,13 @@ class AsteroidSearchModel(tf.keras.Model):
         R_sec = dist2sec(R)
         log_R = np.log(R)
 
+        # Alias candidate elements layer
+        cand = self.candidate_elements
+
         # DataFrame with detailed training history of this episode by element
         hist_elt_dict = {
+            # Key (row number)
+            'key': self.current_episode*self.batch_size + np.arange(self.batch_size), 
             # Element number and ID
             'element_num': np.arange(self.batch_size), 
             'element_id': self.elts_element_id.numpy(),
@@ -396,18 +406,18 @@ class AsteroidSearchModel(tf.keras.Model):
             'episode': np.full(shape=self.batch_size, fill_value=self.current_episode),
             'epoch': np.full(shape=self.batch_size, fill_value=self.current_epoch),
             'batch': np.full(shape=self.batch_size, fill_value=self.current_batch),
-            'training_time': np.full(shape=self.batch_size, fill_value=self.total_training_time),
+            'training_time': np.full(shape=self.batch_size, fill_value=self.training_time),
             
             # Log likelihood
             'log_like': log_like,
 
             # Orbital elements
-            'a': orbital_elements[0],
-            'e': orbital_elements[1],
-            'inc': orbital_elements[2],
-            'Omega': orbital_elements[3],
-            'omega': orbital_elements[4],
-            'f': orbital_elements[5],
+            'a': orbital_elements[0].numpy(),
+            'e': orbital_elements[1].numpy(),
+            'inc': orbital_elements[2].numpy(),
+            'Omega': orbital_elements[3].numpy(),
+            'omega': orbital_elements[4].numpy(),
+            'f': orbital_elements[5].numpy(),
             
             # Mixture parameters
             'h': h,
@@ -416,55 +426,68 @@ class AsteroidSearchModel(tf.keras.Model):
             'R_deg': R_deg,
             'R_sec': R_sec,
             'log_R': log_R,
-            
+
+            # Control variables
+            'a_': cand.a_.numpy(),
+            'e_': cand.e_.numpy(),
+            'inc_': cand.inc_.numpy(),
+            'Omega_': cand.Omega_.numpy(),
+            'omega_': cand.omega_.numpy(),
+            'f_': cand.f_.numpy(),
+            'h_': cand.h_.numpy(),
+            'R_': cand.R_.numpy(),
         }
-        train_hist_elt_cur = pd.DataFrame(hist_elt_dict)
+        train_hist_elt_cur = pd.DataFrame(hist_elt_dict, index=hist_elt_dict['key'])
+        # train_hist_elt_cur.set_index('key', inplace=True)
         self.train_hist_elt = pd.concat([self.train_hist_elt, train_hist_elt_cur])
 
-        # DataFrame with summary history for this episode        
+        # DataFrame with summary history for this episode
         hist_sum_dict = {
+            # Key; same as the episode
+            'key': [self.current_episode],
             # Training stage: by episode, epoch, batch and time
-            'episode': self.current_episode,
-            'epoch': self.current_epoch,
-            'batch': self.current_batch,
-            'training_time': self.total_training_time,
+            'episode': [self.current_episode],
+            'epoch': [self.current_epoch],
+            'batch': [self.current_batch],
+            'training_time': [self.training_time],
 
             # Loss and learning rate
             'loss': self.loss,
             'learning_rate': self.learning_rate,
 
             # Log likelihood summarized over the elements
-            'log_like_total': self.total_log_like,
-            'log_like_mean': np.mean(log_like),
-            'log_like_med': np.median(log_like),
-            'log_like_std': np.std(log_like),
-            'log_like_min': np.min(log_like),
-            'log_like_max': np.max(log_like),
+            # 'log_like_total': [self.log_like_total],
+            'log_like_mean': [np.mean(log_like)],
+            'log_like_med': [np.median(log_like)],
+            'log_like_std': [np.std(log_like)],
+            'log_like_min': [np.min(log_like)],
+            'log_like_max': [np.max(log_like)],
 
             # Worst and best element in this batch
-            'log_like_argmin': np.argmin(log_like),
-            'log_like_argmax': np.argmax(log_like),
+            'log_like_argmin': [np.argmin(log_like)],
+            'log_like_argmax': [np.argmax(log_like)],
 
             # Summary of mixture parameter h
-            'h_mean': np.mean(h),
-            'h_std': np.std(h),
-            'h_min': np.min(h),
-            'h_max': np.max(h),
+            'h_mean': [np.mean(h)],
+            'h_std': [np.std(h)],
+            'h_min': [np.min(h)],
+            'h_max': [np.max(h)],
 
             # Summary of mixture parameter R
-            'R_deg_mean': np.mean(R_deg),
-            'R_deg_std': np.std(R_deg),
-            'R_deg_min': np.min(R_deg),
-            'R_deg_max': np.max(R_deg),
+            'R_deg_mean': [np.mean(R_deg)],
+            'R_deg_std': [np.std(R_deg)],
+            'R_deg_min': [np.min(R_deg)],
+            'R_deg_max': [np.max(R_deg)],
 
             # Summary of mixture parameter R
-            'log_R_mean': np.mean(log_R),
-            'log_R_std': np.std(log_R),
-            'log_R_min': np.min(log_R),
-            'log_R_max': np.max(log_R),
+            'log_R_mean': [np.mean(log_R)],
+            'log_R_std': [np.std(log_R)],
+            'log_R_min': [np.min(log_R)],
+            'log_R_max': [np.max(log_R)],
 
         }
-        train_hist_summary_cur = pd.DataFrame(hist_sum_dict, index=[self.current_episode])
+        train_hist_summary_cur = pd.DataFrame(hist_sum_dict, index=hist_sum_dict['key'])
+        # train_hist_elt_cur.set_index('key', inplace=True)
         self.train_hist_summary = pd.concat([self.train_hist_summary, train_hist_summary_cur])
 
     # *************************************************************************
@@ -525,15 +548,17 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Update timers
         self.episode_time = (time.time() - self.episode_t0)
-        self.total_training_time += self.episode_time
+        self.training_time += self.episode_time
         self.episode_t0 = time.time()
 
         # Save weights and apply best to each element
         self.save_weights()
         self.update_weights()
 
-        # Current total log likelihood
-        total_log_like = self.total_log_like_hist[-1]
+        # Current log likelihood mean
+        log_like_mean = self.log_like_mean_hist[-1]
+        # Geometric mean of resolution
+        R_deg_geomean = dist2deg(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
 
         # Update early_stop
         self.update_early_stop()
@@ -541,7 +566,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Status message
         if verbose > 0:
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
-            print(f'Total Log Likelihood: {total_log_like:8.2f}')        
+            # print(f'Total Log Likelihood: {log_like_total:8.2f}')
+            print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees')
+            print(f'Mean Log Likelihood:  {log_like_mean:8.2f}')
 
     # *********************************************************************************************
     # Main adaptive search routine; called by external consumers
@@ -596,7 +623,7 @@ class AsteroidSearchModel(tf.keras.Model):
         while self.current_batch < max_batches and min_learning_rate < self.learning_rate:
             # Status update for this episode
             print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}')
-            print(f'learning_rate={self.learning_rate:8.3e}, total training time {self.total_training_time:0.0f} sec.')
+            print(f'learning_rate={self.learning_rate:8.3e}, training_time {self.training_time:0.0f} sec.')
             # Train for another episode
             hist = self.fit(x=x_trn, batch_size=self.batch_size, epochs=self.current_epoch+epochs_per_episode, 
                             steps_per_epoch=batches_per_epoch, initial_epoch=self.current_epoch,
@@ -683,13 +710,13 @@ class AsteroidSearchModel(tf.keras.Model):
         self.current_episode = hist.episode.values[-1]
         self.current_epoch = hist.epoch.values[-1]
         self.current_batch = hist.batch.values[-1]
-        self.total_training_time = hist.training_time.values[-1]
+        self.training_time = hist.training_time.values[-1]
 
         # Restore learning rate
         self.learning_rate = hist.learning_rate.values[-1]
 
     # *********************************************************************************************
-    # Review model and training
+    # Plot log likelihood and resolution
     # *********************************************************************************************
 
     def plot_log_like_bar(self, episode=None):
@@ -705,9 +732,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Bar plot of log likelihood after last episode
         fig, ax = plt.subplots()
-        ax.set_title('Training Progress: Log Likelihood by Element')
+        ax.set_title(f'Log Likelihood by Element (Episode {episode})')
         ax.set_xlabel('Rank')
-        ax.set_ylabel('Log Likelihood at Episode {episode}')
+        ax.set_ylabel('Log Likelihood')
         ax.bar(x=hist.element_num, height=sorted_log_like, color='blue')
         # ax.legend()
         ax.grid()
@@ -727,12 +754,12 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.set_xlabel('Batch Trained')
         ax.set_ylabel('Log Likelihood')
         # Plot mean +/- 1 SD
-        ax.plot(hist.batch, hist.log_like_mean, color=color_mean, label='mean')
-        ax.plot(hist.batch, hist.log_like_mean - hist.log_like_std, color='orange', label='Mean -1 SD')
-        ax.plot(hist.batch, hist.log_like_mean + hist.log_like_std, color='green', label='Mean +1 SD')
+        ax.plot(hist.batch, hist.log_like_mean, color=color_mean, label=color_mean)
+        ax.plot(hist.batch, hist.log_like_mean - hist.log_like_std, color=color_lo, label='Mean -1 SD')
+        ax.plot(hist.batch, hist.log_like_mean + hist.log_like_std, color=color_hi, label='Mean +1 SD')
         # Plot min and max
-        ax.plot(hist.batch, hist.log_like_min, color='red', label=f'min ({min_elt})')
-        ax.plot(hist.batch, hist.log_like_max, color='purple', label=f'max ({max_elt})')
+        ax.plot(hist.batch, hist.log_like_min, color=color_min, label=f'min ({min_elt})')
+        ax.plot(hist.batch, hist.log_like_max, color=color_max, label=f'max ({max_elt})')
         # Legend etc
         ax.legend()
         ax.grid()
@@ -754,7 +781,7 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.plot(hist.batch, hist.h_mean + hist.h_std, color=color_hi, label='Mean +1 SD')
         # Plot min and max
         ax.plot(hist.batch, hist.h_min, color=color_min, label=f'min')
-        ax.plot(hist.batch, hist.h_max, color=color_max, label=f'max)')
+        ax.plot(hist.batch, hist.h_max, color=color_max, label=f'max')
         # Legend etc
         ax.legend()
         ax.grid()
@@ -776,7 +803,7 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.plot(hist.batch, hist.R_deg_mean + hist.R_deg_std, color=color_hi, label='Mean +1 SD')
         # Plot min and max
         ax.plot(hist.batch, hist.R_deg_min, color=color_min, label=f'min')
-        ax.plot(hist.batch, hist.R_deg_max, color=color_max, label=f'max)')
+        ax.plot(hist.batch, hist.R_deg_max, color=color_max, label=f'max')
         # Legend etc
         ax.legend()
         ax.grid()
@@ -798,12 +825,124 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.plot(hist.batch, hist.log_R_mean + hist.log_R_std, color=color_hi, label='Mean +1 SD')
         # Plot min and max
         ax.plot(hist.batch, hist.log_R_min, color=color_min, label=f'min')
-        ax.plot(hist.batch, hist.log_R_max, color=color_max, label=f'max)')
+        ax.plot(hist.batch, hist.log_R_max, color=color_max, label=f'max')
         # Legend etc
         ax.legend()
         ax.grid()
         # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
         plt.show()
+
+    # *********************************************************************************************
+    # Plot error vs. known orbital elements
+    # *********************************************************************************************
+
+    def calc_error(self, elts_true):
+        """
+        Calculate error vs. known orbital elements
+        INPUTS:
+            elts_true: DataFrame of true orbital elements        
+        """
+        # Create a copy of the training history that will be augmented with error columns
+        hist_err = self.train_hist_elt.copy()
+        # The columns we're computing errors for: six orbital elements
+        cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f']
+        # Iterate through the elements; calulate error and log error
+        for col in cols_elt:
+            # col_true = f'{col}_true'
+            col_err = f'{col}_err'
+            col_log_err = f'{col}_log_err'
+            # hist[col_true] = elts_true.loc[hist.element_num, col].values
+            hist_err[col_err] = np.abs(hist_err[col] - elts_true.loc[hist_err.element_num, col].values)
+            hist_err[col_log_err] = np.log(hist_err[col_err])
+        return hist_err
+
+    def plot_elt_error(self, elts_true, elt_name, is_log: bool=True, elt_num: int=None):
+        """
+        Plot (log) error of selected orbital element vs. known elements
+        INPUTS:
+            elts_true: DataFrame of true orbital elements
+            elt_name:  Name of orbital element; one of 'a', 'e', 'inc', 'Omega', 'omega', 'f'
+            is_log:    Flag; whether to plot log(err) (True) or err (False)
+            elt_num:   Specific element_num to plot; plot just this one rather than mean, std, etc.
+        """
+        # Calculate error
+        hist_err = self.calc_error(elts_true)
+        
+        # Column names with error
+        col_err = f'{elt_name}_err'
+        col_log_err = f'{elt_name}_log_err'
+        col_plot = col_log_err if is_log else col_err
+        title = f'Log Error of {elt_name}' if is_log else f'Error of {elt_name}'
+        ylabel = f'Log Error' if is_log else f'Error'
+
+        # Selected error; reshape to size (episode_count, batch_size)
+        err = hist_err[col_plot].values.reshape((-1, self.batch_size))
+
+        # Style of plot: summary or selected element
+        is_summary: bool = elt_num is None
+
+        # The errors to plot
+        if is_summary:
+            err_mean = np.mean(err, axis=1)
+            err_std = np.std(err, axis=1)
+            err_min = np.min(err, axis=1)
+            err_max = np.max(err, axis=1)
+        else:
+            err_selected = err[:, elt_num]
+
+        # Plot selected error
+        fig, ax = plt.subplots()
+        ax.set_title(title)
+        ax.set_xlabel('Episode')
+        ax.set_ylabel(ylabel)
+        if is_summary:
+            ax.plot(err_mean, color=color_mean, label='mean')
+            ax.plot(err_mean - err_std, color=color_lo, label='mean -1 SD')
+            ax.plot(err_mean + err_std, color=color_hi, label='mean +1 SD')
+            ax.plot(err_min, color=color_min, label='min')
+            ax.plot(err_max, color=color_max, label='max')
+        else:
+            ax.plot(err_selected, color='blue', label=f'element_num {element_num}')
+        ax.legend()
+        ax.grid()
+        # fig.savefig('../figs/training/log_like_bar.png', bbox_inches='tight')
+        plt.show()
+
+    def plot_control(self, element_num):
+        """Plot control variables"""
+        # Get control variables for selected element_num
+        hist = self.train_hist_elt
+        mask = (hist.element_num == element_num)
+        hist = hist[mask]
+
+        # Plot control variables
+        fig, ax = plt.subplots()
+        ax.set_title(f'Control Variables for element_num {element_num}')
+        ax.set_xlabel('Episode')
+        ax.set_ylabel('Control Variable ([0, 1] Scale)')
+        # Plot mixture parameters
+        ax.plot(hist.episode, hist.h_, label='h')
+        ax.plot(hist.episode, hist.R_, label='R')
+        # Plot elements
+        ax.plot(hist.episode, hist.a_, label='a')
+        ax.plot(hist.episode, hist.e_, label='e')
+        ax.plot(hist.episode, hist.inc_, label='inc')
+        ax.plot(hist.episode, hist.Omega_, label='Omega')
+        ax.plot(hist.episode, hist.omega_, label='omega')
+        ax.plot(hist.episode, hist.f_, label='f')
+        # Legend, scale etc
+        ax.set_ylim([0, 1])
+        ax.grid()
+        # Put legend to the right of the plot
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # fig.savefig('../figs/training/control_variables.png', bbox_inches='tight')
+        plt.show()
+
+    # *********************************************************************************************
+    #  Diagnostic
+    # *********************************************************************************************
 
     def review_members(self):
         """Print diagnostic review of members to console"""
