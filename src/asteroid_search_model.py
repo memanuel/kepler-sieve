@@ -241,7 +241,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.t0: float = time.time()
         self.episode_t0: float = time.time()
 
-        # Cached values of total log likelihood and loss
+        # Cached values of log likelihood and loss
+        self.log_like: np.ndarray = np.zeros(self.batch_size, dtype=dtype_np)
+        self.hits: np.ndarray = np.zeros(self.batch_size, dtype=dtype_np)
         self.log_like_mean: float = 0.0
         self.hits_mean: float = 0.0
         self.loss: float = 0.0
@@ -253,8 +255,10 @@ class AsteroidSearchModel(tf.keras.Model):
         self.mixture_parameters_hist = []
 
         # Log likelihoods and losses
-        # self.log_like_total_hist = []
+        self.log_like_hist = []
+        self.hits_hist = []
         self.log_like_mean_hist = []
+        self.hits_mean_hist = []
         self.loss_hist = []
 
         # Training counters and times
@@ -404,7 +408,10 @@ class AsteroidSearchModel(tf.keras.Model):
         # Generate the outputs
         score_outputs, orbital_elements, mixture_params = self.calc_outputs()
         log_like, hits = score_outputs
+        
         # Caclulate mean log likelihood, mean hits, and loss; save them to cache
+        self.log_like = log_like.numpy()
+        self.hits = hits.numpy()
         self.log_like_mean = tf.reduce_mean(log_like).numpy()
         self.hits_mean = tf.reduce_mean(hits).numpy()
         self.loss = self.calc_loss()
@@ -414,7 +421,10 @@ class AsteroidSearchModel(tf.keras.Model):
         self.mixture_parameters_hist.append(self.mixture_parameters.get_weights())
         
         # Write history of log likelihood and loss
+        self.log_like_hist.append(self.log_like)
+        self.hits_hist.append(self.hits)
         self.log_like_mean_hist.append(self.log_like_mean)
+        self.hits_mean_hist.append(self.hits_mean)
         self.loss_hist.append(self.loss)
 
         # Write history of training counters and time
@@ -555,37 +565,39 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def update_weights(self):
         """"Restore the weights for each element to the prior iteration if they got worse"""
-        # Quit early if we don't have at least 2 entries on the lists of weights and log likes
-        if self.current_episode < 2:
+        
+        # If we don't have at least 2 entries on the history lists, terminate early
+        n: int = len(self.log_like_hist)
+        if n < 2:
             return
 
-        # # Get weights, log likelihoods and loss from the last 2 iterations
-        # weights_old, weights_new = self.weights_list[n-2:n]
-        # log_like_old, log_like_new = self.log_likes[n-2:n]
-        # loss_old, loss_new = self.loss_hist[n-2:n]
+        # Get old and new log_like, candidate_elements and mixture_parameters
+        log_like_old, log_like_new = self.log_like_hist[n-2:n]
+        log_like_mean_old, log_like_mean_new = self.log_like_mean_hist[n-2:n]
+        candidate_elements_old, candidate_elements_new = self.candidate_elements_hist[n-2:n]
+        mixture_parameters_old, mixture_parameters_new = self.mixture_parameters_hist[n-2:n]
 
-        # # Test whether each element has improved
-        # is_better = tf.math.greater(log_like_new, log_like_old)
+        # Test which elements have gotten worse (usually this should be false)
+        is_worse = tf.math.less(log_like_new, log_like_old)
 
-        # # Calculate the best weights and associated log likelihoods
-        # best_weights = tf.where(condition=is_better, x=weights_new, y=weights_old)
-        # best_log_like = tf.where(condition=is_better, x=log_like_new, y=log_like_old)
+        # If none of the elements have gotten worse, terminate early
+        if not tf.math.reduce_any(is_worse):
+            return
 
-        # # Apply the best weights to the model
-        # self.candidate_elements.set_weights(best_weights)
+        # If we get here, at least one candidate got worse.  Want to restore it.
+        # Calculate the best weights on the candidate elements and mixture parameters
+        candidate_elements_best = tf.where(condition=is_worse, x=candidate_elements_old, y=candidate_elements_new)
+        mixture_parameters_best = tf.where(condition=is_worse, x=mixture_parameters_old, y=mixture_parameters_new)
+
+        # Apply the best weights to the trainable layers if they are not frozen
+        if self.candidate_elements.trainable:
+            self.candidate_elements.set_weights(candidate_elements_best)
+        if self.mixture_parameters.trainable:
+            self.mixture_parameters.set_weights(mixture_parameters_best)
         
-        # # Overwrite the weights that got worse so they will be used at most once in an update
-        # weights_old2 = self.weights_list[n-3] if n > 2 else weights_old
-        # weights_new_update = tf.where(condition=is_better, x=weights_new, y=weights_old2)
-        # self.weights[-1] = weights_new_update
-
-        # # Update the log_likes and loss_hist lists to reflect these updates
-        # self.log_likes[-1] = best_log_like
-        # self.loss_hist[-1] = -tf.reduce_sum(best_log_like)
-        
-        # # If the overall loss has gotten worse, reduce the learning rate
-        # if loss_new > loss_old:
-        #     self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
+        # If the overall loss has gotten worse, reduce the learning rate
+        if log_like_mean_new > log_like_mean_old:
+            self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
        
     def update_early_stop(self):
         """Update early stopping monitor"""
@@ -613,8 +625,6 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_weights()
         self.update_weights()
 
-        # Current log likelihood mean
-        log_like_mean = self.log_like_mean_hist[-1]
         # Geometric mean of resolution
         R_deg_geomean = dist2deg(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
 
@@ -626,7 +636,8 @@ class AsteroidSearchModel(tf.keras.Model):
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
             # print(f'Total Log Likelihood: {log_like_total:8.2f}')
             print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees ({R_deg_geomean*3600:6.1f} arc seconds)')
-            print(f'Mean Log Likelihood:  {log_like_mean:8.2f}')
+            print(f'Mean Hits          :  {self.hits_mean:8.2f}')
+            print(f'Mean Log Likelihood:  {self.log_like_mean:8.2f}')
 
     # *********************************************************************************************
     # Main adaptive search routine; called by external consumers
@@ -681,7 +692,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Continue training until max_epochs or max_episodes have elapsed, or learning_rate has dropped too low
         while (self.current_batch < max_batches) and \
-              (self.current_episode < max_episode) and \
+              (self.current_episode < max_episodes) and \
               (min_learning_rate < self.learning_rate):
             # Status update for this episode
             print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}')
@@ -828,7 +839,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # fig.savefig('../figs/training/{score_att}_bar.png', bbox_inches='tight')
         plt.show()
 
-    def plot_log_like(self, score_att: str = 'log_like'):
+    def plot_score_hist(self, score_att: str = 'log_like'):
         """
         Learning curve chart (progress vs. episode) for one of the score attributes log_like or hits.
         INPUTS:
@@ -836,16 +847,6 @@ class AsteroidSearchModel(tf.keras.Model):
         """
         # Alias the training history
         hist = self.train_hist_summary
-
-        # Element ID with worst and best scores at end
-        min_elt = np.argmin(score)
-        max_elt = np.argmax(score)
-
-        # Score attributed formatted for inclusion in chart title or labels
-        score_att_title = {
-            'log_like': 'Log Likelihood',
-            'hits': 'Hits'
-        }[score_att]
 
         # Extract score_mean, score_std, score_min, score_max from hist
         score_mean = hist[f'{score_att}_mean'].values
@@ -855,89 +856,143 @@ class AsteroidSearchModel(tf.keras.Model):
         score_lo = score_mean - score_std
         score_hi = score_mean + score_std
 
+        # Only tabulate argmin for log likelihood
+        min_elt = hist.log_like_argmin.values[-1]
+        max_elt = hist.log_like_argmax.values[-1]
+        min_label = f'min ({min_elt})' if score_att=='log_like' else 'min'
+        max_label = f'max ({max_elt})' if score_att=='log_like' else 'max'
+
+        # Score attributed formatted for inclusion in chart title or labels
+        score_att_title = {
+            'log_like': 'Log Likelihood',
+            'hits': 'Hits'
+        }[score_att]
+
         # Plot total log likelihood over training
         fig, ax = plt.subplots()
-        ax.set_title(f'Training Progress: {socre_att_title} by Element')
+        ax.set_title(f'Training Progress: {score_att_title} by Element')
         ax.set_xlabel('Batch Trained')
         ax.set_ylabel(f'{score_att_title}')
         # Plot mean +/- 1 SD
-        ax.plot(hist.batch, score_mean, color=color_mean, label=color_mean)
+        ax.plot(hist.batch, score_mean, color=color_mean, label='Mean')
         ax.plot(hist.batch, score_lo, color=color_lo, label='Mean -1 SD')
         ax.plot(hist.batch, score_hi, color=color_hi, label='Mean +1 SD')
         # Plot min and max
-        ax.plot(hist.batch, score_min, color=color_min, label=f'min ({min_elt})')
-        ax.plot(hist.batch, score_max, color=color_max, label=f'max ({max_elt})')
+        ax.plot(hist.batch, score_min, color=color_min, label=min_label)
+        ax.plot(hist.batch, score_max, color=color_max, label=max_label)
         # Legend etc
         ax.legend()
         ax.grid()
         # fig.savefig('../figs/training/{score_att}_hist.png', bbox_inches='tight')
         plt.show()
 
-    def plot_h(self):
+    def plot_mixture_param(self, param_name: str):
+        """
+        Plot the named mixture parameter on the summary training history
+        INPUTS:
+            param_name: one of h, R_deg, log_R
+        """
         # Alias the training history
         hist = self.train_hist_summary
+
+        # Extract param_mean, param_std, param_min, param_max from hist
+        param_mean = hist[f'{param_name}_mean'].values
+        param_std = hist[f'{param_name}_std'].values
+        param_min = hist[f'{param_name}_min'].values
+        param_max = hist[f'{param_name}_max'].values
+        param_lo = param_mean - param_std
+        param_hi = param_mean + param_std
+
+        # Parameter formatted for inclusion in chart title or labels
+        param_title = {
+            'h': 'Hit Rate h',
+            'R_deg': 'Resolution R_deg',
+            'log_R': 'Log Resolution log(R)'
+        }[param_name]
 
         # Plot hit rate h over training
         fig, ax = plt.subplots()
-        ax.set_title('Training Progress: Hit Rate h by Element')
+        ax.set_title(f'Training Progress: {param_title} by Element')
         ax.set_xlabel('Batches Trained')
-        ax.set_ylabel('Hit Rate h')
+        ax.set_ylabel(f'{param_title}')
         # Plot mean +/- 1 SD
-        ax.plot(hist.batch, hist.h_mean, color=color_mean, label='mean')
-        ax.plot(hist.batch, hist.h_mean - hist.h_std, color=color_lo, label='Mean -1 SD')
-        ax.plot(hist.batch, hist.h_mean + hist.h_std, color=color_hi, label='Mean +1 SD')
+        ax.plot(hist.batch, param_mean, color=color_mean, label='Mean')
+        ax.plot(hist.batch, param_lo - hist.h_std, color=color_lo, label='Mean -1 SD')
+        ax.plot(hist.batch, param_hi + hist.h_std, color=color_hi, label='Mean +1 SD')
         # Plot min and max
-        ax.plot(hist.batch, hist.h_min, color=color_min, label=f'min')
-        ax.plot(hist.batch, hist.h_max, color=color_max, label=f'max')
+        ax.plot(hist.batch, param_min, color=color_min, label=f'Min')
+        ax.plot(hist.batch, param_max, color=color_max, label=f'Max')
         # Legend etc
         ax.legend()
         ax.grid()
-        # fig.savefig('../figs/training/h.png', bbox_inches='tight')
+        # fig.savefig('../figs/training/{param_name}.png', bbox_inches='tight')
         plt.show()
+        
+    # def plot_h(self):
+    #     # Alias the training history
+    #     hist = self.train_hist_summary
 
-    def plot_R_deg(self):
-        # Alias the training history
-        hist = self.train_hist_summary
+    #     # Plot hit rate h over training
+    #     fig, ax = plt.subplots()
+    #     ax.set_title('Training Progress: Hit Rate h by Element')
+    #     ax.set_xlabel('Batches Trained')
+    #     ax.set_ylabel('Hit Rate h')
+    #     # Plot mean +/- 1 SD
+    #     ax.plot(hist.batch, hist.h_mean, color=color_mean, label='Mean')
+    #     ax.plot(hist.batch, hist.h_mean - hist.h_std, color=color_lo, label='Mean -1 SD')
+    #     ax.plot(hist.batch, hist.h_mean + hist.h_std, color=color_hi, label='Mean +1 SD')
+    #     # Plot min and max
+    #     ax.plot(hist.batch, hist.h_min, color=color_min, label=f'Min')
+    #     ax.plot(hist.batch, hist.h_max, color=color_max, label=f'Max')
+    #     # Legend etc
+    #     ax.legend()
+    #     ax.grid()
+    #     # fig.savefig('../figs/training/h.png', bbox_inches='tight')
+    #     plt.show()
 
-        # Plot resolution R_deg over training
-        fig, ax = plt.subplots()
-        ax.set_title('Training Progress: Resolution R by Element')
-        ax.set_xlabel('Batch Trained')
-        ax.set_ylabel('R_deg (in degrees)')
-        # Plot mean +/- 1 SD
-        ax.plot(hist.batch, hist.R_deg_mean, color=color_mean, label='mean')
-        ax.plot(hist.batch, hist.R_deg_mean - hist.R_deg_std, color=color_lo, label='Mean -1 SD')
-        ax.plot(hist.batch, hist.R_deg_mean + hist.R_deg_std, color=color_hi, label='Mean +1 SD')
-        # Plot min and max
-        ax.plot(hist.batch, hist.R_deg_min, color=color_min, label=f'min')
-        ax.plot(hist.batch, hist.R_deg_max, color=color_max, label=f'max')
-        # Legend etc
-        ax.legend()
-        ax.grid()
-        # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
-        plt.show()
+    # def plot_R_deg(self):
+    #     # Alias the training history
+    #     hist = self.train_hist_summary
 
-    def plot_log_R(self):
-        # Alias the training history
-        hist = self.train_hist_summary
+    #     # Plot resolution R_deg over training
+    #     fig, ax = plt.subplots()
+    #     ax.set_title('Training Progress: Resolution R by Element')
+    #     ax.set_xlabel('Batch Trained')
+    #     ax.set_ylabel('R_deg (in degrees)')
+    #     # Plot mean +/- 1 SD
+    #     ax.plot(hist.batch, hist.R_deg_mean, color=color_mean, label='Mean')
+    #     ax.plot(hist.batch, hist.R_deg_mean - hist.R_deg_std, color=color_lo, label='Mean -1 SD')
+    #     ax.plot(hist.batch, hist.R_deg_mean + hist.R_deg_std, color=color_hi, label='Mean +1 SD')
+    #     # Plot min and max
+    #     ax.plot(hist.batch, hist.R_deg_min, color=color_min, label=f'Min')
+    #     ax.plot(hist.batch, hist.R_deg_max, color=color_max, label=f'Max')
+    #     # Legend etc
+    #     ax.legend()
+    #     ax.grid()
+    #     # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
+    #     plt.show()
 
-        # Plot log resolution, log_R over training
-        fig, ax = plt.subplots()
-        ax.set_title('Training Progress: Log Resolution log(R) by Element')
-        ax.set_xlabel('Batch Trained')
-        ax.set_ylabel('log(R)')
-        # Plot mean +/- 1 SD
-        ax.plot(hist.batch, hist.log_R_mean, color=color_mean, label=color_mean)
-        ax.plot(hist.batch, hist.log_R_mean - hist.log_R_std, color=color_lo, label='Mean -1 SD')
-        ax.plot(hist.batch, hist.log_R_mean + hist.log_R_std, color=color_hi, label='Mean +1 SD')
-        # Plot min and max
-        ax.plot(hist.batch, hist.log_R_min, color=color_min, label=f'min')
-        ax.plot(hist.batch, hist.log_R_max, color=color_max, label=f'max')
-        # Legend etc
-        ax.legend()
-        ax.grid()
-        # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
-        plt.show()
+    # def plot_log_R(self):
+    #     # Alias the training history
+    #     hist = self.train_hist_summary
+
+    #     # Plot log resolution, log_R over training
+    #     fig, ax = plt.subplots()
+    #     ax.set_title('Training Progress: Log Resolution log(R) by Element')
+    #     ax.set_xlabel('Batch Trained')
+    #     ax.set_ylabel('log(R)')
+    #     # Plot mean +/- 1 SD
+    #     ax.plot(hist.batch, hist.log_R_mean, color=color_mean, label='Mean')
+    #     ax.plot(hist.batch, hist.log_R_mean - hist.log_R_std, color=color_lo, label='Mean -1 SD')
+    #     ax.plot(hist.batch, hist.log_R_mean + hist.log_R_std, color=color_hi, label='Mean +1 SD')
+    #     # Plot min and max
+    #     ax.plot(hist.batch, hist.log_R_min, color=color_min, label=f'Min')
+    #     ax.plot(hist.batch, hist.log_R_max, color=color_max, label=f'Max')
+    #     # Legend etc
+    #     ax.legend()
+    #     ax.grid()
+    #     # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
+    #     plt.show()
 
     # *********************************************************************************************
     # Plot error vs. known orbital elements or selected element
