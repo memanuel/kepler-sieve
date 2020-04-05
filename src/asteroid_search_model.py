@@ -25,7 +25,7 @@ from datetime import timedelta
 # MSE imports
 from asteroid_model import AsteroidDirection, make_model_ast_pos
 from candidate_element import elts_np2df
-from asteroid_search_layers import CandidateElements, TrajectoryScore
+from asteroid_search_layers import CandidateElements, MixtureParameters, TrajectoryScore
 from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
@@ -184,7 +184,10 @@ class AsteroidSearchModel(tf.keras.Model):
         # ***************************************************
 
         # Set of trainable weights with candidate orbital elements; initialize according to elts
-        self.candidate_elements = CandidateElements(elts=elts, name='candidate_elements')
+        self.candidate_elements = CandidateElements(elts=elts, thresh_deg=thresh_deg, name='candidate_elements')
+
+        # Set of trainable weights with candidate mixture parameters
+        self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=thresh_deg, name='mixture_parameters')
 
         # The predicted direction; shape is [data_size, 3,]
         self.direction = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
@@ -276,13 +279,17 @@ class AsteroidSearchModel(tf.keras.Model):
         """
 
         # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
-        a, e, inc, Omega, omega, f, epoch, h, lam, R, = self.candidate_elements(inputs=inputs)
+        # a, e, inc, Omega, omega, f, epoch, h_old, lam_old, R_old, = self.candidate_elements(inputs=inputs)
+        a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=inputs)
+        
+        # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
+        h, lam, R, = self.mixture_parameters(inputs=inputs)
         
         # Stack the current orbital elements.  Shape is [batch_size, 7,]
         orbital_elements = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
         # Stack mixture model parameters. Shape is [batch_size, 3,]
-        mixture_params = keras.backend.stack([h, lam, R])
+        mixture_parameters = keras.backend.stack([h, lam, R])
 
         # Tensor of predicted directions.  Shape is [data_size, 3,]
         u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
@@ -296,9 +303,20 @@ class AsteroidSearchModel(tf.keras.Model):
         self.add_loss(-tf.reduce_mean(log_like))
         
         # Wrap outputs
-        outputs = (log_like, orbital_elements, mixture_params)
+        outputs = (log_like, orbital_elements, mixture_parameters)
         
         return outputs
+
+    def predict_direction(self):
+        """Predict direction u and displacement r"""
+        # Extract the candidate elements and mixture parameters
+        # a, e, inc, Omega, omega, f, epoch, h_old, lam_old, R_old, = self.candidate_elements(inputs=None)
+        a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
+
+        # Tensor of predicted directions.  Shape is [data_size, 3,]
+        u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
+
+        return (u_pred, r_pred)
 
     # *************************************************************************
     # Methods to calculate outputs, log likelihood, loss
@@ -391,8 +409,9 @@ class AsteroidSearchModel(tf.keras.Model):
         R_sec = dist2sec(R)
         log_R = np.log(R)
 
-        # Alias candidate elements layer
+        # Alias candidate elements layer and mixture parameters
         cand = self.candidate_elements
+        mixt = self.mixture_parameters
 
         # DataFrame with detailed training history of this episode by element
         hist_elt_dict = {
@@ -427,15 +446,16 @@ class AsteroidSearchModel(tf.keras.Model):
             'R_sec': R_sec,
             'log_R': log_R,
 
-            # Control variables
+            # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
             'e_': cand.e_.numpy(),
             'inc_': cand.inc_.numpy(),
             'Omega_': cand.Omega_.numpy(),
             'omega_': cand.omega_.numpy(),
             'f_': cand.f_.numpy(),
-            'h_': cand.h_.numpy(),
-            'R_': cand.R_.numpy(),
+            # Control variables - mixture parameters
+            'h_': mixt.h_.numpy(),
+            'R_': mixt.R_.numpy(),
         }
         train_hist_elt_cur = pd.DataFrame(hist_elt_dict, index=hist_elt_dict['key'])
         # train_hist_elt_cur.set_index('key', inplace=True)
@@ -567,7 +587,7 @@ class AsteroidSearchModel(tf.keras.Model):
         if verbose > 0:
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
             # print(f'Total Log Likelihood: {log_like_total:8.2f}')
-            print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees')
+            print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees ({R_deg_geomean*3600:6.1f} arc seconds)')
             print(f'Mean Log Likelihood:  {log_like_mean:8.2f}')
 
     # *********************************************************************************************

@@ -54,7 +54,7 @@ e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
 
 # Range for hit rate h
-h_min_ = 2.0**-8
+h_min_ = 2.0**-10
 h_max_ = 1.0 - h_min_
 
 # Range for resolution R: 1.0 arc second to 2.0 degrees
@@ -91,7 +91,7 @@ class CandidateElements(keras.layers.Layer):
 
     def __init__(self, 
                  elts: pd.DataFrame, 
-                 thresh_deg: float = 1.0,
+                 thresh_deg: float,
                  **kwargs):
         super(CandidateElements, self).__init__(**kwargs)
         
@@ -106,13 +106,6 @@ class CandidateElements(keras.layers.Layer):
 
         # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
         self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
-
-        # If h was passed as a scalar, promote it to an array
-        # h_init = h if isinstance(h, np.ndarray) else np.full(shape=elt_shape, fill_value=h)
-        # If lam was passed as a scalar, promote it to an array
-        # lam_init = lam if isinstance(lam, np.ndarray) else np.full(shape=elt_shape, fill_value=lam)
-        # If R was passed as a scalar, promote it to an array
-        # R_init = R if isinstance(R, np.ndarray) else np.full(shape=elt_shape, fill_value=R)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -151,20 +144,6 @@ class CandidateElements(keras.layers.Layer):
         # The epoch is not trainable
         self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, dtype=dtype, name='epoch')
         
-        # Control of the hit rate h_, in range h_min to h_max
-        self.h_min = keras.backend.constant(h_min_, dtype=dtype)
-        self.h_max = keras.backend.constant(h_max_, dtype=dtype)
-        self.h_ = tf.Variable(initial_value=elts['h'], trainable=True, dtype=dtype,
-                              constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
-
-        # # Control of the exponential decay paramater lam_, in range lam_min to lam_max
-        # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
-
-        # Control of the resolution paramater R_, in range R_min to R_max
-        self.R_min = keras.backend.constant(R_min_, dtype=dtype)
-        self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=dtype)
-        self.R_ = tf.Variable(initial_value=self.inverse_R(elts['R']), trainable=True, dtype=dtype,
-                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
     @tf.function
     def get_a(self):
         """Transformed value of a"""
@@ -215,6 +194,68 @@ class CandidateElements(keras.layers.Layer):
         return self.get_angle(self.f_)
 
     @tf.function
+    def call(self, inputs=None):
+        """Return the current candidate orbital elements and mixture model parameters"""
+        # print(f'type(inputs)={type(inputs)}.')
+        # Transform a, e from log to linear
+        a = self.get_a()
+        e = self.get_e()
+        # Angles transformed by factor of 2*pi
+        inc = self.get_inc()
+        Omega = self.get_Omega()
+        omega = self.get_omega()
+        f = self.get_f()
+        # # Transform search parameters h and lambda
+        # h = self.get_h()
+        # lam = self.get_lam()
+        # R = self.get_R()
+        # return (a, e, inc, Omega, omega, f, self.epoch, h, lam, R,)
+        return (a, e, inc, Omega, omega, f, self.epoch,)
+
+    def get_config(self):
+        return self.cfg
+
+# ********************************************************************************************************************* 
+class MixtureParameters(keras.layers.Layer):
+    """Custom layer to maintain state of mixture parameters."""
+
+    def __init__(self, 
+                 elts: pd.DataFrame, 
+                 thresh_deg: float,
+                 **kwargs):
+        super(MixtureParameters, self).__init__(**kwargs)
+        
+        # Configuration for serialization
+        self.cfg = {
+            'elts': elts,
+        }
+
+        # Infer batch size from elts DataFrame
+        batch_size = elts.shape[0]
+        elt_shape = (batch_size,)
+
+        # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
+        self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
+
+        # Save batch size, orbital elements as numpy array
+        self.batch_size = batch_size
+        self.elts = elts
+        
+        # Control of the hit rate h_, in range h_min to h_max
+        self.h_min = keras.backend.constant(h_min_, dtype=dtype)
+        self.h_max = keras.backend.constant(h_max_, dtype=dtype)
+        self.h_ = tf.Variable(initial_value=elts['h'], trainable=True, dtype=dtype,
+                              constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
+
+        # # Control of the exponential decay paramater lam_, in range lam_min to lam_max
+        # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
+
+        # Control of the resolution paramater R_, in range R_min to R_max
+        self.R_min = keras.backend.constant(R_min_, dtype=dtype)
+        self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=dtype)
+        self.R_ = tf.Variable(initial_value=self.inverse_R(elts['R']), trainable=True, dtype=dtype,
+                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
+    @tf.function
     def get_h(self):
         """Transformed value of h"""
         return self.h_
@@ -253,20 +294,11 @@ class CandidateElements(keras.layers.Layer):
     @tf.function
     def call(self, inputs=None):
         """Return the current candidate orbital elements and mixture model parameters"""
-        # print(f'type(inputs)={type(inputs)}.')
-        # Transform a, e from log to linear
-        a = self.get_a()
-        e = self.get_e()
-        # Angles transformed by factor of 2*pi
-        inc = self.get_inc()
-        Omega = self.get_Omega()
-        omega = self.get_omega()
-        f = self.get_f()
         # Transform search parameters h and lambda
         h = self.get_h()
         lam = self.get_lam()
         R = self.get_R()
-        return (a, e, inc, Omega, omega, f, self.epoch, h, lam, R,)
+        return (h, lam, R,)
 
     def get_config(self):
         return self.cfg
