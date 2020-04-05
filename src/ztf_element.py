@@ -55,7 +55,7 @@ def ztf_elt_hash(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = F
     hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
     # Combine the element hash tuple with the threshold and near_ast flags
     thresh_int = int(thresh_deg*2**48)
-    hash_id = hash(hash_df + (thresh_int, near_ast,))
+    hash_id = abs(hash(hash_df + (thresh_int, near_ast,)))
 
     return hash_id
 

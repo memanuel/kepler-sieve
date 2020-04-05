@@ -59,7 +59,7 @@ save_dir = '../data/candidate_elt'
 mpl.rcParams['figure.figsize'] = [16.0, 10.0]
 mpl.rcParams['font.size'] = 16
 
-# Color for plots
+# Colors for plots
 color_mean = 'blue'
 color_lo = 'orange'
 color_hi = 'green'
@@ -119,7 +119,7 @@ def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float):
     hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
     # Combine the element hash tuple with the threshold
     thresh_int = int(thresh_deg*2**48)
-    hash_id = hash(hash_df + (thresh_int, ))
+    hash_id = abs(hash(hash_df + (thresh_int, )))
 
     return hash_id
     
@@ -154,9 +154,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Initialize tf.keras.Model
         super(AsteroidSearchModel, self).__init__(**kwargs)
         
-        # ***************************************************
+        # *****************************************************************************************
         # Description of input data 
-        # ***************************************************
+        # *****************************************************************************************
 
         # Batch size comes from elts
         self.batch_size = elts.shape[0]
@@ -175,13 +175,16 @@ class AsteroidSearchModel(tf.keras.Model):
         self.data_size: int = ztf_elt.shape[0]
         self.traj_shape = (self.data_size, space_dims)
 
+        # Threshold
+        self.thresh_deg = thresh_deg
+
         # Observed directions; extract from ztf_elt DataFrame
         cols_u_obs = ['ux', 'uy', 'uz']
         u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
 
-        # ***************************************************
+        # *****************************************************************************************
         # Layers for candidate elements, asteroid direction and score
-        # ***************************************************
+        # *****************************************************************************************
 
         # Set of trainable weights with candidate orbital elements; initialize according to elts
         self.candidate_elements = CandidateElements(elts=elts, thresh_deg=thresh_deg, name='candidate_elements')
@@ -209,9 +212,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Position model - used for comparing trajectories of fitted and known orbital elements
         self.model_pos: keras.Model = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
 
-        # ***************************************************
+        # *****************************************************************************************
         # Variables for adaptive training and training history
-        # ***************************************************
+        # *****************************************************************************************
 
         # Save the learning rate on the model object to facilitate adaptive training
         self.learning_rate: float = learning_rate
@@ -221,6 +224,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.training_time: float = 0.0
 
         # Compile the model with its learning rate and clipnorm
+        self.optimizer = make_adam_opt(learning_rate=self.learning_rate, clipnorm=self.clipnorm)
         self.recompile()
 
         # Tensor of ones to pass as dummy inputs for evaluating one batch
@@ -238,14 +242,15 @@ class AsteroidSearchModel(tf.keras.Model):
         self.episode_t0: float = time.time()
 
         # Cached values of total log likelihood and loss
-        # self.log_like_total: float = 0.0
         self.log_like_mean: float = 0.0
+        self.hits_mean: float = 0.0
         self.loss: float = 0.0
 
         # Initialize lists with training history
 
         # Weights, elements and mixture parameters
-        self.weights_hist = []
+        self.candidate_elements_hist = []
+        self.mixture_parameters_hist = []
 
         # Log likelihoods and losses
         # self.log_like_total_hist = []
@@ -279,7 +284,6 @@ class AsteroidSearchModel(tf.keras.Model):
         """
 
         # Extract the candidate elements and mixture parameters; pass dummy inputs to satisfy keras Layer API
-        # a, e, inc, Omega, omega, f, epoch, h_old, lam_old, R_old, = self.candidate_elements(inputs=inputs)
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=inputs)
         
         # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
@@ -296,21 +300,23 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size,]
-        log_like = self.score(u_pred, h=h, lam=lam)
+        log_like, hits = self.score(u_pred, h=h, lam=lam)
         
+        # Stack score outputs. Shape is [batch_size, 2,]
+        score_outputs = keras.backend.stack([log_like, hits])
+
         # Add the loss function - the NEGATIVE of the log likelihood
         # (Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood)
         self.add_loss(-tf.reduce_mean(log_like))
         
         # Wrap outputs
-        outputs = (log_like, orbital_elements, mixture_parameters)
+        outputs = (score_outputs, orbital_elements, mixture_parameters)
         
         return outputs
 
     def predict_direction(self):
         """Predict direction u and displacement r"""
         # Extract the candidate elements and mixture parameters
-        # a, e, inc, Omega, omega, f, epoch, h_old, lam_old, R_old, = self.candidate_elements(inputs=None)
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
 
         # Tensor of predicted directions.  Shape is [data_size, 3,]
@@ -318,9 +324,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
         return (u_pred, r_pred)
 
-    # *************************************************************************
+    # *********************************************************************************************
     # Methods to calculate outputs, log likelihood, loss
-    # *************************************************************************
+    # *********************************************************************************************
 
     def calc_outputs(self):
         """Calculate the outputs; no input required (uses cached x_eval)"""
@@ -328,8 +334,8 @@ class AsteroidSearchModel(tf.keras.Model):
     
     def calc_log_like(self):
         """Calculate the log likelihood as tensor of shape [batch_size,]"""
-        log_like, orbital_elements, mixture_params = self.calc_outputs()
-        # log_like_total = tf.reduce_sum(log_like).numpy()
+        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
+        log_like, hits = score_outputs
         log_like_mean = tf.reduce_mean(log_like).numpy()
         return log_like, log_like_mean
 
@@ -341,15 +347,15 @@ class AsteroidSearchModel(tf.keras.Model):
         """Calculate difference in trajectories from two sets of orbital elements"""
         return traj_diff(elts_ast, elts0, elts1)
 
-    # *************************************************************************
+    # *********************************************************************************************
     # Methods to change model state in training
-    # *************************************************************************
+    # *********************************************************************************************
 
     def recompile(self):
-        """Recompile this model with its current learning rate"""
+        """Recompile this model with its current optimizer"""
         # Note: important not to name this method compile, that breaks relationship with tf.keras.Model
-        optimizer = make_adam_opt(learning_rate=self.learning_rate, clipnorm=self.clipnorm)
-        tf.keras.Model.compile(self, optimizer=optimizer)
+        # tf.keras.Model.compile(self, optimizer=self.optimizer)
+        self.compile(optimizer=self.optimizer)
 
     def set_learning_rate(self, learning_rate):
         """Set the learning rate"""
@@ -366,26 +372,48 @@ class AsteroidSearchModel(tf.keras.Model):
                   f'{self.learning_rate:8.3e} to {self.learning_rate*lr_factor:8.3e}.')
         self.learning_rate = self.learning_rate * lr_factor
         # Recompile with the new learning rate
+        self.optimizer = make_adam_opt(learning_rate=self.learning_rate, clipnorm=self.clipnorm)
         self.recompile()
 
-    # *************************************************************************
+    def freeze_candidate_elements(self):
+        """Make the candidate orbital elements not trainable; only update mixture parameters"""
+        self.candidate_elements.trainable = False
+        self.recompile()
+
+    def thaw_candidate_elements(self):
+        """Make the candidate orbital elements trainable (unfrozen)"""
+        self.candidate_elements.trainable = True
+        self.recompile()
+
+    def freeze_mixture_params(self):
+        """Make the mixture parameters not trainable; only update candidate oribtal elements"""
+        self.mixture_parameters.trainable = False
+        self.recompile()
+
+    def thaw_mixture_params(self):
+        """Make the candidate orbital elements trainable (unfrozen)"""
+        self.mixture_parameters.trainable = True
+        self.recompile()
+
+    # *********************************************************************************************
     # Adaptive training; save weights and history at episode end
-    # *************************************************************************
+    # *********************************************************************************************
 
     def save_weights(self):
         """Save the current weights, log likelihood and training history"""
         # Generate the outputs
-        log_like, orbital_elements, mixture_params = self.calc_outputs()
-        # Caclulat total log likelihood and loss; save them to cache
-        # self.log_like_total = tf.reduce_sum(log_like).numpy()
+        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
+        log_like, hits = score_outputs
+        # Caclulate mean log likelihood, mean hits, and loss; save them to cache
         self.log_like_mean = tf.reduce_mean(log_like).numpy()
+        self.hits_mean = tf.reduce_mean(hits).numpy()
         self.loss = self.calc_loss()
 
         # Write history of weights, elements, and mixture parameters
-        self.weights_hist.append(self.candidate_elements.get_weights())
+        self.candidate_elements_hist.append(self.candidate_elements.get_weights())
+        self.mixture_parameters_hist.append(self.mixture_parameters.get_weights())
         
         # Write history of log likelihood and loss
-        # self.log_like_total_hist.append(self.log_like_total)
         self.log_like_mean_hist.append(self.log_like_mean)
         self.loss_hist.append(self.loss)
 
@@ -396,10 +424,14 @@ class AsteroidSearchModel(tf.keras.Model):
         self.training_time_hist.append(self.training_time)
 
         # Delegate to save_train_hist to write history DataFrames
-        self.save_train_hist(log_like=log_like, orbital_elements=orbital_elements, mixture_params=mixture_params)
+        self.save_train_hist(score_outputs=score_outputs, orbital_elements=orbital_elements, mixture_params=mixture_params)
 
-    def save_train_hist(self, log_like, orbital_elements, mixture_params):
+    def save_train_hist(self, score_outputs, orbital_elements, mixture_params):
         """Save training history, both summary and by element"""
+
+        # Extract score outputs
+        log_like = score_outputs[0]
+        hits = score_outputs[1]
 
         # Extract mixture parameters
         h = mixture_params[0]
@@ -427,8 +459,9 @@ class AsteroidSearchModel(tf.keras.Model):
             'batch': np.full(shape=self.batch_size, fill_value=self.current_batch),
             'training_time': np.full(shape=self.batch_size, fill_value=self.training_time),
             
-            # Log likelihood
+            # Log likelihood and hits
             'log_like': log_like,
+            'hits': hits,
 
             # Orbital elements
             'a': orbital_elements[0].numpy(),
@@ -476,7 +509,6 @@ class AsteroidSearchModel(tf.keras.Model):
             'learning_rate': self.learning_rate,
 
             # Log likelihood summarized over the elements
-            # 'log_like_total': [self.log_like_total],
             'log_like_mean': [np.mean(log_like)],
             'log_like_med': [np.median(log_like)],
             'log_like_std': [np.std(log_like)],
@@ -486,6 +518,13 @@ class AsteroidSearchModel(tf.keras.Model):
             # Worst and best element in this batch
             'log_like_argmin': [np.argmin(log_like)],
             'log_like_argmax': [np.argmax(log_like)],
+
+            # Hits summarized over the elements
+            'hits_mean': [np.mean(hits)],
+            'hits_med': [np.median(hits)],
+            'hits_std': [np.std(hits)],
+            'hits_min': [np.min(hits)],
+            'hits_max': [np.max(hits)],
 
             # Summary of mixture parameter h
             'h_mean': [np.mean(h)],
@@ -510,15 +549,14 @@ class AsteroidSearchModel(tf.keras.Model):
         # train_hist_elt_cur.set_index('key', inplace=True)
         self.train_hist_summary = pd.concat([self.train_hist_summary, train_hist_summary_cur])
 
-    # *************************************************************************
+    # *********************************************************************************************
     # Adaptive training; update weights and modify model state at episode end
-    # *************************************************************************
+    # *********************************************************************************************
 
     def update_weights(self):
         """"Restore the weights for each element to the prior iteration if they got worse"""
         # Quit early if we don't have at least 2 entries on the lists of weights and log likes
-        n = len(self.weights_hist)
-        if n < 2:
+        if self.current_episode < 2:
             return
 
         # # Get weights, log likelihoods and loss from the last 2 iterations
@@ -624,7 +662,10 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Define one epoch as a number of batches        
         samples_per_epoch: int = batches_per_epoch * self.batch_size
-        # max_epochs: int = max_batches // batches_per_epoch + self.current_epoch
+        # Maximum number of episodes is twice the expected number if all episodes are full
+        max_episodes = (max_batches*2) // (batches_per_epoch * epochs_per_episode)
+
+        # Dummy training inputs
         x_trn = tf.ones(samples_per_epoch, dtype=dtype)
 
         # Set the learning rate factor
@@ -638,9 +679,10 @@ class AsteroidSearchModel(tf.keras.Model):
         # Episode end processing; includes LR adjustment
         self.episode_end(hist)
 
-        # Continue training until max_epochs have elapsed or learning_rate has dropped too low
-        # while self.current_epoch < max_epochs and min_learning_rate < self.learning_rate:
-        while self.current_batch < max_batches and min_learning_rate < self.learning_rate:
+        # Continue training until max_epochs or max_episodes have elapsed, or learning_rate has dropped too low
+        while (self.current_batch < max_batches) and \
+              (self.current_episode < max_episode) and \
+              (min_learning_rate < self.learning_rate):
             # Status update for this episode
             print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}')
             print(f'learning_rate={self.learning_rate:8.3e}, training_time {self.training_time:0.0f} sec.')
@@ -667,7 +709,9 @@ class AsteroidSearchModel(tf.keras.Model):
     def candidates_df(self):
         """The current candidates as a DataFrame."""
         # Generate the outputs
-        log_like, orbital_elements, mixture_params = self.calc_outputs()
+        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
+        # Unpack score_outputs
+        log_like, hits = score_outputs
         
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
@@ -684,21 +728,22 @@ class AsteroidSearchModel(tf.keras.Model):
         elts['R_deg'] = dist2deg(elts.R)
         elts['R_sec'] = 3600.0 * elts.R_deg
 
-        # Add column with log likelihood
+        # Add columns with log likelihood and hits
         elts['log_like'] = log_like.numpy()
+        elts['hits'] = hits.numpy()
 
         return elts
 
     def save_state(self, verbose: bool=False):
         """Save model state to disk: candidate elements and training history"""
         # Generate DataFrame with current candidates
-        candidate_elts = self.candidates_df()       
+        elts = self.candidates_df()
         # Status message
         if verbose:
             print(f'Saving candidate elements DataFrame in {self.file_path}.')
         
         # Save to disk
-        candidate_elts.to_hdf(self.file_path, key='candidate_elts', mode='w')
+        elts.to_hdf(self.file_path, key='elts', mode='w')
 
         # Also save training history (summary and by element)
         self.train_hist_summary.to_hdf(self.file_path, key='train_hist_summary', mode='a')
@@ -708,10 +753,10 @@ class AsteroidSearchModel(tf.keras.Model):
         """Load model state from disk: candidate elements and training history"""
         try:
             # Load DataFrames for candidate elements and auxiliary data
-            candidate_elts = pd.read_hdf(self.file_path, key='candidate_elts')
+            elts = pd.read_hdf(self.file_path, key='elts')
             self.train_hist_summary = pd.read_hdf(self.file_path, key='train_hist_summary')
             self.train_hist_elt = pd.read_hdf(self.file_path, key='train_hist_elt')
-        except FileNotFound:
+        except FileNotFoundError:
             if verbose:
                 print(f'Unable to find {self.file_path}.')
             return
@@ -721,7 +766,9 @@ class AsteroidSearchModel(tf.keras.Model):
             print(f'Loaded candidate elements and training history from {self.file_path}.')
 
         # Regenerate candidate_elements layer of this model
-        self.candidate_elements = CandidateElements(elts=candidate_elts, name='candidate_elements')
+        self.candidate_elements = CandidateElements(elts=elts, thresh_deg=self.thresh_deg, name='candidate_elements')
+        # Regenerate mixture_parameters layer of this model
+        self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
 
         # Alias history
         hist = self.train_hist_summary
@@ -739,51 +786,91 @@ class AsteroidSearchModel(tf.keras.Model):
     # Plot log likelihood and resolution
     # *********************************************************************************************
 
-    def plot_log_like_bar(self, episode=None):
-        # Get the log likelihoods at the last episode
+    def plot_score_bar(self, score_att: str = 'log_like', episode=None):
+        """
+        Bar chart for one of the score attributes log_like or hits
+        INPUTS:
+            score_att: Name of the attribute to plot.  One of 'log_like' or 'hits'
+            episode:   The episode as of which to plot.  Default to the last episode.
+        """
+        # Alias the training history
         hist = self.train_hist_elt
         # Default epoch to the last one
         if episode is None:
             episode = np.max(hist.episode)
         mask = (hist.episode == episode)
         hist = hist[mask]
+
+        # Get the selected score
+        score_tbl = {
+            'log_like': hist.log_like,
+            'hits': hist.hits,
+        }
+        score = score_tbl[score_att].values
+
         # Sort the log likelihoods in descending order
-        sorted_log_like = np.sort(hist.log_like.values)[::-1]
+        sorted_score = np.sort(score)[::-1]
+
+        # Score attributed formatted for inclusion in chart title or labels
+        score_att_title = {
+            'log_like': 'Log Likelihood',
+            'hits': 'Hits'
+        }[score_att]
 
         # Bar plot of log likelihood after last episode
         fig, ax = plt.subplots()
-        ax.set_title(f'Log Likelihood by Element (Episode {episode})')
+        ax.set_title(f'{score_att_title} by Element (Episode {episode})')
         ax.set_xlabel('Rank')
-        ax.set_ylabel('Log Likelihood')
-        ax.bar(x=hist.element_num, height=sorted_log_like, color='blue')
+        ax.set_ylabel(f'{score_att_title}')
+        ax.bar(x=hist.element_num, height=sorted_score, color='blue')
         # ax.legend()
         ax.grid()
-        # fig.savefig('../figs/training/log_like_bar.png', bbox_inches='tight')
+        # fig.savefig('../figs/training/{score_att}_bar.png', bbox_inches='tight')
         plt.show()
 
-    def plot_log_like(self):
+    def plot_log_like(self, score_att: str = 'log_like'):
+        """
+        Learning curve chart (progress vs. episode) for one of the score attributes log_like or hits.
+        INPUTS:
+            score_att: Name of the attribute to plot.  One of 'log_like' or 'hits'
+        """
         # Alias the training history
         hist = self.train_hist_summary
+
         # Element ID with worst and best scores at end
-        min_elt = hist.log_like_argmin.values[-1]
-        max_elt = hist.log_like_argmax.values[-1]
+        min_elt = np.argmin(score)
+        max_elt = np.argmax(score)
+
+        # Score attributed formatted for inclusion in chart title or labels
+        score_att_title = {
+            'log_like': 'Log Likelihood',
+            'hits': 'Hits'
+        }[score_att]
+
+        # Extract score_mean, score_std, score_min, score_max from hist
+        score_mean = hist[f'{score_att}_mean'].values
+        score_std = hist[f'{score_att}_std'].values
+        score_min = hist[f'{score_att}_min'].values
+        score_max = hist[f'{score_att}_max'].values
+        score_lo = score_mean - score_std
+        score_hi = score_mean + score_std
 
         # Plot total log likelihood over training
         fig, ax = plt.subplots()
-        ax.set_title('Training Progress: Log Likelihood by Element')
+        ax.set_title(f'Training Progress: {socre_att_title} by Element')
         ax.set_xlabel('Batch Trained')
-        ax.set_ylabel('Log Likelihood')
+        ax.set_ylabel(f'{score_att_title}')
         # Plot mean +/- 1 SD
-        ax.plot(hist.batch, hist.log_like_mean, color=color_mean, label=color_mean)
-        ax.plot(hist.batch, hist.log_like_mean - hist.log_like_std, color=color_lo, label='Mean -1 SD')
-        ax.plot(hist.batch, hist.log_like_mean + hist.log_like_std, color=color_hi, label='Mean +1 SD')
+        ax.plot(hist.batch, score_mean, color=color_mean, label=color_mean)
+        ax.plot(hist.batch, score_lo, color=color_lo, label='Mean -1 SD')
+        ax.plot(hist.batch, score_hi, color=color_hi, label='Mean +1 SD')
         # Plot min and max
-        ax.plot(hist.batch, hist.log_like_min, color=color_min, label=f'min ({min_elt})')
-        ax.plot(hist.batch, hist.log_like_max, color=color_max, label=f'max ({max_elt})')
+        ax.plot(hist.batch, score_min, color=color_min, label=f'min ({min_elt})')
+        ax.plot(hist.batch, score_max, color=color_max, label=f'max ({max_elt})')
         # Legend etc
         ax.legend()
         ax.grid()
-        # fig.savefig('../figs/training/log_like.png', bbox_inches='tight')
+        # fig.savefig('../figs/training/{score_att}_hist.png', bbox_inches='tight')
         plt.show()
 
     def plot_h(self):
@@ -853,7 +940,7 @@ class AsteroidSearchModel(tf.keras.Model):
         plt.show()
 
     # *********************************************************************************************
-    # Plot error vs. known orbital elements
+    # Plot error vs. known orbital elements or selected element
     # *********************************************************************************************
 
     def calc_error(self, elts_true):
@@ -964,6 +1051,42 @@ class AsteroidSearchModel(tf.keras.Model):
     #  Diagnostic
     # *********************************************************************************************
 
+    def report(self):
+        """Run model and report a few summary outputs to console"""
+        # Run model on current candidates
+        score_outputs, orbital_elements, mixture_parameters = self.calc_outputs()
+        # Unpacke score_outputs
+        log_like, hits = score_outputs
+
+        # Summarize log likelihood
+        log_like = log_like.numpy()
+        log_like_mean = np.mean(log_like)
+        log_like_std = np.std(log_like)
+        log_like_min = np.min(log_like)
+        log_like_max = np.max(log_like)
+
+        # Summarize hits
+        hits = hits.numpy()
+        hits_mean = np.mean(hits)
+        hits_std = np.std(hits)
+        hits_min = np.min(hits)
+        hits_max = np.max(hits)
+
+        # Summarize resolution
+        h = mixture_parameters[0].numpy()
+        R_deg = dist2deg(mixture_parameters[2].numpy())
+        R_deg_mean = np.mean(R_deg)
+        R_deg_std = np.std(R_deg)
+        R_deg_min = np.min(R_deg)
+        R_deg_max = np.max(R_deg)
+
+        # Report on log likelihood and resolution
+        print(f'     \  log_like :  hits  :  R_deg    :    R_sec')
+        print(f'Mean : {log_like_mean:8.2f}  : {hits_mean:6.2f} :  {R_deg_mean:8.6f} : {R_deg_mean*3600:8.2f}')
+        print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} :  {R_deg_std:8.6f} : {R_deg_std*3600:8.2f}')
+        print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} :  {R_deg_min:8.6f} : {R_deg_min*3600:8.2f}')
+        print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} :  {R_deg_max:8.6f} : {R_deg_max*3600:8.2f}')
+
     def review_members(self):
         """Print diagnostic review of members to console"""
         preview_size = 5
@@ -986,9 +1109,12 @@ class AsteroidSearchModel(tf.keras.Model):
         print(f'current_batch: {self.current_batch}')
 
         # Weights history
-        print(f'\nweights_hist: list of tensors shape '
-              f'[{len(self.weights_hist)}, {len(self.weights_hist[0])}, {len(self.weights_hist[0][0])}]')
-        print([x for x in self.weights_hist[0][0][0:preview_size]])
+        print(f'\ncandidate_elements_hist: list of tensors shape '
+              f'[{len(self.candidate_elements_hist)}, {len(self.candidate_elements_hist[0])}, {len(self.candidate_elements_hist[0][0])}]')
+        print([x for x in self.candidate_elements_hist[0][0][0:preview_size]])
+        print(f'\nmixture_parameters_hist: list of tensors shape '
+              f'[{len(self.mixture_parameters_hist)}, {len(self.mixture_parameters_hist[0])}, {len(self.mixture_parameters_hist[0][0])}]')
+        print([x for x in self.mixture_parameters_hist[0][0][0:preview_size]])
 
         # Serialization
         print(f'\nelts_hash_id: {self.elts_hash_id}')

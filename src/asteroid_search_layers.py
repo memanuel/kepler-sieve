@@ -382,16 +382,23 @@ class TrajectoryScore(keras.layers.Layer):
         p = tf.add(p_hit, p_miss, name='p')
         log_p_flat = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
 
+        # The posterior hit probability is p_hit / p
+        p_hit_post_flat = tf.divide(p_hit, p)
+        # Filter effective hits: only those with 95% or better probability        
+
         # Rearrange to ragged tensors
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
         ragged_map_func_close = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
         log_p = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
+        p_hit_post = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(p_hit_post_flat)        
 
         # Log likelihood by element
         log_like = tf.reduce_sum(log_p, axis=1, name='log_like')
+        # Effective hit count count by element
+        hits = tf.reduce_sum(p_hit_post, axis=1, name='hits')
 
-        # Return the log likelihood by element
-        return log_like
+        # Return the log likelihood and hits by element
+        return log_like, hits
 
     def get_config(self):
         return self.cfg
