@@ -205,11 +205,7 @@ class CandidateElements(keras.layers.Layer):
         Omega = self.get_Omega()
         omega = self.get_omega()
         f = self.get_f()
-        # # Transform search parameters h and lambda
-        # h = self.get_h()
-        # lam = self.get_lam()
-        # R = self.get_R()
-        # return (a, e, inc, Omega, omega, f, self.epoch, h, lam, R,)
+        # Return the elements
         return (a, e, inc, Omega, omega, f, self.epoch,)
 
     def get_config(self):
@@ -255,6 +251,7 @@ class MixtureParameters(keras.layers.Layer):
         self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=dtype)
         self.R_ = tf.Variable(initial_value=self.inverse_R(elts['R']), trainable=True, dtype=dtype,
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
+
     @tf.function
     def get_h(self):
         """Transformed value of h"""
@@ -298,7 +295,7 @@ class MixtureParameters(keras.layers.Layer):
         h = self.get_h()
         lam = self.get_lam()
         R = self.get_R()
-        return (h, lam, R,)
+        return (h, lam, R)
 
     def get_config(self):
         return self.cfg

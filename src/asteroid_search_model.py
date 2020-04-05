@@ -67,7 +67,7 @@ color_min = 'red'
 color_max = 'purple'
 
 # ********************************************************************************************************************* 
-def make_adam_opt(learning_rate=1.0E-4, clipnorm=1.0, clipvalue=None):
+def make_opt_adam(learning_rate, clipnorm=1.0, clipvalue=None):
     """
     Build Adam optimizer for training 
     Default settings are:
@@ -104,6 +104,99 @@ def make_adam_opt(learning_rate=1.0E-4, clipnorm=1.0, clipvalue=None):
     return opt
     
 # ********************************************************************************************************************* 
+def make_opt_rmsprop(learning_rate, clipnorm=1.0, clipvalue=None):
+    """
+    Build RMSprop optimizer for training 
+    Default settings are:
+    learning_rate = 1.0E-3
+    rho = 0.90
+    momentum = 0.0
+    epsilon = 1.0E-7
+    centered = False
+    clipnorm = None
+    clipvalue = None
+    """
+
+    # Settings for other arguments; leave at defaults
+    rho = 0.900             # default 0.900
+    momentum = 0.000        # default 0.000
+    epsilon = 2.0**-23      # default 1.0E-7; nearest power of 2
+    centered = False
+
+    # Optimizer arguments - wrap as dict.  Point is to permit clip=None
+    opt_args = {
+        'learning_rate': learning_rate,
+        'rho': rho,
+        'momentum': momentum,
+        'epsilon': epsilon,
+        'centered': centered,
+    }
+    # Add clipnorm if it was set
+    if clipnorm is not None:
+        opt_args['clipnorm'] = clipnorm
+    # Add clipvalue if it was set
+    if clipvalue is not None:
+        opt_args['clipvalue'] = clipvalue
+
+    # Build the optimizer
+    opt = keras.optimizers.RMSprop(**opt_args)
+    return opt
+
+# ********************************************************************************************************************* 
+def make_opt_adadelta(learning_rate, clipnorm=1.0, clipvalue=None):
+    """
+    Build Adadelta optimizer for training 
+    Default settings are:
+    learning_rate = 1.0E-3
+    rho = 0.950
+    epsilon = 1.0E-7
+    clipnorm = None
+    clipvalue = None
+    """
+
+    # Settings for other arguments; leave at defaults
+    rho = 0.950             # default 0.950
+    epsilon = 2.0**-23      # default 1.0E-7; nearest power of 2
+
+    # Optimizer arguments - wrap as dict.  Point is to permit clip=None
+    opt_args = {
+        'learning_rate': learning_rate,
+        'rho': rho,
+        'epsilon': epsilon,
+    }
+    # Add clipnorm if it was set
+    if clipnorm is not None:
+        opt_args['clipnorm'] = clipnorm
+    # Add clipvalue if it was set
+    if clipvalue is not None:
+        opt_args['clipvalue'] = clipvalue
+
+    # Build the optimizer
+    opt = keras.optimizers.Adadelta(**opt_args)
+    return opt
+
+# ********************************************************************************************************************* 
+def make_opt(optimizer_type, learning_rate, clipnorm=1.0, clipvalue=None):
+    """
+    Create an instance of the specified optimizer.
+    INPUTS:
+        learning_rate:  learning_rate for the optimizer
+        optimizer_type: one of 'adam', 'rmsprop', 'adadelta'
+        clipnorm:       gradient clipping by norm of gradient vector
+        clipvalue:      gradient clipping by element of gradient vector
+    """
+    # Table of factory functions keyed by optimizer_type
+    optimizer_func = {
+        'adam': make_opt_adam,
+        'rmsprop': make_opt_rmsprop,
+        'adadelta': make_opt_adadelta,
+    }
+    # The factor function for the selected optimizer_type
+    optimizer_func = optimizer_func[optimizer_type]
+    # Instantiate this optimizer with selected input parameters
+    return optimizer_func(learning_rate=learning_rate, clipnorm=clipnorm, clipvalue=clipvalue)
+
+# ********************************************************************************************************************* 
 def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float):
     """
     Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
@@ -134,7 +227,8 @@ class AsteroidSearchModel(tf.keras.Model):
     """
 
     def __init__(self, elts: pd.DataFrame, ztf_elt: pd.DataFrame, 
-                 site_name: str='geocenter', thresh_deg: float = 1.0, 
+                 site_name: str='geocenter', thresh_deg: float = 1.0,
+                 optimizer_type: str = 'Adam',
                  learning_rate: float = 2.0**-13, clipnorm: float = 1.0,
                  **kwargs):
         """
@@ -223,8 +317,12 @@ class AsteroidSearchModel(tf.keras.Model):
         # Initialize loss history and total training time
         self.training_time: float = 0.0
 
-        # Compile the model with its learning rate and clipnorm
-        self.optimizer = make_adam_opt(learning_rate=self.learning_rate, clipnorm=self.clipnorm)
+        # Build the selected optimizer with the input learning rate
+        self.optimizer_type = optimizer_type.lower()
+        self.optimizer = make_opt(optimizer_type=self.optimizer_type, 
+                                  learning_rate=self.learning_rate, 
+                                  clipnorm=self.clipnorm, clipvalue=None)
+        # Compile the model with this optimizer instance
         self.recompile()
 
         # Tensor of ones to pass as dummy inputs for evaluating one batch
@@ -248,8 +346,15 @@ class AsteroidSearchModel(tf.keras.Model):
         self.hits_mean: float = 0.0
         self.loss: float = 0.0
 
-        # Initialize lists with training history
+        # Training mode: one of 'joint', 'element', 'mixture'
+        self.training_mode = 'joint'
 
+        # Weight factors for training in three modes: joint, element, mixture
+        self.weight_joint = tf.Variable(initial_value=np.ones(self.batch_size, dtype=dtype_np), trainable=False, dtype=dtype)
+        self.weight_element = tf.Variable(initial_value=np.ones(self.batch_size, dtype=dtype_np), trainable=False, dtype=dtype)
+        self.weight_mixture = tf.Variable(initial_value=np.ones(self.batch_size, dtype=dtype_np), trainable=False, dtype=dtype)
+
+        # Initialize lists with training history
         # Weights, elements and mixture parameters
         self.candidate_elements_hist = []
         self.mixture_parameters_hist = []
@@ -279,7 +384,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=False)
         # File name for saving training progress
         self.file_path = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
-    
+
+
     # @tf.function
     def call(self, inputs=None):
         """
@@ -291,13 +397,13 @@ class AsteroidSearchModel(tf.keras.Model):
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=inputs)
         
         # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
-        h, lam, R, = self.mixture_parameters(inputs=inputs)
+        h, lam, R = self.mixture_parameters(inputs=inputs)
         
         # Stack the current orbital elements.  Shape is [batch_size, 7,]
         orbital_elements = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
         # Stack mixture model parameters. Shape is [batch_size, 3,]
-        mixture_parameters = keras.backend.stack([h, lam, R])
+        mixture_parameters = keras.backend.stack([h, lam, R,])
 
         # Tensor of predicted directions.  Shape is [data_size, 3,]
         u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
@@ -311,7 +417,10 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Add the loss function - the NEGATIVE of the log likelihood
         # (Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood)
-        self.add_loss(-tf.reduce_mean(log_like))
+        weight = self.get_active_weight()
+        weighted_loss = tf.multiply(weight, log_like)
+        loss = -tf.reduce_sum(weighted_loss)
+        self.add_loss(loss)
         
         # Wrap outputs
         outputs = (score_outputs, orbital_elements, mixture_parameters)
@@ -352,6 +461,28 @@ class AsteroidSearchModel(tf.keras.Model):
         return traj_diff(elts_ast, elts0, elts1)
 
     # *********************************************************************************************
+    # Element weights
+    # *********************************************************************************************
+
+    def get_active_weight(self):
+        """Get the currently active weight"""
+        weight = {
+            'joint': self.weight_joint,
+            'element': self.weight_element,
+            'mixture': self.weight_mixture,
+        }[self.training_mode]
+        return weight
+
+    def set_active_weight(self, weight):
+        """Set the currently active weight"""
+        weight_active = {
+            'joint': self.weight_joint,
+            'element': self.weight_element,
+            'mixture': self.weight_mixture,
+        }[self.training_mode]
+        weight_active.assign(weight)
+
+    # *********************************************************************************************
     # Methods to change model state in training
     # *********************************************************************************************
 
@@ -369,35 +500,40 @@ class AsteroidSearchModel(tf.keras.Model):
         """Set the clipnorm parameter for gradient clipping"""
         self.clipnorm = clipnorm
         
-    def adjust_learning_rate(self, lr_factor, verbose: int =1):
+    def adjust_learning_rate(self, lr_factor, verbose: bool=True):
         """Adjust the learning rate and recompile the model"""
         if verbose:
             print(f'Changing learning rate by factor {lr_factor:8.6f} from '
                   f'{self.learning_rate:8.3e} to {self.learning_rate*lr_factor:8.3e}.')
         self.learning_rate = self.learning_rate * lr_factor
         # Recompile with the new learning rate
-        self.optimizer = make_adam_opt(learning_rate=self.learning_rate, clipnorm=self.clipnorm)
+        self.optimizer = make_opt(optimizer_type=self.optimizer_type, learning_rate=self.learning_rate, 
+                                  clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
 
     def freeze_candidate_elements(self):
         """Make the candidate orbital elements not trainable; only update mixture parameters"""
         self.candidate_elements.trainable = False
         self.recompile()
+        self.training_mode = 'mixture'
 
     def thaw_candidate_elements(self):
         """Make the candidate orbital elements trainable (unfrozen)"""
         self.candidate_elements.trainable = True
         self.recompile()
+        self.training_mode = 'joint' if self.mixture_parameters.trainable else 'elements'
 
     def freeze_mixture_params(self):
         """Make the mixture parameters not trainable; only update candidate oribtal elements"""
         self.mixture_parameters.trainable = False
         self.recompile()
+        self.training_mode = 'elements'
 
     def thaw_mixture_params(self):
         """Make the candidate orbital elements trainable (unfrozen)"""
         self.mixture_parameters.trainable = True
         self.recompile()
+        self.training_mode = 'joint' if self.candidate_elements.trainable else 'mixture'
 
     # *********************************************************************************************
     # Adaptive training; save weights and history at episode end
@@ -499,6 +635,11 @@ class AsteroidSearchModel(tf.keras.Model):
             # Control variables - mixture parameters
             'h_': mixt.h_.numpy(),
             'R_': mixt.R_.numpy(),
+
+            # Weights in three modes
+            'weight_joint': self.weight_joint.numpy(),
+            'weight_element': self.weight_element.numpy(),
+            'weight_mixture': self.weight_mixture.numpy(),
         }
         train_hist_elt_cur = pd.DataFrame(hist_elt_dict, index=hist_elt_dict['key'])
         # train_hist_elt_cur.set_index('key', inplace=True)
@@ -563,9 +704,8 @@ class AsteroidSearchModel(tf.keras.Model):
     # Adaptive training; update weights and modify model state at episode end
     # *********************************************************************************************
 
-    def update_weights(self):
-        """"Restore the weights for each element to the prior iteration if they got worse"""
-        
+    def update_weights(self, verbose: bool=True):
+        """"Restore the weights for each element to the prior iteration if they got worse"""        
         # If we don't have at least 2 entries on the history lists, terminate early
         n: int = len(self.log_like_hist)
         if n < 2:
@@ -586,6 +726,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # If we get here, at least one candidate got worse.  Want to restore it.
         # Calculate the best weights on the candidate elements and mixture parameters
+        log_like_best = tf.math.maximum(x=log_like_old, y=log_like_new)
         candidate_elements_best = tf.where(condition=is_worse, x=candidate_elements_old, y=candidate_elements_new)
         mixture_parameters_best = tf.where(condition=is_worse, x=mixture_parameters_old, y=mixture_parameters_new)
 
@@ -594,10 +735,34 @@ class AsteroidSearchModel(tf.keras.Model):
             self.candidate_elements.set_weights(candidate_elements_best)
         if self.mixture_parameters.trainable:
             self.mixture_parameters.set_weights(mixture_parameters_best)
+
+        # If we edited weights in this iteration, we also need to apply the changes to the history tables
+        log_like_new = log_like_best
+        candidate_elements_new = candidate_elements_best
+        mixture_parameters_new = mixture_parameters_best
+
+        # Reduce the weights on the elements that trained too fast
+        weight_old = self.get_active_weight()
+        weight_new = tf.where(condition=is_worse, x=weight_old*self.lr_factor_elt_dn, y=weight_old)
+        # Max of the proposed new weights before normalization
+        weight_max = tf.reduce_max(weight_new)
+        # If the largest weight is less than 1, divide by weight_max and multiply learning_rate by weight_max
+        # The net effect does not change the training, but makes it easier to disentangle LR from weight
+        if weight_max < 1.0:
+            weight_new = tf.divide(weight_new, weight_max)
+            lr_factor = weight_max
+            self.adjust_learning_rate(lr_factor=lr_factor, verbose=False)
+        # Apply the new active weight 
+        self.set_active_weight(weight_new)
+        if verbose:
+            num_changed = tf.reduce_sum(tf.cast(x=is_worse, dtype=tf.int32)).numpy()
+            print(f'Adjusted learning rate down on {num_changed} candidate elements.')
+        if weight_max < 1.0 and verbose:
+            print(f'Adjusted global learning rate by lr_factor={lr_factor}.')
         
         # If the overall loss has gotten worse, reduce the learning rate
-        if log_like_mean_new > log_like_mean_old:
-            self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
+        # if log_like_mean_new > log_like_mean_old:
+        #    self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
        
     def update_early_stop(self):
         """Update early stopping monitor"""
@@ -605,7 +770,7 @@ class AsteroidSearchModel(tf.keras.Model):
             monitor='loss', 
             patience=0, 
             baseline=self.calc_loss(), 
-            min_delta=1.0, 
+            min_delta=0.0, 
             restore_best_weights=True)
     
     def episode_end(self, hist, verbose: int = 1):
@@ -647,7 +812,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_batches: int = 10000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
-                        min_learning_rate: float = 2.0**-20,
+                        min_learning_rate: Optional[float] = None,
                         regenerate: bool=False,
                         verbose: int = 1):
         """
@@ -660,6 +825,9 @@ class AsteroidSearchModel(tf.keras.Model):
             min_learning_rate: Minimum for the learning rate; terminate early if LR drops below this
             verbose: Integer controlling verbosity level (passed on to tf.keras.model.fit)
         """
+        # If min_learning_rate was not set, default it to ratio of the current learning rate
+        min_learning_rate = self.learning_rate / 128.0 if min_learning_rate is None else min_learning_rate
+
         # Update batches_per_epoch
         self.batches_per_epoch = batches_per_epoch
 
@@ -682,6 +850,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # Set the learning rate factor
         self.lr_factor_dn: float = 0.5
         # self.lr_factor_up: float = 1.0
+        self.lr_factor_elt_dn: float = 0.5
+        # self.lr_factor_elt_up: float = 1.0
 
         # Run first episode of training
         hist = self.fit(x=x_trn, batch_size=self.batch_size, epochs=epochs_per_episode, 
@@ -695,7 +865,7 @@ class AsteroidSearchModel(tf.keras.Model):
               (self.current_episode < max_episodes) and \
               (min_learning_rate < self.learning_rate):
             # Status update for this episode
-            print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}')
+            print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}, Batch {self.current_batch:6}')
             print(f'learning_rate={self.learning_rate:8.3e}, training_time {self.training_time:0.0f} sec.')
             # Train for another episode
             hist = self.fit(x=x_trn, batch_size=self.batch_size, epochs=self.current_epoch+epochs_per_episode, 
@@ -726,8 +896,6 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
-        # print(f'elts.shape={elts.shape}')
-        # print(f'self.elts_element_id.numpy().shape = {self.elts_element_id.numpy().shape}')
         
         # Add column with the element_id
         elts.insert(loc=0, column='element_id', value=self.elts_element_id.numpy())
@@ -742,6 +910,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Add columns with log likelihood and hits
         elts['log_like'] = log_like.numpy()
         elts['hits'] = hits.numpy()
+
+        # Add columns with the weights in the three modes
+        elts['weight_joint'] = self.weight_joint.numpy()
+        elts['weight_element'] = self.weight_element.numpy()
+        elts['weight_mixture'] = self.weight_mixture.numpy()
 
         return elts
 
@@ -780,6 +953,10 @@ class AsteroidSearchModel(tf.keras.Model):
         self.candidate_elements = CandidateElements(elts=elts, thresh_deg=self.thresh_deg, name='candidate_elements')
         # Regenerate mixture_parameters layer of this model
         self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
+        # Restore element weight in the three modes
+        self.weight_joint.assign(elts['weight_joint'].values)
+        self.weight_element.assign(elts['weight_element'].values)
+        self.weight_mixture.assign(elts['weight_mixture'].values)
 
         # Alias history
         hist = self.train_hist_summary
@@ -927,72 +1104,6 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.grid()
         # fig.savefig('../figs/training/{param_name}.png', bbox_inches='tight')
         plt.show()
-        
-    # def plot_h(self):
-    #     # Alias the training history
-    #     hist = self.train_hist_summary
-
-    #     # Plot hit rate h over training
-    #     fig, ax = plt.subplots()
-    #     ax.set_title('Training Progress: Hit Rate h by Element')
-    #     ax.set_xlabel('Batches Trained')
-    #     ax.set_ylabel('Hit Rate h')
-    #     # Plot mean +/- 1 SD
-    #     ax.plot(hist.batch, hist.h_mean, color=color_mean, label='Mean')
-    #     ax.plot(hist.batch, hist.h_mean - hist.h_std, color=color_lo, label='Mean -1 SD')
-    #     ax.plot(hist.batch, hist.h_mean + hist.h_std, color=color_hi, label='Mean +1 SD')
-    #     # Plot min and max
-    #     ax.plot(hist.batch, hist.h_min, color=color_min, label=f'Min')
-    #     ax.plot(hist.batch, hist.h_max, color=color_max, label=f'Max')
-    #     # Legend etc
-    #     ax.legend()
-    #     ax.grid()
-    #     # fig.savefig('../figs/training/h.png', bbox_inches='tight')
-    #     plt.show()
-
-    # def plot_R_deg(self):
-    #     # Alias the training history
-    #     hist = self.train_hist_summary
-
-    #     # Plot resolution R_deg over training
-    #     fig, ax = plt.subplots()
-    #     ax.set_title('Training Progress: Resolution R by Element')
-    #     ax.set_xlabel('Batch Trained')
-    #     ax.set_ylabel('R_deg (in degrees)')
-    #     # Plot mean +/- 1 SD
-    #     ax.plot(hist.batch, hist.R_deg_mean, color=color_mean, label='Mean')
-    #     ax.plot(hist.batch, hist.R_deg_mean - hist.R_deg_std, color=color_lo, label='Mean -1 SD')
-    #     ax.plot(hist.batch, hist.R_deg_mean + hist.R_deg_std, color=color_hi, label='Mean +1 SD')
-    #     # Plot min and max
-    #     ax.plot(hist.batch, hist.R_deg_min, color=color_min, label=f'Min')
-    #     ax.plot(hist.batch, hist.R_deg_max, color=color_max, label=f'Max')
-    #     # Legend etc
-    #     ax.legend()
-    #     ax.grid()
-    #     # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
-    #     plt.show()
-
-    # def plot_log_R(self):
-    #     # Alias the training history
-    #     hist = self.train_hist_summary
-
-    #     # Plot log resolution, log_R over training
-    #     fig, ax = plt.subplots()
-    #     ax.set_title('Training Progress: Log Resolution log(R) by Element')
-    #     ax.set_xlabel('Batch Trained')
-    #     ax.set_ylabel('log(R)')
-    #     # Plot mean +/- 1 SD
-    #     ax.plot(hist.batch, hist.log_R_mean, color=color_mean, label='Mean')
-    #     ax.plot(hist.batch, hist.log_R_mean - hist.log_R_std, color=color_lo, label='Mean -1 SD')
-    #     ax.plot(hist.batch, hist.log_R_mean + hist.log_R_std, color=color_hi, label='Mean +1 SD')
-    #     # Plot min and max
-    #     ax.plot(hist.batch, hist.log_R_min, color=color_min, label=f'Min')
-    #     ax.plot(hist.batch, hist.log_R_max, color=color_max, label=f'Max')
-    #     # Legend etc
-    #     ax.legend()
-    #     ax.grid()
-    #     # fig.savefig('../figs/training/R_deg.png', bbox_inches='tight')
-    #     plt.show()
 
     # *********************************************************************************************
     # Plot error vs. known orbital elements or selected element

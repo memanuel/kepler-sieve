@@ -37,6 +37,9 @@ ast_elt = load_ast_elt()
 mpl.rcParams['figure.figsize'] = [16.0, 10.0]
 mpl.rcParams['font.size'] = 16
 
+# Default data type
+dtype = np.float64
+
 # ********************************************************************************************************************* 
 # Convert between different representations for orbital elements: Numpy table, dictionary and DataFrame
 # ********************************************************************************************************************* 
@@ -77,13 +80,13 @@ def elts_df2dict(elts_df):
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def add_mixture_params(elts: pd.DataFrame, h: float, R_deg: float, dtype):
+def add_mixture_params(elts: pd.DataFrame, h: float, R_deg: float, dtype=dtype):
     """
     Add two columns to a DataFrame of orbital elements for the mixture parameters h and R.
     INPUTS:
         elts: DataFrame with columns a, e, inc, Omega, omega, f, epoch
-        h:    Hit rate
-        R:    Resolution parameter (Cartesian distance)
+        h:      Hit rate
+        R:      Resolution parameter (Cartesian distance)
     OUTPUTS:
         Modifies elts in place by adding columns h and R
     """
@@ -93,7 +96,7 @@ def add_mixture_params(elts: pd.DataFrame, h: float, R_deg: float, dtype):
     # Convert R from degrees to Cartesian
     R = deg2dist(R_deg)
 
-    # Add columns for R and h
+    # Add columns for h and R
     elts['h'] = np.full(fill_value=h, shape=N_ast, dtype=dtype)
     elts['R'] = np.full(fill_value=R, shape=N_ast, dtype=dtype)
 
@@ -101,7 +104,7 @@ def add_mixture_params(elts: pd.DataFrame, h: float, R_deg: float, dtype):
 def asteroid_elts(ast_nums: np.ndarray, 
                   h: float = 1.0/64.0,
                   R_deg: float = 1.0,
-                  dtype = np.float64) -> pd.DataFrame:
+                  dtype = dtype) -> pd.DataFrame:
     """
     Return a batch of orbital elements as a DataFrame
     INPUTS:
@@ -209,7 +212,7 @@ def random_elts(element_id_start: np.int32 = 0,
                 h: float = 1.0/64.0,
                 R_deg: float = 1.0,
                 random_seed: np.int32 = 42,
-                dtype = np.float64):
+                dtype = dtype):
     """
     Generate a DataFrame of random orbital elements
     INPUTS:
