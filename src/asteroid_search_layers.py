@@ -54,7 +54,7 @@ e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
 
 # Range for hit rate h
-h_min_ = 2.0**-10
+h_min_ = 2.0**-14
 h_max_ = 1.0 - h_min_
 
 # Range for resolution R: 1.0 arc second to 2.0 degrees

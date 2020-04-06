@@ -255,17 +255,9 @@ def load_ztf_batch(elts: pd.DataFrame,
     
     return ztf_elt
 
-# # ********************************************************************************************************************* 
-def ztf_elt_summary(ztf_elt: pd.DataFrame, elt_name: str):
-    """Report summary attributes of a ztf_elt dataframe"""
-    # Calculate summary statistics
-    num_obs = ztf_elt.shape[0]
-    batch_size = np.unique(ztf_elt.element_id).size
-    obs_per_batch = num_obs / batch_size
-    num_hits = np.sum(ztf_elt.is_hit)
-    hits_per_batch = num_hits / batch_size
-    hit_rate = np.mean(ztf_elt.is_hit)    
-
+# ********************************************************************************************************************* 
+def ztf_score_by_elt(ztf_elt: pd.DataFrame):
+    """Calculate DataFrame with summary score for elements"""
     # Score by element; use log_v as a proxy.  This has E[log(v)] = 0, Var[log(v)] = 1 b/c V ~ Unif[0, 1]
     score_func = lambda x: -1.0 - np.log(x)
     # ztf_elt['score'] = 1.0 - np.log(ztf_elt.v)
@@ -273,19 +265,35 @@ def ztf_elt_summary(ztf_elt: pd.DataFrame, elt_name: str):
     score_by_elt = ztf_elt['v'].apply(score_func).groupby(ztf_elt.element_id).agg(['sum', 'count'])
     score_by_elt.rename(columns={'sum': 'score_sum', 'count': 'num_obs'}, inplace=True)
     score_by_elt['t_score'] = score_by_elt['score_sum'] / np.sqrt(score_by_elt['num_obs'])    
-    # Summarize log_v for the elements
-    mean_score_sum = np.mean(score_by_elt.score_sum)
-    mean_t_score = np.mean(score_by_elt.t_score)
     
+    return score_by_elt
+
+# ********************************************************************************************************************* 
+def ztf_elt_summary(ztf_elt: pd.DataFrame, score_by_elt, elt_name: str):
+    """Report summary attributes of a ztf_elt dataframe"""
+    # Score by element; use log_v as a proxy.  This has E[log(v)] = 0, Var[log(v)] = 1 b/c V ~ Unif[0, 1]
+    score_func = lambda x: -1.0 - np.log(x)
+    score = score_func(ztf_elt.v)
+
+    # Calculate summary statistics
+    num_obs = ztf_elt.shape[0]
+    batch_size = np.unique(ztf_elt.element_id).size
+    obs_per_batch = num_obs / batch_size
+    num_hits = np.sum(ztf_elt.is_hit)
+    hits_per_batch = num_hits / batch_size
+    hit_rate = np.mean(ztf_elt.is_hit)
+
+    # Summary statistics after grouping by element_id
+    mean_score_sum = np.mean(np.mean(score_by_elt.score_sum))
+    mean_t_score= np.mean(np.mean(score_by_elt.t_score))
+
     # Report results
     print(f'ZTF Element Dataframe {elt_name}:')
     print(f'                  Total     (Per Batch)')
     print(f'Observations   : {num_obs:8d}   ({obs_per_batch:9.0f})')
-    print(f'Hits           : {num_hits:8d}   ({hits_per_batch:9.2f})')
-    # print(f'Hit Rate    : {hit_rate*100:8.4f}%')
+    # print(f'Hits           : {num_hits:8d}   ({hits_per_batch:9.2f})')
+    
     print(f'\nSummarize score = sum(-1.0 - log(v)) by batch.  (Mean=0, Variance=num_obs)')
     print(f'Mean score     :  {mean_score_sum:9.2f}')
     print(f'Sqrt(batch_obs):  {np.sqrt(obs_per_batch):9.2f}')
     print(f'Mean t_score   :  {mean_t_score:9.2f}')
-    
-    return score_by_elt

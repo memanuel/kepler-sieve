@@ -314,9 +314,6 @@ class AsteroidSearchModel(tf.keras.Model):
         self.learning_rate: float = learning_rate
         self.clipnorm: float = clipnorm
 
-        # Initialize loss history and total training time
-        self.training_time: float = 0.0
-
         # Build the selected optimizer with the input learning rate
         self.optimizer_type = optimizer_type.lower()
         self.optimizer = make_opt(optimizer_type=self.optimizer_type, 
@@ -324,6 +321,13 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         # Compile the model with this optimizer instance
         self.recompile()
+
+        # Set the learning rate factors for adaptive training
+        self.lr_factor_dn: float = 0.5      # global learning rate; currently not used
+        self.lr_factor_elt_dn: float = 0.5  # elementwise learning rate
+
+        # Initialize loss history and total training time
+        self.training_time: float = 0.0
 
         # Tensor of ones to pass as dummy inputs for evaluating one batch
         self.x_eval = tf.ones(shape=self.batch_size, dtype=dtype)
@@ -379,12 +383,15 @@ class AsteroidSearchModel(tf.keras.Model):
         # Add the first entries with initial weights and losses
         self.save_weights()
 
+        # Threshold for and count of the number of bad training episodes
+        self.bad_episode_thresh: float = 1.00
+        self.bad_episode_count: int = 0
+
         # Save hash IDs for elts and ztf_elts
         self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=thresh_deg)
         self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=False)
         # File name for saving training progress
         self.file_path = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
-
 
     # @tf.function
     def call(self, inputs=None):
@@ -415,13 +422,13 @@ class AsteroidSearchModel(tf.keras.Model):
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs = keras.backend.stack([log_like, hits])
 
-        # Add the loss function - the NEGATIVE of the log likelihood
-        # (Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood)
+        # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
         weight = self.get_active_weight()
         weighted_loss = tf.multiply(weight, log_like)
+        # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
         loss = -tf.reduce_sum(weighted_loss)
         self.add_loss(loss)
-        
+
         # Wrap outputs
         outputs = (score_outputs, orbital_elements, mixture_parameters)
         
@@ -461,7 +468,7 @@ class AsteroidSearchModel(tf.keras.Model):
         return traj_diff(elts_ast, elts0, elts1)
 
     # *********************************************************************************************
-    # Element weights
+    # Element weights; equivalent to independent learning rates for each element in the batch
     # *********************************************************************************************
 
     def get_active_weight(self):
@@ -511,6 +518,10 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
 
+    # *********************************************************************************************
+    # Freeze and thaw layers relating to orbital elements and mixture parameters
+    # *********************************************************************************************
+
     def freeze_candidate_elements(self):
         """Make the candidate orbital elements not trainable; only update mixture parameters"""
         self.candidate_elements.trainable = False
@@ -521,16 +532,16 @@ class AsteroidSearchModel(tf.keras.Model):
         """Make the candidate orbital elements trainable (unfrozen)"""
         self.candidate_elements.trainable = True
         self.recompile()
-        self.training_mode = 'joint' if self.mixture_parameters.trainable else 'elements'
+        self.training_mode = 'joint' if self.mixture_parameters.trainable else 'element'
 
-    def freeze_mixture_params(self):
+    def freeze_mixture_parameters(self):
         """Make the mixture parameters not trainable; only update candidate oribtal elements"""
         self.mixture_parameters.trainable = False
         self.recompile()
-        self.training_mode = 'elements'
+        self.training_mode = 'element'
 
-    def thaw_mixture_params(self):
-        """Make the candidate orbital elements trainable (unfrozen)"""
+    def thaw_mixture_parameters(self):
+        """Make the mixture parameters trainable (unfrozen)"""
         self.mixture_parameters.trainable = True
         self.recompile()
         self.training_mode = 'joint' if self.candidate_elements.trainable else 'mixture'
@@ -738,31 +749,40 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # If we edited weights in this iteration, we also need to apply the changes to the history tables
         log_like_new = log_like_best
+        log_like_mean_new = tf.reduce_mean(log_like_new)
         candidate_elements_new = candidate_elements_best
         mixture_parameters_new = mixture_parameters_best
 
         # Reduce the weights on the elements that trained too fast
         weight_old = self.get_active_weight()
         weight_new = tf.where(condition=is_worse, x=weight_old*self.lr_factor_elt_dn, y=weight_old)
-        # Max of the proposed new weights before normalization
-        weight_max = tf.reduce_max(weight_new)
-        # If the largest weight is less than 1, divide by weight_max and multiply learning_rate by weight_max
+        # Median of the proposed new weights before normalization
+        weight_med = tf.reduce_min(tf.nn.top_k(weight_new, self.batch_size//2, sorted=False).values)
+        
+        # This idea would make sense with only one training mode.
+        # But with multiple training modes having different element weights, it's more trouble than it's worth.
+        # If the median weight is less than 1, divide by weight_max and multiply learning_rate by weight_max
         # The net effect does not change the training, but makes it easier to disentangle LR from weight
-        if weight_max < 1.0:
-            weight_new = tf.divide(weight_new, weight_max)
-            lr_factor = weight_max
-            self.adjust_learning_rate(lr_factor=lr_factor, verbose=False)
+        # if weight_med < 1.0:
+        #    weight_new = tf.divide(weight_new, weight_med)
+        #    lr_factor = weight_med
+        #    self.adjust_learning_rate(lr_factor=lr_factor, verbose=False)
+        # if weight_med < 1.0 and verbose:
+        #    print(f'Adjusted global learning rate by lr_factor={lr_factor}.')
+        
         # Apply the new active weight 
         self.set_active_weight(weight_new)
         if verbose:
             num_changed = tf.reduce_sum(tf.cast(x=is_worse, dtype=tf.int32)).numpy()
-            print(f'Adjusted learning rate down on {num_changed} candidate elements.')
-        if weight_max < 1.0 and verbose:
-            print(f'Adjusted global learning rate by lr_factor={lr_factor}.')
+            weight_mean = tf.reduce_mean(weight_new).numpy()
+            print(f'Adjusted element weight down on {num_changed} candidate elements. Mean weight = {weight_mean:6.2e}')
         
-        # If the overall loss has gotten worse, reduce the learning rate
-        # if log_like_mean_new > log_like_mean_old:
-        #    self.adjust_learning_rate(self.lr_factor_dn, verbose=True)
+        # Change in the mean log likelihood after editing history
+        log_like_mean_change = log_like_mean_new - log_like_mean_old
+
+        # If the change in the mean log likelihood is below a threhold, increment the bad_episode counter
+        if log_like_mean_change < self.bad_episode_thresh:
+            self.bad_episode_count += 1
        
     def update_early_stop(self):
         """Update early stopping monitor"""
@@ -812,6 +832,8 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_batches: int = 10000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
+                        max_bad_episodes: int = 3,
+                        learning_rate: Optional[float] = None,
                         min_learning_rate: Optional[float] = None,
                         regenerate: bool=False,
                         verbose: int = 1):
@@ -822,9 +844,16 @@ class AsteroidSearchModel(tf.keras.Model):
             max_batches: The maximum number of batches processed in the adaptive training.
             batches_per_epoch: The number of batches processed in one epoch of training
             epochs_per_episode: The number of epochs that comprise one episode of training
+            max_bad_episodes: The number of episodes with poor progress before terminating training early
+            learning_rate:   If specified, overwrite the prior learning_rate with this one
             min_learning_rate: Minimum for the learning rate; terminate early if LR drops below this
             verbose: Integer controlling verbosity level (passed on to tf.keras.model.fit)
         """
+        # Apply learning_rate input if it was specified
+        if learning_rate is not None and learning_rate != self.learning_rate:
+            model.learning_rate = learning_rate
+            model.recompile()
+        
         # If min_learning_rate was not set, default it to ratio of the current learning rate
         min_learning_rate = self.learning_rate / 128.0 if min_learning_rate is None else min_learning_rate
 
@@ -844,14 +873,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Maximum number of episodes is twice the expected number if all episodes are full
         max_episodes = (max_batches*2) // (batches_per_epoch * epochs_per_episode)
 
+        # Reset the bad episode counter
+        self.bad_episode_count = 0
+
         # Dummy training inputs
         x_trn = tf.ones(samples_per_epoch, dtype=dtype)
-
-        # Set the learning rate factor
-        self.lr_factor_dn: float = 0.5
-        # self.lr_factor_up: float = 1.0
-        self.lr_factor_elt_dn: float = 0.5
-        # self.lr_factor_elt_up: float = 1.0
 
         # Run first episode of training
         hist = self.fit(x=x_trn, batch_size=self.batch_size, epochs=epochs_per_episode, 
@@ -863,6 +889,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Continue training until max_epochs or max_episodes have elapsed, or learning_rate has dropped too low
         while (self.current_batch < max_batches) and \
               (self.current_episode < max_episodes) and \
+              (self.bad_episode_count < max_bad_episodes) and \
               (min_learning_rate < self.learning_rate):
             # Status update for this episode
             print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}, Batch {self.current_batch:6}')
@@ -876,8 +903,12 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Report cause of training termination
         if self.current_batch >= max_batches:
-            print_header(f'Terminating: Reached final batch {max_batches}.')
-        if self.learning_rate <= min_learning_rate:
+            print_header(f'Terminating: Completed {self.current_batch} batches.')
+        elif self.current_episode >= max_episodes:
+            print_header(f'Terminating: Completed {self.current_episode} episodes.')
+        elif self.bad_episode_count >= max_bad_episodes:
+            print_header(f'Terminating: Had {self.bad_episode_count} bad episodes.')
+        elif self.learning_rate <= min_learning_rate:
             print_header(f'Terminating: Learning rate {self.learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
 
         # Save training progress to disk
@@ -974,7 +1005,7 @@ class AsteroidSearchModel(tf.keras.Model):
     # Plot log likelihood and resolution
     # *********************************************************************************************
 
-    def plot_score_bar(self, score_att: str = 'log_like', episode=None):
+    def plot_score_bar(self, score_att: str = 'log_like', sorted: bool = True, episode=None):
         """
         Bar chart for one of the score attributes log_like or hits
         INPUTS:
@@ -996,21 +1027,24 @@ class AsteroidSearchModel(tf.keras.Model):
         }
         score = score_tbl[score_att].values
 
-        # Sort the log likelihoods in descending order
-        sorted_score = np.sort(score)[::-1]
+        # Sort the score in descending order if sorting was requested
+        score_plot = np.sort(score)[::-1] if sorted else score
 
         # Score attributed formatted for inclusion in chart title or labels
         score_att_title = {
             'log_like': 'Log Likelihood',
             'hits': 'Hits'
         }[score_att]
+        
+        # The x-label varies based on sorted input
+        xlabel = 'Rank' if sorted else 'Element Num'
 
         # Bar plot of log likelihood after last episode
         fig, ax = plt.subplots()
         ax.set_title(f'{score_att_title} by Element (Episode {episode})')
-        ax.set_xlabel('Rank')
+        ax.set_xlabel(xlabel)
         ax.set_ylabel(f'{score_att_title}')
-        ax.bar(x=hist.element_num, height=sorted_score, color='blue')
+        ax.bar(x=hist.element_num, height=score_plot, color='blue')
         # ax.legend()
         ax.grid()
         # fig.savefig('../figs/training/{score_att}_bar.png', bbox_inches='tight')
@@ -1211,6 +1245,40 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         # fig.savefig('../figs/training/control_variables.png', bbox_inches='tight')
+        plt.show()
+
+    def plot_element_att(self, att_name: str, element_num: int):
+        """
+        Plot an attribute for a specified candidate element
+        INPUTS:
+            att_name:    Name of the attribute to plot.  One of:
+                         'log_like', 'hits', 'R_deg', 'R_sec'
+            element_num: Which element in the batch to plot
+        """
+        # Get history for selected element_num
+        hist = self.train_hist_elt
+        mask = (hist.element_num == element_num)
+        hist = hist[mask]
+
+        # Extract param_mean, param_std, param_min, param_max from hist
+        att_values = hist[param_name].values
+
+        # Attribute formatted for inclusion in chart title or labels
+        att_title = {
+            'log_like': 'Log Likelihood',
+            'hits':     'Hits',
+            'R_deg':    'Resolution (Degrees)'
+        }[att_name]
+
+        # Plot the named attribute
+        fig, ax = plt.subplots()
+        ax.set_title(f'{att_title} for element_num {element_num}')
+        ax.set_xlabel('Episode')
+        ax.set_ylabel(f'{att_title}')
+        # Plot mixture parameters
+        ax.plot(hist.episode, att_values, label='h')
+        ax.grid()
+        # fig.savefig('../figs/training/element_{att_name}.png', bbox_inches='tight')
         plt.show()
 
     # *********************************************************************************************
