@@ -290,6 +290,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.direction = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
                                            site_name=site_name, name='direction')
 
+        # Bind the direction layer to this model for legibility
+        self.position = self.direction.q_layer                                           
+
         # Calibration arrays (flat)
         cols_q_ast = ['qx', 'qy', 'qz']
         cols_v_ast = ['vx', 'vy', 'vz']
@@ -297,7 +300,7 @@ class AsteroidSearchModel(tf.keras.Model):
         v_ast = ztf_elt[cols_v_ast].values.astype(dtype_np)
 
         # Run calibration
-        self.direction.q_layer.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
+        self.position.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
 
         # Score layer for these observations
         self.score = TrajectoryScore(row_lengths_np=row_lengths_np, u_obs_np=u_obs_np,
@@ -447,12 +450,22 @@ class AsteroidSearchModel(tf.keras.Model):
         
         return outputs
 
+    def predict_position(self):
+        """Predict position q and velocity v"""
+        # Extract the candidate elements and mixture parameters
+        a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
+
+        # Ragged tensor of predicted position and velocity.  Shape is [batch_size, num_obs, 3,]
+        q_pred, v_pred = self.position(a, e, inc, Omega, omega, f, epoch)        
+
+        return (q_pred, v_pred)
+
     def predict_direction(self):
         """Predict direction u and displacement r"""
         # Extract the candidate elements and mixture parameters
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
 
-        # Tensor of predicted directions.  Shape is [data_size, 3,]
+        # Ragged tensor of predicted directions.  Shape is [batch_size, num_obs, 3,]
         u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
 
         return (u_pred, r_pred)
@@ -1182,7 +1195,10 @@ class AsteroidSearchModel(tf.keras.Model):
         """
         Calculate error vs. known orbital elements
         INPUTS:
-            elts_true: DataFrame of true orbital elements        
+            elts_true: DataFrame of true orbital elements
+        OUTPUTS:
+            hist_err:  DataFrame with errors by element over the training episode
+            q_err:     Position error of current orbital elements
         """
         # Create a copy of the training history that will be augmented with error columns
         hist_err = self.train_hist_elt.copy()
@@ -1196,7 +1212,32 @@ class AsteroidSearchModel(tf.keras.Model):
             # hist[col_true] = elts_true.loc[hist.element_num, col].values
             hist_err[col_err] = np.abs(hist_err[col] - elts_true.loc[hist_err.element_num, col].values)
             hist_err[col_log_err] = np.log(hist_err[col_err])
-        return hist_err
+
+        # Unpack true orbital elements
+        a = elts_true.a.values
+        e = elts_true.e.values
+        inc = elts_true.inc.values
+        Omega = elts_true.Omega.values
+        omega = elts_true.omega.values
+        f = elts_true.f.values
+        epoch = elts_true.epoch.values
+
+        # Calculate position of the candidate elements
+        q_pred, v_pred = self.predict_position()
+
+        # Calculate position of true elements
+        q_true, v_true = self.position(a, e, inc, Omega, omega, f, epoch)
+
+        # Position error - flat; shape [data_size, 3,]
+        q_err_flat = q_pred - q_true
+        # Norm of position error l flat; shape [data_size,]
+        q_err_norm_flat = tf.linalg.norm(q_err_flat, axis=-1)
+        # Position error as a ragged tensor; shape [batch_size, num_obs,]
+        q_err_r = tf.RaggedTensor.from_row_lengths(values=q_err_norm_flat, row_lengths=self.row_lengths, name='q_err_r')
+        # Mean position error by element; shape [batch_size,]
+        q_err = tf.reduce_mean(q_err_r, axis=-1, name='q_err')
+
+        return hist_err, q_err
 
     def plot_elt_error(self, elts_true, elt_name, is_log: bool=True, elt_num: int=None):
         """
@@ -1208,7 +1249,7 @@ class AsteroidSearchModel(tf.keras.Model):
             elt_num:   Specific element_num to plot; plot just this one rather than mean, std, etc.
         """
         # Calculate error
-        hist_err = self.calc_error(elts_true)
+        hist_err, q_err = self.calc_error(elts_true)
         
         # Column names with error
         col_err = f'{elt_name}_err'
@@ -1250,6 +1291,33 @@ class AsteroidSearchModel(tf.keras.Model):
         # fig.savefig('../figs/training/log_like_bar.png', bbox_inches='tight')
         plt.show()
         return fig, ax
+
+    def plot_q_error(self, elts_true, is_log: bool=False):
+        """
+        Bar chart of position error by orbital element.
+        INPUTS:
+            elts_true: DataFrame of true orbital elements
+        """
+        # Calculate error
+        hist_err, q_err = self.calc_error(elts_true)
+        element_num = np.arange(self.batch_size, dtype=np.int32)
+        mean_err = np.exp(np.mean(np.log(q_err+2**-40))) if is_log else np.mean(q_err)
+
+        # Plot selected error
+        fig, ax = plt.subplots()
+        ax.set_title('Mean Position Error vs. True Elements')
+        ax.set_xlabel('Element')
+        ax.set_ylabel('Mean Position Error in AU')
+        ax.bar(x=element_num, height=q_err, label='elt', color='blue')
+        ax.axhline(y=mean_err, label='mean', color='red')
+        if is_log:
+            ax.set_yscale('log', basey=2)
+        ax.grid()
+        ax.legend()
+        # fig.savefig('../figs/training/q_error.png', bbox_inches='tight')
+        plt.show()
+        return fig, ax
+        
 
     def plot_control(self, element_num):
         """Plot control variables"""
