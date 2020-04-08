@@ -394,7 +394,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_weights()
 
         # Threshold for and count of the number of bad training episodes
-        self.bad_episode_thresh: float = 1.00
+        self.bad_episode_thresh: float = 0.10
         self.bad_episode_count: int = 0
 
         # Save hash IDs for elts and ztf_elts
@@ -503,7 +503,12 @@ class AsteroidSearchModel(tf.keras.Model):
         weight_active.assign(weight)
         # update mean active weight and effective learning rate
         self.active_weight_mean = tf.reduce_mean(weight).numpy()
-        self.effective_learning_rate = self.active_weight_mean * self.learning_rate        
+        self.effective_learning_rate = self.active_weight_mean * self.learning_rate
+
+    def reset_active_weight(self):
+        """Reset the active weight to all 1s"""
+        weight_ones = np.ones(self.batch_size, dtype=dtype_np)
+        self.set_active_weight(weight_ones)
 
     # *********************************************************************************************
     # Methods to change model state in training
@@ -822,11 +827,12 @@ class AsteroidSearchModel(tf.keras.Model):
             print(f'Adjusted element weight down on {num_changed} candidate elements. Mean weight = {self.active_weight_mean:6.2e}')
         
         # Change in the mean log likelihood after editing history
-        log_like_mean_change = log_like_mean_new - log_like_mean_old
+        log_like_mean_change = self.log_like_mean_hist[-1] - self.log_like_mean_hist[-2]
 
         # If the change in the mean log likelihood is below a threhold, increment the bad_episode counter
         if log_like_mean_change < self.bad_episode_thresh:
             self.bad_episode_count += 1
+            print(f'Increasing bad_episode_count to {self.bad_episode_count}.')
        
     def update_early_stop(self):
         """Update early stopping monitor"""
@@ -892,7 +898,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_bad_episodes: int = 3,
                         learning_rate: Optional[float] = None,
                         min_learning_rate: Optional[float] = None,
-                        # load_at_start: bool=False,
+                        reset_active_weight: bool = False,
                         save_at_end: bool=True,
                         verbose: int = 1):
         """
@@ -912,8 +918,12 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Apply learning_rate input if it was specified
         if learning_rate is not None and learning_rate != self.learning_rate:
-            model.learning_rate = learning_rate
-            model.recompile()
+            self.learning_rate = learning_rate
+            self.recompile()
+
+        # Reset the active weights to 1 if requested
+        if reset_active_weight:
+            self.reset_active_weight()
         
         # If min_learning_rate was not set, default it to ratio of the current learning rate
         min_learning_rate = self.learning_rate / 128.0 if min_learning_rate is None else min_learning_rate
@@ -1250,7 +1260,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Plot control variables
         fig, ax = plt.subplots()
-        ax.set_title(f'Control Variables for element_num {element_num}')
+        ax.set_title(f'Control Variables for Element {element_num}')
         ax.set_xlabel('Episode')
         ax.set_ylabel('Control Variable ([0, 1] Scale)')
         # Plot mixture parameters
@@ -1299,7 +1309,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Plot the named attribute
         fig, ax = plt.subplots()
-        ax.set_title(f'{att_title} for element_num {element_num}')
+        ax.set_title(f'{att_title} for Element {element_num}')
         ax.set_xlabel('Episode')
         ax.set_ylabel(f'{att_title}')
         # Plot mixture parameters

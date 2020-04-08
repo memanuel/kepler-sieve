@@ -55,11 +55,11 @@ e_max_: float = 1.0 - 2.0**-10
 
 # Range for hit rate h
 h_min_ = 2.0**-14
-h_max_ = 1.0 - h_min_
+h_max_ = 0.25
 
-# Range for resolution R: 1.0 arc second to 2.0 degrees
+# Range for resolution R: 1.0 arc second to 1.0 degrees
 R_min_sec_ = 1.0
-R_max_deg_ = 2.0
+R_max_deg_ = 1.0
 R_min_ = deg2dist(R_min_sec_ / 3600.0)
 R_max_ = deg2dist(R_max_deg_)
 log_R_min_ = np.log(R_min_)
