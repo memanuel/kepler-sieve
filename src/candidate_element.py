@@ -10,16 +10,10 @@ Wed Mar 25 09:55 2020
 # Core
 import numpy as np
 import pandas as pd
-from scipy.interpolate import PchipInterpolator
-from scipy.stats import norm
-from statsmodels.distributions.empirical_distribution import ECDF
 
 # Astronomy
 import rebound
 
-# Plotting
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 
 # Local
 from asteroid_element import load_ast_elt
@@ -29,12 +23,6 @@ from astro_utils import mjd_to_datetime, deg2dist, dist2deg
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
 ast_elt = load_ast_elt()
-
-# Build transformed elements and interpolators
-ast_elt_xf, interp_tbl = ast_elt_transform(ast_elt)
-
-# Build tranformation matrix beta and X_beta for computing distance to orbital elements
-beta, X_beta = calc_beta(ast_elt_xf)
 
 # ********************************************************************************************************************* 
 # Default data type
@@ -150,25 +138,25 @@ def perturb_elts(elts: pd.DataFrame,
     elts['e'] = np.exp(log_e)
     
     # Apply shift directly to inclination inc
-    inc = elts['inc']
+    inc = elts['inc'].values
     sigma_inc = np.deg2rad(sigma_inc_deg)
     inc[mask_pert] += np.random.normal(scale=sigma_inc, size=num_shift)
     elts['inc'] = inc
     
     # Apply shift directly to true anomaly f
-    f = elts['f']
+    f = elts['f'].values
     sigma_f = np.deg2rad(sigma_f_deg)
     f[mask_pert] += np.random.normal(scale=sigma_f, size=num_shift)
     elts['f'] = f
     
     # Apply shift directly to Omega
-    Omega = elts['Omega']
+    Omega = elts['Omega'].values
     sigma_Omega = np.deg2rad(sigma_Omega_deg)
     Omega[mask_pert] += np.random.normal(scale=sigma_Omega, size=num_shift)
     elts['Omega'] = Omega
 
     # Apply shift directly to omega
-    omega = elts['omega']
+    omega = elts['omega'].values
     sigma_omega = np.deg2rad(sigma_omega_deg)
     omega[mask_pert] += np.random.normal(scale=sigma_omega, size=num_shift)
     elts['omega'] = omega
@@ -323,308 +311,3 @@ def elts_add_mixture_params(elts: pd.DataFrame, score_by_elt: pd.DataFrame, num_
     # Add columns for h and R
     elts_add_hit_rate(elts=elts, score_by_elt=score_by_elt, num_hits=num_hits)
     elts_add_R_deg(elts=elts, R_deg=R_deg)
-
-# ********************************************************************************************************************* 
-# Transform orbital elements to U = Unif[0, 1] or Z = Norm(0, 1)
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def make_interp_x(x: np.ndarray, cdf_samp: np.ndarray, output_type: str='z'):
-    """
-    Build a PCHIP interpolator that takes as inputs x and returns a variable z that is standard normal.
-    INPUTS:
-        x: Values whose CDF is to be taken, e.g. log(a)
-        cdf_samp: Desired CDF levels on the spline
-        output_type: Either 'z' for standard normal or 'u' or standard uniform 
-    OUTPUT:
-        x_to_z: a PCHIP interpolator mapping x to standard normal z
-    """
-    # Build empirical CDF for x
-    ecdf_x = ECDF(x)
-    
-    # Unique observations of x
-    x_unq = np.unique(x)
-    
-    # CDF of unique observations of x
-    x_cdf = ecdf_x(x_unq)
-    
-    # Interpolator from CDF to x
-    cdf_to_x = PchipInterpolator(x=x_cdf, y=x_unq)
-    
-    # x at the sampled CDF levels
-    x_samp = cdf_to_x(cdf_samp)
-    
-    # Take unique items again for edge case with e.g. sin(Omega)
-    x_samp_unq, idx = np.unique(x_samp, return_index=True)
-
-    # z at the sampled CDF levels
-    u_samp_unq = cdf_samp[idx]
-    z_samp_unq = norm.ppf(u_samp_unq)
-
-    # The selected output
-    output_tbl = {
-        'u': u_samp_unq,
-        'z': z_samp_unq, 
-    }
-    y_samp_unq = output_tbl[output_type]
-    
-    # Interpolator from x to z
-    x_to_z = PchipInterpolator(x=x_samp_unq, y=y_samp_unq)
-    
-    return x_to_z
-
-# ********************************************************************************************************************* 
-def ast_elt_transform(ast_elt: pd.DataFrame):
-    """
-    Build interpolators from orbital elements to uniform z and populate DataFrame of transformed elements
-    """
-
-    # Set number of sample points
-    N_samp_u: int = 2**16
-    z_range: float = 6.0
-    N_samp_z: int = int(200*z_range + 1)
-
-    # Sample CDF levels: N_samp evenly spaced by U
-    cdf_samp_u = (np.arange(N_samp_u) + 0.5) / N_samp_u
-
-    # Sample CDF levels: N_samp_z points evenly spaced by Z
-    z_samp = np.linspace(-z_range, z_range, N_samp_z)
-    cdf_samp_z = norm.cdf(z_samp)
-    pdf_samp_z = norm.pdf(z_samp)
-
-    # Combine the two sets of sample points
-    cdf_samp = np.unique(np.hstack([cdf_samp_u, cdf_samp_z]))    
-    
-    # Build interpolator from a to z
-    log_a = np.log(ast_elt.a.values)
-    log_a_to_z = make_interp_x(x=log_a, cdf_samp=cdf_samp, output_type='z')
-    # Compute transformed values
-    log_a_z = log_a_to_z(log_a)
-    
-    # Build interpolator from e to z
-    e = ast_elt.e.values
-    e_to_z = make_interp_x(x=e, cdf_samp=cdf_samp, output_type='z')
-    # Compute transformed values
-    e_z = e_to_z(e)
-    
-    # Build interpolator from sin(inc) to z
-    sin_inc = np.sin(ast_elt.inc.values)
-    sin_inc_to_z = make_interp_x(x=sin_inc, cdf_samp=cdf_samp, output_type='z')
-    # Compute transformed values
-    sin_inc_z = sin_inc_to_z(sin_inc)
-    
-    # Build interpolator from sin(Omega) and cos(Omega) to z
-    sin_Omega = np.sin(ast_elt.Omega.values)
-    cos_Omega = np.cos(ast_elt.Omega.values)
-    sin_Omega_to_z = make_interp_x(x=sin_Omega, cdf_samp=cdf_samp, output_type='z')
-    cos_Omega_to_z = make_interp_x(x=cos_Omega, cdf_samp=cdf_samp, output_type='z')
-    # Compute transformed values
-    sin_Omega_z = sin_Omega_to_z(sin_Omega)
-    cos_Omega_z = cos_Omega_to_z(cos_Omega)
-    
-    # Build interpolator from sin(omega) and cos(omega) to z
-    sin_omega = np.sin(ast_elt.omega.values)
-    cos_omega = np.cos(ast_elt.omega.values)
-    sin_omega_to_z = make_interp_x(x=sin_omega, cdf_samp=cdf_samp, output_type='z')
-    cos_omega_to_z = make_interp_x(x=cos_omega, cdf_samp=cdf_samp, output_type='z')    
-    # Compute transformed values
-    sin_omega_z = sin_omega_to_z(sin_omega)
-    cos_omega_z = cos_omega_to_z(cos_omega)
-    
-    # Build interpolator from sin(f) and cos(f) to z
-    sin_f = np.sin(ast_elt.f.values)
-    cos_f = np.cos(ast_elt.f.values)
-    sin_f_to_z = make_interp_x(x=sin_f, cdf_samp=cdf_samp, output_type='z')
-    cos_f_to_z = make_interp_x(x=cos_f, cdf_samp=cdf_samp, output_type='z')
-    # Compute transformed values
-    sin_f_z = sin_f_to_z(sin_f)
-    cos_f_z = cos_f_to_z(cos_f)
-    
-    # Dictionary of interpolators
-    interp_tbl = {
-        'log_a': log_a_to_z,
-        'e': e_to_z,
-        'sin_inc': sin_inc_to_z,
-        'sin_Omega': sin_Omega_to_z,
-        'cos_Omega': cos_Omega_to_z,
-        'sin_omega': sin_omega_to_z,
-        'cos_omega': cos_omega_to_z,
-        'sin_f': sin_f_to_z,
-        'cos_f': cos_f_to_z,
-    }
-    
-    # Create table of transformed elements
-    cols_key = ['Num', 'Name']
-    ast_elt_xf = ast_elt[cols_key].copy()
-    
-    # Original orbital elements
-    ast_elt_xf['a'] = ast_elt.a
-    ast_elt_xf['e'] = ast_elt.e
-    ast_elt_xf['inc'] = ast_elt.inc
-    ast_elt_xf['Omega'] = ast_elt.Omega
-    ast_elt_xf['omega'] = ast_elt.omega
-    ast_elt_xf['f'] = ast_elt.f
-    ast_elt_xf['epoch_mjd'] = ast_elt.epoch_mjd
-
-    # Mathematical transforms of the original elements
-    ast_elt_xf['log_a'] = log_a
-    ast_elt_xf['sin_inc'] = sin_inc
-    ast_elt_xf['sin_Omega'] = sin_Omega
-    ast_elt_xf['cos_Omega'] = cos_Omega
-    ast_elt_xf['sin_omega'] = sin_omega
-    ast_elt_xf['cos_omega'] = cos_omega
-    ast_elt_xf['sin_f'] = sin_f
-    ast_elt_xf['cos_f'] = cos_f
-    
-    # Transformations to z
-    ast_elt_xf['log_a_z'] = log_a_z
-    ast_elt_xf['e_z'] = e_z
-    ast_elt_xf['sin_inc_z'] = sin_inc_z
-    ast_elt_xf['sin_Omega_z'] = sin_Omega_z
-    ast_elt_xf['cos_Omega_z'] = cos_Omega_z
-    ast_elt_xf['sin_omega_z'] = sin_omega_z
-    ast_elt_xf['cos_omega_z'] = cos_omega_z
-    ast_elt_xf['sin_f_z'] = sin_f_z
-    ast_elt_xf['cos_f_z'] = cos_f_z  
-
-    return ast_elt_xf, interp_tbl
-
-# ********************************************************************************************************************* 
-def plot_elt_transform_pdf(ast_elt_xf: pd.DataFrame, elt_name: str):
-    """Plot transformed orbital elements"""
-    # Set number of sample points
-    z_range: float = 6.0
-    N_samp_z: int = int(200*z_range + 1)
-
-    # Sample CDF levels: z_samp points evenly spaced by Z
-    z_samp = np.linspace(-z_range, z_range, N_samp_z)
-    cdf_samp_z = norm.cdf(z_samp)
-    pdf_samp_z = norm.pdf(z_samp)
-    
-    # Transformed element
-    elt_name_z = f'{elt_name}_z'
-    x = ast_elt_xf[elt_name_z].values
-
-    # Plot transformed element
-    fig, ax = plt.subplots()
-    ax.set_title(f'Transformed Orbital Element Histogram: {elt_name}')
-    ax.set_xlabel(f'{elt_name}_z: Transform of {elt_name}')
-    ax.set_ylabel('Density')
-    n, bins, patches = ax.hist(x=x, bins=1000, density=True, cumulative=False, label='data', color='blue')
-    ax.plot(z_samp, pdf_samp_z, label='N(0,1)', color='red')
-    ax.set_xlim([-3.0, 3.0])
-    ax.legend()
-    ax.grid()
-
-# ********************************************************************************************************************* 
-def plot_elt_transform_map(ast_elt_xf: pd.DataFrame, elt_name: str):
-    """Plot transformed orbital elements"""
-    # Set number of sample points
-    z_range: float = 6.0
-    N_samp_z: int = int(200*z_range + 1)
-
-    # Sample CDF levels: z_samp points evenly spaced by Z
-    z_samp = np.linspace(-z_range, z_range, N_samp_z)
-    cdf_samp_z = norm.cdf(z_samp)
-    pdf_samp_z = norm.pdf(z_samp)
-    
-    # Name of transformed element
-    elt_name_xf = f'{elt_name}_z'
-    
-    # Values for plot
-    idx = np.argsort(ast_elt_xf[elt_name_xf].values)
-    x_plot = ast_elt_xf[elt_name_xf].values[idx]
-    y_plot = ast_elt_xf[elt_name].values[idx]
-
-    # Plot transformed element
-    fig, ax = plt.subplots()
-    ax.set_title(f'Transformed Orbital Element Histogram: {elt_name}')
-    ax.set_xlabel(f'{elt_name_xf}: Transform of {elt_name}')    
-    ax.set_ylabel(f'{elt_name}')
-    ax.set_xlim([-3.0, 3.0])
-    ax.plot(x_plot, y_plot, label=elt_name, color='blue')
-    ax.legend(loc='lower right')
-    ax.grid()
-
-# ********************************************************************************************************************* 
-def calc_beta(ast_elt_xf):
-    """
-    Calculate the matrix beta such that (X * beta) has covariance matrix I_n, i.e.
-    (X*beta)^T (X*beta) = I_n
-    """
-    # Relevant columns
-    cols_xf = ['log_a_z', 'e_z', 'sin_inc_z', 'sin_Omega_z', 'cos_Omega_z', 'sin_omega_z', 'cos_omega_z', 'sin_f_z', 'cos_f_z',]
-    # Nx9 matrix of transformed elements
-    X = ast_elt_xf[cols_xf].values
-    # Scale columns 3:9 by sqrt(1/2) so they are not weighted 2x (need to represent them as sin, cos pair but don't want to overweight them)
-    X[:, 3:9] *= np.sqrt(0.5)
-
-    # Covariance matrix of these X's
-    Q = np.cov(m=X, rowvar=False)
-    # Eigenvalue decomposition
-    lam, P = np.linalg.eig(Q)
-    # Filter out tiny imaginary components due to roundoff
-    lam = np.real(lam)
-    # Square root of diagonal matrix
-    d = np.diag(np.sqrt(lam))
-    d_inv = np.diag(1.0 / np.sqrt(lam))
-    # The beta matrix
-    beta = np.dot(P, d_inv)
-    # The product X_beta
-    X_beta = np.dot(X, beta)
-    
-    return beta, X_beta
-
-# ********************************************************************************************************************* 
-def nearest_ast_elt(elt):
-    """
-    Search the known asteroid elements for the nearest one to the input elements.
-    INPUTS:
-        elt: DataFrame of elements to search
-    """
-
-    # Copy index only of elt
-    elt_xf = elt.iloc[:, 0:0].copy()
-
-    # Add transformed values of input elements
-    elt_xf['log_a'] = np.log(elt.a)
-    elt_xf['e'] = elt.e
-    elt_xf['sin_inc'] = np.sin(elt.inc)
-    elt_xf['sin_Omega'] = np.sin(elt.Omega)
-    elt_xf['cos_Omega'] = np.cos(elt.Omega)
-    elt_xf['sin_omega'] = np.sin(elt.omega)
-    elt_xf['cos_omega'] = np.cos(elt.omega)
-    elt_xf['sin_f'] = np.sin(elt.f)
-    elt_xf['cos_f'] = np.cos(elt.f)
-
-    # Transform to normally distributed Z
-    elt_xf['log_a_z'] = interp_tbl['log_a'](elt_xf.log_a)
-    elt_xf['e_z'] = interp_tbl['e'](elt_xf.e)
-    elt_xf['sin_inc_z'] = interp_tbl['sin_inc'](elt_xf.sin_inc)
-    elt_xf['sin_Omega_z'] = interp_tbl['sin_Omega'](elt_xf.sin_Omega)
-    elt_xf['cos_Omega_z'] = interp_tbl['cos_Omega'](elt_xf.cos_Omega)
-    elt_xf['sin_omega_z'] = interp_tbl['sin_omega'](elt_xf.sin_omega)
-    elt_xf['cos_omega_z'] = interp_tbl['cos_omega'](elt_xf.cos_omega)
-    elt_xf['sin_f_z'] = interp_tbl['sin_f'](elt_xf.sin_f)
-    elt_xf['cos_f_z'] = interp_tbl['cos_f'](elt_xf.cos_f)
-
-    # Relevant columns
-    cols_xf = ['log_a_z', 'e_z', 'sin_inc_z', 'sin_Omega_z', 'cos_Omega_z', 'sin_omega_z', 'cos_omega_z', 'sin_f_z', 'cos_f_z',]
-    # Nx9 matrix of transformed elements
-    Y = elt_xf[cols_xf].values
-    # Scale columns 3:9 by sqrt(1/2) so they are not weighted 2x (need to represent them as sin, cos pair but don't want to overweight them)
-    Y[:, 3:9] *= np.sqrt(0.5)
-
-    # Multiply by beta
-    Y_beta = np.dot(Y, beta)
-
-    # Distance from Y_beta to X_beta
-    # Use numpy broadcasting trick to avoid an expensive for loop
-    dist = np.linalg.norm(X_beta.reshape(-1, 1, 9) - Y_beta.reshape(1, -1, 9), axis=-1)
-
-    # Row number of nearest asteroid elements
-    idx = np.argmin(dist, axis=0)
-
-    # The closest asteroid elements
-    ast_elt.iloc[idx]
-
