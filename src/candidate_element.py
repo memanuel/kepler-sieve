@@ -30,6 +30,12 @@ from astro_utils import mjd_to_datetime, deg2dist, dist2deg
 # DataFrame of asteroid snapshots
 ast_elt = load_ast_elt()
 
+# Build transformed elements and interpolators
+ast_elt_xf, interp_tbl = ast_elt_transform(ast_elt)
+
+# Build tranformation matrix beta and X_beta for computing distance to orbital elements
+beta, X_beta = calc_beta(ast_elt_xf)
+
 # ********************************************************************************************************************* 
 # Default data type
 dtype = np.float64
@@ -426,8 +432,8 @@ def ast_elt_transform(ast_elt: pd.DataFrame):
     cos_omega_z = cos_omega_to_z(cos_omega)
     
     # Build interpolator from sin(f) and cos(f) to z
-    sin_f = np.sin(ast_elt.Omega.values)
-    cos_f = np.cos(ast_elt.Omega.values)
+    sin_f = np.sin(ast_elt.f.values)
+    cos_f = np.cos(ast_elt.f.values)
     sin_f_to_z = make_interp_x(x=sin_f, cdf_samp=cdf_samp, output_type='z')
     cos_f_to_z = make_interp_x(x=cos_f, cdf_samp=cdf_samp, output_type='z')
     # Compute transformed values
@@ -538,4 +544,87 @@ def plot_elt_transform_map(ast_elt_xf: pd.DataFrame, elt_name: str):
     ax.set_xlim([-3.0, 3.0])
     ax.plot(x_plot, y_plot, label=elt_name, color='blue')
     ax.legend(loc='lower right')
-    ax.grid()    
+    ax.grid()
+
+# ********************************************************************************************************************* 
+def calc_beta(ast_elt_xf):
+    """
+    Calculate the matrix beta such that (X * beta) has covariance matrix I_n, i.e.
+    (X*beta)^T (X*beta) = I_n
+    """
+    # Relevant columns
+    cols_xf = ['log_a_z', 'e_z', 'sin_inc_z', 'sin_Omega_z', 'cos_Omega_z', 'sin_omega_z', 'cos_omega_z', 'sin_f_z', 'cos_f_z',]
+    # Nx9 matrix of transformed elements
+    X = ast_elt_xf[cols_xf].values
+    # Scale columns 3:9 by sqrt(1/2) so they are not weighted 2x (need to represent them as sin, cos pair but don't want to overweight them)
+    X[:, 3:9] *= np.sqrt(0.5)
+
+    # Covariance matrix of these X's
+    Q = np.cov(m=X, rowvar=False)
+    # Eigenvalue decomposition
+    lam, P = np.linalg.eig(Q)
+    # Filter out tiny imaginary components due to roundoff
+    lam = np.real(lam)
+    # Square root of diagonal matrix
+    d = np.diag(np.sqrt(lam))
+    d_inv = np.diag(1.0 / np.sqrt(lam))
+    # The beta matrix
+    beta = np.dot(P, d_inv)
+    # The product X_beta
+    X_beta = np.dot(X, beta)
+    
+    return beta, X_beta
+
+# ********************************************************************************************************************* 
+def nearest_ast_elt(elt):
+    """
+    Search the known asteroid elements for the nearest one to the input elements.
+    INPUTS:
+        elt: DataFrame of elements to search
+    """
+
+    # Copy index only of elt
+    elt_xf = elt.iloc[:, 0:0].copy()
+
+    # Add transformed values of input elements
+    elt_xf['log_a'] = np.log(elt.a)
+    elt_xf['e'] = elt.e
+    elt_xf['sin_inc'] = np.sin(elt.inc)
+    elt_xf['sin_Omega'] = np.sin(elt.Omega)
+    elt_xf['cos_Omega'] = np.cos(elt.Omega)
+    elt_xf['sin_omega'] = np.sin(elt.omega)
+    elt_xf['cos_omega'] = np.cos(elt.omega)
+    elt_xf['sin_f'] = np.sin(elt.f)
+    elt_xf['cos_f'] = np.cos(elt.f)
+
+    # Transform to normally distributed Z
+    elt_xf['log_a_z'] = interp_tbl['log_a'](elt_xf.log_a)
+    elt_xf['e_z'] = interp_tbl['e'](elt_xf.e)
+    elt_xf['sin_inc_z'] = interp_tbl['sin_inc'](elt_xf.sin_inc)
+    elt_xf['sin_Omega_z'] = interp_tbl['sin_Omega'](elt_xf.sin_Omega)
+    elt_xf['cos_Omega_z'] = interp_tbl['cos_Omega'](elt_xf.cos_Omega)
+    elt_xf['sin_omega_z'] = interp_tbl['sin_omega'](elt_xf.sin_omega)
+    elt_xf['cos_omega_z'] = interp_tbl['cos_omega'](elt_xf.cos_omega)
+    elt_xf['sin_f_z'] = interp_tbl['sin_f'](elt_xf.sin_f)
+    elt_xf['cos_f_z'] = interp_tbl['cos_f'](elt_xf.cos_f)
+
+    # Relevant columns
+    cols_xf = ['log_a_z', 'e_z', 'sin_inc_z', 'sin_Omega_z', 'cos_Omega_z', 'sin_omega_z', 'cos_omega_z', 'sin_f_z', 'cos_f_z',]
+    # Nx9 matrix of transformed elements
+    Y = elt_xf[cols_xf].values
+    # Scale columns 3:9 by sqrt(1/2) so they are not weighted 2x (need to represent them as sin, cos pair but don't want to overweight them)
+    Y[:, 3:9] *= np.sqrt(0.5)
+
+    # Multiply by beta
+    Y_beta = np.dot(Y, beta)
+
+    # Distance from Y_beta to X_beta
+    # Use numpy broadcasting trick to avoid an expensive for loop
+    dist = np.linalg.norm(X_beta.reshape(-1, 1, 9) - Y_beta.reshape(1, -1, 9), axis=-1)
+
+    # Row number of nearest asteroid elements
+    idx = np.argmin(dist, axis=0)
+
+    # The closest asteroid elements
+    ast_elt.iloc[idx]
+
