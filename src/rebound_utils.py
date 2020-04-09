@@ -28,7 +28,7 @@ OrbitalElement = namedtuple('OrbitalElement', 'a e inc Omega omega f')
 # ********************************************************************************************************************* 
 def extend_sim(sim: rebound.Simulation, 
                object_names_new: List[str], 
-               epoch: datetime):
+               epoch_dt: datetime):
     """Extend an existing simulation"""
     # Generate list of missing object names
     hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
@@ -36,16 +36,16 @@ def extend_sim(sim: rebound.Simulation,
 
     # Extend the simulation and save it with the augmented bodies
     if objects_missing:
-        extend_sim_horizons(sim, object_names=objects_missing, epoch=epoch)
+        extend_sim_horizons(sim, object_names=objects_missing, epoch_dt=epoch_dt)
 
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim(sim_name: str, object_names: List[str], epoch: datetime, 
+def make_sim(sim_name: str, object_names: List[str], epoch_dt: datetime, 
              integrator: str, steps_per_day: int, save_file: bool) -> rebound.Simulation:
     """Create or load simulation with the specified objects at the specified time"""
     # Filename for archive
-    file_date: str = epoch.strftime('%Y-%m-%d_%H-%M')
+    file_date: str = epoch_dt.strftime('%Y-%m-%d_%H-%M')
     fname_archive: str = f'../data/planets/{sim_name}_{file_date}.bin'
 
     # If this file already exists, load it and check for both extra and missing bodies
@@ -62,7 +62,7 @@ def make_sim(sim_name: str, object_names: List[str], epoch: datetime,
         if objects_missing:
             print(f'Found missing objects in {fname_archive}:')
             print(objects_missing)
-            extend_sim_horizons(sim, object_names = objects_missing, epoch=epoch)
+            extend_sim_horizons(sim, object_names = objects_missing, epoch_dt=epoch_dt)
 
         # Sets of named and input object hashes
         hashes_sim: Set[int] = set(p.hash.value for p in sim.particles)
@@ -75,7 +75,7 @@ def make_sim(sim_name: str, object_names: List[str], epoch: datetime,
 
     except:           
         # Initialize simulation
-        sim = make_sim_horizons(object_names=object_names, epoch=epoch)
+        sim = make_sim_horizons(object_names=object_names, epoch_dt=epoch_dt)
 
     # Move to center of momentum
     sim.move_to_com()
@@ -99,7 +99,7 @@ def make_sim(sim_name: str, object_names: List[str], epoch: datetime,
 def make_archive_impl(fname_archive: str, 
                       sim_epoch: rebound.Simulation, 
                       object_names: List[str],
-                      epoch: datetime, dt0: datetime, dt1: datetime, 
+                      epoch_dt: datetime, dt0: datetime, dt1: datetime, 
                       time_step: int, save_step: int,
                       save_elements: bool,
                       progbar: bool) -> None:
@@ -109,7 +109,7 @@ def make_archive_impl(fname_archive: str,
         fname_archive: the file name to save the archive to
         sim_epoch: rebound simulation object as of the epoch time; to be integrated in both directions
         object_names: the user names of all the objects in the simulation
-        epoch: a datetime corresponding to sim_epoch
+        epoch_dt: a datetime corresponding to sim_epoch
         dt0: the earliest datetime to simulate back to
         dt1: the latest datetime to simulate forward to
         time_step: the time step in days for the simulation
@@ -120,7 +120,7 @@ def make_archive_impl(fname_archive: str,
     
     # Convert epoch, start and end times relative to a base date of the simulation start
     # This way, time is indexed from t0=0 to t1 = (dt1-dt0)
-    epoch_t: float = datetime_to_mjd(epoch, dt0)
+    epoch_t: float = datetime_to_mjd(epoch_dt, dt0)
     t0: float = datetime_to_mjd(dt0, dt0)
     t1: float = datetime_to_mjd(dt1, dt0)
     
@@ -138,7 +138,7 @@ def make_archive_impl(fname_archive: str,
     ts_fwd: np.array = ts[idx:]
     ts_back: np.array = ts[:idx][::-1]
     # The epochs corresponding to the times in ts
-    epochs: List[datetime] = [dt0 + timedelta(t) for t in ts]
+    epochs_dt: List[datetime] = [dt0 + timedelta(t) for t in ts]
 
     # File names for forward and backward integrations
     fname_fwd: str = fname_archive.replace('.bin', '_fwd.bin')
@@ -234,8 +234,8 @@ def make_archive_impl(fname_archive: str,
     # Filename for numpy arrays of position and velocity
     fname_np: str = fname_archive.replace('.bin', '.npz')
 
-    # Save the epochs as a numpy array
-    epochs_np: np.array = np.array(epochs)
+    # Save the epochs as a numpy array of datetime objects
+    epochs_np: np.array = np.array(epochs_dt)
     # Save the object names as a numpy array of strings
     object_names_np: np.array = np.array(object_names)
 
@@ -264,7 +264,7 @@ def make_archive_impl(fname_archive: str,
 def make_archive(fname_archive: str, 
                  sim_epoch: rebound.Simulation, 
                  object_names: List[str],
-                 epoch: datetime, dt0: datetime, dt1: datetime, 
+                 epoch_dt: datetime, dt0: datetime, dt1: datetime, 
                  time_step: int, save_step: int = 1,
                  save_elements: bool = False,
                  progbar: bool = False) -> rebound.SimulationArchive:
@@ -274,7 +274,7 @@ def make_archive(fname_archive: str,
         fname_archive: the file name to save the archive to
         sim_epoch: rebound simulation object as of the epoch time; to be integrated in both directions
         object_names: the user names of all the objects in the simulation
-        epoch: a datetime corresponding to sim_epoch
+        epoch_dt: a datetime corresponding to sim_epoch
         dt0: the earliest datetime to simulate back to
         dt1: the latest datetime to simulate forward to
         time_step: the time step in days for the simulation
@@ -289,7 +289,7 @@ def make_archive(fname_archive: str,
         print(f'Generating archive {fname_archive}\n'
               f'from {dt0} to {dt1}, time_step={time_step}, save_step={save_step}...')
         make_archive_impl(fname_archive=fname_archive, sim_epoch=sim_epoch, object_names=object_names,
-                          epoch=epoch, dt0=dt0, dt1=dt1, 
+                          epoch_dt=epoch_dt, dt0=dt0, dt1=dt1, 
                           time_step=time_step, save_step=save_step, 
                           save_elements=save_elements, progbar=progbar)
         # Load the new archive into memory
@@ -307,7 +307,7 @@ def load_sim_np(fname_np: str) ->Tuple[np.array, np.array, Dict[str, np.array]]:
         elts = npz['elts']
         ts = npz['ts']
         epochs_np = npz['epochs_np']
-        epochs: List[datetime.datetime] = [nm for nm in epochs_np]
+        epochs_dt: List[datetime.datetime] = [dt for dt in epochs_np]
         hashes = npz['hashes']
         object_names_np = npz['object_names_np']
         object_names: List[str] = [nm for nm in object_names_np]
@@ -315,7 +315,7 @@ def load_sim_np(fname_np: str) ->Tuple[np.array, np.array, Dict[str, np.array]]:
     # Wrap the catalog into a dictionary
     catalog = {
         'ts': ts,
-        'epochs': epochs,
+        'epochs_dt': epochs_dt,
         'hashes': hashes,
         'object_names': object_names
         }
@@ -485,7 +485,7 @@ def test_integration(sa: rebound.SimulationArchive, test_objects: List[str],
         # The date to be tested as a time coordinate
         t: int = (dt_t - dt0).days
         # The reference simulation from Horizons
-        sim0: rebound.Simulation = make_sim_horizons(object_names=test_objects, epoch=dt_t)
+        sim0: rebound.Simulation = make_sim_horizons(object_names=test_objects, epoch_dt=dt_t)
         # The test simulation from the simulation archive
         sim1: rebound.Simulation = sa.getSimulation(t=t, mode='exact')
         # Verbosity flag and screen print if applicable

@@ -84,7 +84,7 @@ def make_sim_from_elts(elts: pd.DataFrame, epoch: float):
     # Convert epoch to a datetime
     epoch_dt = mjd_to_datetime(epoch)
     # Base Rebound simulation of the planets and moons on this date
-    sim = make_sim_planets(epoch=epoch_dt)
+    sim = make_sim_planets(epoch_dt=epoch_dt)
     # Set the number of active particles to the base simulation
     sim.N_active = sim.N
 
@@ -314,14 +314,14 @@ def load_ast_pos_all(elts: pd.DataFrame, epoch: float, ts: np.array) -> np.array
     return pos_tbl
 
 # ********************************************************************************************************************* 
-def make_sim_asteroids_horizons(asteroid_names: List[str], epoch: datetime) -> rebound.Simulation:
+def make_sim_asteroids_horizons(asteroid_names: List[str], epoch_dt: datetime) -> rebound.Simulation:
     """Create or load a simulation with the planets and the named asteroids"""
 
     # The objects: Sun, Earth and requested asteroids
     object_names: List[str] = ['Sun', 'Earth'] + asteroid_names
 
     # Build a simulation from Horizons data
-    sim: rebound.Simulation = make_sim_horizons(object_names=object_names, epoch=epoch)
+    sim: rebound.Simulation = make_sim_horizons(object_names=object_names, epoch_dt=epoch_dt)
 
     return sim
 
@@ -342,11 +342,11 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
     T_peri = np.zeros(N)
 
     # Get the epoch from the DataFrame
-    epoch_mjd: float = ast_elt.epoch[1]
-    epoch: datetime = mjd_to_datetime(epoch_mjd)
+    epoch: float = ast_elt.epoch[1]
+    epoch_dt: datetime = mjd_to_datetime(epoch)
     
     # Rebound simulation of the planets and moons on this date
-    sim_base = make_sim_planets(epoch=epoch)
+    sim_base = make_sim_planets(epoch_dt=epoch_dt)
         
     # Make a gigantic simulation with all these asteroids
     n0: int = np.min(ast_elt.Num)
@@ -403,17 +403,17 @@ def test_element_recovery(verbose: bool = False) -> bool:
     ast_elt = load_ast_elt()
     
     # Get the epoch from the DataFrame
-    epoch_mjd: float = ast_elt.epoch[1]
-    epoch: datetime = mjd_to_datetime(epoch_mjd)
+    epoch: float = ast_elt.epoch[1]
+    epoch_dt: datetime = mjd_to_datetime(epoch)
     
     # Rebound simulation of the planets and moons on this date
-    sim_base = make_sim_planets(epoch=epoch)
+    sim_base = make_sim_planets(epoch_dt=epoch_dt)
         
     # Add selected asteroids
     sim_ast, asteroid_names_out = make_sim_asteroids(sim_base=sim_base, ast_elt=ast_elt, n0=1, n1=31)
 
     # Create the reference simulation
-    sim_hrzn = make_sim_asteroids_horizons(asteroid_names=asteroid_names, epoch=epoch)
+    sim_hrzn = make_sim_asteroids_horizons(asteroid_names=asteroid_names, epoch_dt=epoch_dt)
 
     # Report the difference
     object_names = ['Earth'] + asteroid_names
@@ -421,7 +421,7 @@ def test_element_recovery(verbose: bool = False) -> bool:
     report_sim_difference(sim0=sim_hrzn, sim1=sim_ast, object_names=object_names, verbose=True)
     
     # Report details of one specific asteroid
-    report_one_asteroid(sim=sim_ast, asteroid_name='Ceres', epoch=epoch, verbose=True)
+    report_one_asteroid(sim=sim_ast, asteroid_name='Ceres', epoch_dt=epoch_dt, verbose=True)
 
     # Threshold for pass
     pos_tol: float = 1.0E-5
@@ -435,10 +435,10 @@ def test_element_recovery(verbose: bool = False) -> bool:
 
 # ********************************************************************************************************************* 
 def report_one_asteroid(sim: rebound.Simulation, asteroid_name: str, 
-                        epoch: datetime, verbose: bool = False) -> Tuple[np.array, np.array]:
+                        epoch_dt: datetime, verbose: bool = False) -> Tuple[np.array, np.array]:
     """Test whether orbital elements of the named asteroid are recovered vs. Horizons"""
     # Create the reference simulation
-    sim_hrzn: rebound.Simulation = make_sim_asteroids_horizons(asteroid_names=[asteroid_name], epoch=epoch)
+    sim_hrzn: rebound.Simulation = make_sim_asteroids_horizons(asteroid_names=[asteroid_name], epoch_dt=epoch_dt)
     
     # Alias the reference simulation to sim1, the input to sim2
     sim1: rebound.Simulation = sim_hrzn
@@ -655,8 +655,8 @@ def main():
     ast_elt: pd.DataFrame = load_data()
 
     # Get the epoch from the DataFrame
-    epoch_mjd: float = ast_elt.epoch[1]
-    epoch: datetime = mjd_to_datetime(epoch_mjd)
+    epoch: float = ast_elt.epoch[1]
+    epoch_dt: datetime = mjd_to_datetime(epoch)
 
     # Start and end times of simulation
     dt0: datetime = datetime(2000, 1, 1)
@@ -665,7 +665,7 @@ def main():
     # Rebound simulation of the planets on this date
     integrator: str = 'ias15'
     steps_per_day: int = 16
-    sim_base: rebound.Simulation = make_sim_planets(epoch=epoch, integrator=integrator, steps_per_day=steps_per_day)
+    sim_base: rebound.Simulation = make_sim_planets(epoch_dt=epoch_dt, integrator=integrator, steps_per_day=steps_per_day)
         
     # Add selected asteroids
     sim: rebound.Simulation
@@ -682,7 +682,7 @@ def main():
     save_elements: bool = True
     print(f'Processing asteroid trajectories for asteroid numbers {n0} to {n1}...')
     make_archive(fname_archive=fname, sim_epoch=sim, object_names=object_names,
-                 epoch=epoch, dt0=dt0, dt1=dt1, 
+                 epoch_dt=epoch_dt, dt0=dt0, dt1=dt1, 
                  time_step=time_step, save_step=save_step, 
                  save_elements=save_elements, progbar=progbar)
 

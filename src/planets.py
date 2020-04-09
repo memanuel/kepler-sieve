@@ -85,7 +85,7 @@ test_asteroids = [
 test_objects_asteroids = ['Earth'] + test_asteroids
 
 # ********************************************************************************************************************* 
-def make_sim_planets(epoch: datetime, integrator='ias15', steps_per_day: int = 256):
+def make_sim_planets(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 256):
     """Create a simulation with the sun and 8 planets at the specified time"""
     # Arguments for make_sim
     sim_name = 'planets'    
@@ -93,13 +93,13 @@ def make_sim_planets(epoch: datetime, integrator='ias15', steps_per_day: int = 2
     save_file = False
 
     # Build a simulation with the selected objects
-    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch=epoch, 
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
                    integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
 
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_moons(epoch: datetime, integrator='ias15', steps_per_day: int = 16):
+def make_sim_moons(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 16):
     """Create a simulation with the sun and 8 planets plus selected moons"""
     # Arguments for make_sim
     sim_name = 'moons'
@@ -107,13 +107,13 @@ def make_sim_moons(epoch: datetime, integrator='ias15', steps_per_day: int = 16)
     save_file = False
 
     # Build a simulation with the selected objects
-    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch=epoch, 
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
                    integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
 
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_dwarfs(epoch: datetime, integrator='ias15', steps_per_day: int = 16):
+def make_sim_dwarfs(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 16):
     """Create a simulation with the sun, 8 planets and selected dwarf planets"""
     # Arguments for make_sim
     sim_name = 'dwarfs'
@@ -121,13 +121,13 @@ def make_sim_dwarfs(epoch: datetime, integrator='ias15', steps_per_day: int = 16
     save_file = False
 
     # Build a simulation with the selected objects
-    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch=epoch, 
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
                    integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
 
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_all(epoch: datetime, integrator='ias15', steps_per_day: int = 16):
+def make_sim_all(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 16):
     """Create a simulation with all the massive objects (planets, moons, dwarf planets)"""
     # Arguments for make_sim
     sim_name = 'all'
@@ -135,25 +135,27 @@ def make_sim_all(epoch: datetime, integrator='ias15', steps_per_day: int = 16):
     save_file = False
 
     # Build a simulation with the selected objects
-    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch=epoch, 
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
                    integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
 
     return sim
 
 # ********************************************************************************************************************* 
 def run_one_sim(sim_name: str, sim_epoch: rebound.Simulation, object_names: List[str],
-                epoch: datetime, dt0: datetime, dt1: datetime, 
+                epoch_dt: datetime, dt0: datetime, dt1: datetime, 
                 time_step: int, save_step: int, steps_per_day: int):
     """Run one simulation, saving it to a simulation archive"""
     integrator = sim_epoch.integrator
     fname = f'../data/planets/sim_{sim_name}_2000-2040_{integrator}_sf{steps_per_day}.bin'
     fname_gen = f'../data/planets/sim_{sim_name}_2000-2040.bin'
     sa = make_archive(fname_archive=fname, sim_epoch=sim_epoch, object_names=object_names,
-                      epoch=epoch, dt0=dt0, dt1=dt1, 
+                      epoch_dt=epoch_dt, dt0=dt0, dt1=dt1, 
                       time_step=time_step, save_step=save_step,
                       progbar=True)
     # Copy file to generically named one
-    shutil.copy(fname, fname_gen)
+    # Need to use shutil.copyfile rather than shutil.copy when working with synology
+    # See: https://stackoverflow.com/questions/11835833/why-would-shutil-copy-raise-a-permission-exception-when-cp-doesnt
+    shutil.copyfile(fname, fname_gen)
     
     return sa
 
@@ -181,13 +183,13 @@ def set_test_asteroid_masses(sim: rebound.Simulation,
 def add_test_asteroids(sim: rebound.Simulation, 
                        object_names: List[str],
                        test_asteroids: List[str],
-                       epoch: datetime) -> None:
+                       epoch_dt: datetime) -> None:
     """Augment a rebound Simulation to include test asteroids; modifies the simulation in place"""
     # Get the names of the test asteroids to add
     object_names_new = add_test_asteroid_names(object_names=object_names, test_asteroids=test_asteroids)
 
     # Add these new objects using extend_sim
-    sim = extend_sim(sim, object_names_new=object_names_new, epoch=epoch)
+    sim = extend_sim(sim, object_names_new=object_names_new, epoch_dt=epoch_dt)
 
     # Zero out the test asteroid masses
     set_test_asteroid_masses(sim=sim, object_names_orig=object_names_planets, test_asteroids=test_asteroids)    
@@ -264,32 +266,32 @@ def main():
     steps_per_day_all: int = steps_per_day if steps_per_day >= 0 else 16
 
     # Initial configuration of planets, moons, and dwarfs
-    sim_planets = make_sim_planets(epoch=epoch, integrator=integrator_planets, 
+    sim_planets = make_sim_planets(epoch_dt=epoch_dt, integrator=integrator_planets, 
                                    steps_per_day=steps_per_day_planets)
-    sim_moons = make_sim_moons(epoch=epoch, integrator=integrator_moons, 
+    sim_moons = make_sim_moons(epoch_dt=epoch_dt, integrator=integrator_moons, 
                                steps_per_day=steps_per_day_moons)
-    sim_dwarfs = make_sim_dwarfs(epoch=epoch, integrator=integrator_dwarfs, 
+    sim_dwarfs = make_sim_dwarfs(epoch_dt=epoch_dt, integrator=integrator_dwarfs, 
                                  steps_per_day=steps_per_day_dwarfs)
-    sim_all = make_sim_all(epoch=epoch, integrator=integrator_all, 
+    sim_all = make_sim_all(epoch_dt=epoch_dt, integrator=integrator_all, 
                            steps_per_day=steps_per_day_all)
     
     # If we are in test mode, add the asteroids to the base simulations
     if args.test:
         add_test_asteroids(sim=sim_planets, 
                            object_names=object_names_planets,
-                           test_asteroids=test_asteroids, epoch=epoch)
+                           test_asteroids=test_asteroids, epoch_dt=epoch_dt)
 
         add_test_asteroids(sim=sim_moons, 
                            object_names=object_names_moons,
-                           test_asteroids=test_asteroids, epoch=epoch)
+                           test_asteroids=test_asteroids, epoch_dt=epoch_dt)
 
         add_test_asteroids(sim=sim_dwarfs, 
                            object_names=object_names_dwarfs,
-                           test_asteroids=test_asteroids, epoch=epoch)
+                           test_asteroids=test_asteroids, epoch_dt=epoch_dt)
 
         add_test_asteroids(sim=sim_all, 
                            object_names=object_names_all,
-                           test_asteroids=test_asteroids, epoch=epoch)
+                           test_asteroids=test_asteroids, epoch_dt=epoch_dt)
 
     # Shared time_step and save_step
     time_step: int = 1
@@ -304,7 +306,7 @@ def main():
         # Run the planets simulation
         sa_planets = \
             run_one_sim(sim_name=sim_name, sim_epoch=sim_planets, object_names=object_names_planets,
-                        epoch=epoch, dt0=dt0, dt1=dt1,
+                        epoch_dt=epoch_dt, dt0=dt0, dt1=dt1,
                         time_step=time_step, save_step=save_step, steps_per_day=steps_per_day_planets)
 
     # Test the planets simulation
@@ -325,7 +327,7 @@ def main():
         # Run the moons simulation
         sa_moons = \
             run_one_sim(sim_name=sim_name, sim_epoch=sim_moons, object_names=object_names_moons,
-                        epoch=epoch, dt0=dt0, dt1=dt1,
+                        epoch_dt=epoch_dt, dt0=dt0, dt1=dt1,
                         time_step=time_step, save_step=save_step, steps_per_day=steps_per_day_moons)
 
     # Test the moons simulation        
@@ -347,7 +349,7 @@ def main():
         # Run the dwarfs simulation
         sa_dwarfs = \
             run_one_sim(sim_name=sim_name, sim_epoch=sim_dwarfs, object_names=object_names_dwarfs,
-                        epoch=epoch, dt0=dt0, dt1=dt1,
+                        epoch_dt=epoch_dt, dt0=dt0, dt1=dt1,
                         time_step=time_step, save_step=save_step, steps_per_day=steps_per_day_dwarfs)
 
     # Test the dwarfs simulation
@@ -368,7 +370,7 @@ def main():
         # Run the all simulation
         sa_all = \
             run_one_sim(sim_name=sim_name, sim_epoch=sim_all, object_names=object_names_all,
-                        epoch=epoch, dt0=dt0, dt1=dt1,
+                        epoch_dt=epoch_dt, dt0=dt0, dt1=dt1,
                         time_step=time_step, save_step=save_step, steps_per_day=steps_per_day_all)
 
     # Test the all simulation        

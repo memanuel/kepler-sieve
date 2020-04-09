@@ -98,7 +98,7 @@ def load_horizons_cache():
     return hrzn
 
 # ********************************************************************************************************************* 
-def purge_horizons_cache(object_name: str, epoch: datetime = None):
+def purge_horizons_cache(object_name: str, epoch_dt: datetime = None):
     """Purge all entries of the named object from the Horizons cache"""
     # Load the cache
     hrzn = load_horizons_cache()
@@ -107,14 +107,14 @@ def purge_horizons_cache(object_name: str, epoch: datetime = None):
     object_id_purged = name_to_id[object_name]
     
     # The epochs to purge
-    epoch_purged = epoch
+    epoch_purged = epoch_dt
     purge_all_epochs = epoch_purged is None
     
     # Iterate through entries to find which keys will be purged
     keys_to_purge = []
-    for (epoch, object_id) in hrzn:
-        if (object_id == object_id_purged) and (epoch == epoch_purged or purge_all_epochs):
-            keys_to_purge.append((epoch, object_id))
+    for (epoch_dt, object_id) in hrzn:
+        if (object_id == object_id_purged) and (epoch_dt == epoch_purged or purge_all_epochs):
+            keys_to_purge.append((epoch_dt, object_id))
 
     # Delete selected keys
     for key in keys_to_purge:
@@ -123,14 +123,14 @@ def purge_horizons_cache(object_name: str, epoch: datetime = None):
     # Save the revised cache and report
     save_horizons_cache(hrzn)
     num_deleted: int = len(keys_to_purge)
-    print(f'Deleted {num_deleted} entries from horizons cache for {object_name}, epoch={epoch_purged}')
+    print(f'Deleted {num_deleted} entries from horizons cache for {object_name}, epoch_dt={epoch_purged}')
 
 # ********************************************************************************************************************* 
-def add_one_object_hrzn(sim: rebound.Simulation, object_name: str, epoch: datetime, hrzn: Dict):
+def add_one_object_hrzn(sim: rebound.Simulation, object_name: str, epoch_dt: datetime, hrzn: Dict):
     """Add one object to a simulation with data fromm horizons (cache or API)."""
     # Identifiers for this object
     object_id = name_to_id[object_name]
-    key = (epoch, object_id)
+    key = (epoch_dt, object_id)
 
     try:
         # Try to look up the object on the horizons cache
@@ -139,8 +139,8 @@ def add_one_object_hrzn(sim: rebound.Simulation, object_name: str, epoch: dateti
     except KeyError:
         # Search string for the horizon API
         horizon_name = object_to_horizon_name[object_name]
-        # Convert epoch to a horizon date string
-        horizon_date: str = datetime_to_horizons(epoch)
+        # Convert epoch_dt to a horizon date string
+        horizon_date: str = datetime_to_horizons(epoch_dt)
         print(f'Searching Horizons as of {horizon_date}')
         # Add the particle
         sim.add(horizon_name, date=horizon_date)
@@ -158,7 +158,7 @@ def add_one_object_hrzn(sim: rebound.Simulation, object_name: str, epoch: dateti
         save_horizons_cache(hrzn)
 
 # ********************************************************************************************************************* 
-def make_sim_horizons(object_names: List[str], epoch: datetime) -> rebound.Simulation:
+def make_sim_horizons(object_names: List[str], epoch_dt: datetime) -> rebound.Simulation:
     """Create a new rebound simulation with initial data from the NASA Horizons system"""
     # Create a simulation
     sim = rebound.Simulation()
@@ -168,7 +168,7 @@ def make_sim_horizons(object_names: List[str], epoch: datetime) -> rebound.Simul
     
     # Add objects one at a time
     for object_name in object_names:
-        add_one_object_hrzn(sim=sim, object_name=object_name, epoch=epoch, hrzn=hrzn)
+        add_one_object_hrzn(sim=sim, object_name=object_name, epoch_dt=epoch_dt, hrzn=hrzn)
         
     # Move to center of mass
     sim.move_to_com()
@@ -176,7 +176,7 @@ def make_sim_horizons(object_names: List[str], epoch: datetime) -> rebound.Simul
     return sim
 
 # ********************************************************************************************************************* 
-def extend_sim_horizons(sim: rebound.Simulation, object_names: List[str], epoch: datetime) -> None:
+def extend_sim_horizons(sim: rebound.Simulation, object_names: List[str], epoch_dt: datetime) -> None:
     """Extend a rebound simulation with initial data from the NASA Horizons system"""
     # Generate list of missing object names
     hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
@@ -184,7 +184,7 @@ def extend_sim_horizons(sim: rebound.Simulation, object_names: List[str], epoch:
     
     # Add missing objects one at a time if not already present
     for object_name in objects_missing:
-        add_one_object_hrzn(sim=sim, object_name=object_name, epoch=epoch, hrzn=hrzn)        
+        add_one_object_hrzn(sim=sim, object_name=object_name, epoch_dt=epoch_dt, hrzn=hrzn)
     
     # Move to center of mass
     sim.move_to_com()

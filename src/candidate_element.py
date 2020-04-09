@@ -208,7 +208,7 @@ def random_elts(element_id_start: np.int32 = 0,
     epoch_dt = mjd_to_datetime(epoch0)
 
     # Base Rebound simulation of the planets and moons on this date
-    sim = make_sim_planets(epoch=epoch_dt)
+    sim = make_sim_planets(epoch_dt=epoch_dt)
     # Set the number of active particles to the base simulation
     sim.N_active = sim.N
 
