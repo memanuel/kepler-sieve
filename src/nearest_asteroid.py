@@ -143,6 +143,9 @@ def nearest_ast_elt(elts):
     """
     Search for nearest asteroid element based on Cartesian orbits
     """
+    # Extract element_id
+    element_id = elts.element_id.values
+
     # Calculate position of element
     q_elt = calc_elt_pos(elts, ts)
     # Convert to a tensor; use float32 to save memory
@@ -156,6 +159,7 @@ def nearest_ast_elt(elts):
 
     # Need to do this one candidate at a time b/c run out of memory when doing all at once
     idx = np.zeros(N_elt, dtype=np.int32)
+    ast_num = np.zeros(N_elt, dtype=np.int32)
     dist = np.zeros(N_elt, dtype=np.float32)
 
     # Iterate over candidates    
@@ -163,21 +167,45 @@ def nearest_ast_elt(elts):
         # dist_i is the distance between element i and all N_ast asteroids; shape [N_ast,]
         dist_i = tf.linalg.norm(X - Y[i], axis=(-2, -1))
         # The index of the closest asteroid
-        idx[i] = tf.argmin(dist_i)
-        # Save the index of the closest asteroid and its distance
-        dist[i] = dist_i[idx[i]] / sqrt_N_ast
+        j = tf.argmin(dist_i)
+        # Save the asteroid number and distance of the closest asteroid
+        idx[i] = j
+        dist[i] = dist_i[j] / sqrt_N_ast
+        # Save the asteroid number of the closest asteroid
+        ast_num[i] = ast_elt.Num.values[j]
 
-    # The closest asteroid elements
-    ast_elt_nearest = ast_elt.iloc[idx].copy()
-    
-    # Add column to ast_elt_nearest showing the element_id
+    # Columns from ast_elt we want in ast_elt_nearest
+    cols = ['Num', 'Name', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    # Select the closest asteroids and these columns
+    ast_elt_nearest = ast_elt.loc[ast_num, cols]
+    # Use naming conventions for candidate elements
+    col_rename = {
+        'Num': 'asteroid_num',
+        'Name': 'asteroid_name',
+        # 'a': 'ast_a',
+        # 'e': 'ast_e',
+        # 'inc': 'ast_inc',
+        # 'Omega': 'ast_Omega',
+        # 'omega': 'ast_omega',
+        # 'f': 'ast_f',
+        # 'epoch': 'ast_epoch'
+    }
+    ast_elt_nearest.rename(columns=col_rename, inplace=True)        
+
+    # Add column with the element_id this asteroid is closest to
+    ast_elt_nearest.insert(loc=0, column='element_id', value=element_id)
+
+    # Add columns to ast_elt_nearest showing the element_id and distance
     ast_elt_nearest.insert(loc=2, column='dist', value=dist)
-    
+
+    # Index the nearest asteroid frame by element_id for easy operations with the candidate elements
+    ast_elt_nearest.set_index(keys='element_id', drop=False, inplace=True)
+
     # Add two extra columns to elts showing the asteroid number and distance
     if 'nearest_ast_num' not in elts.columns:
-        elts.insert(loc=elts.columns.size, column='nearest_ast_num', value=ast_elt_nearest.Num.values)
+        elts.insert(loc=elts.columns.size, column='nearest_ast_num', value=ast_num)
     else:
-        elts['nearest_ast_num'] = ast_elt_nearest.Num.values
+        elts['nearest_ast_num'] = ast_num
     if 'nearest_ast_dist' not in elts.columns:
         elts.insert(loc=elts.columns.size, column='nearest_ast_dist', value=dist)
     else:
