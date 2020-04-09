@@ -342,7 +342,7 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
     T_peri = np.zeros(N)
 
     # Get the epoch from the DataFrame
-    epoch_mjd: float = ast_elt.epoch_mjd[1]
+    epoch_mjd: float = ast_elt.epoch[1]
     epoch: datetime = mjd_to_datetime(epoch_mjd)
     
     # Rebound simulation of the planets and moons on this date
@@ -403,7 +403,7 @@ def test_element_recovery(verbose: bool = False) -> bool:
     ast_elt = load_ast_elt()
     
     # Get the epoch from the DataFrame
-    epoch_mjd: float = ast_elt.epoch_mjd[1]
+    epoch_mjd: float = ast_elt.epoch[1]
     epoch: datetime = mjd_to_datetime(epoch_mjd)
     
     # Rebound simulation of the planets and moons on this date
@@ -655,7 +655,7 @@ def main():
     ast_elt: pd.DataFrame = load_data()
 
     # Get the epoch from the DataFrame
-    epoch_mjd: float = ast_elt.epoch_mjd[1]
+    epoch_mjd: float = ast_elt.epoch[1]
     epoch: datetime = mjd_to_datetime(epoch_mjd)
 
     # Start and end times of simulation

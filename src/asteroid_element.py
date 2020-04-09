@@ -128,21 +128,27 @@ def load_data_impl() -> pd.DataFrame:
     return df
 
 # ********************************************************************************************************************* 
-def convert_data(df_in: pd.DataFrame, epoch_mjd: Optional[float]=None) -> pd.DataFrame:
-    """Convert data from the JPL format to be friendly to rebound integrator and matching selected epoch"""
-    # Apply the default value of epoch_mjd if it was not input
-    if epoch_mjd is None:
-        epoch_mjd = pd.Series.mode(df_in.Epoch)[0]
+def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFrame:
+    """
+    Convert data from the JPL format to be friendly to rebound integrator and matching selected epoch
+    INPUTS:
+        df_in: DataFrame with orbital elements in JPL format
+        epoch: Optional epoch as an MJD; used to filter for only matching epochs.
+               Defaults to the mode, e.g. 58600.0
+    """
+    # Apply the default value of epoch if it was not input
+    if epoch is None:
+        epoch = pd.Series.mode(df_in.Epoch)[0]
 
     # Create a mask with only the matching rows
-    mask = (df_in.Epoch == epoch_mjd)
+    mask = (df_in.Epoch == epoch)
     
     # Initialize Dataframe with asteroid numbers
     df = pd.DataFrame(data=df_in.Num[mask])
 
     # Add fields one at a time
     df['Name'] = df_in.Name[mask]
-    df['epoch_mjd'] = df_in.Epoch[mask]
+    df['epoch'] = df_in.Epoch[mask]
     df['a'] = df_in.a[mask]
     df['e'] = df_in.e[mask]
     df['inc'] = np.radians(df_in.i[mask])

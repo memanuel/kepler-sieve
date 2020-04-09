@@ -87,7 +87,7 @@ def asteroid_elts(ast_nums: np.ndarray, dtype = dtype) -> pd.DataFrame:
     Omega = ast_elt.Omega[ast_nums].values.astype(dtype)
     omega = ast_elt.omega[ast_nums].values.astype(dtype)
     f = ast_elt.f[ast_nums].values.astype(dtype)
-    epoch = ast_elt.epoch_mjd[ast_nums].to_numpy().astype(dtype)
+    epoch = ast_elt.epoch[ast_nums].to_numpy().astype(dtype)
     
     # Wrap into dictionary
     elts_dict = {
@@ -202,10 +202,10 @@ def random_elts(element_id_start: np.int32 = 0,
     f = np.zeros(size)
 
     # The epoch
-    epoch_mjd = ast_elt.epoch_mjd.values[0]
+    epoch0 = ast_elt.epoch.values[0]
 
     # Epoch as a datetime
-    epoch_dt = mjd_to_datetime(epoch_mjd)
+    epoch_dt = mjd_to_datetime(epoch0)
 
     # Base Rebound simulation of the planets and moons on this date
     sim = make_sim_planets(epoch=epoch_dt)
@@ -228,7 +228,7 @@ def random_elts(element_id_start: np.int32 = 0,
 
     # The element_id and epoch arrays
     element_id = np.arange(element_id_start, size, dtype=np.int32)
-    epoch = np.full(shape=size, fill_value=epoch_mjd)
+    epoch = np.full(shape=size, fill_value=epoch0)
 
     # Elements as a Python dict with required columns in order
     elts_dict = {

@@ -242,9 +242,9 @@ def main():
     run_all: bool = integration_type in ('a', 'A')
 
     # Reference epoch for asteroids file
-    epoch_mjd: float = 58600.0
+    epoch: float = 58600.0
     # Convert to a datetime
-    epoch: datetime = mjd_to_datetime(epoch_mjd)
+    epoch_dt: datetime = mjd_to_datetime(epoch)
     # epoch_dt: datetime = datetime(2019,4,27)
     
     # Start and end times of simulation
