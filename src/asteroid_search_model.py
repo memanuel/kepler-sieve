@@ -30,6 +30,7 @@ from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
 from asteroid_search_report import traj_diff
+from nearest_asteroid import nearest_ast_elt
 from astro_utils import deg2dist, dist2deg, dist2sec
 from tf_utils import tf_quiet, Identity
 from utils import print_header
@@ -399,6 +400,10 @@ class AsteroidSearchModel(tf.keras.Model):
         # Threshold for and count of the number of bad training episodes
         self.bad_episode_thresh: float = 0.10
         self.bad_episode_count: int = 0
+
+        # Elements in search for nearest asteroid: fit (inputs) and nearest asteroid (outputs)
+        self.elts_fit = None
+        self.elts_near_ast = None
 
         # Save hash IDs for elts and ztf_elts
         self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=thresh_deg)
@@ -1188,8 +1193,22 @@ class AsteroidSearchModel(tf.keras.Model):
         return fig, ax
 
     # *********************************************************************************************
-    # Plot error vs. known orbital elements or selected element
+    # Find asteroid with nearest orbital elements; calculate position error vs. known elements
     # *********************************************************************************************
+
+    def nearest_ast(self):
+        """Search for the asteroid that is nearest in orbital trajectory to the candidate elements"""
+        # The current candidate elements, i.e. after fitting process has been run
+        self.elts_fit = self.candidates_df()
+
+        # Drop irrelevant columns
+        self.elts_fit.drop(columns=['weight_joint', 'weight_element', 'weight_mixture'], inplace=True)
+
+        # Search for nearest asteroids to the fitted elements
+        self.elts_near_ast = nearest_ast_elt(self.elts_fit)
+
+        # Return the inputs and nearest asteroids
+        return self.elts_fit, self.elts_near_ast
 
     def calc_error(self, elts_true):
         """
@@ -1238,6 +1257,10 @@ class AsteroidSearchModel(tf.keras.Model):
         q_err = tf.reduce_mean(q_err_r, axis=-1, name='q_err')
 
         return hist_err, q_err
+
+    # *********************************************************************************************
+    # Plot error vs. known orbital elements or selected element
+    # *********************************************************************************************
 
     def plot_elt_error(self, elts_true, elt_name, is_log: bool=True, elt_num: int=None):
         """
@@ -1292,20 +1315,34 @@ class AsteroidSearchModel(tf.keras.Model):
         plt.show()
         return fig, ax
 
-    def plot_q_error(self, elts_true, is_log: bool=False):
+    def plot_q_error(self, elts_true, is_log: bool=False, use_near_ast_dist: bool=False):
         """
         Bar chart of position error by orbital element.
         INPUTS:
             elts_true: DataFrame of true orbital elements
+            is_log:    Whether to plot log(q_err) instead of q_err
+            use_near_ast_dist:
+                    Default behavior (use_near_ast_dist = False) is to regenerate two new
+                    trajectories at times matching the observation times.
+                    When use_ast_dist=True, instead plot the distance to the nearest asteroid
+                    saved when near_ast_dist was called.
+                    These are based on 20 years of data sampled every 3 months.
         """
-        # Calculate error
-        hist_err, q_err = self.calc_error(elts_true)
+        # Calculate distance error with selected method: live or from near_ast
+        if use_near_ast_dist:
+            q_err = self.elts_near_ast.near_ast_dist
+            calc_method = 'Observation Dates'
+        else:
+            hist_err, q_err = self.calc_error(elts_true)
+            calc_method = 'Near Ast. Dates'
+        
+        # Get element numbers and mean error over the whole batch
         element_num = np.arange(self.batch_size, dtype=np.int32)
         mean_err = np.exp(np.mean(np.log(q_err+2**-40))) if is_log else np.mean(q_err)
 
         # Plot selected error
         fig, ax = plt.subplots()
-        ax.set_title('Mean Position Error vs. True Elements')
+        ax.set_title(f'Mean Position Error vs. Elements on {calc_method}')
         ax.set_xlabel('Element')
         ax.set_ylabel('Mean Position Error in AU')
         ax.bar(x=element_num, height=q_err, label='elt', color='blue')

@@ -180,8 +180,8 @@ def nearest_ast_elt(elts):
     ast_elt_nearest = ast_elt.loc[ast_num, cols]
     # Use naming conventions for candidate elements
     col_rename = {
-        'Num': 'asteroid_num',
-        'Name': 'asteroid_name',
+        'Num': 'nearest_ast_num',
+        'Name': 'nearest_ast_name',
         # 'a': 'ast_a',
         # 'e': 'ast_e',
         # 'inc': 'ast_inc',
@@ -196,10 +196,10 @@ def nearest_ast_elt(elts):
     ast_elt_nearest.insert(loc=0, column='element_id', value=element_id)
 
     # Add columns to ast_elt_nearest showing the element_id and distance
-    ast_elt_nearest.insert(loc=2, column='dist', value=dist)
+    ast_elt_nearest.insert(loc=3, column='nearest_ast_dist', value=dist)
 
-    # Index the nearest asteroid frame by element_id for easy operations with the candidate elements
-    ast_elt_nearest.set_index(keys='element_id', drop=False, inplace=True)
+    # Index the nearest asteroid frame by row number so it aligns with 
+    ast_elt_nearest.reset_index(drop=True, inplace=True)
 
     # Add two extra columns to elts showing the asteroid number and distance
     if 'nearest_ast_num' not in elts.columns:
