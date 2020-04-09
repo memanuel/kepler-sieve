@@ -31,6 +31,7 @@ from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
 from asteroid_search_report import traj_diff
 from nearest_asteroid import nearest_ast_elt
+from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
 from tf_utils import tf_quiet, Identity
 from utils import print_header
@@ -256,22 +257,26 @@ class AsteroidSearchModel(tf.keras.Model):
         # Batch size comes from elts
         self.batch_size = elts.shape[0]
 
+        # Shape of the observed trajectories
+        self.data_size: int = ztf_elt.shape[0]
+        self.traj_shape = (self.data_size, space_dims)
+
         # The element_id for the elements in this batch
-        self.elts_element_id = keras.backend.constant(value=elts.element_id, dtype=tf.int32)
+        self.element_id = keras.backend.constant(value=elts.element_id, dtype=tf.int32)
 
         # Numpy array and tensor of observation times; flat, shape (data_size,)
         ts_np = ztf_elt.mjd.values.astype(dtype_np)
+        self.ts = keras.backend.constant(value=ts_np, shape=(self.data_size,), dtype=dtype)
 
         # Get observation count per element
         row_lengths_np = ztf_elt.element_id.groupby(ztf_elt.element_id).count()
         self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=(self.batch_size,), dtype=tf.int32)
 
-        # Shape of the observed trajectories
-        self.data_size: int = ztf_elt.shape[0]
-        self.traj_shape = (self.data_size, space_dims)
-
         # Threshold
         self.thresh_deg = thresh_deg
+
+        # Save the original ztf_elt frame for reuse
+        self.ztf_elt = ztf_elt
 
         # Observed directions; extract from ztf_elt DataFrame
         cols_u_obs = ['ux', 'uy', 'uz']
@@ -295,13 +300,13 @@ class AsteroidSearchModel(tf.keras.Model):
         self.position = self.direction.q_layer                                           
 
         # Calibration arrays (flat)
-        cols_q_ast = ['qx', 'qy', 'qz']
-        cols_v_ast = ['vx', 'vy', 'vz']
-        q_ast = ztf_elt[cols_q_ast].values.astype(dtype_np)
-        v_ast = ztf_elt[cols_v_ast].values.astype(dtype_np)
+        self.cols_q_ast = ['qx', 'qy', 'qz']
+        self.cols_v_ast = ['vx', 'vy', 'vz']
+        self.q_ast = ztf_elt[self.cols_q_ast].values.astype(dtype_np)
+        self.v_ast = ztf_elt[self.cols_v_ast].values.astype(dtype_np)
 
         # Run calibration
-        self.position.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
+        self.position.calibrate(elts=elts, q_ast=self.q_ast, v_ast=self.v_ast)
 
         # Score layer for these observations
         self.score = TrajectoryScore(row_lengths_np=row_lengths_np, u_obs_np=u_obs_np,
@@ -557,6 +562,46 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
 
+    def recalibrate(self):
+        """Recalibrate Kepler model rebound integration at current orbital elements"""
+        # Element IDs as a Numpy array
+        element_ids = self.element_id.numpy()
+
+        # Current candidates in DataFrame format for calc_ast_data
+        cols_elt = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+        elts = self.candidates_df()[cols_elt]
+
+        # Get unique times and inverse indices
+        mjd, unq_idx = np.unique(self.ts.numpy(), return_inverse=True)
+        mjd0 = np.min(mjd) - 1.0
+        mjd1 = np.max(mjd) + 1.0
+
+        # Calculate positions in this date range, sampled daily
+        df_ast_daily, df_earth_daily, df_sun_daily = calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_ids)
+
+        # Spline positions at ztf times
+        df_ast, df_earth, df_sun = spline_ast_vec_df(df_ast=df_ast_daily, df_earth=df_earth_daily, df_sun=df_sun_daily, 
+                                                    mjd=mjd, include_elts=False)
+
+        # Iterate over the elements
+        for element_id in element_ids:
+            # Mask for observations of this element
+            mask_ztf = (self.ztf_elt.element_id == element_id)
+            ztf_i = self.ztf_elt[mask_ztf]
+            # Mask for asteroid position of this element
+            mask_df = (df_ast.element_id==element_id)
+            df_ast_i = df_ast[mask_df]
+            # Index into df_ast_i on selected rows
+            df_idx = unq_idx[mask_ztf]
+            # Overwrite relevant slices of q_ast and v_ast with the newly integrated q, v
+            # self.q_ast[mask_ztf] = df_ast_i.loc[df_idx, self.cols_q_ast]
+            # self.v_ast[mask_ztf] = df_ast_i.loc[df_idx, self.cols_v_ast]
+            self.q_ast[mask_ztf] = df_ast_i[self.cols_q_ast].iloc[df_idx]
+            self.v_ast[mask_ztf] = df_ast_i[self.cols_v_ast].iloc[df_idx]            
+
+        # Run calibration with the new q, v
+        self.position.calibrate(elts=elts, q_ast=self.q_ast, v_ast=self.v_ast)
+
     # *********************************************************************************************
     # Freeze and thaw layers relating to orbital elements and mixture parameters
     # *********************************************************************************************
@@ -669,7 +714,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'key': self.current_episode*self.batch_size + np.arange(self.batch_size), 
             # Element number and ID
             'element_num': np.arange(self.batch_size), 
-            'element_id': self.elts_element_id.numpy(),
+            'element_id': self.element_id.numpy(),
             
             # Training stage: by episode, epoch, batch and time
             'episode': np.full(shape=self.batch_size, fill_value=self.current_episode),
@@ -1004,7 +1049,7 @@ class AsteroidSearchModel(tf.keras.Model):
         elts = elts_np2df(orbital_elements.numpy().T)
         
         # Add column with the element_id
-        elts.insert(loc=0, column='element_id', value=self.elts_element_id.numpy())
+        elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
         
         # Add columns for the mixture parameters
         elts['h'] = mixture_params[0].numpy()
@@ -1470,8 +1515,8 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Input data description
         print(f'batch_size: {self.batch_size}')
-        print(f'\nelts_element_id: shape {self.elts_element_id.shape}')
-        print(self.elts_element_id[0:preview_size])
+        print(f'\element_id: shape {self.element_id.shape}')
+        print(self.element_id[0:preview_size])
         print(f'\nrow_lengths: shape {self.row_lengths.shape}')
         print((self.row_lengths[0:preview_size]))
         print(f'\ndata_size: {self.data_size}')
