@@ -14,12 +14,21 @@ from scipy.interpolate import PchipInterpolator
 from scipy.stats import norm
 from statsmodels.distributions.empirical_distribution import ECDF
 
+# Machine learning
+import tensorflow as tf
+
+# Utility
+import os
+from datetime import datetime
+
 # Plotting
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-# Local
+# MSE imports
 from asteroid_element import load_ast_elt
+from asteroid_model import make_model_ast_pos
+from astro_utils import datetime_to_mjd
 
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
@@ -28,6 +37,14 @@ ast_elt = load_ast_elt()
 # Module level constants defined below after manufacturing functions defined:
 # ast_elt_xf, interp_tbl = ast_elt_transform(ast_elt)
 # beta, X_beta = calc_beta(ast_elt_xf)
+# q_ast = calc_elt_pos(elt=elt_ast, ts=ts)
+
+# ********************************************************************************************************************* 
+# Set time array for known asteroids
+t0 = datetime_to_mjd(datetime(2018,6,30))
+t1 = datetime_to_mjd(datetime(2020,3,31))
+dt = 7
+ts = np.arange(t0, t1, dt)
 
 # ********************************************************************************************************************* 
 # Default data type
@@ -353,3 +370,123 @@ def nearest_ast_elt(elt):
     ast_elt_nearest.insert(loc=2, column='Q_norm', value=Q_norm)
     
     return ast_elt_nearest
+
+# ********************************************************************************************************************* 
+def calc_elt_pos(elt, ts):
+    """
+    Calculate position of orbital elements on a fixed array of times
+    """    
+    # Number of asteroids in elts DataFrame
+    N_ast = elt.shape[0]
+    
+    # Number of time points
+    N_t = ts.size
+    
+    # Number of spatial dimensions
+    space_dims = 3
+
+    # Tile the time array N_ast times
+    ts_np = np.tile(ts, N_ast).astype(np.float32)    
+
+    # Build row_lengths; all the same
+    row_lengths_np = np.repeat(N_t, N_ast).astype(np.int32)
+
+    # Build asteroid position model
+    model_pos = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
+
+    # Extract orbital elements from elts DataFrame
+    a = elt.a.values
+    e = elt.e.values
+    inc = elt.inc.values
+    Omega = elt.Omega.values
+    omega = elt.omega.values
+    f = elt.f.values
+    epoch = elt.epoch_mjd.values
+    
+    # Position according to position model
+    q_ast, v_ast = model_pos([a, e, inc, Omega, omega, f, epoch])
+    
+    # Reshape q_ast to fixed size
+    q_ast = tf.reshape(q_ast.values, (N_ast, N_t, space_dims)).numpy()
+    
+    return q_ast
+
+# ********************************************************************************************************************* 
+def load_known_ast_pos():
+    """
+    Calculate position of asteroids on a fixed array of times
+    """
+    # Filename
+    file_path = f'../data/candidate_elt/known_ast_pos.npz'
+    
+    # DataFrame of known asteroid positions to be returned
+    ast_pos: pd.DataFrame
+
+    try:
+        q_ast = np.load(file_path)['q_ast']
+        # print(f'Loaded {file_path} from disk.')
+    except FileNotFoundError:
+        print(f'Unable to load {file_path}, generating it...')
+        # Calculate the asteroid position and save to disk in chunks of 100,000 to avoid exhausting GPU memory
+        N_ast = ast_elt.shape[0]
+        N_t = ts.size
+        space_dims = 3
+        # Set up chunks
+        chunk_size = 100000
+        num_chunks = N_ast // chunk_size
+        # Preallocate q_ast
+        q_ast = np.zeros((N_ast, N_t, space_dims))        
+        # Calculate and save chunks one at a time
+        for i in range(num_chunks):
+            r0 = i * chunk_size
+            r1 = r0 + chunk_size
+            q_ast_chunk = calc_elt_pos(elt=ast_elt.iloc[r0:r1], ts=ts)
+            q_ast[r0:r1, :, :] = q_ast_chunk
+        # Save the big file
+        np.savez(file=f'{file_path}', q_ast=q_ast)
+    
+    return q_ast
+
+
+# ********************************************************************************************************************* 
+# Load the known asteroid positions
+q_ast = load_known_ast_pos()
+# Convert to a float32 tensor
+X = tf.constant(q_ast, dtype=tf.float32)
+
+# ********************************************************************************************************************* 
+def nearest_ast_elt_cart(elt):
+    """
+    Search for nearest asteroid element based on Cartesian orbits
+    """
+    # Calculate position of element
+    q_elt = calc_elt_pos(elt, ts)
+    # Convert to a tensor; use float32 to save memory
+    Y = tf.constant(q_elt, dtype=tf.float32)
+
+    # Number of asteroids and test elements
+    N_ast = X.shape[0]
+    N_elt = Y.shape[0]
+
+    # Need to do this one candidate at a time b/c run out of memory when doing all at once
+    dist = np.zeros((N_elt, N_ast))
+
+    # Iterate over candidates
+    for idx in range(N_elt):
+        dist[i] = tf.reduce_mean(tf.linalg.norm(X - Y[idx], axis=-1), axis=-1)
+
+    # Col number of nearest asteroid elements
+    col_idx = np.argmin(dist, axis=0)
+
+    # Distance to nearest asteroid element
+    row_idx = np.arange(row_idx.size, dtype=np.int32)
+    dist_au = dist[row_idx, col_idx]
+
+    # The closest asteroid elements
+    ast_elt_nearest = ast_elt.iloc[row_idx].copy()
+    
+    # Add one extra column showing the distance    
+    ast_elt_nearest.insert(loc=2, column='Q_norm', value=Q_norm)
+    
+    return ast_elt_nearest
+    
