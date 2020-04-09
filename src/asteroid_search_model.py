@@ -929,6 +929,12 @@ class AsteroidSearchModel(tf.keras.Model):
         # Update early_stop
         self.update_early_stop()
 
+        # Recalibrate the model if the orbital elements are not frozen
+        if self.candidate_elements.trainable:
+            self.recalibrate()
+            # Also need to save weights; loss is going to get worse immediately after a recalibration
+            self.save_weights()
+
         # Status message
         if verbose > 0:
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
@@ -962,7 +968,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         learning_rate: Optional[float] = None,
                         min_learning_rate: Optional[float] = None,
                         reset_active_weight: bool = False,
-                        save_at_end: bool=True,
+                        save_at_end: bool=False,
                         verbose: int = 1):
         """
         Run asteroid search model adaptively.  
@@ -1084,6 +1090,12 @@ class AsteroidSearchModel(tf.keras.Model):
         self.train_hist_deduplicate()
         self.train_hist_summary.to_hdf(self.file_path, key='train_hist_summary', mode='a')
         self.train_hist_elt.to_hdf(self.file_path, key='train_hist_elt', mode='a')
+        # Save elts_fit and elts_near_ast if populated
+        if self.elts_fit is not None:
+            self.elts_fit.to_hdf(self.file_path, key='elts_fit', mode='a')
+        if self.elts_near_ast is not None:
+            self.elts_near_ast.to_hdf(self.file_path, key='elts_near_ast', mode='a')
+
 
     def load(self, verbose: bool=False):
         """Load model state from disk: candidate elements and training history"""
@@ -1092,6 +1104,12 @@ class AsteroidSearchModel(tf.keras.Model):
             elts = pd.read_hdf(self.file_path, key='elts')
             self.train_hist_summary = pd.read_hdf(self.file_path, key='train_hist_summary')
             self.train_hist_elt = pd.read_hdf(self.file_path, key='train_hist_elt')
+            # Load nearest asteroid information if available
+            try:
+                self.elts_fit = pd.read_hdf(self.file_path, key='elts_fit')
+                self.elts_near_ast = pd.read_hdf(self.file_path, key='elts_near_ast')
+            except KeyError:
+                pass
         except FileNotFoundError:
             if verbose:
                 print(f'Unable to find {self.file_path}.')
@@ -1307,15 +1325,18 @@ class AsteroidSearchModel(tf.keras.Model):
     # Plot error vs. known orbital elements or selected element
     # *********************************************************************************************
 
-    def plot_elt_error(self, elts_true, elt_name, is_log: bool=True, elt_num: int=None):
+    def plot_elt_error(self, elt_name: str, elts_true=None, is_log: bool=True, elt_num: int=None):
         """
         Plot (log) error of selected orbital element vs. known elements
         INPUTS:
-            elts_true: DataFrame of true orbital elements
             elt_name:  Name of orbital element; one of 'a', 'e', 'inc', 'Omega', 'omega', 'f'
+            elts_true: DataFrame of true orbital elements; defaults to self.near_ast
             is_log:    Flag; whether to plot log(err) (True) or err (False)
             elt_num:   Specific element_num to plot; plot just this one rather than mean, std, etc.
         """
+        # If elts_true wasn't specified, it defaults to nearest asteroid elements
+        elts_true = self.elts_near_ast
+
         # Calculate error
         hist_err, q_err = self.calc_error(elts_true)
         
@@ -1360,22 +1381,25 @@ class AsteroidSearchModel(tf.keras.Model):
         plt.show()
         return fig, ax
 
-    def plot_q_error(self, elts_true, is_log: bool=False, use_near_ast_dist: bool=False):
+    def plot_q_error(self, elts_true=None, is_log: bool=False, use_near_ast_dist: bool=True):
         """
         Bar chart of position error by orbital element.
         INPUTS:
             elts_true: DataFrame of true orbital elements
             is_log:    Whether to plot log(q_err) instead of q_err
             use_near_ast_dist:
-                    Default behavior (use_near_ast_dist = False) is to regenerate two new
-                    trajectories at times matching the observation times.
-                    When use_ast_dist=True, instead plot the distance to the nearest asteroid
+                    use_ast_dist=True means plot the distance to the nearest asteroid
                     saved when near_ast_dist was called.
                     These are based on 20 years of data sampled every 3 months.
+                    use_near_ast_dist = False means to regenerate two new
+                    trajectories at times matching the observation times.
         """
+        # If elts_true wasn't specified, it defaults to nearest asteroid elements
+        elts_true = self.elts_near_ast
+
         # Calculate distance error with selected method: live or from near_ast
         if use_near_ast_dist:
-            q_err = self.elts_near_ast.near_ast_dist
+            q_err = self.elts_near_ast.nearest_ast_dist
             calc_method = 'Observation Dates'
         else:
             hist_err, q_err = self.calc_error(elts_true)

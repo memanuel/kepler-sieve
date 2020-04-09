@@ -55,15 +55,14 @@ e_max_: float = 1.0 - 2.0**-10
 
 # Range for hit rate h
 h_min_ = 2.0**-14
-h_max_ = 0.25
+h_max_ = 1.0 - h_min_
 
-# Range for resolution R: 1.0 arc second to 1.0 degrees
+# Minimum resolution R: 1.0 arc second to 1.0 degrees
 R_min_sec_ = 1.0
-R_max_deg_ = 1.0
-R_min_ = deg2dist(R_min_sec_ / 3600.0)
-R_max_ = deg2dist(R_max_deg_)
-log_R_min_ = np.log(R_min_)
-log_R_max_ = np.log(R_max_)
+R_min_np = deg2dist(R_min_sec_ / 3600.0)
+# Maximum resolution is a function of thresh_deg
+# R_max_deg_ = 1.0
+# R_max_ = deg2dist(R_max_deg_)
 
 # ********************************************************************************************************************* 
 def R2lam(R, thresh_s):
@@ -247,10 +246,14 @@ class MixtureParameters(keras.layers.Layer):
         # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
 
         # Control of the resolution paramater R_, in range R_min to R_max
-        self.R_min = keras.backend.constant(R_min_, dtype=dtype)
-        self.log_R_range = keras.backend.constant(log_R_max_ - log_R_min_, dtype=dtype)
+        R_max_np = 0.5 * deg2dist(thresh_deg)
+        self.R_min = keras.backend.constant(R_min_np, dtype=dtype)
+        self.R_max = keras.backend.constant(R_max_np, dtype=dtype)
+        log_R_min = np.log(self.R_min)
+        log_R_max = np.log(self.R_max)
+        self.log_R_range = keras.backend.constant(log_R_max - log_R_min, dtype=dtype)
         self.R_ = tf.Variable(initial_value=self.inverse_R(elts['R']), trainable=True, dtype=dtype,
-                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
+                              constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
 
     @tf.function
     def get_h(self):
