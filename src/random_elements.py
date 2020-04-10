@@ -30,11 +30,6 @@ dtype_np = np.float32
 space_dims = 3
 
 # ********************************************************************************************************************* 
-def make_batch(seed):
-    """Generate one random batch of elements"""
-    pass
-
-# ********************************************************************************************************************* 
 def make_ztf_ast(known_ast: bool):
     """Build the ZTF DataFrame including nearest asteroid information"""
     # Load orbital elements for known asteroids
@@ -46,9 +41,6 @@ def make_ztf_ast(known_ast: bool):
     # Load ztf nearest asteroid data
     ztf_ast = load_ztf_nearest_ast()
  
-    # Add the original ztf_id to ztf_ast
-    ztf_ast.insert(loc=0, column='ztf_id', value=ztf_ast.index)
-
     # Filter ztf_ast to only include hits
     hit_thresh_sec = 2.0
     hit_thresh_s = deg2dist(hit_thresh_sec / 3600.0)
@@ -60,7 +52,15 @@ def make_ztf_ast(known_ast: bool):
     return ztf_ast
 
 # ********************************************************************************************************************* 
-def best_elts(elts_init: pd.DataFrame, ztf_elt: pd.DataFrame, batch_size: int, element_id_start: int):
+def best_elt_file_path(seed: int, known_ast: bool, batch_size_init: int, batch_size: int, thresh_deg: float):
+    """File name for best elements"""
+    known_token = 'hit' if known_ast else 'miss'
+    thresh_sec = int(thresh_deg * 3600)
+    file_path = f'../data/ztf_elt/random_elts_{known_token}_seed_{seed:03d}_size_{batch_size}_of_{batch_size_init}_thresh_{thresh_sec}.h5'
+    return file_path
+
+# ********************************************************************************************************************* 
+def calc_best_elts(elts_init: pd.DataFrame, ztf_elt: pd.DataFrame, batch_size: int, element_id_start: int):
     """Extract the best elements from a batch of candidate random elements"""
     # Score by element on the original batch
     score_by_elt = ztf_score_by_elt(ztf_elt)
@@ -86,12 +86,11 @@ def best_elts(elts_init: pd.DataFrame, ztf_elt: pd.DataFrame, batch_size: int, e
     return elts
 
 # ********************************************************************************************************************* 
-def best_elt_file_path(seed: int, known_ast: bool, batch_size_init: int, batch_size: int, thresh_deg: float):
-    """File name for best elements"""
-    known_token = 'hit' if known_ast else 'miss'
-    thresh_sec = int(thresh_deg * 3600)
-    file_path = f'../data/ztf_elt/random_elts_{known_token}_seed_{seed:03d}_size_{batch_size}_of_{batch_size_init}_thresh_{thresh_sec}.h5'
-    return file_path
+def best_random_elts(random_seed: int, known_ast: bool, batch_size_init: int=1024, batch_size: int=64, thresh_deg: float=2.0):
+    file_path = best_elt_file_path(seed=random_seed, known_ast=known_ast, batch_size_init=batch_size_init, 
+                                    batch_size=batch_size, thresh_deg=thresh_deg)
+    elts = pd.read_hdf(file_path, key='elts')
+    return elts
 
 # ********************************************************************************************************************* 
 def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_ast: bool, thresh_deg: float):
@@ -117,14 +116,14 @@ def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_as
 
         # Status
         time_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print(f'Item {i:3}, random_seed {random_seed}. {time_str}')
+        print(f'\nItem {i:3}, random_seed {random_seed}. {time_str}')
         
         # Load or generate ZTF batch for the big random elements
         ztf_elt_init = load_ztf_batch(elts=elts_init, ztf=ztf_ast, thresh_deg=thresh_deg, near_ast=near_ast, regenerate=regenerate)
 
         # Extract the best elements from the candidates
         element_id_start = random_seed * batch_size
-        elts = best_elts(elts_init=elts_init, ztf_elt=ztf_elt_init, batch_size=batch_size, element_id_start=element_id_start)
+        elts = calc_best_elts(elts_init=elts_init, ztf_elt=ztf_elt_init, batch_size=batch_size, element_id_start=element_id_start)
 
         # Save the best elements        
         file_path = best_elt_file_path(seed=random_seed, known_ast=known_ast, batch_size_init=batch_size_init, 

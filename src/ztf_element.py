@@ -39,7 +39,7 @@ from ztf_ast import load_ztf_nearest_ast
 from typing import Optional, Dict
 
 # ********************************************************************************************************************* 
-def ztf_elt_hash(elts: pd.DataFrame, ztf: pd.DataFrame=None, thresh_deg: float = 1.0, near_ast: bool = False):
+def ztf_elt_hash(elts: pd.DataFrame, ztf: pd.DataFrame, thresh_deg: float, near_ast: bool):
     """
     Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
     INPUTS:
