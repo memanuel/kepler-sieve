@@ -412,7 +412,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Save hash IDs for elts and ztf_elts
         self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=thresh_deg)
-        self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=False)
+        self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, ztf=self.ztf_elt, thresh_deg=thresh_deg, near_ast=False)
         # File name for saving training progress
         self.file_path = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
 

@@ -182,6 +182,8 @@ def load_ast_elt() -> pd.DataFrame:
         ast_elt = convert_data(df_in=df_in)
         # Add the calculated orbital elements
         ast_elt = ast_data_add_calc_elements(ast_elt)
+        # Add the row number field
+        ast_elt['row_num'] = np.arange(ast_elt.shape[0], dtype=np.int32)
         # Save it to h5
         ast_elt.to_hdf(fname, key='ast_elt', mode='w')
     
