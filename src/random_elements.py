@@ -98,7 +98,7 @@ def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_as
     """Main program body"""
     
     # Build the ztf_ast DataFrame
-    known_type = 'hits' if known_ast else 'no hits'
+    known_type = 'HITS' if known_ast else 'NO HITS'
     print(f'Building ZTF DataFrame: {known_type} vs. known asteroids; thresh = {thresh_deg}\n')
     ztf_ast = make_ztf_ast(known_ast=known_ast)
 
@@ -149,7 +149,7 @@ if __name__ == '__main__':
                         help='Small batch size; final result, after filtering.')
     known_asg_help_msg= 'when true, match ZTF observations that match a known asteroid to 2.0 arc seconds.\n' \
                         'when false, match ZTF observations that do not match a known asteroid.'
-    parser.add_argument('-known_ast', default=True, action='store_true',
+    parser.add_argument('-known_ast', default=False, action='store_true',
                         help=known_asg_help_msg)
     parser.add_argument('-thresh_deg', nargs='?', metavar='thresh_deg', type=float, default=2.0,
                         help='Threshold in degrees; max distance from elements direction to observation.')
