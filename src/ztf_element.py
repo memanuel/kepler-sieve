@@ -39,23 +39,31 @@ from ztf_ast import load_ztf_nearest_ast
 from typing import Optional, Dict
 
 # ********************************************************************************************************************* 
-def ztf_elt_hash(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
+def ztf_elt_hash(elts: pd.DataFrame, ztf: pd.DataFrame=None, thresh_deg: float = 1.0, near_ast: bool = False):
     """
     Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
     INPUTS:
         elts:       Dataframe including element_id; 6 orbital elements
+        ztf:        Dataframe of ZTF observations used
         thresh_deg: Threshold in degrees; only observations this close to elements are returned
         near_ast:   Whether to include data on the neareast asteroid
     OUTPUTS:
         hash_id:    Unique ID for these inputs
     """
     # Columns of the Dataframe to hash
-    cols_to_hash = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    cols_to_hash_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
     # Tuple of int64; one per orbital element candidate
-    hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
+    hash_elts = tuple((pd.util.hash_pandas_object(elts[cols_to_hash_elt])).values)
+    # Hash of the ZTF if it was input
+    if ztf is not None:
+        cols_to_hash_ztf = ['mjd',]
+        hash_ztf = tuple((pd.util.hash_pandas_object(ztf[cols_to_hash_ztf])).values)
+        near_ast = True
+    else:
+        hash_ztf = tuple()
     # Combine the element hash tuple with the threshold and near_ast flags
     thresh_int = int(thresh_deg*2**48)
-    hash_id = abs(hash(hash_df + (thresh_int, near_ast,)))
+    hash_id = abs(hash(hash_elts + hash_ztf + (thresh_int, near_ast,)))
 
     return hash_id
 
@@ -168,7 +176,7 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
         # Flag for matches; a match is when the element_id matches the nearest asteroid
         # ztf_i['is_match'] = False
         if is_near_ast:
-            ztf_i.is_match = (ztf_i.nearest_ast_num == ztf_i.element_id)
+            ztf_i['is_match'] = (ztf_i.nearest_ast_num == ztf_i.element_id)
         # Save ztf_i to the table (dict) of elements
         ztf_tbl[element_id] = ztf_i
 
@@ -181,23 +189,32 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
     return ztf_batch
 
 # ********************************************************************************************************************* 
-def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool = False):
+def make_ztf_batch(elts: pd.DataFrame, ztf: pd.DataFrame=None, thresh_deg: float = 1.0, near_ast: bool=False):
     """
     Generate a ZTF batch with all ZTF observations within a threshold of the given elements
     INPUTS:
         elts:       Dataframe including element_id; 6 orbital elements
+        ztf:        DataFrame of ZTF observations, possibly with asteroid data.
+                    Default of None means to use all of the saved ZTF observations
         thresh_deg: Threshold in degrees; only observations this close to elements are returned
         near_ast:   Whether to include data on the neareast asteroid
     """
     # Load all ZTF observations; include nearest asteroid data if requested
-    ztf: pd.DataFrame
-    if near_ast:
+    if ztf is None and near_ast:
         # ZTF detections w/ nearest ast; need to regenerate unique times
         ztf = load_ztf_nearest_ast() 
         mjd = np.unique(ztf.mjd)
-    else:
+    elif ztf is None and not near_ast:
         # just the ZTF detections w/o nearest asteroid data
         ztf, mjd = load_ztf_det_all()
+    else:
+        # Manual treatment of the dates and time stamps if we used a custom ZTF frame
+        # Generate the TimeStampID column.  This is integer key counting the unique times of observations.
+        mjd, time_stamp_id = np.unique(ztf.mjd.values, return_inverse=True)
+        # Convert time_stamp_id to 32 bit integer
+        time_stamp_id = time_stamp_id.astype(np.int32)
+        # Update TimeStampID on the DataFrame
+        ztf['TimeStampID'] = time_stamp_id
 
     # element_id is the unique identifier for each orbital element considered
     element_id = elts.element_id.values
@@ -223,7 +240,8 @@ def make_ztf_batch(elts: pd.DataFrame, thresh_deg: float = 1.0, near_ast: bool =
     return ztf_batch
 
 # ********************************************************************************************************************* 
-def load_ztf_batch(elts: pd.DataFrame, 
+def load_ztf_batch(elts: pd.DataFrame,
+                   ztf: pd.DataFrame=None,
                    thresh_deg: float = 1.0, 
                    near_ast: bool = False,
                    regenerate: bool = False):
@@ -238,7 +256,7 @@ def load_ztf_batch(elts: pd.DataFrame,
                     elt_ux, elt_uy, elt_uz, 
     """
     # Get hash of arguments
-    hash_id = ztf_elt_hash(elts=elts, thresh_deg=thresh_deg, near_ast=near_ast)
+    hash_id = ztf_elt_hash(elts=elts, ztf=ztf, thresh_deg=thresh_deg, near_ast=near_ast)
 
     # Name of file
     file_path = f'../data/ztf_elt/ztf_elt_{hash_id}.h5'
@@ -250,7 +268,7 @@ def load_ztf_batch(elts: pd.DataFrame,
         ztf_elt = pd.read_hdf(file_path)
     # Generate it on the fly if it's not available
     except FileNotFoundError:
-        ztf_elt = make_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=near_ast)
+        ztf_elt = make_ztf_batch(elts=elts, ztf=ztf, thresh_deg=thresh_deg, near_ast=near_ast)
         ztf_elt.to_hdf(file_path, key='ztf_elt', mode='w')
     
     return ztf_elt

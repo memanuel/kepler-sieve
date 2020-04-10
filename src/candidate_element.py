@@ -227,7 +227,7 @@ def random_elts(element_id_start: np.int32 = 0,
             ast.hash = rebound.hash(f'{i}')
 
     # The element_id and epoch arrays
-    element_id = np.arange(element_id_start, size, dtype=np.int32)
+    element_id = np.arange(element_id_start, element_id_start+size, dtype=np.int32)
     epoch = np.full(shape=size, fill_value=epoch0)
 
     # Elements as a Python dict with required columns in order
