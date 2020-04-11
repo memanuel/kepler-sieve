@@ -30,7 +30,7 @@ from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
 from asteroid_search_report import traj_diff
-from nearest_asteroid import nearest_ast_elt_cart, nearest_ast_elt_cov
+from nearest_asteroid import nearest_ast_elt_cart, nearest_ast_elt_cov, elt_q_norm
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
 from tf_utils import tf_quiet, Identity
@@ -277,6 +277,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Get observation count per element
         row_lengths_np = ztf_elt.element_id.groupby(ztf_elt.element_id).count()
         self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=(self.batch_size,), dtype=tf.int32)
+        self.row_lengths_float = tf.cast(x=self.row_lengths, dtype=dtype)
 
         # Threshold - original, used for data
         self.thresh_deg = thresh_deg
@@ -411,7 +412,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_weights()
 
         # Threshold for and count of the number of bad training episodes
-        self.bad_episode_thresh: float = 0.10
+        self.bad_episode_thresh: float = 0.00
         self.bad_episode_count: int = 0
 
         # Elements in search for nearest asteroid: fit (inputs) and nearest asteroid (outputs)
@@ -423,6 +424,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, ztf=self.ztf_elt, thresh_deg=thresh_deg, near_ast=False)
         # File name for saving training progress
         self.file_path = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
+
+        # Initialize model with frozen score layer
+        self.freeze_score()
 
     # @tf.function
     def call(self, inputs=None):
@@ -448,18 +452,29 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
-        log_like, log_like_wtd, hits = self.score(u_pred, h=h, lam=lam)
+        log_like, log_like_wtd, hits, row_lengths_close = self.score(u_pred, h=h, lam=lam)
+        # Get the mean log like
+        # log_like_mean = tf.divide(log_like, tf.cast(x=row_lengths_close, dtype=dtype))
+        # Re-scale to the original number of rows; this way doesn't shrink as resolution changes
+        # log_like_scaled = tf.multiply(log_like_mean, self.row_lengths_float)
         
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs = keras.backend.stack([log_like, hits])
 
         # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
-        weight = self.get_active_weight()
-        # weighted_loss = tf.multiply(weight, log_like)
-        weighted_loss = tf.multiply(weight, log_like_wtd)
+        elt_weight = self.get_active_weight()
+        # mean log_like by element, weighted by elt_weight
+        loss_by_elt_log_like = tf.multiply(elt_weight, log_like)
+        loss_by_elt_log_like_wtd = tf.multiply(elt_weight , log_like_wtd)
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
-        loss = -tf.reduce_sum(weighted_loss)
-        self.add_loss(loss)
+        loss_log_like = -tf.reduce_sum(loss_by_elt_log_like)
+        loss_log_like_wtd = -tf.reduce_sum(loss_by_elt_log_like_wtd)
+        # Create a combined loss with two terms
+        loss_factor_log_like = 0.90
+        loss_factor_log_like_wtd = 0.10
+        # Add these losses to the model
+        self.add_loss(loss_log_like*loss_factor_log_like)
+        self.add_loss(loss_log_like_wtd*loss_factor_log_like_wtd)
 
         # Wrap outputs
         outputs = (score_outputs, orbital_elements, mixture_parameters)
@@ -508,6 +523,16 @@ class AsteroidSearchModel(tf.keras.Model):
     def traj_err(self, elts0, elts1):
         """Calculate difference in trajectories from two sets of orbital elements"""
         return traj_diff(elts_ast, elts0, elts1)
+
+    def get_mixture_params(self):
+        """Extract the current mixture parameters"""
+        h, lam, R = self.mixture_parameters(inputs=None)
+        return h, lam, R
+
+    def get_thresh_deg_score(self):
+        """Extract the threshold in degrees for scoring, thresh_deg_score"""
+        get_thresh_deg_score = self.score.get_thresh_deg()
+        return get_thresh_deg_score
 
     # *********************************************************************************************
     # Element weights; equivalent to independent learning rates for each element in the batch
@@ -578,6 +603,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Apply this update to the layer
         self.score.set_thresh_deg(self.thresh_deg_score)
 
+    def set_max_thresh_deg_score(self, max_thresh_deg_score: float):
+        """Adjust thresh_deg_score to at most max_thresh_deg_score"""
+        thresh_deg_score_old = self.get_thresh_deg_score()
+        thresh_deg_score = np.minimum(thresh_deg_score_old, max_thresh_deg_score)
+        self.set_thresh_deg_Score(thresh_deg_score)
 
     def recalibrate(self):
         """Recalibrate Kepler model rebound integration at current orbital elements"""
@@ -649,17 +679,17 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_early_stop()
         self.training_mode = 'joint' if self.candidate_elements.trainable else 'mixture'
 
-    # def freeze_score(self):
-    #     """Make the score layer (e.g. thresh_deg_score) not trainable"""
-    #     self.score.trainable = False
-    #     self.recompile()
-    #     self.update_early_stop()
+    def freeze_score(self):
+        """Make the score layer (e.g. thresh_deg_score) not trainable"""
+        self.score.trainable = False
+        self.recompile()
+        self.update_early_stop()
 
-    # def thaw_score(self):
-    #     """Make the score layer (e.g. thresh_deg_score) trainable (unfrozen)"""
-    #     self.score.trainable = True
-    #     self.recompile()
-    #     self.update_early_stop()
+    def thaw_score(self):
+        """Make the score layer (e.g. thresh_deg_score) trainable (unfrozen)"""
+        self.score.trainable = True
+        self.recompile()
+        self.update_early_stop()
 
     # *********************************************************************************************
     # Adaptive training; save weights and history at episode end
@@ -731,6 +761,9 @@ class AsteroidSearchModel(tf.keras.Model):
         R_sec = dist2sec(R)
         log_R = np.log(R)
 
+        # Extract thresh_deg_score
+        thresh_deg_score = self.get_thresh_deg_score()
+
         # Alias candidate elements layer and mixture parameters
         cand = self.candidate_elements
         mixt = self.mixture_parameters
@@ -768,6 +801,9 @@ class AsteroidSearchModel(tf.keras.Model):
             'R_deg': R_deg,
             'R_sec': R_sec,
             'log_R': log_R,
+
+            # Threshold
+            'thresh_deg_score': thresh_deg_score,
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -839,6 +875,12 @@ class AsteroidSearchModel(tf.keras.Model):
             'log_R_min': [np.min(log_R)],
             'log_R_max': [np.max(log_R)],
 
+            # Summary of threshold_deg_score
+            'thresh_deg_score_mean' : [np.mean(thresh_deg_score)],
+            'thresh_deg_score_std' : [np.std(thresh_deg_score)],
+            'thresh_deg_score_min' : [np.min(thresh_deg_score)],
+            'thresh_deg_score_max' : [np.max(thresh_deg_score)],
+
             # Extra data required to rebuild model state
             'candidate_elements_trainable': self.candidate_elements.trainable,
             'mixture_parameters_trainable': self.mixture_parameters.trainable,
@@ -852,7 +894,6 @@ class AsteroidSearchModel(tf.keras.Model):
         # for hist in [self.train_hist_elt, self.train_hist_summary]:
         self.train_hist_elt = self.train_hist_elt.loc[~self.train_hist_elt.index.duplicated(keep='last')]
         self.train_hist_summary = self.train_hist_summary.loc[~self.train_hist_summary.index.duplicated(keep='last')]
-
 
     # *********************************************************************************************
     # Adaptive training; update weights and modify model state at episode end
@@ -979,6 +1020,22 @@ class AsteroidSearchModel(tf.keras.Model):
         # Status update for this episode
         print(f'\nTraining episode {self.current_episode}: Epoch {self.current_epoch:4}, Batch {self.current_batch:6}')
         print(f'effective_learning_rate={self.effective_learning_rate:8.3e}, training_time {self.training_time:0.0f} sec.')
+
+        # Scheduled adjustment to thresh_deg if applicable
+        if self.thresh_deg_schedule:
+            episode_batch = self.current_batch - self.episode_batch_start
+            episode_t = episode_batch / float(self.episode_max_batches)
+            thresh_factor = np.exp(episode_t * self.thresh_deg_log_range)
+            thresh_deg_score = thresh_factor * self.thresh_deg_start
+            thresh_deg_score_mean = np.mean(thresh_deg_score)
+            thresh_factor_mean = np.mean(thresh_factor)
+            print(f'Updating thresh_deg. episode_batch {episode_batch} / {self.episode_max_batches} ({episode_t*100:4.1f}%); '
+                  f'thresh_deg = {thresh_deg_score_mean:8.6f} (factor {thresh_factor_mean:8.6f} from start).')
+            # Apply the new thresh_deg_score to the model
+            self.set_thresh_deg_score(thresh_deg_score)
+            # Save weights to account for jump in loss function after resetting thresh_deg_score
+            self.save_weights()
+
         # Train for another episode
         hist = self.fit(x=self.x_trn, batch_size=self.batch_size, epochs=self.current_epoch+self.epochs_per_episode, 
                         steps_per_epoch=self.batches_per_epoch, initial_epoch=self.current_epoch,
@@ -991,6 +1048,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_batches: int = 10000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
+                        thresh_deg_end: float = None,
                         max_bad_episodes: int = 3,
                         learning_rate: Optional[float] = None,
                         min_learning_rate: Optional[float] = None,
@@ -1038,6 +1096,16 @@ class AsteroidSearchModel(tf.keras.Model):
         # Reset the bad episode counter
         self.bad_episode_count = 0
 
+        # Schedule thresh_deg if specified
+        if thresh_deg_end is not None:
+            self.thresh_deg_schedule = True
+            self.episode_batch_start = self.current_batch
+            self.episode_max_batches = max_batches - self.episode_batch_start
+            self.thresh_deg_start = self.get_thresh_deg_score()
+            self.thresh_deg_log_range = np.log(thresh_deg_end / self.thresh_deg_start)
+        else:
+            self.thresh_deg_schedule = False
+
         # Dummy training inputs
         self.x_trn = tf.ones(self.samples_per_epoch, dtype=dtype)
 
@@ -1077,7 +1145,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Unpack score_outputs
         log_like, hits = score_outputs
         # Extract thresh_deg from score layer
-        thresh_deg_score = self.score.get_thresh_deg()
+        thresh_deg_score = self.get_thresh_deg_score()
         
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
@@ -1173,6 +1241,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Restore learning rate
         self.learning_rate = hist.learning_rate.values[-1]
+        self.thresh_deg_score = elts['thresh_deg_score'].values
 
         # Recompile model
         self.recompile()
@@ -1522,7 +1591,7 @@ class AsteroidSearchModel(tf.keras.Model):
         hist = hist[mask]
 
         # Extract param_mean, param_std, param_min, param_max from hist
-        att_values = hist[param_name].values
+        att_values = hist[att_name].values
 
         # Attribute formatted for inclusion in chart title or labels
         att_title = {
@@ -1576,12 +1645,19 @@ class AsteroidSearchModel(tf.keras.Model):
         R_deg_min = np.min(R_deg)
         R_deg_max = np.max(R_deg)
 
+        # Threshold in degrees
+        thresh_deg = self.get_thresh_deg_score()
+        thresh_deg_mean = np.mean(thresh_deg)
+        thresh_deg_std = np.std(thresh_deg)
+        thresh_deg_min = np.min(thresh_deg)
+        thresh_deg_max = np.max(thresh_deg)
+
         # Report on log likelihood and resolution
-        print(f'     \  log_like :  hits  :  R_deg    :    R_sec')
-        print(f'Mean : {log_like_mean:8.2f}  : {hits_mean:6.2f} :  {R_deg_mean:8.6f} : {R_deg_mean*3600:8.2f}')
-        print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} :  {R_deg_std:8.6f} : {R_deg_std*3600:8.2f}')
-        print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} :  {R_deg_min:8.6f} : {R_deg_min*3600:8.2f}')
-        print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} :  {R_deg_max:8.6f} : {R_deg_max*3600:8.2f}')
+        print(f'     \  log_like :  hits  :  R_deg    :    R_sec : thresh_deg')
+        print(f'Mean : {log_like_mean:8.2f}  : {hits_mean:6.2f} :  {R_deg_mean:8.6f} : {R_deg_mean*3600:8.2f} : {thresh_deg_mean:8.6f}')
+        print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} :  {R_deg_std:8.6f} : {R_deg_std*3600:8.2f} : {thresh_deg_std:8.6f}')
+        print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} :  {R_deg_min:8.6f} : {R_deg_min*3600:8.2f} : {thresh_deg_min:8.6f}')
+        print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} :  {R_deg_max:8.6f} : {R_deg_max*3600:8.2f} : {thresh_deg_max:8.6f}')
 
     def review_members(self):
         """Print diagnostic review of members to console"""

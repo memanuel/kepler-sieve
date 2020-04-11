@@ -339,29 +339,27 @@ class TrajectoryScore(keras.layers.Layer):
         log_thresh_s2_elt = np.log(thresh_s2_elt)
 
         # Support for making thresh_deg_score trainable
-        # Only makes sense if it is used to set importance weights inside the threshold
-        # Otherwise, won't get any gradient
-        # # Allowed range for thresh_s2: from 10 arc seconds to the initial threshold
-        # thresh_s2_min = deg2dist(10.0/3600)**2
-        # thresh_s2_max = deg2dist(thresh_deg_score)**2
-        # log_thresh_s2_min = np.log(thresh_s2_min)
-        # log_thresh_s2_max = np.log(thresh_s2_max)
+        # Allowed range for thresh_s2: from 10 arc seconds to the initial threshold
+        thresh_s2_min = deg2dist(10.0/3600)**2
+        thresh_s2_max = deg2dist(thresh_deg_score)**2
+        log_thresh_s2_min = np.log(thresh_s2_min)
+        log_thresh_s2_max = np.log(thresh_s2_max)
 
         # # Tensor with log of threshold distance squared; shape [batch_size]
-        # self.log_thresh_s2_elt = tf.Variable(initial_value=log_thresh_s2_elt, trainable=True, 
-        #                                      constraint=lambda t: tf.clip_by_value(t, log_thresh_s2_min, log_thresh_s2_max),
-        #                                      dtype=dtype, name='log_thresh_s2_elt')
+        self.log_thresh_s2_elt = tf.Variable(initial_value=log_thresh_s2_elt, trainable=True, 
+                                             constraint=lambda t: tf.clip_by_value(t, log_thresh_s2_min, log_thresh_s2_max),
+                                             dtype=dtype, name='log_thresh_s2_elt')
 
         # Tensor with threshold distance squared; shape [batch_size]
-        self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
+        # self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post = keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
 
     def get_thresh_deg(self):
         """Return the current threshold in degrees"""
-        # thresh_s_elt = tf.math.exp(tf.multiply(self.log_thresh_s2_elt, 0.5), name='thresh_s_elt')
-        thresh_s_elt = tf.math.sqrt(self.thresh_s2_elt, name='thresh_s_elt')
+        thresh_s_elt = tf.math.exp(tf.multiply(self.log_thresh_s2_elt, 0.5), name='thresh_s_elt')
+        # thresh_s_elt = tf.math.sqrt(self.thresh_s2_elt, name='thresh_s_elt')
         thresh_s_deg = dist2deg(thresh_s_elt.numpy())
         return thresh_s_deg
     
@@ -379,8 +377,8 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Update the values of thresh_s2_elt; need to use assign method; 
         # vanilla assignment just clobbers the original variable in the graph and has no effect.
-        self.thresh_s2_elt.assign(thresh_s2_elt)
-        # self.log_thresh_s2_elt.assign(log_thresh_s2_elt)
+        # self.thresh_s2_elt.assign(thresh_s2_elt)
+        self.log_thresh_s2_elt.assign(log_thresh_s2_elt)
 
     @tf.function        
     def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
@@ -398,7 +396,7 @@ class TrajectoryScore(keras.layers.Layer):
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
         
         # Transform log_thresh_s2_elt to thresh_s2_elt
-        # self.thresh_s2_elt = tf.math.exp(self.log_thresh_s2_elt, name='thresh_s2_elt')
+        self.thresh_s2_elt = tf.math.exp(self.log_thresh_s2_elt, name='thresh_s2_elt')
         
         # Upsample thresh_s2 so it matches input shape
         thresh_shape = (self.data_size,)
@@ -408,16 +406,17 @@ class TrajectoryScore(keras.layers.Layer):
         # Filter to only include terms where z2 is within the threshold distance^2
         is_close = tf.math.less(s2, self.thresh_s2, name='is_close')
 
-        # Observation weight; weight observations close to predicted location higher
-        # weight = exp(-0.5 (s2/thresh_s2)) ; the last observations will have a weight of e^-0.5 = 0.6065
-        obs_weight_arg = tf.multiply(tf.divide(s2, self.thresh_s2), 0.5)
-        obs_weight_flat = tf.exp(tf.boolean_mask(tensor=obs_weight_arg, mask=is_close))
-        
         # Relative distance v on data inside threshold
         v_num = tf.boolean_mask(tensor=s2, mask=is_close, name='v_num')
         v_den = tf.boolean_mask(tensor=self.thresh_s2, mask=is_close, name='v_den')
         v = tf.divide(v_num, v_den, name='v')
 
+        # Observation weight; weight observations close to predicted location higher
+        # weight = exp(-2.0 (s/thresh_s)) ; the last observations will have a weight of e^-2.0
+        sqrt_v = tf.sqrt(v, name='sqrt_v')
+        obs_weight_arg = tf.multiply(sqrt_v, -2.0)
+        obs_weight_flat = tf.exp(obs_weight_arg)
+        
         # Row_lengths, for close observations only
         # is_close_r = tf.RaggedTensor.from_row_lengths(values=is_close, row_lengths=self.row_lengths, name='is_close_r')
         ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths)
@@ -476,7 +475,7 @@ class TrajectoryScore(keras.layers.Layer):
         hits = tf.reduce_sum(p_hit_filtered, axis=1, name='hits')
 
         # Return the log likelihood and hits by element
-        return log_like, log_like_wtd, hits
+        return log_like, log_like_wtd, hits, row_lengths_close
 
     def get_config(self):
         return self.cfg
