@@ -336,9 +336,22 @@ class TrajectoryScore(keras.layers.Layer):
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s_elt = deg2dist(thresh_deg_score)
         thresh_s2_elt = thresh_s_elt**2
+        log_thresh_s2_elt = np.log(thresh_s2_elt)
+        # Allowed range for thresh_s2: from 10 arc seconds to the initial threshold
+        thresh_s2_min = deg2dist(10.0/3600)**2
+        thresh_s2_max = deg2dist(thresh_deg_score)**2
+        log_thresh_s2_min = np.log(thresh_s2_min)
+        log_thresh_s2_max = np.log(thresh_s2_max)
 
         # Tensor with threshold distance squared; shape [batch_size]
-        self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
+        # self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, 
+        #                                  constraint=lambda t: tf.clip_by_value(t, thresh_s2_min, thresh_s2_max)
+        #                                  dtype=dtype, name='thresh_s2_elt')
+
+        # Tensor with log of threshold distance squared; shape [batch_size]
+        self.log_thresh_s2_elt = tf.Variable(initial_value=log_thresh_s2_elt, trainable=False, 
+                                             constraint=lambda t: tf.clip_by_value(t, log_thresh_s2_min, log_thresh_s2_max),
+                                             dtype=dtype, name='log_thresh_s2_elt')
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post = keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
@@ -353,14 +366,12 @@ class TrajectoryScore(keras.layers.Layer):
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s_elt = deg2dist(thresh_deg_score)
         thresh_s2_elt = thresh_s_elt**2
-        # Update the values of thresh_s2_elt
-        # need to use assign method; vanilla assignment just clobbers the original variable in the graph and has no effect.
-        self.thresh_s2_elt.assign(thresh_s2_elt)
+        log_thresh_s2_elt = np.log(thresh_s2_elt)
 
-        # Upsample thresh_s2 so it matches input shape
-        thresh_shape = (self.data_size,)
-        self.thresh_s2_rep = tf.repeat(input=self.thresh_s2_elt, repeats=self.row_lengths, name='thresh_s2_rep')
-        self.thresh_s2 = tf.reshape(tensor=self.thresh_s2_rep, shape=thresh_shape, name='thresh_s2')
+        # Update the values of thresh_s2_elt; need to use assign method; 
+        # vanilla assignment just clobbers the original variable in the graph and has no effect.
+        # self.thresh_s2_elt.assign(thresh_s2_elt)
+        self.log_thresh_s2_elt.assign(log_thresh_s2_elt)
 
     @tf.function        
     def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
@@ -376,6 +387,9 @@ class TrajectoryScore(keras.layers.Layer):
         du = keras.layers.subtract(inputs=[u_pred, self.u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
+        
+        # Transofrm log_thresh_s2_elt to thresh_s2_elt
+        self.thresh_s2_elt = tf.math.exp(self.log_thresh_s2_elt, name='thresh_s2_elt')
         
         # Upsample thresh_s2 so it matches input shape
         thresh_shape = (self.data_size,)

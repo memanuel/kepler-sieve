@@ -1013,10 +1013,6 @@ class AsteroidSearchModel(tf.keras.Model):
         # Update batches_per_epoch
         self.batches_per_epoch = batches_per_epoch
 
-        # Try to load candidates if requested
-        # if load_at_start:
-        #    self.load(verbose=True)
-
         # Early stopping callback
         self.update_early_stop()
 
@@ -1030,6 +1026,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Dummy training inputs
         self.x_trn = tf.ones(self.samples_per_epoch, dtype=dtype)
+
+        # Save the weights; don't want to reset back to old weights b/c e.g. thresh_deg changed
+        model.save_weights()
 
         # Continue training until max_epochs or max_episodes have elapsed, or learning_rate has dropped too low
         while (self.current_batch < max_batches) and \
@@ -1045,7 +1044,7 @@ class AsteroidSearchModel(tf.keras.Model):
             print_header(f'Terminating: Completed {self.current_episode} episodes.')
         elif self.bad_episode_count >= max_bad_episodes:
             print_header(f'Terminating: Had {self.bad_episode_count} bad episodes.')
-        elif self.learning_rate <= min_learning_rate:
+        elif self.learning_rate <= effective_learning_rate:
             print_header(f'Terminating: Effective Learning Rate '
                          f'{self.effective_learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
 
