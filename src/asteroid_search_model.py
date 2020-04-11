@@ -570,6 +570,13 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
 
+    def set_thresh_deg_score(self, thresh_deg_score: float):
+        """Adjust the threshold for which observations are included in the score function"""
+        # Update the thresh_deg_score member; this is an array; above interface uses a shared scalar value
+        self.thresh_deg_score = np.full(shape=self.batch_size, fill_value=thresh_deg_score, dtype=dtype_np)
+        # Apply this update to the layer
+        self.score.set_thresh_deg(self.thresh_deg_score)
+
     def recalibrate(self):
         """Recalibrate Kepler model rebound integration at current orbital elements"""
         # Element IDs as a Numpy array
@@ -602,8 +609,6 @@ class AsteroidSearchModel(tf.keras.Model):
             # Index into df_ast_i on selected rows
             df_idx = unq_idx[mask_ztf]
             # Overwrite relevant slices of q_ast and v_ast with the newly integrated q, v
-            # self.q_ast[mask_ztf] = df_ast_i.loc[df_idx, self.cols_q_ast]
-            # self.v_ast[mask_ztf] = df_ast_i.loc[df_idx, self.cols_v_ast]
             self.q_ast[mask_ztf] = df_ast_i[self.cols_q_ast].iloc[df_idx]
             self.v_ast[mask_ztf] = df_ast_i[self.cols_v_ast].iloc[df_idx]            
 

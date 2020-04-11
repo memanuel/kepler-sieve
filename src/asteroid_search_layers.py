@@ -333,8 +333,12 @@ class TrajectoryScore(keras.layers.Layer):
         # Save the observed directions as a keras constant
         self.u_obs = keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
 
-        # The threshold distance and its square
-        self.set_thresh_deg(thresh_deg_score=thresh_deg_score)
+        # The threshold distance and its square; numpy arrays of shape [batch_size,]
+        thresh_s_elt = deg2dist(thresh_deg_score)
+        thresh_s2_elt = thresh_s_elt**2
+
+        # Tensor with threshold distance squared; shape [batch_size]
+        self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post = keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
@@ -349,8 +353,9 @@ class TrajectoryScore(keras.layers.Layer):
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s_elt = deg2dist(thresh_deg_score)
         thresh_s2_elt = thresh_s_elt**2
-        # Tensor with threshold distance squared; shape [batch_size]
-        self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
+        # Update the values of thresh_s2_elt
+        # need to use assign method; vanilla assignment just clobbers the original variable in the graph and has no effect.
+        self.thresh_s2_elt.assign(thresh_s2_elt)
 
         # Upsample thresh_s2 so it matches input shape
         thresh_shape = (self.data_size,)
@@ -372,6 +377,11 @@ class TrajectoryScore(keras.layers.Layer):
         # Squared distance bewteen predicted and observed directions
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
         
+        # Upsample thresh_s2 so it matches input shape
+        thresh_shape = (self.data_size,)
+        self.thresh_s2_rep = tf.repeat(input=self.thresh_s2_elt, repeats=self.row_lengths, name='thresh_s2_rep')
+        self.thresh_s2 = tf.reshape(tensor=self.thresh_s2_rep, shape=thresh_shape, name='thresh_s2')
+
         # Filter to only include terms where z2 is within the threshold distance^2
         is_close = tf.math.less(s2, self.thresh_s2, name='is_close')
         
