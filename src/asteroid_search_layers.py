@@ -230,7 +230,8 @@ class MixtureParameters(keras.layers.Layer):
         elt_shape = (batch_size,)
 
         # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
-        self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
+        thresh_s: float = deg2dist(thresh_deg)
+        self.half_thresh_s2 = keras.backend.constant(0.5 * thresh_s**2)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -246,7 +247,7 @@ class MixtureParameters(keras.layers.Layer):
         # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
 
         # Control of the resolution paramater R_, in range R_min to R_max
-        R_max_np = 0.5 * deg2dist(thresh_deg)
+        R_max_np = 0.5 * thresh_s
         self.R_min = keras.backend.constant(R_min_np, dtype=dtype)
         self.R_max = keras.backend.constant(R_max_np, dtype=dtype)
         log_R_min = np.log(self.R_min)
@@ -306,12 +307,13 @@ class MixtureParameters(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, u_obs_np, row_lengths_np: np.ndarray, thresh_deg: float, **kwargs):
+    def __init__(self, u_obs_np, row_lengths_np: np.ndarray, thresh_deg_score: np.ndarray, **kwargs):
         """
         INPUTS:
-            u_obs_np:       Observed positions; shape [data_size, 3]
-            row_lengths_np: Number of observations for each element; shape [elt_batch_size]
-            thresh_deg: threshold in degrees for observations to be included
+            u_obs_np:         Observed positions; shape [data_size, 3]
+            row_lengths_np:   Number of observations for each element; shape [elt_batch_size]
+            thresh_deg_score: Threshold in degrees for observations to be included;
+                              Not the same as the threshold in degrees for the original observation data.
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
@@ -319,7 +321,7 @@ class TrajectoryScore(keras.layers.Layer):
         self.cfg = {
             'u_obs_np': u_obs_np,
             'row_lengths_np': row_lengths_np,
-            'thresh_deg': thresh_deg
+            'thresh_deg_score': thresh_deg_score
         }
 
         # Sizes of the data as keras constants
@@ -332,11 +334,28 @@ class TrajectoryScore(keras.layers.Layer):
         self.u_obs = keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
 
         # The threshold distance and its square
-        self.thresh_s = keras.backend.constant(value=deg2dist(thresh_deg), dtype=dtype, name='thresh_s')
-        self.thresh_s2 = keras.backend.constant(value=self.thresh_s**2, dtype=dtype, name='thresh_s2')
+        self.set_thresh_deg(thresh_deg_score=thresh_deg_score)
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post = keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
+
+    def set_thresh_deg(self, thresh_deg_score: np.ndarray):
+        """
+        Set the threshold parameter for which observations are included in the conditional probability score calculations
+        INPUTS:
+            thresh_deg_score: Threshold in degrees for including an observation; one for each candidate element
+                              (In practice these will be the same.)
+        """        
+        # The threshold distance and its square; numpy arrays of shape [batch_size,]
+        thresh_s_elt = deg2dist(thresh_deg_score)
+        thresh_s2_elt = thresh_s_elt**2
+        # Tensor with threshold distance squared; shape [batch_size]
+        self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
+
+        # Upsample thresh_s2 so it matches input shape
+        thresh_shape = (self.data_size,)
+        self.thresh_s2_rep = tf.repeat(input=self.thresh_s2_elt, repeats=self.row_lengths, name='thresh_s2_rep')
+        self.thresh_s2 = tf.reshape(tensor=self.thresh_s2_rep, shape=thresh_shape, name='thresh_s2')
 
     @tf.function        
     def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
@@ -357,7 +376,9 @@ class TrajectoryScore(keras.layers.Layer):
         is_close = tf.math.less(s2, self.thresh_s2, name='is_close')
         
         # Relative distance v on data inside threshold
-        v = tf.divide(tf.boolean_mask(tensor=s2, mask=is_close), self.thresh_s2, name='v')
+        v_num = tf.boolean_mask(tensor=s2, mask=is_close, name='v_num')
+        v_den = tf.boolean_mask(tensor=self.thresh_s2, mask=is_close, name='v_den')
+        v = tf.divide(v_num, v_den, name='v')
 
         # Row_lengths, for close observations only
         # is_close_r = tf.RaggedTensor.from_row_lengths(values=is_close, row_lengths=self.row_lengths, name='is_close_r')

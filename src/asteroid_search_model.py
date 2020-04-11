@@ -30,7 +30,7 @@ from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
 from asteroid_search_report import traj_diff
-from nearest_asteroid import nearest_ast_elt
+from nearest_asteroid import nearest_ast_elt_cart, nearest_ast_elt_cov
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
 from tf_utils import tf_quiet, Identity
@@ -228,10 +228,14 @@ class AsteroidSearchModel(tf.keras.Model):
     consistent with a batch of observations generated from the initially guessed candidate elements.
     """
 
-    def __init__(self, elts: pd.DataFrame, ztf_elt: pd.DataFrame, 
-                 site_name: str='geocenter', thresh_deg: float = 1.0,
-                 optimizer_type: str = 'Adam',
-                 learning_rate: float = 2.0**-13, clipnorm: float = 1.0,
+    def __init__(self, 
+                 elts: pd.DataFrame, 
+                 ztf_elt: pd.DataFrame, 
+                 site_name: str='geocenter', 
+                 thresh_deg: float = 1.0,
+                 optimizer_type: str = 'adam',
+                 learning_rate: float = 2.0**-13, 
+                 clipnorm: float = 1.0,
                  **kwargs):
         """
         INPUTS:
@@ -242,6 +246,8 @@ class AsteroidSearchModel(tf.keras.Model):
                         of the orbits predicted by these elements.
                         Output of make_ztf_batch or load_ztf_batch
             site_name:  Used for topos adjustment, e.g. 'geocenter' or 'palomar'
+            thresh_deg: Threshold used for filtering the ZTF observations
+            optimizier_type: One of 'adam', 'rmsprop', 'adadelta'
             h:          Initial value of hit probability in mixture model
             R_deg:      Initial value of resolution parameter (in degrees) in mixture model
             learning_rate: Initial value of learning rate
@@ -272,8 +278,10 @@ class AsteroidSearchModel(tf.keras.Model):
         row_lengths_np = ztf_elt.element_id.groupby(ztf_elt.element_id).count()
         self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=(self.batch_size,), dtype=tf.int32)
 
-        # Threshold
+        # Threshold - original, used for data
         self.thresh_deg = thresh_deg
+        # Threshold - live, used for scoring
+        self.thresh_deg_score = np.full(shape=self.batch_size, fill_value=thresh_deg, dtype=dtype_np)
 
         # Save the original ztf_elt frame for reuse
         self.ztf_elt = ztf_elt
@@ -287,10 +295,10 @@ class AsteroidSearchModel(tf.keras.Model):
         # *****************************************************************************************
 
         # Set of trainable weights with candidate orbital elements; initialize according to elts
-        self.candidate_elements = CandidateElements(elts=elts, thresh_deg=thresh_deg, name='candidate_elements')
+        self.candidate_elements = CandidateElements(elts=elts, thresh_deg=self.thresh_deg, name='candidate_elements')
 
         # Set of trainable weights with candidate mixture parameters
-        self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=thresh_deg, name='mixture_parameters')
+        self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
 
         # The predicted direction; shape is [data_size, 3,]
         self.direction = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
@@ -310,7 +318,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Score layer for these observations
         self.score = TrajectoryScore(row_lengths_np=row_lengths_np, u_obs_np=u_obs_np,
-                                     thresh_deg=thresh_deg, name='score')
+                                     thresh_deg_score=self.thresh_deg_score, name='score')
 
         # Position model - used for comparing trajectories of fitted and known orbital elements
         self.model_pos: keras.Model = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
@@ -1056,6 +1064,9 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Add column with the element_id
         elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
+
+        # Add column with the threshold in degree for scoring
+        elts['thresh_deg_score'] = self.thresh_deg_score
         
         # Add columns for the mixture parameters
         elts['h'] = mixture_params[0].numpy()
@@ -1096,7 +1107,6 @@ class AsteroidSearchModel(tf.keras.Model):
         if self.elts_near_ast is not None:
             self.elts_near_ast.to_hdf(self.file_path, key='elts_near_ast', mode='a')
 
-
     def load(self, verbose: bool=False):
         """Load model state from disk: candidate elements and training history"""
         try:
@@ -1104,6 +1114,8 @@ class AsteroidSearchModel(tf.keras.Model):
             elts = pd.read_hdf(self.file_path, key='elts')
             self.train_hist_summary = pd.read_hdf(self.file_path, key='train_hist_summary')
             self.train_hist_elt = pd.read_hdf(self.file_path, key='train_hist_elt')
+            # Set the threshold for scoring
+            self.thresh_deg_score = elts['thresh_deg_score']
             # Load nearest asteroid information if available
             try:
                 self.elts_fit = pd.read_hdf(self.file_path, key='elts_fit')
@@ -1123,6 +1135,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.candidate_elements = CandidateElements(elts=elts, thresh_deg=self.thresh_deg, name='candidate_elements')
         # Regenerate mixture_parameters layer of this model
         self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
+        # Set the threshold for scoring
+        self.score.set_thresh_deg(thresh_deg_score=self.thresh_deg_score)
         # Restore element weight in the three modes
         self.weight_joint.assign(elts['weight_joint'].values)
         self.weight_element.assign(elts['weight_element'].values)
@@ -1259,16 +1273,32 @@ class AsteroidSearchModel(tf.keras.Model):
     # Find asteroid with nearest orbital elements; calculate position error vs. known elements
     # *********************************************************************************************
 
-    def nearest_ast(self):
-        """Search for the asteroid that is nearest in orbital trajectory to the candidate elements"""
+    def nearest_ast(self, search_type='cart'):
+        """
+        Search for the asteroid that is nearest in orbital trajectory to the candidate elements
+        INPUTS:
+            search_type: Search method for nearest element; one of 'cart', 'cov'
+        """
         # The current candidate elements, i.e. after fitting process has been run
         self.elts_fit = self.candidates_df()
 
         # Drop irrelevant columns
         self.elts_fit.drop(columns=['weight_joint', 'weight_element', 'weight_mixture'], inplace=True)
 
+        # Table of functions to find nearest asteroid
+        nearest_ast_elt_tbl = {
+            'cart' : nearest_ast_elt_cart,
+            'cov' : nearest_ast_elt_cov,
+        }
+        nearest_ast_elt_func = nearest_ast_elt_tbl[search_type]
+
         # Search for nearest asteroids to the fitted elements
-        self.elts_near_ast = nearest_ast_elt(self.elts_fit)
+        self.elts_near_ast = nearest_ast_elt_func(self.elts_fit)
+
+        # If we ran a Cartesian search, add an extra column with the Q_norm
+        if search_type == 'cart':
+            q_norm = elt_q_norm(elts=self.elts_fit, ast_num=self.elts_fit.nearest_ast_num)
+            self.elts_fit['nearest_ast_q_norm'] = q_norm
 
         # Return the inputs and nearest asteroids
         return self.elts_fit, self.elts_near_ast
