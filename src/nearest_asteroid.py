@@ -139,7 +139,7 @@ q_ast = load_known_ast_pos()
 X = tf.constant(q_ast, dtype=tf.float32)
 
 # ********************************************************************************************************************* 
-def nearest_ast_elt(elts):
+def nearest_ast_elt_cart(elts):
     """
     Search for nearest asteroid element based on Cartesian orbits
     """
@@ -231,6 +231,13 @@ def make_interp_x(x: np.ndarray):
     return x_to_z
 
 # ********************************************************************************************************************* 
+def trig_to_z(x):
+    """Convert a trigonometric variable to a standard uniform"""
+    tiny = 2.0**-20
+    u = (0.5+np.arcsin(x)/np.pi)*(1-tiny)
+    return norm.ppf(u)
+
+# ********************************************************************************************************************* 
 def ast_elt_transform(ast_elt: pd.DataFrame):
     """
     Build interpolators from orbital elements to uniform z and populate DataFrame of transformed elements
@@ -257,11 +264,13 @@ def ast_elt_transform(ast_elt: pd.DataFrame):
     # Build interpolator from sin(Omega) and cos(Omega) to z
     sin_Omega = np.sin(ast_elt.Omega.values)
     cos_Omega = np.cos(ast_elt.Omega.values)
-    sin_Omega_to_z = make_interp_x(x=sin_Omega)
-    cos_Omega_to_z = make_interp_x(x=cos_Omega)
+    # sin_Omega_to_z = make_interp_x(x=sin_Omega)
+    # cos_Omega_to_z = make_interp_x(x=cos_Omega)
     # Compute transformed values
-    sin_Omega_z = sin_Omega_to_z(sin_Omega)
-    cos_Omega_z = cos_Omega_to_z(cos_Omega)
+    # sin_Omega_z = sin_Omega_to_z(sin_Omega)
+    # cos_Omega_z = cos_Omega_to_z(cos_Omega)
+    sin_Omega_z = trig_to_z(sin_Omega)
+    cos_Omega_z = trig_to_z(cos_Omega)
     
     # Build interpolator from sin(omega) and cos(omega) to z
     sin_omega = np.sin(ast_elt.omega.values)
@@ -269,29 +278,40 @@ def ast_elt_transform(ast_elt: pd.DataFrame):
     sin_omega_to_z = make_interp_x(x=sin_omega)
     cos_omega_to_z = make_interp_x(x=cos_omega)
     # Compute transformed values
-    sin_omega_z = sin_omega_to_z(sin_omega)
-    cos_omega_z = cos_omega_to_z(cos_omega)
+    # sin_omega_z = sin_omega_to_z(sin_omega)
+    # cos_omega_z = cos_omega_to_z(cos_omega)
+    sin_omega_z = trig_to_z(sin_omega)
+    cos_omega_z = trig_to_z(cos_omega)
     
     # Build interpolator from sin(f) and cos(f) to z
     sin_f = np.sin(ast_elt.f.values)
     cos_f = np.cos(ast_elt.f.values)
-    sin_f_to_z = make_interp_x(x=sin_f)
-    cos_f_to_z = make_interp_x(x=cos_f)
+    # sin_f_to_z = make_interp_x(x=sin_f)
+    # cos_f_to_z = make_interp_x(x=cos_f)
     # Compute transformed values
-    sin_f_z = sin_f_to_z(sin_f)
-    cos_f_z = cos_f_to_z(cos_f)
+    # sin_f_z = sin_f_to_z(sin_f)
+    # cos_f_z = cos_f_to_z(cos_f)
+    sin_f_z = trig_to_z(sin_f)
+    cos_f_z = trig_to_z(cos_f)
+
     
     # Dictionary of interpolators
     interp_tbl = {
         'log_a': log_a_to_z,
         'e': e_to_z,
         'sin_inc': sin_inc_to_z,
-        'sin_Omega': sin_Omega_to_z,
-        'cos_Omega': cos_Omega_to_z,
-        'sin_omega': sin_omega_to_z,
-        'cos_omega': cos_omega_to_z,
-        'sin_f': sin_f_to_z,
-        'cos_f': cos_f_to_z,
+        # 'sin_Omega': sin_Omega_to_z,
+        # 'cos_Omega': cos_Omega_to_z,
+        # 'sin_omega': sin_omega_to_z,
+        # 'cos_omega': cos_omega_to_z,
+        # 'sin_f': sin_f_to_z,
+        # 'cos_f': cos_f_to_z,
+        'sin_Omega': trig_to_z,
+        'cos_Omega': trig_to_z,
+        'sin_omega': trig_to_z,
+        'cos_omega': trig_to_z,
+        'sin_f': trig_to_z,
+        'cos_f': trig_to_z,
     }
     
     # Create table of transformed elements
@@ -422,13 +442,17 @@ def elts_to_X_cov(elts):
     # Relevant columns
     cols_xf = ['log_a_z', 'e_z', 'sin_inc_z', 'sin_Omega_z', 'cos_Omega_z', 'sin_omega_z', 'cos_omega_z', 'sin_f_z', 'cos_f_z',]
     # Importance weights for the columns
-    importance = np.sqrt(np.array([1.0, 1.0, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,]))
+    importance = np.array([1.0, 1.0, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,])
+    # Normalize importance so it sums to 1.0
+    importance = importance / np.sum(importance)
+    # We multiply each column by the square root of its importance
+    sqrt_importance = np.sqrt(importance)
 
     # Nx9 matrix of transformed elements
     X = elts_xf[cols_xf].values
     # Scale columns by importance weights
     # (need to represent them as sin, cos pair but don't want to overweight them)
-    X = np.dot(X, np.diag(importance))
+    X = np.dot(X, np.diag(sqrt_importance))
     return X
 
 # ********************************************************************************************************************* 
@@ -476,7 +500,7 @@ def elt_q_norm(elts: pd.DataFrame, ast_num: np.ndarray):
     Y_beta = np.dot(Y, beta)
     
     # Row numbers of the input asteroid numbers; numpy array of shape [batch_size,]
-    row_num = ast_elt.row_num.loc[ast_num].values
+    row_num = ast_elt.loc[ast_num].row_num.values
     # X_beta for these asteroid numbers
     X_beta_ast = X_beta[row_num]
     
@@ -507,16 +531,16 @@ def nearest_ast_elt_cov(elts):
 
     # Distance from Y_beta to X_beta; shape [N_ast, N_elt] e.g. [733489, 64]
     # Use numpy broadcasting trick to avoid an expensive for loop
-    dist = np.linalg.norm(X_beta.reshape(-1, 1, 9) - Y_beta.reshape(1, -1, 9), axis=-1)
+    Q_norm_tbl = np.linalg.norm(X_beta.reshape(-1, 1, 9) - Y_beta.reshape(1, -1, 9), axis=-1)
 
     # Row number of nearest asteroid elements
-    row_idx = np.argmin(dist, axis=0)
+    row_idx = np.argmin(Q_norm_tbl, axis=0)
     # Asteroid numbers of nearest asteroid elements
     ast_num = ast_elt.Num.values[row_idx]
 
     # Q_norm to nearest asteroid element
     col_idx = np.arange(row_idx.size, dtype=np.int32)
-    Q_norm = dist[row_idx, col_idx]
+    Q_norm = Q_norm_tbl[row_idx, col_idx]
 
     # The closest asteroid elements
     # Columns from ast_elt we want in ast_elt_nearest
@@ -547,6 +571,6 @@ def nearest_ast_elt_cov(elts):
     if 'nearest_ast_Q_norm' not in elts.columns:
         elts.insert(loc=elts.columns.size, column='nearest_ast_Q_norm', value=Q_norm)
     else:
-        elts['nearest_ast_dist'] = Q_norm
+        elts['nearest_ast_Q_norm'] = Q_norm
 
     return ast_elt_nearest
