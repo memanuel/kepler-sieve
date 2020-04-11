@@ -337,25 +337,34 @@ class TrajectoryScore(keras.layers.Layer):
         thresh_s_elt = deg2dist(thresh_deg_score)
         thresh_s2_elt = thresh_s_elt**2
         log_thresh_s2_elt = np.log(thresh_s2_elt)
-        # Allowed range for thresh_s2: from 10 arc seconds to the initial threshold
-        thresh_s2_min = deg2dist(10.0/3600)**2
-        thresh_s2_max = deg2dist(thresh_deg_score)**2
-        log_thresh_s2_min = np.log(thresh_s2_min)
-        log_thresh_s2_max = np.log(thresh_s2_max)
+
+        # Support for making thresh_deg_score trainable
+        # Only makes sense if it is used to set importance weights inside the threshold
+        # Otherwise, won't get any gradient
+        # # Allowed range for thresh_s2: from 10 arc seconds to the initial threshold
+        # thresh_s2_min = deg2dist(10.0/3600)**2
+        # thresh_s2_max = deg2dist(thresh_deg_score)**2
+        # log_thresh_s2_min = np.log(thresh_s2_min)
+        # log_thresh_s2_max = np.log(thresh_s2_max)
+
+        # # Tensor with log of threshold distance squared; shape [batch_size]
+        # self.log_thresh_s2_elt = tf.Variable(initial_value=log_thresh_s2_elt, trainable=True, 
+        #                                      constraint=lambda t: tf.clip_by_value(t, log_thresh_s2_min, log_thresh_s2_max),
+        #                                      dtype=dtype, name='log_thresh_s2_elt')
 
         # Tensor with threshold distance squared; shape [batch_size]
-        # self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, 
-        #                                  constraint=lambda t: tf.clip_by_value(t, thresh_s2_min, thresh_s2_max)
-        #                                  dtype=dtype, name='thresh_s2_elt')
-
-        # Tensor with log of threshold distance squared; shape [batch_size]
-        self.log_thresh_s2_elt = tf.Variable(initial_value=log_thresh_s2_elt, trainable=False, 
-                                             constraint=lambda t: tf.clip_by_value(t, log_thresh_s2_min, log_thresh_s2_max),
-                                             dtype=dtype, name='log_thresh_s2_elt')
+        self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post = keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
 
+    def get_thresh_deg(self):
+        """Return the current threshold in degrees"""
+        # thresh_s_elt = tf.math.exp(tf.multiply(self.log_thresh_s2_elt, 0.5), name='thresh_s_elt')
+        thresh_s_elt = tf.math.sqrt(self.thresh_s2_elt, name='thresh_s_elt')
+        thresh_s_deg = dist2deg(thresh_s_elt.numpy())
+        return thresh_s_deg
+    
     def set_thresh_deg(self, thresh_deg_score: np.ndarray):
         """
         Set the threshold parameter for which observations are included in the conditional probability score calculations
@@ -370,8 +379,8 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Update the values of thresh_s2_elt; need to use assign method; 
         # vanilla assignment just clobbers the original variable in the graph and has no effect.
-        # self.thresh_s2_elt.assign(thresh_s2_elt)
-        self.log_thresh_s2_elt.assign(log_thresh_s2_elt)
+        self.thresh_s2_elt.assign(thresh_s2_elt)
+        # self.log_thresh_s2_elt.assign(log_thresh_s2_elt)
 
     @tf.function        
     def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
@@ -388,8 +397,8 @@ class TrajectoryScore(keras.layers.Layer):
         # Squared distance bewteen predicted and observed directions
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
         
-        # Transofrm log_thresh_s2_elt to thresh_s2_elt
-        self.thresh_s2_elt = tf.math.exp(self.log_thresh_s2_elt, name='thresh_s2_elt')
+        # Transform log_thresh_s2_elt to thresh_s2_elt
+        # self.thresh_s2_elt = tf.math.exp(self.log_thresh_s2_elt, name='thresh_s2_elt')
         
         # Upsample thresh_s2 so it matches input shape
         thresh_shape = (self.data_size,)
@@ -398,6 +407,11 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Filter to only include terms where z2 is within the threshold distance^2
         is_close = tf.math.less(s2, self.thresh_s2, name='is_close')
+
+        # Observation weight; weight observations close to predicted location higher
+        # weight = exp(-0.5 (s2/thresh_s2)) ; the last observations will have a weight of e^-0.5 = 0.6065
+        obs_weight_arg = tf.multiply(tf.divide(s2, self.thresh_s2), 0.5)
+        obs_weight_flat = tf.exp(tf.boolean_mask(tensor=obs_weight_arg, mask=is_close))
         
         # Relative distance v on data inside threshold
         v_num = tf.boolean_mask(tensor=s2, mask=is_close, name='v_num')
@@ -429,6 +443,8 @@ class TrajectoryScore(keras.layers.Layer):
         p_miss = tf.subtract(1.0, h_vec, name='p_miss')
         p = tf.add(p_hit, p_miss, name='p')
         log_p_flat = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
+        # Weighted log probability, by observation weight
+        log_p_wtd_flat = tf.multiply(log_p_flat, obs_weight_flat, name='log_p_wtd_flat')
 
         # The posterior hit probability is p_hit / p
         p_hit_post_flat = tf.divide(p_hit, p)
@@ -440,17 +456,27 @@ class TrajectoryScore(keras.layers.Layer):
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
         ragged_map_func_close = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
         log_p = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
+        log_p_wtd = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p_wtd')(log_p_wtd_flat)
+        obs_weight = tf.keras.layers.Lambda(function=ragged_map_func_close, name='obs_weight')(obs_weight_flat)
+        # Count hits
         p_hit_filtered = tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
         p_hit_post = tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_post')(p_hit_post_flat)
 
         # Log likelihood by element
         log_like = tf.reduce_sum(log_p, axis=1, name='log_like')
-        # Effective hit count count by element
+        # Weighted Log likelihood by element
+        # First sum by element
+        log_like_wtd_by_elt = tf.reduce_sum(log_p_wtd, axis=1, name='log_like_wtd_by_elt')
+        # Multiply the score for each element by the number of close observations so units are comparable log like
+        row_lengths_close_float = tf.cast(x=row_lengths_close, dtype=dtype)
+        log_like_wtd_num = tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
+        log_like_wtd_den = tf.reduce_sum(obs_weight, axis=1, name='log_like_wtd_den')
+        log_like_wtd = tf.divide(log_like_wtd_num, log_like_wtd_den)
+        # Hit count count by element
         hits = tf.reduce_sum(p_hit_filtered, axis=1, name='hits')
-        hits_raw = tf.reduce_sum(p_hit_filtered, axis=1, name='hits_raw')
 
         # Return the log likelihood and hits by element
-        return log_like, hits, hits_raw
+        return log_like, log_like_wtd, hits
 
     def get_config(self):
         return self.cfg

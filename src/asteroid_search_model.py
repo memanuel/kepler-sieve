@@ -448,20 +448,18 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
-        log_like, hits, hits_raw = self.score(u_pred, h=h, lam=lam)
+        log_like, log_like_wtd, hits = self.score(u_pred, h=h, lam=lam)
         
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs = keras.backend.stack([log_like, hits])
 
         # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
         weight = self.get_active_weight()
-        weighted_loss = tf.multiply(weight, log_like)
+        # weighted_loss = tf.multiply(weight, log_like)
+        weighted_loss = tf.multiply(weight, log_like_wtd)
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
         loss = -tf.reduce_sum(weighted_loss)
         self.add_loss(loss)
-        # # Extra loss for raw hits
-        # loss_hits = -tf.reduce_sum(hits_raw)
-        # self.add_loss(loss_hits)
 
         # Wrap outputs
         outputs = (score_outputs, orbital_elements, mixture_parameters)
@@ -570,12 +568,16 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
 
-    def set_thresh_deg_score(self, thresh_deg_score: float):
+    def set_thresh_deg_score(self, thresh_deg_score: np.ndarray):
         """Adjust the threshold for which observations are included in the score function"""
-        # Update the thresh_deg_score member; this is an array; above interface uses a shared scalar value
-        self.thresh_deg_score = np.full(shape=self.batch_size, fill_value=thresh_deg_score, dtype=dtype_np)
+        # If thresh_deg_score was a scalar, promote it to a full numpy array
+        if isinstance(thresh_deg_score, float):
+            thresh_deg_score = np.full(shape=self.batch_size, fill_value=thresh_deg_score, dtype=dtype_np)
+        # Update the thresh_deg_score member; this is an array
+        self.thresh_deg_score = thresh_deg_score
         # Apply this update to the layer
         self.score.set_thresh_deg(self.thresh_deg_score)
+
 
     def recalibrate(self):
         """Recalibrate Kepler model rebound integration at current orbital elements"""
@@ -646,6 +648,18 @@ class AsteroidSearchModel(tf.keras.Model):
         self.recompile()
         self.update_early_stop()
         self.training_mode = 'joint' if self.candidate_elements.trainable else 'mixture'
+
+    # def freeze_score(self):
+    #     """Make the score layer (e.g. thresh_deg_score) not trainable"""
+    #     self.score.trainable = False
+    #     self.recompile()
+    #     self.update_early_stop()
+
+    # def thaw_score(self):
+    #     """Make the score layer (e.g. thresh_deg_score) trainable (unfrozen)"""
+    #     self.score.trainable = True
+    #     self.recompile()
+    #     self.update_early_stop()
 
     # *********************************************************************************************
     # Adaptive training; save weights and history at episode end
@@ -1028,7 +1042,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.x_trn = tf.ones(self.samples_per_epoch, dtype=dtype)
 
         # Save the weights; don't want to reset back to old weights b/c e.g. thresh_deg changed
-        model.save_weights()
+        self.save_weights()
 
         # Continue training until max_epochs or max_episodes have elapsed, or learning_rate has dropped too low
         while (self.current_batch < max_batches) and \
@@ -1044,7 +1058,7 @@ class AsteroidSearchModel(tf.keras.Model):
             print_header(f'Terminating: Completed {self.current_episode} episodes.')
         elif self.bad_episode_count >= max_bad_episodes:
             print_header(f'Terminating: Had {self.bad_episode_count} bad episodes.')
-        elif self.learning_rate <= effective_learning_rate:
+        elif self.learning_rate <= self.effective_learning_rate:
             print_header(f'Terminating: Effective Learning Rate '
                          f'{self.effective_learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
 
@@ -1062,6 +1076,8 @@ class AsteroidSearchModel(tf.keras.Model):
         score_outputs, orbital_elements, mixture_params = self.calc_outputs()
         # Unpack score_outputs
         log_like, hits = score_outputs
+        # Extract thresh_deg from score layer
+        thresh_deg_score = self.score.get_thresh_deg()
         
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
@@ -1070,7 +1086,7 @@ class AsteroidSearchModel(tf.keras.Model):
         elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
 
         # Add column with the threshold in degree for scoring
-        elts['thresh_deg_score'] = self.thresh_deg_score
+        elts['thresh_deg_score'] = thresh_deg_score
         
         # Add columns for the mixture parameters
         elts['h'] = mixture_params[0].numpy()
