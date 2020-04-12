@@ -85,10 +85,7 @@ def Rdeg2lam(R_deg, thresh_deg):
 class CandidateElements(keras.layers.Layer):
     """Custom layer to maintain state of candidate orbital elements and resolutions."""
 
-    def __init__(self, 
-                 elts: pd.DataFrame, 
-                 # thresh_deg: np.ndarray,
-                 **kwargs):
+    def __init__(self, elts: pd.DataFrame, **kwargs):
         super(CandidateElements, self).__init__(**kwargs)
         
         # Configuration for serialization
@@ -99,9 +96,6 @@ class CandidateElements(keras.layers.Layer):
         # Infer batch size from elts DataFrame
         batch_size = elts.shape[0]
         elt_shape = (batch_size,)
-
-        # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
-        # self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -116,9 +110,6 @@ class CandidateElements(keras.layers.Layer):
         # Control over e_, in range e_min to e_max
         self.e_min = keras.backend.constant(e_min_, dtype=dtype)
         self.e_max = keras.backend.constant(e_max_, dtype=dtype)
-        # self.e_range = tf.constant(e_max_ - e_min_, dtype=dtype)
-        # self.e_ = tf.Variable(initial_value=self.inverse_e(elts['e']), trainable=True, 
-        #                      constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='e_')
         self.e_ = tf.Variable(initial_value=elts['e'], trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
@@ -130,7 +121,7 @@ class CandidateElements(keras.layers.Layer):
                                 constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='inc_')
         
         # Scale factor for unconstrained angles is 2*pi
-        self.two_pi = keras.backend.constant(2*np.pi, dtype=dtype)
+        self.two_pi = keras.backend.constant(2.0*np.pi, dtype=dtype)
         
         # Angle variables Omega, omega and f
         self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, dtype=dtype, name='Omega_')
@@ -152,12 +143,7 @@ class CandidateElements(keras.layers.Layer):
     @tf.function
     def get_e(self):
         """Transformed value of e"""
-        # return self.e_min + self.e_ * self.e_range
         return self.e_
-
-    # def inverse_e(self, e):
-    #    """Inverse transform value of e"""
-    #    return (e - self.e_min) / self.e_range
 
     @tf.function
     def get_inc(self):
@@ -211,10 +197,7 @@ class CandidateElements(keras.layers.Layer):
 class MixtureParameters(keras.layers.Layer):
     """Custom layer to maintain state of mixture parameters."""
 
-    def __init__(self, 
-                 elts: pd.DataFrame, 
-                 thresh_deg: np.ndarray,
-                 **kwargs):
+    def __init__(self, elts: pd.DataFrame, **kwargs):
         super(MixtureParameters, self).__init__(**kwargs)
         
         # Configuration for serialization
@@ -227,8 +210,8 @@ class MixtureParameters(keras.layers.Layer):
         elt_shape = (batch_size,)
 
         # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
-        thresh_s: float = deg2dist(thresh_deg)
-        thresh_s2: float = thresh_s**2
+        thresh_s: np.ndarray = elts['thresh_s'].values
+        thresh_s2: np.ndarray = thresh_s**2
         # self.half_thresh_s2 = keras.backend.constant(0.5 * thresh_s**2)
         self.half_thresh_s2 = tf.Variable(initial_value=0.5*thresh_s2, trainable=False, dtype=dtype, name='half_thresh_s2')
 
@@ -301,6 +284,17 @@ class MixtureParameters(keras.layers.Layer):
         self.log_R_range.assign(log_R_range)
         # Assign the updated R back to the layer
         self.set_R(R)
+
+    def set_thresh_s2(self, thresh_s2: np.ndarray):
+        """Set the thresh_s2 parameter"""
+        half_thresh_s2 = 0.5 * thresh_s2
+        self.half_thresh_s2.assign(half_thresh_s2)
+
+    def set_thresh_deg(self, thresh_deg: np.ndarray):
+        """Set the thresh_s2 paramete by specifying the threshold in degrees"""
+        thresh_s = deg2dist(thresh_deg)
+        thresh_s2 = thresh_s**2
+        self.set_thresh_s2(thresh_s2)
 
     @tf.function
     def call(self, inputs=None):

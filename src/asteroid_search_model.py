@@ -281,7 +281,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Threshold - original, used for data
         self.thresh_deg_data = thresh_deg
-        # Threshold - live, used for scoring
+        # Threshold - live, used for scoring; array of shape [batch_size,]
         self.thresh_deg = np.full(shape=self.batch_size, fill_value=thresh_deg, dtype=dtype_np)
 
         # Save the original ztf_elt frame for reuse
@@ -299,7 +299,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.candidate_elements = CandidateElements(elts=elts, name='candidate_elements')
 
         # Set of trainable weights with candidate mixture parameters
-        self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
+        # self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
+        self.mixture_parameters = MixtureParameters(elts=elts, name='mixture_parameters')
 
         # The predicted direction; shape is [data_size, 3,]
         self.direction = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
@@ -420,8 +421,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.elts_near_ast = None
 
         # Save hash IDs for elts and ztf_elts
-        self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=thresh_deg)
-        self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, ztf=self.ztf_elt, thresh_deg=thresh_deg, near_ast=False)
+        self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=self.thresh_deg_data)
+        self.ztf_elt_hash_id: int = ztf_elt_hash(elts=elts, ztf=self.ztf_elt, thresh_deg=self.thresh_deg_data, near_ast=False)
         # File name for saving training progress
         self.file_path = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
 
@@ -599,8 +600,9 @@ class AsteroidSearchModel(tf.keras.Model):
             thresh_deg = np.full(shape=self.batch_size, fill_value=thresh_deg, dtype=dtype_np)
         # Update the thresh_deg member; this is an array
         self.thresh_deg = thresh_deg
-        # Apply this update to the score layer
+        # Apply this update to the score layer and mixture parameters layer
         self.score.set_thresh_deg(self.thresh_deg)
+        self.mixture_parameters.set_thresh_deg(self.thresh_deg)
 
     def set_thresh_deg_max(self, thresh_deg_max: float):
         """Adjust thresh_deg to at most thresh_deg_max"""
@@ -609,8 +611,10 @@ class AsteroidSearchModel(tf.keras.Model):
             thresh_deg_max = np.full(shape=self.batch_size, fill_value=thresh_deg_max, dtype=dtype_np)
         # Update the thresh_deg member; this is an array
         self.thresh_deg = np.minimum(self.thresh_deg, thresh_deg_max)
-        # Apply the new threshold to the score layer
+        # Apply the new max threshold to the score layer
         self.score.set_thresh_deg_max(thresh_deg_max)
+        # Apply the updated value to the mixture parameters layer
+        self.mixture_parameters.set_thresh_deg(self.thresh_deg)
 
     def recalibrate(self):
         """Recalibrate Kepler model rebound integration at current orbital elements"""
@@ -807,6 +811,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
             # Threshold
             'thresh_deg': thresh_deg,
+            'thresh_s': deg2dist(thresh_deg),
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -878,7 +883,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'log_R_min': [np.min(log_R)],
             'log_R_max': [np.max(log_R)],
 
-            # Summary of threshold_deg_score
+            # Summary of threshold_deg
             'thresh_deg_mean' : [np.mean(thresh_deg)],
             'thresh_deg_std' : [np.std(thresh_deg)],
             'thresh_deg_min' : [np.min(thresh_deg)],
@@ -941,18 +946,7 @@ class AsteroidSearchModel(tf.keras.Model):
         weight_old = self.get_active_weight()
         weight_new = tf.where(condition=is_worse, x=weight_old*self.lr_factor_elt_dn, y=weight_old)
         # Median of the proposed new weights before normalization
-        weight_med = tf.reduce_min(tf.nn.top_k(weight_new, self.batch_size//2, sorted=False).values)
-        
-        # This idea would make sense with only one training mode.
-        # But with multiple training modes having different element weights, it's more trouble than it's worth.
-        # If the median weight is less than 1, divide by weight_max and multiply learning_rate by weight_max
-        # The net effect does not change the training, but makes it easier to disentangle LR from weight
-        # if weight_med < 1.0:
-        #    weight_new = tf.divide(weight_new, weight_med)
-        #    lr_factor = weight_med
-        #    self.adjust_learning_rate(lr_factor=lr_factor, verbose=False)
-        # if weight_med < 1.0 and verbose:
-        #    print(f'Adjusted global learning rate by lr_factor={lr_factor}.')
+        # weight_med = tf.reduce_min(tf.nn.top_k(weight_new, self.batch_size//2, sorted=False).values)
         
         # Apply the new active weight 
         self.set_active_weight(weight_new)
@@ -1048,7 +1042,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.episode_end(hist)
 
     def search_adaptive(self, 
-                        max_batches: int = 10000, 
+                        max_batches: int = 1000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
                         thresh_deg_start: float = None,
@@ -1057,7 +1051,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         learning_rate: Optional[float] = None,
                         min_learning_rate: Optional[float] = None,
                         reset_active_weight: bool = False,
-                        save_at_end: bool=False,
+                        save_at_end: bool = False,
                         verbose: int = 1):
         """
         Run asteroid search model adaptively.  
@@ -1224,16 +1218,15 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Add column with the element_id
         elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
-
-        # Add column with the threshold in degrees
-        elts['thresh_deg'] = thresh_deg
-        
+       
         # Add columns for the mixture parameters
         elts['h'] = mixture_params[0].numpy()
         elts['lam'] = mixture_params[1].numpy()
         elts['R'] = mixture_params[2].numpy()
         elts['R_deg'] = dist2deg(elts.R)
         elts['R_sec'] = 3600.0 * elts.R_deg
+        elts['thresh_deg'] = thresh_deg
+        elts['thresh_s'] = deg2dist(thresh_deg)
 
         # Add columns with log likelihood and hits
         elts['log_like'] = log_like.numpy()
@@ -1292,9 +1285,9 @@ class AsteroidSearchModel(tf.keras.Model):
             print(f'Loaded candidate elements and training history from {self.file_path}.')
 
         # Regenerate candidate_elements layer of this model
-        self.candidate_elements = CandidateElements(elts=elts, thresh_deg=self.thresh_deg, name='candidate_elements')
+        self.candidate_elements = CandidateElements(elts=elts, name='candidate_elements')
         # Regenerate mixture_parameters layer of this model
-        self.mixture_parameters = MixtureParameters(elts=elts, thresh_deg=self.thresh_deg, name='mixture_parameters')
+        self.mixture_parameters = MixtureParameters(elts=elts, name='mixture_parameters')
         # Set the threshold in degrees
         self.score.set_thresh_deg(thresh_deg=self.thresh_deg)
         # Restore element weight in the three modes
@@ -1730,6 +1723,7 @@ class AsteroidSearchModel(tf.keras.Model):
         print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} :  {R_deg_std:8.6f} : {R_deg_std*3600:8.2f} : {thresh_deg_std:8.6f}')
         print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} :  {R_deg_min:8.6f} : {R_deg_min*3600:8.2f} : {thresh_deg_min:8.6f}')
         print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} :  {R_deg_max:8.6f} : {R_deg_max*3600:8.2f} : {thresh_deg_max:8.6f}')
+        print(f'Trained for {self.current_batch} batches over {self.current_epoch} epochs and {self.current_episode} episodes.')
 
     def review_members(self):
         """Print diagnostic review of members to console"""
