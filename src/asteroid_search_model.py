@@ -12,7 +12,6 @@ import pandas as pd
 
 # Tensorflow / ML
 import tensorflow as tf
-from tensorflow.python.keras import backend as K
 
 # Plotting
 import matplotlib.pyplot as plt
@@ -438,20 +437,20 @@ class AsteroidSearchModel(tf.keras.Model):
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=inputs)
         
         # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
-        num_hits, lam, R = self.mixture_parameters(inputs=inputs)
+        num_hits, R = self.mixture_parameters(inputs=inputs)
         
         # Stack the current orbital elements.  Shape is [batch_size, 7,]
         orbital_elements = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
-        # Stack mixture model parameters. Shape is [batch_size, 3,]
-        mixture_parameters = keras.backend.stack([num_hits, lam, R,])
+        # Stack mixture model parameters. Shape is [batch_size, 2,]
+        mixture_parameters = keras.backend.stack([num_hits, R,])
 
         # Tensor of predicted directions.  Shape is [data_size, 3,]
         u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
-        log_like, log_like_wtd, hits, row_lengths_close = self.score(u_pred, num_hits=num_hits, lam=lam)
+        log_like, log_like_wtd, hits, row_lengths_close = self.score(u_pred, num_hits=num_hits, R=R)
         # Get the mean log like
         # log_like_mean = tf.divide(log_like, tf.cast(x=row_lengths_close, dtype=dtype))
         # Re-scale to the original number of rows; this way doesn't shrink as resolution changes
@@ -525,8 +524,8 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def get_mixture_params(self):
         """Extract the current mixture parameters"""
-        num_hits, lam, R = self.mixture_parameters(inputs=None)
-        return num_hits, lam, R
+        num_hits, R = self.mixture_parameters(inputs=None)
+        return num_hits, R
 
     def get_thresh_deg(self):
         """Extract the threshold in degrees"""
@@ -768,8 +767,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Extract mixture parameters
         num_hits = mixture_params[0]
-        lam = mixture_params[1]
-        R = mixture_params[2]
+        R = mixture_params[1]
         R_deg = dist2deg(R)
         R_sec = dist2sec(R)
         log_R = np.log(R)
@@ -809,7 +807,6 @@ class AsteroidSearchModel(tf.keras.Model):
             
             # Mixture parameters
             'num_hits': num_hits,
-            'lam': lam,
             'R': R,
             'R_deg': R_deg,
             'R_sec': R_sec,
@@ -1227,12 +1224,12 @@ class AsteroidSearchModel(tf.keras.Model):
        
         # Add columns for the mixture parameters
         elts['num_hits'] = mixture_params[0].numpy()
-        elts['lam'] = mixture_params[1].numpy()
-        elts['R'] = mixture_params[2].numpy()
+        elts['R'] = mixture_params[1].numpy()
         elts['R_deg'] = dist2deg(elts.R)
         elts['R_sec'] = 3600.0 * elts.R_deg
-        elts['thresh_deg'] = thresh_deg
         elts['thresh_s'] = deg2dist(thresh_deg)
+        elts['thresh_deg'] = thresh_deg
+        elts['thresh_sec'] = 3600.0 * elts.thresh_deg
 
         # Add columns with log likelihood and hits
         elts['log_like'] = log_like.numpy()
@@ -1710,7 +1707,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Summarize resolution
         # num_hits = mixture_parameters[0].numpy()
-        R_deg = dist2deg(mixture_parameters[2].numpy())
+        R_deg = dist2deg(mixture_parameters[1].numpy())
         R_deg_mean = np.mean(R_deg)
         R_deg_std = np.std(R_deg)
         R_deg_min = np.min(R_deg)

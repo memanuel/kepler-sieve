@@ -12,7 +12,6 @@ import pandas as pd
 
 # Tensorflow / ML
 import tensorflow as tf
-from tensorflow.python.keras import backend as K
 
 # Utility
 import time
@@ -52,10 +51,6 @@ a_max_: float = 32.0
 # Range for e
 e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
-
-# Range for hit rate h
-h_min_ = 2.0**-14
-h_max_ = 1.0 - h_min_
 
 # Range for num_hits
 num_hits_min_ = 6.0
@@ -312,11 +307,10 @@ class MixtureParameters(keras.layers.Layer):
     @tf.function
     def call(self, inputs=None):
         """Return the current candidate orbital elements and mixture model parameters"""
-        # Transform search parameters h and lambda
+        # Transform search parameters num_hits and R
         num_hits = self.get_num_hits()
-        lam = self.get_lam()
         R = self.get_R()
-        return (num_hits, lam, R)
+        return (num_hits, R)
 
     def get_config(self):
         return self.cfg
@@ -424,23 +418,27 @@ class TrajectoryScore(keras.layers.Layer):
         self.set_thresh_s2(thresh_s2)
 
     @tf.function        
-    def call(self, u_pred: tf.Tensor, num_hits: tf.Tensor, lam: tf.Tensor):
+    def call(self, u_pred: tf.Tensor, num_hits: tf.Tensor, R: tf.Tensor):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
             u_pred:     predicted directions with current batch of elements
             u_obs:      observed directions
             num_hits:   number of hits in mixture model
-            lam:        exponential decay parameter in mixture model
+            R:          resolution parameter (Cartesian distance)
         """
+        # Transform thresh_s2_ to thresh_s2_elt
+        self.thresh_s2_elt = self.get_thresh_s2()
+        
+        # Convert R to exponential decay parameter lam
+        half_thresh_s2 = tf.multiply(self.thresh_s2_elt, 0.5, name='half_thresh_s2')
+        R2 = tf.square(R, name='R2')
+        lam = tf.divide(half_thresh_s2, R2, name='lam')
         
         # Difference between actual and predicted directions
         du = keras.layers.subtract(inputs=[u_pred, self.u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
         s2 = tf.reduce_sum(tf.square(du), axis=(-1), name='s2')
-        
-        # Transform thresh_s2_ to thresh_s2_elt
-        self.thresh_s2_elt = self.get_thresh_s2()
         
         # Upsample thresh_s2 so it matches input shape
         thresh_shape = (self.data_size,)
