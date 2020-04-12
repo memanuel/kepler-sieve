@@ -281,6 +281,9 @@ class AsteroidPosition(keras.layers.Layer):
         # Convert orbital elements to heliocentric cartesian coordinates
         q_helio, v_helio = ElementToPosition(name='qv_helio')(elt_t)
 
+        # Distance from the sun to the asteroid (useful for magnitude)
+        # r_helio = tf.linalg.norm(q_helio, axis=-1, name='r_helio')
+
         # Add solar position and velocity to get q, v in barycentric coordinates
         # Also add the optional correction factors dq, dv from calibration
         q = keras.layers.add(inputs=[q_helio, self.q_sun, self.dq], name='q_flat')
@@ -299,8 +302,8 @@ class AsteroidDirection(keras.layers.Layer):
     def __init__(self, ts_np: np.ndarray, row_lengths_np: np.ndarray, site_name: str, **kwargs):
         """
         INPUTS:
-            ts: Ragged tensor of time snapshots at which to simulate the position.
-                Shape [elt_batch_size, (traj_size),]; each element has a different number of time snaps
+            ts_np: numpy array of time snapshots at which to simulate the position.
+                   Shape [data_size, ]; each element has a different number of time snaps
             row_lengths: Number of observations for each element; shape [elt_batch_size]
             site_name: name of the observatory site, used for topos adjustment, e.g. 'geocenter' or 'palomar'            
         """
@@ -357,36 +360,153 @@ class AsteroidDirection(keras.layers.Layer):
         These are also flat, with u.shape = [data_size, 3,] r.shape = [data_size, 1]
         """
         # Calculate position and velocity of the asteroid
+        # Includes distance r_helio from sun to ast for magnitude calcs
         q_ast, v_ast = self.q_layer(a, e, inc, Omega, omega, f, epoch)
+
+        # Phase angle between asteroid, sun and earth
 
         # Relative displacement from observatory to asteroid; instantaneous, before light time adjustment
         # q_rel_inst = tf.subtract(q_ast, self.q_obs, name='q_rel_inst')
         q_rel_inst = keras.layers.subtract(inputs=[q_ast, self.q_obs], name='q_rel_inst')
 
         # Distance between earth and asteroid, before light time adjustment
-        r_inst = tf.norm(q_rel_inst, axis=-1, keepdims=True, name='r_earth_inst')
+        delta_inst = tf.norm(q_rel_inst, axis=-1, keepdims=True, name='delta_inst')
 
         # Light time in days from asteroid to earth in days (time units is days)
-        light_time = tf.divide(r_inst, light_speed_au_day)
+        light_time = tf.divide(delta_inst, light_speed_au_day)
         
         # Adjusted relative position, accounting for light time; simulation velocity units are AU /day
         dq_lt = tf.multiply(v_ast, light_time)
         q_rel = tf.subtract(q_rel_inst, dq_lt)
         # Adjusted distance to earth, accounting for light time
-        r = tf.norm(q_rel, axis=-1, keepdims=True, name='r')
+        delta = tf.norm(q_rel, axis=-1, keepdims=True, name='delta')
 
         # Convert q_rel and r to ragged tensors
         # q_rel = tf.RaggedTensor.from_row_lengths(values=q_rel, row_lengths=self.row_lengths, name='q_rel_r')
         # r_r = tf.RaggedTensor.from_row_lengths(values=r, row_lengths=self.row_lengths, name='r_r')
 
         # Direction from earth to asteroid as unit vectors u = (ux, uy, uz)    
-        u = tf.divide(q_rel, r, name='u')
+        u = tf.divide(q_rel, delta, name='u')
 
-        return u, r
+        return u, delta, q_ast
     
     def get_config(self):
         return self.cfg
     
+
+# ********************************************************************************************************************* 
+class AsteroidMagnitude(keras.layers.Layer):
+    """
+    Layer to compute the apparent magnitude of an asteroid
+    See: https://www.britastro.org/asteroids/dymock4.pdf for details
+    """
+
+    def __init__(self, ts_np: np.ndarray, row_lengths_np: np.ndarray, **kwargs):
+        """
+        INPUTS:
+            ts_np: numpy array of time snapshots at which to simulate the position.
+                   Shape [data_size, ]; each element has a different number of time snaps
+            row_lengths: Number of observations for each element; shape [elt_batch_size]
+        """
+        super(AsteroidDirection, self).__init__(**kwargs)
+
+        # Configuration for serialization
+        self.cfg = {
+            'ts_np': ts_np,
+            'row_lengths_np': row_lengths_np,
+        }
+
+        # Save ts and row_lenghts as a keras constants
+        self.ts = keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype)
+        self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
+
+        # Infer elt_batch_size from shape of row_lengths
+        self.elt_batch_size = keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
+
+        # Save the data size
+        self.data_size = keras.backend.constant(value=tf.reduce_sum(self.row_lengths), dtype=tf.int32)
+
+        # Shape of trajectories is flat: (data_size, 3,)
+        traj_shape = (self.data_size, space_dims)
+
+        # Take a one time snapshot of the earth's position at these times in barycentric coordinates
+        # Don't bother with topos adjustment, this is just an approximation
+        q_obs_np = get_earth_pos(ts_np)
+        # Position of the observer in barycentric frame as a Keras constant
+        self.q_obs = keras.backend.constant(value=q_obs_np, shape=traj_shape, dtype=dtype, name='q_obs')
+
+    @tf.function
+    def call(self, q_ast, H):
+        """
+        Compute the apparent magnitude V of the asteroid.
+        Simple model, no phase adjustment term.
+        """
+        # Distance delta from observer (earth) to asteroid
+        delta = tf.linalg.norm(q_obs - q_ast, axis=-1, name='delta')
+        # Distance r from sun to asteroid; use barycenter as approximation
+        r = tf.linalg.norm(q_ast, axis=-1, name='r')
+        # Distance r_obs from sun to earth
+        r_obs = tf.linalg.norm(q_obs, axis=-1, name='r_obs')
+        
+        # Compute the distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
+        log10 = tf.math.log(10.0)
+        dist_adj_coef = tf.divide(5.0, log10, name='dist_adj_coef')
+        r_delta = tf.multiply(r, delta, name='r_delta')
+        log_r_delta = tf.math.log(r_delta, name='log_r_delta')
+        dist_adj = tf.multiply(dist_adj_coef, log_r_delta, name='dist_adj')
+
+        # The predicted magnitude is the sum of H and the distance adjustment term
+        V = tf.add(H, dist_adj, name='V')
+
+        return V
+
+    @tf.function
+    def magnitude_phase(self, q_ast, H, G):
+        """
+        Compute the apparent magnitude V of the asteroid.
+        Fancy model, include the phase adjustment term.
+        """
+        # Distance delta from observer (earth) to asteroid
+        delta = tf.linalg.norm(q_obs - q_ast, axis=-1, name='delta')
+        # Distance r from sun to asteroid; use barycenter as approximation
+        r = tf.linalg.norm(q_ast, axis=-1, name='r')
+        # Distance r_obs from sun to earth
+        r_obs = tf.linalg.norm(q_obs, axis=-1, name='r_obs')
+        
+        # Compute the phase angle alpha between the asteroid, sun and earth; sun is the vertex
+        dot_product = tf.reduce_sum(q_obs*q_ast, axis=-1, name='dot_product')
+        norm_product = tf.multiply(r, r_obs, name='norm_product')
+        cos_alpha = tf.divide(dot_product, norm_product, name='cos_alpha')
+        alpha = tf.math.acos(x=cos_alpha)
+        
+        # Compute the distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
+        log10 = tf.math.log(10.0)
+        dist_adj_coef = tf.divide(5.0, log10, name='dist_adj_coef')
+        r_delta = tf.multiply(r, delta, name='r_delta')
+        log_r_delta = tf.math.log(r_delta, name='log_r_delta')
+        dist_adj = tf.multiply(dist_adj_coef, log_r_delta, name='dist_adj')
+
+        # Compute the phase angle adjustment
+        A1 = 3.33, A2 = 1.87
+        B1 = 0.63, B2 = 1.22
+        half_alpha = tf.multiply(0.5, alpha, name='half_alpha')
+        tan_half_alpha = tf.math.tan(half_alpha, name='tan_half_alpha')
+        tan_half_alpha_b1 = tf.math.pow(tan_half_alpha, B1)
+        tan_half_alpha_b2 = tf.math.pow(tan_half_alpha, B2)
+        phi_1_arg = tf.multiply(-A1, tan_half_alpha_b1, name='phi_1_arg')
+        phi_2_arg = tf.multiply(-A2, tan_half_alpha_b2, name='phi_2_arg')
+        phi_1 = tf.math.exp(phi_1_arg)
+        phi_2 = tf.math.exp(phi_2_arg)
+        phase_adj_t1 = tf.multiply(1.0 - G, phi_1, name='phase_adj_t1')
+        phase_adj_t2 = tf.multiply(G, phi_2, name='phase_adj_t2')
+        phase_adj_sum = tf.add(phase_adj_t1, phase_adj_t2, name='phase_adj_sum')
+        phase_adj_coef = tf.divide(2.5, log10, name='phase_adj_coef')
+        phase_adj = -tf.multiply(phase_adj_coef, phase_adj_sum)
+
+        V = tf.sum([H, dist_adj, phase_adj], name='V')
+
+        return V
+
 # ********************************************************************************************************************* 
 # Functional API Models
 # ********************************************************************************************************************* 
@@ -425,7 +545,7 @@ def make_model_ast_pos(ts_np: np.ndarray, row_lengths_np: np.ndarray) -> keras.M
     ast_pos_layer = AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='ast_pos_layer')
 
     # Define output tensors q, v by applying the position layer to the input tensors with the elements
-    q_flat, v_flat = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
+    q_flat, v_flat  = ast_pos_layer(a, e, inc, Omega, omega, f, epoch)
 
     # Convert q, v to ragged tensors matching the element batch
     # q = tf.RaggedTensor.from_row_lengths(values=q_flat, row_lengths=row_lengths, name='q')
@@ -484,17 +604,17 @@ def make_model_ast_dir(ts_np: np.ndarray, row_lengths_np: np.ndarray, site_name:
                                       site_name=site_name, name='ast_dir_layer')
 
     # Define output tensors u, r by applying the position layer to the input tensors with the elements 
-    u_flat, r_flat = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
+    u_flat, delta_flat, _, _ = ast_dir_layer(a, e, inc, Omega, omega, f, epoch)
 
     # Convert u, r to ragged tensors matching the element batch
     # u = tf.RaggedTensor.from_row_lengths(values=u_flat, row_lengths=row_lengths, name='u')
     # r = tf.RaggedTensor.from_row_lengths(values=r_flat, row_lengths=row_lengths, name='r')
     ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_np)
     u = tf.keras.layers.Lambda(function=ragged_map_func, name='u')(u_flat)
-    r = tf.keras.layers.Lambda(function=ragged_map_func, name='r')(r_flat)
+    delta = tf.keras.layers.Lambda(function=ragged_map_func, name='delta')(delta_flat)
     
     # Wrap the outputs
-    outputs = (u, r)
+    outputs = (u, delta)
     
     # Wrap this into a model
     model = keras.Model(inputs=inputs, outputs=outputs, name='model_asteroid_dir')

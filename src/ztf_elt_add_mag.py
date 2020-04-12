@@ -4,7 +4,6 @@ import glob
 from tqdm.auto import tqdm
 
 # MSE imports
-import kepler_sieve
 from ztf_data import load_ztf_det_all
 
 ztf, mjd_unq = load_ztf_det_all()

@@ -445,8 +445,10 @@ class AsteroidSearchModel(tf.keras.Model):
         # Stack mixture model parameters. Shape is [batch_size, 2,]
         mixture_parameters = keras.backend.stack([num_hits, R,])
 
-        # Tensor of predicted directions.  Shape is [data_size, 3,]
-        u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
+        # Tensor of predicted directions.  Shape of u_pred is [data_size, 3,]
+        # delta_pred is distance from earth to ast.  
+        # q_ast also included for use in magnitude calculation. Shape [data_size, 3]
+        u_pred, delta_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)        
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
@@ -495,7 +497,7 @@ class AsteroidSearchModel(tf.keras.Model):
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
 
         # Ragged tensor of predicted directions.  Shape is [batch_size, num_obs, 3,]
-        u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
+        u_pred, r_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)        
 
         return (u_pred, r_pred)
 
