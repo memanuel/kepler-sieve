@@ -522,7 +522,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def traj_err(self, elts0, elts1):
         """Calculate difference in trajectories from two sets of orbital elements"""
-        return traj_diff(elts_ast, elts0, elts1)
+        return traj_diff(elts, elts0, elts1)
 
     def get_mixture_params(self):
         """Extract the current mixture parameters"""
@@ -531,8 +531,8 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def get_thresh_deg_score(self):
         """Extract the threshold in degrees for scoring, thresh_deg_score"""
-        get_thresh_deg_score = self.score.get_thresh_deg()
-        return get_thresh_deg_score
+        thresh_deg_score = self.score.get_thresh_deg()
+        return thresh_deg_score
 
     # *********************************************************************************************
     # Element weights; equivalent to independent learning rates for each element in the batch
@@ -603,11 +603,14 @@ class AsteroidSearchModel(tf.keras.Model):
         # Apply this update to the layer
         self.score.set_thresh_deg(self.thresh_deg_score)
 
-    def set_max_thresh_deg_score(self, max_thresh_deg_score: float):
+    def set_thresh_deg_max(self, thresh_deg_max: float):
         """Adjust thresh_deg_score to at most max_thresh_deg_score"""
-        thresh_deg_score_old = self.get_thresh_deg_score()
-        thresh_deg_score = np.minimum(thresh_deg_score_old, max_thresh_deg_score)
-        self.set_thresh_deg_Score(thresh_deg_score)
+        # If thresh_deg_max was a scalar, promote it to a full numpy array
+        if isinstance(thresh_deg_max, float):
+            thresh_deg_max = np.full(shape=self.batch_size, fill_value=thresh_deg_max, dtype=dtype_np)
+        self.score.set_thresh_deg_max(thresh_deg_max)
+        # Update the thresh_deg_score member; this is an array
+        self.thresh_deg_score = self.get_thresh_deg_score()
 
     def recalibrate(self):
         """Recalibrate Kepler model rebound integration at current orbital elements"""
@@ -1026,13 +1029,13 @@ class AsteroidSearchModel(tf.keras.Model):
             episode_batch = self.current_batch - self.episode_batch_start
             episode_t = episode_batch / float(self.episode_max_batches)
             thresh_factor = np.exp(episode_t * self.thresh_deg_log_range)
-            thresh_deg_score = thresh_factor * self.thresh_deg_start
-            thresh_deg_score_mean = np.mean(thresh_deg_score)
+            thresh_deg_max = thresh_factor * self.thresh_deg_start
+            thresh_deg_mean = np.mean(thresh_deg_max)
             thresh_factor_mean = np.mean(thresh_factor)
             print(f'Updating thresh_deg. episode_batch {episode_batch} / {self.episode_max_batches} ({episode_t*100:4.1f}%); '
-                  f'thresh_deg = {thresh_deg_score_mean:8.6f} (factor {thresh_factor_mean:8.6f} from start).')
-            # Apply the new thresh_deg_score to the model
-            self.set_thresh_deg_score(thresh_deg_score)
+                  f'thresh_deg_max = {thresh_deg_mean:8.6f} (factor {thresh_factor_mean:8.6f} from start).')
+            # Apply the new thresh_deg_max to the model
+            self.set_thresh_deg_max(thresh_deg_max)
             # Save weights to account for jump in loss function after resetting thresh_deg_score
             self.save_weights()
 
@@ -1048,6 +1051,7 @@ class AsteroidSearchModel(tf.keras.Model):
                         max_batches: int = 10000, 
                         batches_per_epoch: int = 100, 
                         epochs_per_episode: int = 5,
+                        thresh_deg_start: float = None,
                         thresh_deg_end: float = None,
                         max_bad_episodes: int = 3,
                         learning_rate: Optional[float] = None,
@@ -1097,11 +1101,11 @@ class AsteroidSearchModel(tf.keras.Model):
         self.bad_episode_count = 0
 
         # Schedule thresh_deg if specified
-        if thresh_deg_end is not None:
+        if (thresh_deg_start is not None) and (thresh_deg_end is not None):
             self.thresh_deg_schedule = True
             self.episode_batch_start = self.current_batch
             self.episode_max_batches = max_batches - self.episode_batch_start
-            self.thresh_deg_start = self.get_thresh_deg_score()
+            self.thresh_deg_start = thresh_deg_start
             self.thresh_deg_log_range = np.log(thresh_deg_end / self.thresh_deg_start)
         else:
             self.thresh_deg_schedule = False
@@ -1133,6 +1137,71 @@ class AsteroidSearchModel(tf.keras.Model):
         # Save training progress to disk
         if save_at_end:
             self.save_state(verbose=True)
+
+    def sieving_round(self, thresh_deg_max: float, batches_elt: int=5000, batches_mix: int=1000):
+        """
+        One round of sieving
+        INPUTS:
+            thresh_deg_max: Maximum of threshold parameter
+            batches_elt:    Number of batches to train orbital elements
+            batches_mix:    Number of batches to train just mixture
+        """
+
+        # Adaptive search parameters
+        batches_per_epoch = 100
+        epochs_per_episode = 5
+        save_at_end = False
+        reset_active_weight = True
+        verbose = 1
+
+        # Set threshold
+        self.set_thresh_deg_max(thresh_deg_max)
+
+        # Train orbital elements and mixture parameters
+        self.thaw_candidate_elements()
+        self.thaw_mixture_parameters()
+        self.search_adaptive(
+            max_batches=self.current_batch+batches_elt, 
+            batches_per_epoch=batches_per_epoch,
+            epochs_per_episode=epochs_per_episode,
+            reset_active_weight=reset_active_weight,
+            save_at_end=save_at_end,
+            verbose=verbose)
+
+        # Train with frozen orbital elements
+        self.freeze_candidate_elements()
+        self.search_adaptive(
+            max_batches=self.current_batch+batches_mix, 
+            batches_per_epoch=batches_per_epoch,
+            epochs_per_episode=epochs_per_episode,
+            reset_active_weight=reset_active_weight,
+            save_at_end=save_at_end,
+            verbose=verbose)
+
+        # Report progress and save
+        self.report()
+        self.save_state()
+
+    def sieve(self):
+        """Run a predetermined sequence of adaptive searches"""
+
+        # Training rounds on schedule
+        training_schedule = [
+            (2.00, 0, 2000,),
+            (2.00, 5000, 1000,),
+            (1.75, 5000, 1000,),
+            (1.50, 5000, 1000,),
+            (1.25, 5000, 1000,),
+            (1.00, 5000, 1000,),
+            (0.80, 5000, 1000,),
+            (0.70, 5000, 1000,),
+            (0.60, 5000, 1000,),
+            (0.50, 5000, 1000,),
+        ]
+
+        # Iterate over training schedule
+        for thresh_deg_max, batches_elt, batches_mix in training_schedule:
+            self.sieving_round(thresh_deg_max=thresh_deg_max, batches_elt=batches_elt, batches_mix=batches_mix)
 
     # *********************************************************************************************
     # Output candidate elements as DataFrame; save and load model state (including training history)
