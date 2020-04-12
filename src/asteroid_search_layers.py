@@ -59,10 +59,7 @@ h_max_ = 1.0 - h_min_
 
 # Minimum resolution R: 1.0 arc second to 1.0 degrees
 R_min_sec_ = 1.0
-R_min_np = deg2dist(R_min_sec_ / 3600.0)
-# Maximum resolution is a function of thresh_deg
-# R_max_deg_ = 1.0
-# R_max_ = deg2dist(R_max_deg_)
+R_min_ = deg2dist(R_min_sec_ / 3600.0)
 
 # ********************************************************************************************************************* 
 def R2lam(R, thresh_s):
@@ -90,7 +87,7 @@ class CandidateElements(keras.layers.Layer):
 
     def __init__(self, 
                  elts: pd.DataFrame, 
-                 thresh_deg: float,
+                 # thresh_deg: np.ndarray,
                  **kwargs):
         super(CandidateElements, self).__init__(**kwargs)
         
@@ -104,7 +101,7 @@ class CandidateElements(keras.layers.Layer):
         elt_shape = (batch_size,)
 
         # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
-        self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
+        # self.half_thresh_s2 = keras.backend.constant(0.5 * deg2dist(thresh_deg)**2)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -216,7 +213,7 @@ class MixtureParameters(keras.layers.Layer):
 
     def __init__(self, 
                  elts: pd.DataFrame, 
-                 thresh_deg: float,
+                 thresh_deg: np.ndarray,
                  **kwargs):
         super(MixtureParameters, self).__init__(**kwargs)
         
@@ -231,7 +228,9 @@ class MixtureParameters(keras.layers.Layer):
 
         # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
         thresh_s: float = deg2dist(thresh_deg)
-        self.half_thresh_s2 = keras.backend.constant(0.5 * thresh_s**2)
+        thresh_s2: float = thresh_s**2
+        # self.half_thresh_s2 = keras.backend.constant(0.5 * thresh_s**2)
+        self.half_thresh_s2 = tf.Variable(initial_value=0.5*thresh_s2, trainable=False, dtype=dtype, name='half_thresh_s2')
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
@@ -243,16 +242,15 @@ class MixtureParameters(keras.layers.Layer):
         self.h_ = tf.Variable(initial_value=elts['h'], trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
 
-        # # Control of the exponential decay paramater lam_, in range lam_min to lam_max
-        # This is controlled indirectly, by controlling the resolution R, then converting it to a decay rate lambda
-
-        # Control of the resolution paramater R_, in range R_min to R_max
-        R_max_np = 0.5 * thresh_s
-        self.R_min = keras.backend.constant(R_min_np, dtype=dtype)
-        self.R_max = keras.backend.constant(R_max_np, dtype=dtype)
-        log_R_min = np.log(self.R_min)
-        log_R_max = np.log(self.R_max)
-        self.log_R_range = keras.backend.constant(log_R_max - log_R_min, dtype=dtype)
+        # Control of the resolution parameter R_, in range R_min to R_max
+        # R_min is set globally; distance corresponding to 1.0 arc second
+        R_max = 0.5 * thresh_s
+        R_min = R_min_
+        log_R_range = np.log(R_max / R_min)
+        # Save these as keras constants or variables as appropriate
+        self.R_min = keras.backend.constant(R_min, dtype=dtype)
+        self.log_R_range = tf.Variable(initial_value=log_R_range, trainable=False, dtype=dtype, name='log_R_range')
+        # Tensor with control variable for R; shape [batch_size,]
         self.R_ = tf.Variable(initial_value=self.inverse_R(elts['R']), trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
 
@@ -270,6 +268,10 @@ class MixtureParameters(keras.layers.Layer):
         """Inverse transform value of R"""
         return tf.math.log(R / self.R_min) / self.log_R_range
 
+    def set_R(self, R: np.ndarray):
+        """Set the resolution parameter"""
+        self.R_.assign(self.inverse_R(R))
+
     @tf.function
     def get_R_deg(self):
         """Transformed value of R in degrees"""
@@ -284,13 +286,21 @@ class MixtureParameters(keras.layers.Layer):
     @tf.function
     def get_lam(self):
         """Transformed value of lambda"""
-        # return self.lam_min * tf.exp(self.lam_ * self.log_lam_range)
         R = self.get_R()
         return self.R_to_lam(R)
 
-    def inverse_lam(self, lam):
-        """Inverse transform value of lam"""
-        return tf.math.log(lam / self.lam_min) / self.log_lam_range
+    def set_R_deg_max(self, R_deg_max: np.ndarray):
+        # Convert R_deg_max to distance
+        R_max = deg2dist(R_deg_max)
+        # Get old values of R
+        R_old = self.get_R()
+        # Apply the constraint to the current values; this is the new value
+        R = np.minimum(R_old, R_max)
+        # Update the variable with the dynamic range of log_R
+        log_R_range = np.log(R_max / self.R_min.numpy())
+        self.log_R_range.assign(log_R_range)
+        # Assign the updated R back to the layer
+        self.set_R(R)
 
     @tf.function
     def call(self, inputs=None):
@@ -307,12 +317,12 @@ class MixtureParameters(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, u_obs_np, row_lengths_np: np.ndarray, thresh_deg_score: np.ndarray, **kwargs):
+    def __init__(self, u_obs_np, row_lengths_np: np.ndarray, thresh_deg: np.ndarray, **kwargs):
         """
         INPUTS:
             u_obs_np:         Observed positions; shape [data_size, 3]
             row_lengths_np:   Number of observations for each element; shape [elt_batch_size]
-            thresh_deg_score: Threshold in degrees for observations to be included;
+            thresh_deg: Threshold in degrees for observations to be included;
                               Not the same as the threshold in degrees for the original observation data.
         """
         super(TrajectoryScore, self).__init__(**kwargs)
@@ -321,7 +331,7 @@ class TrajectoryScore(keras.layers.Layer):
         self.cfg = {
             'u_obs_np': u_obs_np,
             'row_lengths_np': row_lengths_np,
-            'thresh_deg_score': thresh_deg_score
+            'thresh_deg': thresh_deg
         }
 
         # Sizes of the data as keras constants
@@ -334,10 +344,10 @@ class TrajectoryScore(keras.layers.Layer):
         self.u_obs = keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
 
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
-        thresh_s = deg2dist(thresh_deg_score)
+        thresh_s = deg2dist(thresh_deg)
         thresh_s2 = thresh_s**2
 
-        # Support for making thresh_deg_score trainable
+        # Support for making thresh_deg trainable
         # Allowed range for thresh_s2: from 10 arc seconds to the initial threshold
         thresh_s2_min = deg2dist(10.0/3600)**2
         thresh_s2_max = thresh_s2
@@ -378,20 +388,20 @@ class TrajectoryScore(keras.layers.Layer):
         thresh_s_deg = dist2deg(thresh_s.numpy())
         return thresh_s_deg
     
-    def set_thresh_deg(self, thresh_deg_score: np.ndarray):
+    def set_thresh_deg(self, thresh_deg: np.ndarray):
         """
         Set the threshold parameter for which observations are included in the conditional probability score calculations
         INPUTS:
-            thresh_deg_score: Threshold in degrees for including an observation; one for each candidate element
-                              (In practice these will be the same.)
+            thresh_deg: Threshold in degrees for including an observation; one for each candidate element
+                        (In practice these may be the same.)
         """        
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
-        thresh_s = deg2dist(thresh_deg_score)
+        thresh_s = deg2dist(thresh_deg)
         thresh_s2 = thresh_s**2
         self.set_thresh_s2(thresh_s2)
 
     def set_thresh_deg_max(self, thresh_deg_max: np.ndarray):
-        """Set the maximum of the thresh_deg_score parameter"""
+        """Set the maximum of the thresh_degparameter"""
         # Get old values of the threshold
         thresh_s2_old = self.get_thresh_s2()
         # Convert the constraint from degrees into s2
