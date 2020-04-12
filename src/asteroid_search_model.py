@@ -203,18 +203,18 @@ def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float):
     """
     Load or generate a ZTF batch with all ZTF observations within a threshold of the given elements
     INPUTS:
-        elts:       Dataframe including element_id; 6 orbital elements; and 2 mixture params h, R
+        elts:       Dataframe including element_id; 6 orbital elements; and 2 mixture params num_hits, R
         thresh_deg: Threshold in degrees; only observations this close to elements are returned
     OUTPUTS:
         hash_id:    Unique ID for these inputs
     """
     # Columns of the Dataframe to hash
-    cols_to_hash = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch', 'h', 'R']
+    cols_to_hash = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch', 'num_hits', 'R']
     # Tuple of int64; one per orbital element candidate
     hash_df = tuple((pd.util.hash_pandas_object(elts[cols_to_hash])).values)
     # Combine the element hash tuple with the threshold
-    thresh_int = int(thresh_deg*2**48)
-    hash_id = abs(hash(hash_df + (thresh_int, )))
+    thresh_deg_int = int(thresh_deg*2**48)
+    hash_id = abs(hash(hash_df + (thresh_deg_int, )))
 
     return hash_id
     
@@ -239,19 +239,17 @@ class AsteroidSearchModel(tf.keras.Model):
                  **kwargs):
         """
         INPUTS:
-            elts:       DataFrame with initial guess for orbital elements.
-                        Columns: element_id, a, e, inc, Omega, omega, f, epoch
-                        Output of asteroid_elts, perturb_elts or random_elts
-            ztf_elt:    DataFrame with ZTF observations within thresh_deg degrees of
-                        of the orbits predicted by these elements.
-                        Output of make_ztf_batch or load_ztf_batch
-            site_name:  Used for topos adjustment, e.g. 'geocenter' or 'palomar'
-            thresh_deg: Threshold used for filtering the ZTF observations
-            optimizier_type: One of 'adam', 'rmsprop', 'adadelta'
-            h:          Initial value of hit probability in mixture model
-            R_deg:      Initial value of resolution parameter (in degrees) in mixture model
-            learning_rate: Initial value of learning rate
-            clipnorm:   Initila value of clipnorm for gradient clipping
+            elts:           DataFrame with initial guess for orbital elements.
+                            Columns: element_id, a, e, inc, Omega, omega, f, epoch
+                            Output of asteroid_elts, perturb_elts or random_elts
+            ztf_elt:        DataFrame with ZTF observations within thresh_deg degrees of
+                            of the orbits predicted by these elements.
+                            Output of make_ztf_batch or load_ztf_batch
+            site_name:      Used for topos adjustment, e.g. 'geocenter' or 'palomar'
+            thresh_deg:     Threshold used for filtering the ZTF observations
+            optimizer_type: One of 'adam', 'rmsprop', 'adadelta'
+            learning_rate:  Initial value of learning rate
+            clipnorm:       Initial value of clipnorm for gradient clipping
         """
         # Initialize tf.keras.Model
         super(AsteroidSearchModel, self).__init__(**kwargs)
@@ -440,20 +438,20 @@ class AsteroidSearchModel(tf.keras.Model):
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=inputs)
         
         # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
-        h, lam, R = self.mixture_parameters(inputs=inputs)
+        num_hits, lam, R = self.mixture_parameters(inputs=inputs)
         
         # Stack the current orbital elements.  Shape is [batch_size, 7,]
         orbital_elements = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
         # Stack mixture model parameters. Shape is [batch_size, 3,]
-        mixture_parameters = keras.backend.stack([h, lam, R,])
+        mixture_parameters = keras.backend.stack([num_hits, lam, R,])
 
         # Tensor of predicted directions.  Shape is [data_size, 3,]
         u_pred, r_pred = self.direction(a, e, inc, Omega, omega, f, epoch)        
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
-        log_like, log_like_wtd, hits, row_lengths_close = self.score(u_pred, h=h, lam=lam)
+        log_like, log_like_wtd, hits, row_lengths_close = self.score(u_pred, num_hits=num_hits, lam=lam)
         # Get the mean log like
         # log_like_mean = tf.divide(log_like, tf.cast(x=row_lengths_close, dtype=dtype))
         # Re-scale to the original number of rows; this way doesn't shrink as resolution changes
@@ -527,8 +525,8 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def get_mixture_params(self):
         """Extract the current mixture parameters"""
-        h, lam, R = self.mixture_parameters(inputs=None)
-        return h, lam, R
+        num_hits, lam, R = self.mixture_parameters(inputs=None)
+        return num_hits, lam, R
 
     def get_thresh_deg(self):
         """Extract the threshold in degrees"""
@@ -769,7 +767,7 @@ class AsteroidSearchModel(tf.keras.Model):
         hits = score_outputs[1]
 
         # Extract mixture parameters
-        h = mixture_params[0]
+        num_hits = mixture_params[0]
         lam = mixture_params[1]
         R = mixture_params[2]
         R_deg = dist2deg(R)
@@ -810,7 +808,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'f': orbital_elements[5].numpy(),
             
             # Mixture parameters
-            'h': h,
+            'num_hits': num_hits,
             'lam': lam,
             'R': R,
             'R_deg': R_deg,
@@ -829,7 +827,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'omega_': cand.omega_.numpy(),
             'f_': cand.f_.numpy(),
             # Control variables - mixture parameters
-            'h_': mixt.h_.numpy(),
+            'num_hits_': mixt.num_hits_.numpy(),
             'R_': mixt.R_.numpy(),
 
             # Weights in three modes
@@ -873,11 +871,11 @@ class AsteroidSearchModel(tf.keras.Model):
             'hits_min': [np.min(hits)],
             'hits_max': [np.max(hits)],
 
-            # Summary of mixture parameter h
-            'h_mean': [np.mean(h)],
-            'h_std': [np.std(h)],
-            'h_min': [np.min(h)],
-            'h_max': [np.max(h)],
+            # Summary of mixture parameter num_hits
+            'num_hits_mean': [np.mean(num_hits)],
+            'num_hits_std': [np.std(num_hits)],
+            'num_hits_min': [np.min(num_hits)],
+            'num_hits_max': [np.max(num_hits)],
 
             # Summary of mixture parameter R
             'R_deg_mean': [np.mean(R_deg)],
@@ -1228,7 +1226,7 @@ class AsteroidSearchModel(tf.keras.Model):
         elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
        
         # Add columns for the mixture parameters
-        elts['h'] = mixture_params[0].numpy()
+        elts['num_hits'] = mixture_params[0].numpy()
         elts['lam'] = mixture_params[1].numpy()
         elts['R'] = mixture_params[2].numpy()
         elts['R_deg'] = dist2deg(elts.R)
@@ -1630,7 +1628,7 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.set_xlabel('Episode')
         ax.set_ylabel('Control Variable ([0, 1] Scale)')
         # Plot mixture parameters
-        ax.plot(hist.episode, hist.h_, label='h')
+        ax.plot(hist.episode, hist.num_hits_, label='num_hits')
         ax.plot(hist.episode, hist.R_, label='R')
         # Plot elements
         ax.plot(hist.episode, hist.a_, label='a')
@@ -1679,7 +1677,7 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.set_xlabel('Episode')
         ax.set_ylabel(f'{att_title}')
         # Plot mixture parameters
-        ax.plot(hist.episode, att_values, label='h')
+        ax.plot(hist.episode, att_values, label='f{att_name}')
         ax.grid()
         # fig.savefig('../figs/training/element_{att_name}.png', bbox_inches='tight')
         plt.show()
@@ -1711,7 +1709,7 @@ class AsteroidSearchModel(tf.keras.Model):
         hits_max = np.max(hits)
 
         # Summarize resolution
-        h = mixture_parameters[0].numpy()
+        # num_hits = mixture_parameters[0].numpy()
         R_deg = dist2deg(mixture_parameters[2].numpy())
         R_deg_mean = np.mean(R_deg)
         R_deg_std = np.std(R_deg)

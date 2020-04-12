@@ -57,6 +57,10 @@ e_max_: float = 1.0 - 2.0**-10
 h_min_ = 2.0**-14
 h_max_ = 1.0 - h_min_
 
+# Range for num_hits
+num_hits_min_ = 6.0
+num_hits_max_ = 1024.0
+
 # Minimum resolution R: 1.0 arc second to 1.0 degrees
 R_min_sec_ = 1.0
 R_min_ = deg2dist(R_min_sec_ / 3600.0)
@@ -219,11 +223,12 @@ class MixtureParameters(keras.layers.Layer):
         self.batch_size = batch_size
         self.elts = elts
         
-        # Control of the hit rate h_, in range h_min to h_max
-        self.h_min = keras.backend.constant(h_min_, dtype=dtype)
-        self.h_max = keras.backend.constant(h_max_, dtype=dtype)
-        self.h_ = tf.Variable(initial_value=elts['h'], trainable=True, dtype=dtype,
-                              constraint=lambda t: tf.clip_by_value(t, self.h_min, self.h_max), name='h_')
+        # Control of the number of hits num_hits with num_hits_
+        self.num_hits_min = keras.backend.constant(value=num_hits_min_, dtype=dtype)
+        self.num_hits_max = keras.backend.constant(value=num_hits_max_, dtype=dtype)
+        self.log_num_hits_range = keras.backend.constant(value=np.log(num_hits_max_ / num_hits_min_), dtype=dtype)
+        self.num_hits_ = tf.Variable(initial_value=self.inverse_num_hits(elts['num_hits']), trainable=True, dtype=dtype,
+                              constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='num_hits_')
 
         # Control of the resolution parameter R_, in range R_min to R_max
         # R_min is set globally; distance corresponding to 1.0 arc second
@@ -238,9 +243,17 @@ class MixtureParameters(keras.layers.Layer):
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='R_')
 
     @tf.function
-    def get_h(self):
+    def get_num_hits(self):
         """Transformed value of h"""
-        return self.h_
+        return self.num_hits_min * tf.exp(self.num_hits_ * self.log_num_hits_range)
+
+    def inverse_num_hits(self, num_hits):
+        """Inverse transform value of num_hits"""
+        return tf.math.log(num_hits / self.num_hits_min) / self.log_num_hits_range
+
+    def set_num_hits(self, num_hits: np.ndarray):
+        """Set num_hits parameter"""
+        self.num_hits_.assign(self.inverse_num_hits(num_hits))
 
     @tf.function
     def get_R(self):
@@ -300,10 +313,10 @@ class MixtureParameters(keras.layers.Layer):
     def call(self, inputs=None):
         """Return the current candidate orbital elements and mixture model parameters"""
         # Transform search parameters h and lambda
-        h = self.get_h()
+        num_hits = self.get_num_hits()
         lam = self.get_lam()
         R = self.get_R()
-        return (h, lam, R)
+        return (num_hits, lam, R)
 
     def get_config(self):
         return self.cfg
@@ -411,15 +424,16 @@ class TrajectoryScore(keras.layers.Layer):
         self.set_thresh_s2(thresh_s2)
 
     @tf.function        
-    def call(self, u_pred: tf.Tensor, h: tf.Tensor, lam: tf.Tensor):
+    def call(self, u_pred: tf.Tensor, num_hits: tf.Tensor, lam: tf.Tensor):
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
-            u_pred: predicted directions with current batch of elements
-            u_obs:  observed directions
-            h:      fraction of hits in mixture model
-            lam:    exponential decay parameter in mixture model
+            u_pred:     predicted directions with current batch of elements
+            u_obs:      observed directions
+            num_hits:   number of hits in mixture model
+            lam:        exponential decay parameter in mixture model
         """
+        
         # Difference between actual and predicted directions
         du = keras.layers.subtract(inputs=[u_pred, self.u_obs], name='du')
         # Squared distance bewteen predicted and observed directions
@@ -451,7 +465,12 @@ class TrajectoryScore(keras.layers.Layer):
         # is_close_r = tf.RaggedTensor.from_row_lengths(values=is_close, row_lengths=self.row_lengths, name='is_close_r')
         ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths)
         is_close_r = tf.keras.layers.Lambda(function=ragged_map_func, name='is_close_r')(is_close)
+        # Compute the row lengths (number of close observations per candidate element)
         row_lengths_close = tf.reduce_sum(tf.cast(is_close_r, tf.int32), axis=1, name='row_lengths_close')
+        row_lengths_close_float = tf.cast(x=row_lengths_close, dtype=dtype)
+
+        # Compute the implied hit rate h from the number of hits and row_lengths_close
+        h = tf.divide(num_hits, row_lengths_close_float, name='h')
 
         # Shape of parameters
         close_size = tf.reduce_sum(row_lengths_close)
@@ -497,7 +516,6 @@ class TrajectoryScore(keras.layers.Layer):
         # First sum by element
         log_like_wtd_by_elt = tf.reduce_sum(log_p_wtd, axis=1, name='log_like_wtd_by_elt')
         # Multiply the score for each element by the number of close observations so units are comparable log like
-        row_lengths_close_float = tf.cast(x=row_lengths_close, dtype=dtype)
         log_like_wtd_num = tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
         log_like_wtd_den = tf.reduce_sum(obs_weight, axis=1, name='log_like_wtd_den')
         log_like_wtd = tf.divide(log_like_wtd_num, log_like_wtd_den)
