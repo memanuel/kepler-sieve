@@ -89,6 +89,7 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
     # Column collections used on ztf
     cols_catalog = ['ObjectID', 'CandidateID', 'TimeStampID', 'mjd']
     cols_radec = ['ra', 'dec']
+    cols_mag = ['mag_app']
     cols_dir = ['ux', 'uy', 'uz']
     cols_elt_qv = ['qx', 'qy', 'qz', 'vx', 'vy', 'vz']
     cols_elt_dir = ['elt_ux', 'elt_uy', 'elt_uz']
@@ -98,7 +99,7 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
     cols_nearest_ast = [col for col in cols_nearest_ast_all if col in ztf.columns]
     # All the columns pertaining to ZTF and nearest_ast
     # The calculated information with the position, velocity and direction is separate
-    cols_ztf = cols_catalog + cols_radec + cols_dir + cols_nearest_ast
+    cols_ztf = cols_catalog + cols_radec + cols_mag + cols_dir + cols_nearest_ast
     # Flag indicating whether we have nearest asteroid data
     is_near_ast: bool = 'nearest_ast_num' in ztf.columns
 

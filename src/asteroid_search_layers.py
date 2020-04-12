@@ -206,29 +206,29 @@ class MixtureParameters(keras.layers.Layer):
 
         # Infer batch size from elts DataFrame
         batch_size = elts.shape[0]
-        elt_shape = (batch_size,)
-
-        # Threshold distance; 0.5 thresh_s^2 used to convert R to lambda
-        thresh_s: np.ndarray = elts['thresh_s'].values
-        thresh_s2: np.ndarray = thresh_s**2
-        # self.half_thresh_s2 = keras.backend.constant(0.5 * thresh_s**2)
-        self.half_thresh_s2 = tf.Variable(initial_value=0.5*thresh_s2, trainable=False, dtype=dtype, name='half_thresh_s2')
+        # elt_shape = (batch_size,)
 
         # Save batch size, orbital elements as numpy array
         self.batch_size = batch_size
         self.elts = elts
         
         # Control of the number of hits num_hits with num_hits_
+        # Min and max of num_hits are static; controlled gloablly
         self.num_hits_min = keras.backend.constant(value=num_hits_min_, dtype=dtype)
         self.num_hits_max = keras.backend.constant(value=num_hits_max_, dtype=dtype)
+        # Dynamic range of num_hits
         self.log_num_hits_range = keras.backend.constant(value=np.log(num_hits_max_ / num_hits_min_), dtype=dtype)
+        # Tensor with control variable for num_hits
         self.num_hits_ = tf.Variable(initial_value=self.inverse_num_hits(elts['num_hits']), trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='num_hits_')
 
         # Control of the resolution parameter R_, in range R_min to R_max
         # R_min is set globally; distance corresponding to 1.0 arc second
-        R_max = 0.5 * thresh_s
         R_min = R_min_
+        thresh_s: np.ndarray = elts['thresh_s'].values
+        # Set R_max to half the initial threshold distance 
+        R_max = 0.5 * thresh_s
+        # Dynamic range of resolution R
         log_R_range = np.log(R_max / R_min)
         # Save these as keras constants or variables as appropriate
         self.R_min = keras.backend.constant(R_min, dtype=dtype)
@@ -268,17 +268,6 @@ class MixtureParameters(keras.layers.Layer):
         """Transformed value of R in degrees"""
         R = self.get_R()        
         return dist2deg(R)
-
-    @tf.function
-    def R_to_lam(self, R):
-        """Convert a resolution R to an exponential decay term lambda"""
-        return tf.divide(self.half_thresh_s2, tf.square(R))
-
-    @tf.function
-    def get_lam(self):
-        """Transformed value of lambda"""
-        R = self.get_R()
-        return self.R_to_lam(R)
 
     def set_R_deg_max(self, R_deg_max: np.ndarray):
         # Convert R_deg_max to distance
