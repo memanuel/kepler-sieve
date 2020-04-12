@@ -593,6 +593,14 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
 
+    def set_R_deg_max(self, R_deg_max: float):
+        """Adjust resolution R_deg to at most R_deg_max"""
+        # If R_deg_max was a scalar, promote it to a full numpy array
+        if isinstance(R_deg_max, float):
+            R_deg_max = np.full(shape=self.batch_size, fill_value=R_deg_max, dtype=dtype_np)            
+        # Apply the new R_max value to the mixture parameters layer
+        self.mixture_parameters.set_R_deg_max(R_deg_max)
+
     def set_thresh_deg(self, thresh_deg: np.ndarray):
         """Adjust the threshold for which observations are included in the score function"""
         # If thresh_deg was a scalar, promote it to a full numpy array
