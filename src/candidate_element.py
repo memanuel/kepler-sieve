@@ -323,12 +323,13 @@ def elts_add_thresh_deg(elts: pd.DataFrame, thresh_deg: float, dtype=dtype):
     elts['thresh_s'] = np.full(fill_value=thresh_s, shape=N_ast, dtype=dtype)
 
 # ********************************************************************************************************************* 
-def elts_add_H(elts: pd.DataFrame, H: float=14.0, dtype=dtype):
+def elts_add_H(elts: pd.DataFrame, H: float=16.5, dtype=dtype):
     """
     Add column to a DataFrame of orbital elements for the brightness (magnitude) parameter H
     INPUTS:
         elts:   DataFrame with columns a, e, inc, Omega, omega, f, epoch
-        H:      Brightness parameter; default of 14.0 is rounded from mean of JPL data, 13.68
+        H:      Brightness parameter; default of 16.5 by trial and error on 64 most common asteroids
+                Mean of JPL data is 13.68, but ZTF apparent magnitudes are dimmer than model by about 2.5-3.0 range.
     OUTPUTS:
         Modifies elts in place
     """
@@ -343,7 +344,6 @@ def elts_add_mixture_params(elts: pd.DataFrame,
                             num_hits: int, 
                             R_deg: float, 
                             thresh_deg: float,
-                            H: float,
                             dtype=dtype):
     """
     Add two columns to a DataFrame of orbital elements for the mixture parameters h and R.
@@ -362,4 +362,3 @@ def elts_add_mixture_params(elts: pd.DataFrame,
     elts_add_num_hits(elts=elts, num_hits=num_hits)
     elts_add_R_deg(elts=elts, R_deg=R_deg)
     elts_add_thresh_deg(elts=elts, thresh_deg=thresh_deg)
-    elts_add_H(elts=elts, H=H)

@@ -36,7 +36,7 @@ from tf_utils import tf_quiet, Identity
 from utils import print_header
 
 # Typing
-from typing import Optional, Union
+from typing import List, Tuple, Dict, Optional, Union
 
 # ********************************************************************************************************************* 
 # Aliases
@@ -68,7 +68,10 @@ color_min = 'red'
 color_max = 'purple'
 
 # ********************************************************************************************************************* 
-def make_opt_adam(learning_rate, clipnorm=1.0, clipvalue=None):
+def make_opt_adam(learning_rate: float, 
+                  clipnorm: float=1.0, 
+                  clipvalue:Optional[float]=None) \
+                  -> keras.optimizers.Optimizer:
     """
     Build Adam optimizer for training 
     Default settings are:
@@ -105,7 +108,10 @@ def make_opt_adam(learning_rate, clipnorm=1.0, clipvalue=None):
     return opt
     
 # ********************************************************************************************************************* 
-def make_opt_rmsprop(learning_rate, clipnorm=1.0, clipvalue=None):
+def make_opt_rmsprop(learning_rate: float, 
+                     clipnorm: float=1.0, 
+                     clipvalue: Optional[float]=None) \
+                     -> keras.optimizers.Optimizer:
     """
     Build RMSprop optimizer for training 
     Default settings are:
@@ -144,7 +150,10 @@ def make_opt_rmsprop(learning_rate, clipnorm=1.0, clipvalue=None):
     return opt
 
 # ********************************************************************************************************************* 
-def make_opt_adadelta(learning_rate, clipnorm=1.0, clipvalue=None):
+def make_opt_adadelta(learning_rate: float, 
+                      clipnorm: float=1.0, 
+                      clipvalue: Optional[float]=None) \
+                      -> keras.optimizers.Optimizer:
     """
     Build Adadelta optimizer for training 
     Default settings are:
@@ -177,7 +186,11 @@ def make_opt_adadelta(learning_rate, clipnorm=1.0, clipvalue=None):
     return opt
 
 # ********************************************************************************************************************* 
-def make_opt(optimizer_type, learning_rate, clipnorm=1.0, clipvalue=None):
+def make_opt(optimizer_type: str, 
+             learning_rate: float, 
+             clipnorm: float=1.0, 
+             clipvalue: Optional[float]=None) \
+             -> keras.optimizers.Optimizer:
     """
     Create an instance of the specified optimizer.
     INPUTS:
@@ -525,20 +538,25 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def traj_err(self, elts0, elts1):
         """Calculate difference in trajectories from two sets of orbital elements"""
-        return traj_diff(elts, elts0, elts1)
+        return traj_diff(elts0, elts1, self.model_pos)
 
-    def get_mixture_params(self):
-        """Extract the current mixture parameters"""
+    def get_orbital_elts(self):
+        """Extract the current orbital elements as Numpy arrays"""
+        pass
+
+    
+    def get_mixture_params(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Extract the current mixture parameters as Numpy arrays"""
         num_hits, R = self.mixture_parameters(inputs=None)
-        return num_hits, R
+        return num_hits.numpy(), R.numpy()
 
-    def get_thresh_deg(self):
-        """Extract the threshold in degrees"""
+    def get_thresh_deg(self) -> np.ndarray:
+        """Extract the threshold in degrees as a Numpy array"""
         return self.score.get_thresh_deg()
 
-    def get_H(self):
-        """Extract the brightness parameter H"""
-        return self.magnitude.get_H()
+    def get_H(self) -> np.ndarray:
+        """Extract the brightness parameter H as a Numpy array"""
+        return self.magnitude.get_H().numpy()
 
     # *********************************************************************************************
     # Element weights; equivalent to independent learning rates for each element in the batch
@@ -700,6 +718,18 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_early_stop()
         self.training_mode = 'joint' if self.candidate_elements.trainable else 'mixture'
 
+    def freeze_magnitude(self):
+        """Make the magnitude layer not trainable"""
+        self.magnitude.trainable = False
+        self.recompile()
+        self.update_early_stop()
+
+    def thaw_magnitude(self):
+        """Make the magnitude layer trainable (unfrozen)"""
+        self.magnitude.trainable = True
+        self.recompile()
+        self.update_early_stop()
+
     def freeze_score(self):
         """Make the score layer (e.g. thresh_deg) not trainable"""
         self.score.trainable = False
@@ -825,11 +855,11 @@ class AsteroidSearchModel(tf.keras.Model):
             'log_R': log_R,
 
             # Threshold
-            'thresh_deg': thresh_deg.numpy(),
+            'thresh_deg': thresh_deg,
             'thresh_s': deg2dist(thresh_deg),
 
             # Brightness H
-            'H': H.numpy(),
+            'H': H,
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),

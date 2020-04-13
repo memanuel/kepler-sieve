@@ -434,17 +434,18 @@ class AsteroidMagnitude(keras.layers.Layer):
         self.data_size = keras.backend.constant(value=tf.reduce_sum(self.row_lengths), dtype=tf.int32)
 
         # Shape of trajectories is flat: (data_size, 3,)
-        traj_shape = (self.data_size, space_dims)
+        self.traj_shape = (int(self.data_size), space_dims,)
+        self.scalar_shape = (int(self.data_size),)      
 
         # Take a one time snapshot of the earth's position at these times in barycentric coordinates
         # Don't bother with topos adjustment, this is just an approximation
         q_obs_np = get_earth_pos(ts_np)
         # Position of the observer in barycentric frame as a Keras constant
-        self.q_obs = keras.backend.constant(value=q_obs_np, shape=traj_shape, dtype=dtype, name='q_obs')
+        self.q_obs = keras.backend.constant(value=q_obs_np, shape=self.traj_shape, dtype=dtype, name='q_obs')
 
         # Distance r_obs from sun to earth
         r_obs_np = np.linalg.norm(q_obs_np, axis=-1)
-        self.r_obs = keras.backend.constant(value=r_obs_np, shape=traj_shape, dtype=dtype, name='r_obs')
+        self.r_obs = keras.backend.constant(value=r_obs_np, shape=self.scalar_shape, dtype=dtype, name='r_obs')
 
         # Control of the absolute magnitude parameter H
         # Min and max of H are static; controlled gloablly
@@ -456,22 +457,28 @@ class AsteroidMagnitude(keras.layers.Layer):
         self.H_ = tf.Variable(initial_value=self.inverse_H(elts['H']), trainable=True, dtype=dtype,
                               constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='num_hits_')
 
-        # Follow convention and assume G = 0.15
-        G_np = np.full(shape=self.batch_size, fill_value=0.15, dtype=dtype_np)
+        # Follow convention and assume G = 0.15; because it is constant, upsample it to full data size for speed
+        G_np = np.full(shape=self.data_size, fill_value=0.15, dtype=dtype_np)
         self.G = keras.backend.constant(value=G_np, dtype=dtype, name='G')
+        self.one_minus_G = keras.backend.constant(value=(1.0 - G_np), dtype=dtype, name='one_minus_G')
 
         # The natural log of 10 (used to compute log(x) base 10, which is not a tensorflow function)
         self.log10 = keras.backend.constant(value=np.log(10.0), dtype=dtype, name='log10')
+        # Coefficient for distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
+        self.dist_adj_coef = tf.divide(5.0, self.log10, name='dist_adj_coef')
 
         # Approximation only valid for alpha not too large; cap it
         alpha_max_deg = 20.0
         self.alpha_max = keras.backend.constant(value=np.deg2rad(alpha_max_deg), dtype=dtype, name='alpha_max')
 
         # Constants used in phase angle adjustment
+        # https://www.britastro.org/asteroids/dymock4.pdf 
         self.A1 = keras.backend.constant(value=3.33, dtype=dtype, name='A1')
         self.A2 = keras.backend.constant(value=1.87, dtype=dtype, name='A2')
         self.B1 = keras.backend.constant(value=0.63, dtype=dtype, name='B1')
         self.B2 = keras.backend.constant(value=1.22, dtype=dtype, name='B2')
+        # Coefficient for phase adjustment term: 2.5 * log10(phase_adj_sum) = (2.5 / log(10)) * log(phase_adj_sum)
+        self.phase_adj_coef = tf.divide(2.5, self.log10, name='phase_adj_coef')
 
     @tf.function
     def get_H(self):
@@ -491,15 +498,21 @@ class AsteroidMagnitude(keras.layers.Layer):
         """
         Compute the apparent magnitude V of the asteroid.
         """
-        # Upsample H
-        H_rep = tf.repeat(input=H, repeats=row_lengths, name='H_rep')
-        H_vec = tf.reshape(tensor=H_rep, shape=self.data_size, name='H_vec')
+        # Transformed value of H
+        H_elt = self.get_H()
+        # Upsample H to data size
+        H = tf.repeat(input=H_elt, repeats=self.row_lengths, name='H')
 
         # Distance delta from observer (earth) to asteroid
         delta = tf.linalg.norm(self.q_obs - q_ast, axis=-1, name='delta')
         # Distance r from sun to asteroid; use barycenter as approximation
         r = tf.linalg.norm(q_ast, axis=-1, name='r')
         
+        # Compute the distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
+        r_delta = tf.multiply(r, delta, name='r_delta')
+        log_r_delta = tf.math.log(r_delta, name='log_r_delta')
+        dist_adj = tf.multiply(self.dist_adj_coef, log_r_delta, name='dist_adj')
+
         # Compute the phase angle alpha between the asteroid, sun and earth; sun is the vertex
         dot_product_xyz = tf.multiply(self.q_obs, q_ast, name='dot_product_xyz')
         dot_product = tf.reduce_sum(dot_product_xyz, axis=-1, name='dot_product')
@@ -507,12 +520,6 @@ class AsteroidMagnitude(keras.layers.Layer):
         cos_alpha = tf.divide(dot_product, norm_product, name='cos_alpha')
         alpha = tf.math.acos(x=cos_alpha)
         
-        # Compute the distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
-        dist_adj_coef = tf.divide(5.0, self.log10, name='dist_adj_coef')
-        r_delta = tf.multiply(r, delta, name='r_delta')
-        log_r_delta = tf.math.log(r_delta, name='log_r_delta')
-        dist_adj = tf.multiply(dist_adj_coef, log_r_delta, name='dist_adj')
-
         # Compute the phase angle adjustment
         alpha_phase = tf.minimum(alpha, self.alpha_max, name='alpha_phase')
         half_alpha = tf.multiply(0.5, alpha_phase, name='half_alpha')
@@ -523,16 +530,15 @@ class AsteroidMagnitude(keras.layers.Layer):
         phi_2_arg = tf.multiply(-self.A2, tan_half_alpha_b2, name='phi_2_arg')
         phi_1 = tf.math.exp(phi_1_arg)
         phi_2 = tf.math.exp(phi_2_arg)
-        phase_adj_t1 = tf.multiply(1.0 - self.G, phi_1, name='phase_adj_t1')
+        phase_adj_t1 = tf.multiply(self.one_minus_G, phi_1, name='phase_adj_t1')
         phase_adj_t2 = tf.multiply(self.G, phi_2, name='phase_adj_t2')
-        phase_adj_sum = tf.add(phase_adj_t1, phase_adj_t2, name='phase_adj_sum')
-        phase_adj_coef = tf.divide(2.5, self.log10, name='phase_adj_coef')
-        phase_adj = -tf.multiply(phase_adj_coef, phase_adj_sum)
+        phase_adj_sum = tf.add(phase_adj_t1, phase_adj_t2, name='phase_adj_sum')        
+        phase_adj = -tf.multiply(self.phase_adj_coef, phase_adj_sum)
 
-        # The predicted apparent magnitude, V
-        V = keras.layers.add(inputs=[H_vec, dist_adj, phase_adj], name='V')
+        # The predicted apparent magnitude (sometimes called V)
+        mag = keras.layers.add(inputs=[H, dist_adj, phase_adj], name='mag')
 
-        return V
+        return mag
 
     # @tf.function
     # def call(self, q_ast, H):
