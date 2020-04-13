@@ -22,9 +22,9 @@ import time
 from datetime import timedelta
 
 # MSE imports
-from asteroid_model import AsteroidDirection, make_model_ast_pos
-from candidate_element import elts_np2df
+from asteroid_model import AsteroidDirection, AsteroidMagnitude, make_model_ast_pos
 from asteroid_search_layers import CandidateElements, MixtureParameters, TrajectoryScore
+from candidate_element import elts_np2df
 from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
@@ -303,8 +303,11 @@ class AsteroidSearchModel(tf.keras.Model):
         self.direction = AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, 
                                            site_name=site_name, name='direction')
 
+        # The predicted magnitude; shape is [data_size, ]
+        self.magnitude = AsteroidMagnitude(ts_np=ts_np, row_lengths_np=row_lengths_np, elts=elts, name='magnitude')
+
         # Bind the direction layer to this model for legibility
-        self.position = self.direction.q_layer                                           
+        self.position = self.direction.q_layer
 
         # Calibration arrays (flat)
         self.cols_q_ast = ['qx', 'qy', 'qz']
@@ -532,6 +535,10 @@ class AsteroidSearchModel(tf.keras.Model):
     def get_thresh_deg(self):
         """Extract the threshold in degrees"""
         return self.score.get_thresh_deg()
+
+    def get_H(self):
+        """Extract the brightness parameter H"""
+        return self.magnitude.get_H()
 
     # *********************************************************************************************
     # Element weights; equivalent to independent learning rates for each element in the batch
@@ -777,6 +784,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract thresh_deg
         thresh_deg = self.get_thresh_deg()
 
+        # Extract the brightness
+        H = self.get_H()
+
         # Alias candidate elements layer and mixture parameters
         cand = self.candidate_elements
         mixt = self.mixture_parameters
@@ -815,8 +825,11 @@ class AsteroidSearchModel(tf.keras.Model):
             'log_R': log_R,
 
             # Threshold
-            'thresh_deg': thresh_deg,
+            'thresh_deg': thresh_deg.numpy(),
             'thresh_s': deg2dist(thresh_deg),
+
+            # Brightness H
+            'H': H.numpy(),
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -1217,7 +1230,9 @@ class AsteroidSearchModel(tf.keras.Model):
         log_like, hits = score_outputs
         # Extract thresh_deg from score layer
         thresh_deg = self.get_thresh_deg()
-        
+        # Extract the brightness H from magnitude layer
+        H = self.get_H()
+
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
         
@@ -1236,6 +1251,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Add columns with log likelihood and hits
         elts['log_like'] = log_like.numpy()
         elts['hits'] = hits.numpy()
+
+        # The brightness parameter H
+        elts['H'] = H.numpy()
 
         # Add columns with the weights in the three modes
         elts['weight_joint'] = self.weight_joint.numpy()

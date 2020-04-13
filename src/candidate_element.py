@@ -323,10 +323,27 @@ def elts_add_thresh_deg(elts: pd.DataFrame, thresh_deg: float, dtype=dtype):
     elts['thresh_s'] = np.full(fill_value=thresh_s, shape=N_ast, dtype=dtype)
 
 # ********************************************************************************************************************* 
+def elts_add_H(elts: pd.DataFrame, H: float=14.0, dtype=dtype):
+    """
+    Add column to a DataFrame of orbital elements for the brightness (magnitude) parameter H
+    INPUTS:
+        elts:   DataFrame with columns a, e, inc, Omega, omega, f, epoch
+        H:      Brightness parameter; default of 14.0 is rounded from mean of JPL data, 13.68
+    OUTPUTS:
+        Modifies elts in place
+    """
+    # Number of asteroids in this batch
+    N_ast = elts.shape[0]
+
+    # Add column for H
+    elts['H'] = np.full(fill_value=H, shape=N_ast, dtype=dtype)
+    
+# ********************************************************************************************************************* 
 def elts_add_mixture_params(elts: pd.DataFrame, 
                             num_hits: int, 
                             R_deg: float, 
                             thresh_deg: float,
+                            H: float,
                             dtype=dtype):
     """
     Add two columns to a DataFrame of orbital elements for the mixture parameters h and R.
@@ -336,6 +353,7 @@ def elts_add_mixture_params(elts: pd.DataFrame,
         num_hits:     Number of hits to assume for computing the initial guess on hit rate h
         R_deg:        Resolution parameter in degrees
         thresh_deg:   Threshold parameter in degrees
+        H:            Brightness parameter
         dtype:        Data type of DataFrame built
     OUTPUTS:
         Modifies elts in place
@@ -344,3 +362,4 @@ def elts_add_mixture_params(elts: pd.DataFrame,
     elts_add_num_hits(elts=elts, num_hits=num_hits)
     elts_add_R_deg(elts=elts, R_deg=R_deg)
     elts_add_thresh_deg(elts=elts, thresh_deg=thresh_deg)
+    elts_add_H(elts=elts, H=H)
