@@ -243,16 +243,12 @@ def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float) -> int:
     return hash_id
 
 
-# ********************************************************************************************************************* 
-class AsteroidSearchLoss(keras.losses.Loss):
-    # def call(self, y_true, y_pred):
-    #     y_pred = ops.convert_to_tensor(y_pred)
-    #     y_true = math_ops.cast(y_true, y_pred.dtype)
-    #     return tf.keras.backend.mean(math_ops.square(y_pred - y_true), axis=-1)
+# # ********************************************************************************************************************* 
+# class AsteroidSearchLoss(keras.losses.Loss):
 
-    def call(self, score_outputs, dummy=None):
-        loss = score_outputs[2]
-        return tf.reduce_sum(loss, axis=-1)
+#     def call(self, score_outputs, dummy=None):
+#         loss = score_outputs[2]
+#         return tf.reduce_sum(loss, axis=-1)
 
 # ********************************************************************************************************************* 
 # Custom model for Asteroid Search
@@ -349,8 +345,8 @@ class AsteroidSearchModel(tf.keras.Model):
             AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, site_name=site_name, name='direction')
 
         # The predicted magnitude; shape is [data_size, ]
-        self.magnitude: AsteroidMagnitude = \
-                AsteroidMagnitude(ts_np=ts_np, row_lengths_np=row_lengths_np, elts=elts, name='magnitude')
+        # self.magnitude: AsteroidMagnitude = \
+        #        AsteroidMagnitude(ts_np=ts_np, row_lengths_np=row_lengths_np, elts=elts, name='magnitude')
 
         # Bind the direction layer to this model for legibility
         self.position = self.direction.position
@@ -482,8 +478,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # Initialize model with frozen score layer
         self.freeze_score()
 
-    # @tf.function
-    def call(self, inputs=None):
+    @tf.function
+    def calc(self, inputs=None):
         """
         Predict directions from current elements and score them.  
         inputs is a dummmy with no affect on the results; it is there to satisfy keras.Model API
@@ -547,18 +543,36 @@ class AsteroidSearchModel(tf.keras.Model):
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs: tf.Tensor = keras.backend.stack([log_like, hits, loss])
 
+        # Alias outputs
+        score_outputs = Identity(name='score_outputs')(score_outputs)
+        orbital_elements = Identity(name='orbital_elements')(orbital_elements)
+        mixture_parameters = Identity(name='mixture_parameters')(mixture_parameters)
+
         # Wrap outputs
-        # outputs = (score_outputs, orbital_elements, mixture_parameters)
-        outputs = {
-            'score_outputs': score_outputs,
-            'orbital_elements': orbital_elements,
-            'mixture_parameters': mixture_parameters,
-        }
+        outputs = (score_outputs, orbital_elements, mixture_parameters)
+
+        # Add the blended loss to the model
+        # self.add_loss(tf.reduce_sum(loss, name='loss_total'))
+        
+        return outputs
+
+    # @tf.function
+    def call(self, inputs=None):
+        """
+        Predict directions from current elements and score them.  
+        inputs is a dummmy with no affect on the results; it is there to satisfy keras.Model API
+        """
+
+        # Calculate the outputs
+        score_outputs, orbital_elements, mixture_parameters = self.calc(inputs=inputs)
+
+        # Extract the loss
+        loss = score_outputs[2]
 
         # Add the blended loss to the model
         self.add_loss(tf.reduce_sum(loss, name='loss_total'))
         
-        return outputs
+        return loss
 
     def predict_position(self):
         """Predict position q and velocity v"""
@@ -586,27 +600,33 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def calc_outputs(self):
         """Calculate the outputs; no input required (uses cached x_eval)"""
-        return self(self.x_eval)
+        # return self(self.x_eval)
+        return self.calc(self.x_eval)
     
     def calc_score(self):
         """Calculate a tuple of score outputs; no input required (uses cached x_eval)"""
         outputs = self.calc_outputs()
-        score_outputs = outputs['score_outputs']
+        # score_outputs = outputs['score_outputs']
+        score_outputs = outputs[0]
         return score_outputs
     
     def calc_log_like(self):
         """Calculate the log likelihood as tensor of shape [batch_size,]"""
-        # score_outputs, orbital_elements, mixture_params = self.calc_outputs()
         score_outputs = self.calc_score()
         log_like, hits, loss = score_outputs
         log_like_mean = tf.reduce_mean(log_like).numpy()
         return log_like, log_like_mean
 
     def calc_loss(self):
-        """Calculate loss function with current inputs"""
+        """Calculate loss function by element with current inputs; shape [batch_size]"""
         score_outputs = self.calc_score()
         log_like, hits, loss = score_outputs
         return loss
+
+    def calc_loss_total(self):
+        """Calculate total loss function with current inputs; scalar"""
+        loss = self.calc_loss()
+        return tf.reduce_sum(loss)
 
     def traj_err(self, elts0, elts1):
         """Calculate difference in trajectories from two sets of orbital elements"""
@@ -822,10 +842,7 @@ class AsteroidSearchModel(tf.keras.Model):
     def save_weights(self, is_update: bool=False):
         """Save the current weights, log likelihood and training history"""
         # Generate the outputs
-        outputs = self.calc_outputs()
-        score_outputs = outputs['score_outputs']
-        orbital_elements = outputs['orbital_elements']
-        mixture_params = outputs['mixture_parameters']
+        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
         log_like, hits, loss = score_outputs
 
         # is_update is true when we are updating weights that have already been written
@@ -837,7 +854,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.hits = hits.numpy()
         self.log_like_mean = tf.reduce_mean(log_like).numpy()
         self.hits_mean = tf.reduce_mean(hits).numpy()
-        self.loss = self.calc_loss()
+        self.loss = self.calc_loss_total()
 
         # Write history of weights, elements, and mixture parameters
         if is_new:
@@ -891,7 +908,8 @@ class AsteroidSearchModel(tf.keras.Model):
         thresh_deg = self.get_thresh_deg()
 
         # Extract the brightness
-        H = self.get_H()
+        # TODO fix this here and in dict below
+        # H = self.get_H()
 
         # Alias candidate elements layer and mixture parameters
         cand = self.candidate_elements
@@ -935,7 +953,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'thresh_s': deg2dist(thresh_deg),
 
             # Brightness H
-            'H': H,
+            # 'H': H,
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -1087,7 +1105,7 @@ class AsteroidSearchModel(tf.keras.Model):
        
     def update_early_stop(self):
         """Update early stopping monitor"""
-        baseline = self.calc_loss()
+        baseline = self.calc_loss_total()
         self.early_stop = tf.keras.callbacks.EarlyStopping(
             monitor='loss', 
             patience=0,
@@ -1331,18 +1349,15 @@ class AsteroidSearchModel(tf.keras.Model):
     def candidates_df(self):
         """The current candidates as a DataFrame."""
         # Generate the outputs
-        # score_outputs, orbital_elements, mixture_params = self.calc_outputs()
-        outputs = self.calc_outputs()
-        score_outputs = outputs['score_outputs']
-        orbital_elements = outputs['orbital_elements']
-        mixture_parameters = outputs['mixture_parameters']
+        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
 
         # Unpack score_outputs
         log_like, hits, loss = score_outputs
         # Extract thresh_deg from score layer
         thresh_deg = self.get_thresh_deg()
         # Extract the brightness H from magnitude layer
-        H = self.get_H()
+        # TODO fix this
+        # H = self.get_H()
 
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
@@ -1351,8 +1366,8 @@ class AsteroidSearchModel(tf.keras.Model):
         elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
        
         # Add columns for the mixture parameters
-        elts['num_hits'] = mixture_parameters[0].numpy()
-        elts['R'] = mixture_parameters[1].numpy()
+        elts['num_hits'] = mixture_params[0].numpy()
+        elts['R'] = mixture_params[1].numpy()
         elts['R_deg'] = dist2deg(elts.R)
         elts['R_sec'] = 3600.0 * elts.R_deg
         elts['thresh_s'] = deg2dist(thresh_deg)
@@ -1364,7 +1379,7 @@ class AsteroidSearchModel(tf.keras.Model):
         elts['hits'] = hits.numpy()
 
         # The brightness parameter H
-        elts['H'] = H.numpy()
+        # elts['H'] = H
 
         # Add columns with the weights in the three modes
         elts['weight_joint'] = self.weight_joint.numpy()
@@ -1413,6 +1428,11 @@ class AsteroidSearchModel(tf.keras.Model):
             if verbose:
                 print(f'Unable to find {self.file_path}.')
             return
+        # Rebuild the layers
+        for layer in self.layers:
+            layer.build(self.batch_size)
+        # self.candidate_elements.build(self.batch_size)
+        # self.mixture_parameters.build(self.batch_size)
 
         # Status message
         if verbose:
@@ -1818,11 +1838,7 @@ class AsteroidSearchModel(tf.keras.Model):
     def report(self):
         """Run model and report a few summary outputs to console"""
         # Run model on current candidates
-        # score_outputs, candidate_elements, mixture_parameters = self.calc_outputs()
-        outputs = self.calc_outputs()
-        score_outputs = outputs['score_outputs']
-        # orbital_elements = outputs['orbital_elements']
-        mixture_parameters = outputs['mixture_parameters']
+        score_outputs, candidate_elements, mixture_params = self.calc_outputs()
 
         # Unpacke score_outputs
         log_like, hits, loss = score_outputs
@@ -1842,8 +1858,8 @@ class AsteroidSearchModel(tf.keras.Model):
         hits_max = np.max(hits)
 
         # Summarize resolution
-        # num_hits = mixture_parameters[0].numpy()
-        R_deg = dist2deg(mixture_parameters[1].numpy())
+        # num_hits = mixture_params[0].numpy()
+        R_deg = dist2deg(mixture_params[1].numpy())
         R_deg_mean = np.mean(R_deg)
         R_deg_std = np.std(R_deg)
         R_deg_min = np.min(R_deg)
