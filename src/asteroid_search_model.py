@@ -366,7 +366,7 @@ class AsteroidSearchModel(tf.keras.Model):
                             thresh_deg=self.thresh_deg, name='score')
 
         # Position model - used for comparing trajectories of fitted and known orbital elements
-        self.model_pos: keras.Model = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
+        # self.model_pos: keras.Model = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
 
         # *****************************************************************************************
         # Variables for adaptive training and training history
@@ -631,9 +631,9 @@ class AsteroidSearchModel(tf.keras.Model):
         loss = self.calc_loss()
         return tf.reduce_sum(loss)
 
-    def traj_err(self, elts0, elts1):
-        """Calculate difference in trajectories from two sets of orbital elements"""
-        return traj_diff(elts0, elts1, self.model_pos)
+    # def traj_err(self, elts0, elts1):
+    #     """Calculate difference in trajectories from two sets of orbital elements"""
+    #     return traj_diff(elts0, elts1, self.model_pos)
 
     def get_orbital_elts(self):
         """Extract the current orbital elements as Numpy arrays"""

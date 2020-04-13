@@ -371,7 +371,7 @@ class AsteroidDirection(keras.layers.Layer):
 
         # Build layer to compute positions
         self.position: AsteroidPosition = \
-            AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='q_ast')
+            AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='position')
         
         # Take a one time snapshot of the earth's position at these times in barycentric coordinates
         q_earth_np = get_earth_pos(ts_np)
