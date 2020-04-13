@@ -190,13 +190,16 @@ class AsteroidPosition(keras.layers.Layer):
 
         # Save ts and row_lenghts as a keras constants
         self.ts: keras.backend.constant = keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype)
-        self.row_lengths: keras.backend.constant = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
+        self.row_lengths: keras.backend.constant = \
+            keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
 
         # Infer elt_batch_size from shape of row_lengths
-        self.elt_batch_size: keras.backend.constant = keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
+        self.elt_batch_size: keras.backend.constant = \
+            keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
 
         # Save the data size
-        self.data_size: keras.backend.constant = keras.backend.constant(value=tf.reduce_sum(row_lengths_np), dtype=tf.int32)
+        self.data_size: keras.backend.constant = \
+            keras.backend.constant(value=tf.reduce_sum(row_lengths_np), dtype=tf.int32)
         
         # Take a one time snapshot of the sun's position and velocity at these times
         q_sun_np: np.ndarray
@@ -205,12 +208,16 @@ class AsteroidPosition(keras.layers.Layer):
 
         # Convert q_sun and v_sun into keras constants
         traj_shape: Tuple[int, int] = (self.data_size, space_dims)
-        self.q_sun: keras.backend.constant = keras.backend.constant(q_sun_np, dtype=dtype, shape=traj_shape, name='q_sun')
-        self.v_sun: keras.backend.constant = keras.backend.constant(v_sun_np, dtype=dtype, shape=traj_shape, name='v_sun')
+        self.q_sun: keras.backend.constant = \
+            keras.backend.constant(q_sun_np, dtype=dtype, shape=traj_shape, name='q_sun')
+        self.v_sun: keras.backend.constant = \
+            keras.backend.constant(v_sun_np, dtype=dtype, shape=traj_shape, name='v_sun')
 
         # The adjustments dq and dv to correct the Kepler approximation to match the numerical integration
-        self.dq: tf.Variable = tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dq')
-        self.dv: tf.Variable = tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dv')
+        self.dq: tf.Variable = \
+            tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dq')
+        self.dv: tf.Variable = \
+            tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dv')
 
     def update_dq_dv(self, dq: tf.Tensor, dv: tf.Tensor) -> None:
         """Update the value of dq and dv"""
@@ -346,20 +353,25 @@ class AsteroidDirection(keras.layers.Layer):
         }
 
         # Save ts and row_lenghts as a keras constants
-        self.ts: keras.backend.constant = keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype)
-        self.row_lengths: keras.backend.constant = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
+        self.ts: keras.backend.constant = \
+            keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype)
+        self.row_lengths: keras.backend.constant = \
+            keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
 
         # Infer elt_batch_size from shape of row_lengths
-        self.elt_batch_size: keras.backend.constant = keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
+        self.elt_batch_size: keras.backend.constant = \
+            keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
 
         # Save the data size
-        self.data_size: keras.backend.constant = keras.backend.constant(value=tf.reduce_sum(self.row_lengths), dtype=tf.int32)
+        self.data_size: keras.backend.constant = \
+            keras.backend.constant(value=tf.reduce_sum(self.row_lengths), dtype=tf.int32)
 
         # Shape of trajectories is flat: (data_size, 3,)
         traj_shape: Tuple[int, int] = (int(self.data_size), space_dims)
 
         # Build layer to compute positions
-        self.position: AsteroidPosition = AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='q_ast')
+        self.position: AsteroidPosition = \
+            AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='q_ast')
         
         # Take a one time snapshot of the earth's position at these times in barycentric coordinates
         q_earth_np = get_earth_pos(ts_np)
@@ -371,7 +383,8 @@ class AsteroidDirection(keras.layers.Layer):
 
         # Position of the observatory in barycentric frame as a Keras constant
         q_obs_np = q_earth_np + dq_topos_np
-        self.q_obs = keras.backend.constant(value=q_obs_np, shape=traj_shape, dtype=dtype, name='q_obs')
+        self.q_obs: keras.backend.constant = \
+            keras.backend.constant(value=q_obs_np, shape=traj_shape, dtype=dtype, name='q_obs')
 
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by calibrating the underlying position layer"""
@@ -453,14 +466,18 @@ class AsteroidMagnitude(keras.layers.Layer):
         }
 
         # Save ts and row_lenghts as a keras constants
-        self.ts: keras.backend.constant = keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype)
-        self.row_lengths: keras.backend.constant = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
+        self.ts: keras.backend.constant = \
+            keras.backend.constant(value=ts_np, shape=ts_np.shape, dtype=dtype)
+        self.row_lengths: keras.backend.constant = \
+            keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
 
         # Infer elt_batch_size from shape of row_lengths
-        self.batch_size: keras.backend.constant = keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
+        self.batch_size: keras.backend.constant = \
+            keras.backend.constant(value=self.row_lengths.shape[0], dtype=tf.int32)
 
         # Save the data size
-        self.data_size: keras.backend.constant = keras.backend.constant(value=tf.reduce_sum(self.row_lengths), dtype=tf.int32)
+        self.data_size: keras.backend.constant = \
+            keras.backend.constant(value=tf.reduce_sum(self.row_lengths), dtype=tf.int32)
 
         # Shape of trajectories is flat: (data_size, 3,)
         self.traj_shape: Tuple[int, int] = (int(self.data_size), space_dims,)
@@ -470,18 +487,23 @@ class AsteroidMagnitude(keras.layers.Layer):
         # Don't bother with topos adjustment, this is just an approximation
         q_obs_np: np.ndarray = get_earth_pos(ts_np)
         # Position of the observer in barycentric frame as a Keras constant
-        self.q_obs: keras.backend.constant = keras.backend.constant(value=q_obs_np, shape=self.traj_shape, dtype=dtype, name='q_obs')
+        self.q_obs: keras.backend.constant = \
+            keras.backend.constant(value=q_obs_np, shape=self.traj_shape, dtype=dtype, name='q_obs')
 
         # Distance r_obs from sun to earth
         r_obs_np: np.ndarray = np.linalg.norm(q_obs_np, axis=-1)
-        self.r_obs: keras.backend.constant = keras.backend.constant(value=r_obs_np, shape=self.scalar_shape, dtype=dtype, name='r_obs')
+        self.r_obs: keras.backend.constant = \
+            keras.backend.constant(value=r_obs_np, shape=self.scalar_shape, dtype=dtype, name='r_obs')
 
         # Control of the absolute magnitude parameter H
         # Min and max of H are static; controlled gloablly
-        self.H_min: keras.backend.constant = keras.backend.constant(value=H_min_, dtype=dtype)
-        self.H_max: keras.backend.constant = keras.backend.constant(value=H_max_, dtype=dtype)
+        self.H_min: keras.backend.constant = \
+            keras.backend.constant(value=H_min_, dtype=dtype)
+        self.H_max: keras.backend.constant = \
+            keras.backend.constant(value=H_max_, dtype=dtype)
         # Dynamic range of H
-        self.log_H_range: keras.backend.constant = keras.backend.constant(value=np.log(H_max_ / H_min_), dtype=dtype)       
+        self.log_H_range: keras.backend.constant = \
+            keras.backend.constant(value=np.log(H_max_ / H_min_), dtype=dtype)       
         # Tensor with control variable for num_hits
         self.H_: tf.Variable = \
                 tf.Variable(initial_value=self.inverse_H(elts['H']), trainable=True, dtype=dtype,
@@ -489,17 +511,23 @@ class AsteroidMagnitude(keras.layers.Layer):
 
         # Follow convention and assume G = 0.15; because it is constant, upsample it to full data size for speed
         G_np: np.ndarray = np.full(shape=self.data_size, fill_value=0.15, dtype=dtype_np)
-        self.G: keras.backend.constant = keras.backend.constant(value=G_np, dtype=dtype, name='G')
-        self.one_minus_G: keras.backend.constant = keras.backend.constant(value=(1.0 - G_np), dtype=dtype, name='one_minus_G')
+        self.G: keras.backend.constant = \
+            keras.backend.constant(value=G_np, dtype=dtype, name='G')
+        self.one_minus_G: keras.backend.constant = \
+            keras.backend.constant(value=(1.0 - G_np), dtype=dtype, name='one_minus_G')
 
         # The natural log of 10 (used to compute log(x) base 10, which is not a tensorflow function)
-        self.log10: keras.backend.constant = keras.backend.constant(value=np.log(10.0), dtype=dtype, name='log10')
+        # self.log10: keras.backend.constant = \
+        #    keras.backend.constant(value=np.log(10.0), dtype=dtype, name='log10')
         # Coefficient for distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
-        self.dist_adj_coef: keras.backend.constant = tf.divide(5.0, self.log10, name='dist_adj_coef')
+        self.dist_adj_coef: keras.backend.constant = \
+            keras.backend.constant(value=(5.0 / np.log(10.0)), dtype=dtype, name='dist_adj_coef')
 
         # Approximation only valid for alpha not too large; cap it
         alpha_max_deg: float = 20.0
-        self.alpha_max: keras.backend.constant = keras.backend.constant(value=np.deg2rad(alpha_max_deg), dtype=dtype, name='alpha_max')
+        alpha_max: float = np.deg2rad(alpha_max_deg)
+        self.alpha_max: keras.backend.constant = \
+            keras.backend.constant(value=alpha_max, dtype=dtype, name='alpha_max')
 
         # Constants used in phase angle adjustment
         # https://www.britastro.org/asteroids/dymock4.pdf 
@@ -508,7 +536,9 @@ class AsteroidMagnitude(keras.layers.Layer):
         self.B1: keras.backend.constant = keras.backend.constant(value=0.63, dtype=dtype, name='B1')
         self.B2: keras.backend.constant = keras.backend.constant(value=1.22, dtype=dtype, name='B2')
         # Coefficient for phase adjustment term: 2.5 * log10(phase_adj_sum) = (2.5 / log(10)) * log(phase_adj_sum)
-        self.phase_adj_coef: keras.backend.constant = tf.divide(2.5, self.log10, name='phase_adj_coef')
+        # self.phase_adj_coef: keras.backend.constant = tf.divide(2.5, self.log10, name='phase_adj_coef')
+        self.phase_adj_coef: keras.backend.constant = \
+            keras.backend.constant(value=(2.5 / np.log(10.0)), dtype=dtype, name='dist_adj_coef')
 
     @tf.function
     def get_H(self) -> tf.Tensor:
@@ -606,7 +636,8 @@ def make_model_ast_pos(ts_np: np.ndarray, row_lengths_np: np.ndarray) -> keras.M
     inputs = (a, e, inc, Omega, omega, f, epoch)
     
     # Build asteroid position layer
-    ast_pos_layer: AsteroidPosition = AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='ast_pos_layer')
+    ast_pos_layer: AsteroidPosition = \
+        AsteroidPosition(ts_np=ts_np, row_lengths_np=row_lengths_np, name='ast_pos_layer')
 
     # Define output tensors q, v by applying the position layer to the input tensors with the elements
     q_flat: tf.Tensor

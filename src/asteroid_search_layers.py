@@ -116,7 +116,8 @@ class CandidateElements(keras.layers.Layer):
         
         # Control over a_, in range 0.0 to 1.0
         self.a_min: keras.backend.constant = keras.backend.constant(a_min_, dtype=dtype)
-        self.log_a_range: keras.backend.constant = keras.backend.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=dtype)
+        self.log_a_range: keras.backend.constant = \
+            keras.backend.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=dtype)
         self.a_: tf.Variable = \
             tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, dtype=dtype,
                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='a_')
@@ -141,15 +142,19 @@ class CandidateElements(keras.layers.Layer):
         
         # Angle variables Omega, omega and f
         self.Omega_: tf.Variable = \
-                tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, dtype=dtype, name='Omega_')
+            tf.Variable(initial_value=self.inverse_angle(elts['Omega']), 
+                        trainable=True, dtype=dtype, name='Omega_')
         self.omega_: tf.Variable = \
-            tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, dtype=dtype, name='omega_')
+            tf.Variable(initial_value=self.inverse_angle(elts['omega']), 
+                        trainable=True, dtype=dtype, name='omega_')
         self.f_: tf.Variable = \
-            tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, dtype=dtype, name='f_')
+            tf.Variable(initial_value=self.inverse_angle(elts['f']), 
+                        trainable=True, dtype=dtype, name='f_')
 
         # The epoch is not trainable
         self.epoch: tf.Variable = \
-            tf.Variable(initial_value=elts['epoch'], trainable=False, dtype=dtype, name='epoch')
+            tf.Variable(initial_value=elts['epoch'], 
+                        trainable=False, dtype=dtype, name='epoch')
         
     @tf.function
     def get_a(self) -> tf.Tensor:
@@ -245,7 +250,8 @@ class MixtureParameters(keras.layers.Layer):
         self.num_hits_min: keras.backend.constant = keras.backend.constant(value=num_hits_min_, dtype=dtype)
         self.num_hits_max: keras.backend.constant = keras.backend.constant(value=num_hits_max_, dtype=dtype)
         # Dynamic range of num_hits
-        self.log_num_hits_range: keras.backend.constant = keras.backend.constant(value=np.log(num_hits_max_ / num_hits_min_), dtype=dtype)
+        self.log_num_hits_range: keras.backend.constant = \
+            keras.backend.constant(value=np.log(num_hits_max_ / num_hits_min_), dtype=dtype)
         # Tensor with control variable for num_hits
         self.num_hits_: tf.Variable = \
             tf.Variable(initial_value=self.inverse_num_hits(elts['num_hits']), trainable=True, dtype=dtype,
@@ -366,17 +372,22 @@ class TrajectoryScore(keras.layers.Layer):
         }
 
         # Sizes of the data as keras constants
-        self.elt_batch_size: keras.backend.constant = keras.backend.constant(value=row_lengths_np.shape[0], dtype=tf.int32)
-        self.data_size: keras.backend.constant = keras.backend.constant(value=tf.reduce_sum(row_lengths_np), dtype=tf.int32)
-        self.row_lengths: keras.backend.constant = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
+        self.elt_batch_size: keras.backend.constant = \
+            keras.backend.constant(value=row_lengths_np.shape[0], dtype=tf.int32)
+        self.data_size: keras.backend.constant = \
+            keras.backend.constant(value=tf.reduce_sum(row_lengths_np), dtype=tf.int32)
+        self.row_lengths: keras.backend.constant = \
+            keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
         u_shape: Tuple[int, int] = (int(self.data_size), space_dims,)
         mag_shape: Tuple[int] = (int(self.data_size), )      
 
         # Save the observed directions as a keras constant
-        self.u_obs: keras.backend.constant = keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
+        self.u_obs: keras.backend.constant = \
+            keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
 
         # Save the observed apparent magnitude as a keras constant
-        self.mag_app: keras.backend.constant = keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
+        self.mag_app: keras.backend.constant = \
+            keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
 
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s: np.ndarray = deg2dist(thresh_deg)
@@ -388,14 +399,15 @@ class TrajectoryScore(keras.layers.Layer):
         thresh_s2_max: np.ndarray = thresh_s2
         log_thresh_s2_range: np.ndarray = np.log(thresh_s2_max / thresh_s2_min)
         # Save these as keras constants or variables as appropriate
-        self.thresh_s2_min: keras.backend.constant = keras.backend.constant(value=thresh_s2_min, dtype=dtype)
+        self.thresh_s2_min: keras.backend.constant = \
+            keras.backend.constant(value=thresh_s2_min, dtype=dtype)
         self.log_thresh_s2_range: tf.Variable = \
             tf.Variable(initial_value=log_thresh_s2_range, trainable=False, 
                         dtype=dtype, name='log_thresh_s2_range')
 
         # Tensor with control variable for thres_s2; shape [batch_size]
         self.thresh_s2_: tf.Variable = \
-             tf.Variable(initial_value=self.inverse_thresh_s2(thresh_s2), trainable=True, 
+            tf.Variable(initial_value=self.inverse_thresh_s2(thresh_s2), trainable=True, 
                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0),
                         dtype=dtype, name='thresh_s2_')
 
@@ -415,7 +427,10 @@ class TrajectoryScore(keras.layers.Layer):
         return tf.math.log(thresh_s2 / self.thresh_s2_min) / self.log_thresh_s2_range   
 
     def set_thresh_s2(self, thresh_s2: np.ndarray) -> None:
-        """Set the threshold parameter for which observations are included in the conditional probability score calculations"""        
+        """
+        Set the threshold parameter for which observations are included 
+        in the conditional probability score calculations
+        """        
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         self.thresh_s2_.assign(self.inverse_thresh_s2(thresh_s2))
 
@@ -428,7 +443,8 @@ class TrajectoryScore(keras.layers.Layer):
     
     def set_thresh_deg(self, thresh_deg: np.ndarray) -> None:
         """
-        Set the threshold parameter for which observations are included in the conditional probability score calculations
+        Set the threshold parameter for which observations are included 
+        in the conditional probability score calculations
         INPUTS:
             thresh_deg: Threshold in degrees for including an observation; one for each candidate element
                         (In practice these may be the same.)
@@ -455,7 +471,8 @@ class TrajectoryScore(keras.layers.Layer):
         self.set_thresh_s2(thresh_s2)
 
     @tf.function        
-    def call(self, u_pred: tf.Tensor, num_hits: tf.Tensor, R: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    def call(self, u_pred: tf.Tensor, num_hits: tf.Tensor, R: tf.Tensor) \
+            -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
@@ -479,8 +496,10 @@ class TrajectoryScore(keras.layers.Layer):
         
         # Upsample thresh_s2 so it matches input shape
         thresh_shape: Tuple[int] = (self.data_size,)
-        self.thresh_s2_rep: tf.Tensor = tf.repeat(input=self.thresh_s2_elt, repeats=self.row_lengths, name='thresh_s2_rep')
-        self.thresh_s2: tf.Tensor = tf.reshape(tensor=self.thresh_s2_rep, shape=thresh_shape, name='thresh_s2')
+        self.thresh_s2_rep: tf.Tensor = \
+            tf.repeat(input=self.thresh_s2_elt, repeats=self.row_lengths, name='thresh_s2_rep')
+        self.thresh_s2: tf.Tensor = \
+            tf.reshape(tensor=self.thresh_s2_rep, shape=thresh_shape, name='thresh_s2')
 
         # Filter to only include terms where z2 is within the threshold distance^2
         is_close: tf.Tensor = tf.math.less(s2, self.thresh_s2, name='is_close')
@@ -497,12 +516,17 @@ class TrajectoryScore(keras.layers.Layer):
         obs_weight_flat: tf.Tensor = tf.exp(obs_weight_arg)
         
         # Row_lengths, for close observations only
-        # is_close_r = tf.RaggedTensor.from_row_lengths(values=is_close, row_lengths=self.row_lengths, name='is_close_r')
-        ragged_map_func = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths)
-        is_close_r: tf.RaggedTensor = tf.keras.layers.Lambda(function=ragged_map_func, name='is_close_r')(is_close)
+        # is_close_r = tf.RaggedTensor.from_row_lengths(
+        # values=is_close, row_lengths=self.row_lengths, name='is_close_r')
+        ragged_map_func = lambda x : \
+            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths)
+        is_close_r: tf.RaggedTensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func, name='is_close_r')(is_close)
         # Compute the row lengths (number of close observations per candidate element)
-        row_lengths_close: tf.Tensor = tf.reduce_sum(tf.cast(is_close_r, tf.int32), axis=1, name='row_lengths_close')
-        row_lengths_close_float: tf.Tensor = tf.cast(x=row_lengths_close, dtype=dtype)
+        row_lengths_close: tf.Tensor = \
+            tf.reduce_sum(tf.cast(is_close_r, tf.int32), axis=1, name='row_lengths_close')
+        row_lengths_close_float: tf.Tensor = \
+            tf.cast(x=row_lengths_close, dtype=dtype)
 
         # Compute the implied hit rate h from the number of hits and row_lengths_close; shape [batch_size,]
         h: tf.Tensor = tf.divide(num_hits, row_lengths_close_float, name='h')
@@ -545,12 +569,17 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Rearrange to ragged tensors
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
-        ragged_map_func_close = lambda x : tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
-        log_p: tf.Tensor = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
-        log_p_wtd: tf.Tensor = tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p_wtd')(log_p_wtd_flat)
-        obs_weight: tf.Tensor = tf.keras.layers.Lambda(function=ragged_map_func_close, name='obs_weight')(obs_weight_flat)
+        ragged_map_func_close = lambda x : \
+            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
+        log_p: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
+        log_p_wtd: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p_wtd')(log_p_wtd_flat)
+        obs_weight: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='obs_weight')(obs_weight_flat)
         # Count hits
-        p_hit_filtered: tf.Tensor = tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
+        p_hit_filtered: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
         # p_hit_post = tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_post')(p_hit_post_flat)
 
         # Log likelihood by element
@@ -559,7 +588,8 @@ class TrajectoryScore(keras.layers.Layer):
         # First sum by element
         log_like_wtd_by_elt: tf.Tensor = tf.reduce_sum(log_p_wtd, axis=1, name='log_like_wtd_by_elt')
         # Multiply the score for each element by the number of close observations so units are comparable log like
-        log_like_wtd_num: tf.Tensor = tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
+        log_like_wtd_num: tf.Tensor = \
+            tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
         log_like_wtd_den: tf.Tensor = tf.reduce_sum(obs_weight, axis=1, name='log_like_wtd_den')
         log_like_wtd: tf.Tensor = tf.divide(log_like_wtd_num, log_like_wtd_den)
         # Hit count count by element
