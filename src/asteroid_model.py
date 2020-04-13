@@ -158,7 +158,7 @@ class ElementToPosition(keras.layers.Layer):
 
         return q, v
 
-    def get_config(self):
+    def get_config(self) -> Dict:
         return dict()
 
 # ********************************************************************************************************************* 
@@ -212,13 +212,19 @@ class AsteroidPosition(keras.layers.Layer):
         self.dq: tf.Variable = tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dq')
         self.dv: tf.Variable = tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dv')
 
-    def update_dq_dv(self, dq: tf.Tensor, dv: tf.Tensor):
+    def update_dq_dv(self, dq: tf.Tensor, dv: tf.Tensor) -> None:
         """Update the value of dq and dv"""
         self.dq.assign(dq)
         self.dv.assign(dv)
 
-    def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
-        """Calibrate this model by setting dq to recover q_ast"""
+    def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray) -> None:
+        """
+        Calibrate this model by setting dq to recover q_ast
+        INPUTS:
+            elts: pd.DataFrame including columns a, e, inc, Omega, omega, f, epoch; shape []
+            q_ast: np.ndarray with numerically integrated asteroid positions; shape [data_size, 3,]
+            v_ast: np.ndarray with numerically integrated asteroid velocities; shape [data_size, 3,]
+        """
 
         # Unpack elements; save as constants of the correct data type
         a: keras.backend.constant = keras.backend.constant(value=elts['a'], dtype=dtype)
@@ -242,15 +248,17 @@ class AsteroidPosition(keras.layers.Layer):
         self.update_dq_dv(dq, dv)
 
     @tf.function
-    def call(self, a, e, inc, Omega, omega, f, epoch):
+    def call(self, a, e, inc, Omega, omega, f, epoch) -> Tuple[tf.Tensor, tf.Tensor]:
         """
         Simulate the orbital trajectories.
-        Snapshot times t shared by all the input elements.  
-        The inputs orbital elements and reference epoch should all have size [data_size,].
-        That is, inputs are flat, not ragged, e.g. 92000 entries for 64 candidate elements.
-        Outputs are the barycentric position and velocity: q, v.
-        The elements generate a heliocentric calculation, and the constants q_sun, v_sun are added.
-        These are also flat, with shape [data_size, 3,]
+        INPUTS:
+            a, e, inc, Omega, omega, f, epoch
+        These elements all have shape [batch_size,]
+        They are upsampled to the full data size based on self.row_length.
+        OUPUTS:
+            q: barycentric position of asteroids in kepler model; shape [data_size, 3,]
+            v: barycentric velocity of asteroids in kepler model; shape [data_size, 3,]
+        The elements generate a heliocentric calculation, and the constants q_sun, v_sun are added.        
         """
         # Alias row_lengths for legibility
         row_lengths: keras.backend.constant = self.row_lengths
@@ -371,7 +379,7 @@ class AsteroidDirection(keras.layers.Layer):
         self.position.calibrate(elts=elts, q_ast=q_ast, v_ast=v_ast)
 
     @tf.function
-    def call(self, a, e, inc, Omega, omega, f, epoch):
+    def call(self, a, e, inc, Omega, omega, f, epoch) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
         """
         Simulate direction from observatory to asteroid with these orbital elements.
         Snapshot times t shared by all the input elements.  
@@ -416,7 +424,6 @@ class AsteroidDirection(keras.layers.Layer):
     def get_config(self):
         return self.cfg
     
-
 # ********************************************************************************************************************* 
 class AsteroidMagnitude(keras.layers.Layer):
     """
