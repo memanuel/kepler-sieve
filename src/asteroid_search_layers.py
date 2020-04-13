@@ -25,7 +25,7 @@ from astro_utils import deg2dist, dist2deg
 from tf_utils import tf_quiet, Identity
 
 # Typing
-from typing import Optional, Union
+from typing import List, Tuple, Dict, Optional, Union
 
 # ********************************************************************************************************************* 
 # Aliases
@@ -36,7 +36,7 @@ keras = tf.keras
 tf_quiet()
 
 # Constants
-space_dims = 3
+space_dims: int = 3
 
 # Data type
 dtype = tf.float32
@@ -53,12 +53,12 @@ e_min_: float = 0.0
 e_max_: float = 1.0 - 2.0**-10
 
 # Range for num_hits
-num_hits_min_ = 6.0
-num_hits_max_ = 1024.0
+num_hits_min_: float = 6.0
+num_hits_max_: float = 1024.0
 
 # Minimum resolution R: 1.0 arc second to 1.0 degrees
-R_min_sec_ = 1.0
-R_min_ = deg2dist(R_min_sec_ / 3600.0)
+R_min_sec_: float = 1.0
+R_min_: float = deg2dist(R_min_sec_ / 3600.0)
 
 # ********************************************************************************************************************* 
 def R2lam(R, thresh_s):
@@ -88,90 +88,97 @@ class CandidateElements(keras.layers.Layer):
         super(CandidateElements, self).__init__(**kwargs)
         
         # Configuration for serialization
-        self.cfg = {
+        self.cfg: Dict = {
             'elts': elts,
         }
 
         # Infer batch size from elts DataFrame
-        batch_size = elts.shape[0]
-        elt_shape = (batch_size,)
+        batch_size: int = elts.shape[0]
+        elt_shape: Tuple = (batch_size,)
 
         # Save batch size, orbital elements as numpy array
-        self.batch_size = batch_size
-        self.elts = elts
+        self.batch_size: int = batch_size
+        self.elts: Dict = elts
         
         # Control over a_, in range 0.0 to 1.0
-        self.a_min = keras.backend.constant(a_min_, dtype=dtype)
-        self.log_a_range = keras.backend.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=dtype)
-        self.a_ = tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, dtype=dtype,
-                              constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='a_')
+        self.a_min: keras.backend.constant = keras.backend.constant(a_min_, dtype=dtype)
+        self.log_a_range: keras.backend.constant = keras.backend.constant(tf.math.log(a_max_) - tf.math.log(a_min_), dtype=dtype)
+        self.a_: tf.Variable = \
+            tf.Variable(initial_value=self.inverse_a(elts['a']), trainable=True, dtype=dtype,
+                        constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='a_')
         
         # Control over e_, in range e_min to e_max
-        self.e_min = keras.backend.constant(e_min_, dtype=dtype)
-        self.e_max = keras.backend.constant(e_max_, dtype=dtype)
-        self.e_ = tf.Variable(initial_value=elts['e'], trainable=True, dtype=dtype,
-                              constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
+        self.e_min: keras.backend.constant = keras.backend.constant(e_min_, dtype=dtype)
+        self.e_max: keras.backend.constant = keras.backend.constant(e_max_, dtype=dtype)
+        self.e_: tf.Variable = \
+            tf.Variable(initial_value=elts['e'], trainable=True, dtype=dtype,
+                        constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
         # Control over inc_, in range -pi/2 to pi/2
         self.inc_max = keras.backend.constant(np.pi/2*(1-2**-20), dtype=dtype)
         self.inc_min = -self.inc_max
         self.inc_range = keras.backend.constant(self.inc_max - self.inc_min, dtype=dtype)
-        self.inc_ = tf.Variable(initial_value=self.inverse_inc(elts['inc']), trainable=True, dtype=dtype,
-                                constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='inc_')
+        self.inc_: tf.Variable = \
+            tf.Variable(initial_value=self.inverse_inc(elts['inc']), trainable=True, dtype=dtype,
+                        constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='inc_')
         
         # Scale factor for unconstrained angles is 2*pi
         self.two_pi = keras.backend.constant(2.0*np.pi, dtype=dtype)
         
         # Angle variables Omega, omega and f
-        self.Omega_ = tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, dtype=dtype, name='Omega_')
-        self.omega_ = tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, dtype=dtype, name='omega_')
-        self.f_ = tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, dtype=dtype, name='f_')
+        self.Omega_: tf.Variable = \
+                tf.Variable(initial_value=self.inverse_angle(elts['Omega']), trainable=True, dtype=dtype, name='Omega_')
+        self.omega_: tf.Variable = \
+            tf.Variable(initial_value=self.inverse_angle(elts['omega']), trainable=True, dtype=dtype, name='omega_')
+        self.f_: tf.Variable = \
+            tf.Variable(initial_value=self.inverse_angle(elts['f']), trainable=True, dtype=dtype, name='f_')
 
         # The epoch is not trainable
-        self.epoch = tf.Variable(initial_value=elts['epoch'], trainable=False, dtype=dtype, name='epoch')
+        self.epoch: tf.Variable = \
+            tf.Variable(initial_value=elts['epoch'], trainable=False, dtype=dtype, name='epoch')
         
     @tf.function
-    def get_a(self):
+    def get_a(self) -> tf.Tensor:
         """Transformed value of a"""
         return self.a_min * tf.exp(self.a_ * self.log_a_range)
 
-    def inverse_a(self, a):
+    def inverse_a(self, a) -> tf.Tensor:
         """Inverse transform value of a"""
         return tf.math.log(a / self.a_min) / self.log_a_range
 
     @tf.function
-    def get_e(self):
+    def get_e(self) -> tf.Tensor:
         """Transformed value of e"""
         return self.e_
 
     @tf.function
-    def get_inc(self):
+    def get_inc(self) -> tf.Tensor:
         """Transformed value of inc"""
         return self.inc_min + self.inc_ * self.inc_range
 
-    def inverse_inc(self, inc):
+    def inverse_inc(self, inc) -> tf.Tensor:
         """Inverse transform value of inc"""
         return (inc - self.inc_min) / self.inc_range
 
     @tf.function
-    def get_angle(self, angle_):
+    def get_angle(self, angle_) -> tf.Tensor:
         """Forward transform of an unconstrained angle variable (Omega, omega, f)"""
         return tf.multiply(self.two_pi, angle_)
 
-    def inverse_angle(self, angle):
+    def inverse_angle(self, angle) -> tf.Tensor:
         """Forward transform of an unconstrained angle variable (Omega, omega, f)"""
         return tf.divide(angle, self.two_pi)
 
     @tf.function
-    def get_Omega(self):
+    def get_Omega(self) -> tf.Tensor:
         return self.get_angle(self.Omega_)
 
     @tf.function
-    def get_omega(self):
+    def get_omega(self) -> tf.Tensor:
         return self.get_angle(self.omega_)
 
     @tf.function
-    def get_f(self):
+    def get_f(self) -> tf.Tensor:
         return self.get_angle(self.f_)
 
     @tf.function
@@ -307,19 +314,26 @@ class MixtureParameters(keras.layers.Layer):
 # ********************************************************************************************************************* 
 class TrajectoryScore(keras.layers.Layer):
     """Score candidate trajectories"""
-    def __init__(self, u_obs_np, row_lengths_np: np.ndarray, thresh_deg: np.ndarray, **kwargs):
+    def __init__(self, 
+                 u_obs_np: np.ndarray, 
+                 mag_app_np: np.ndarray,
+                 row_lengths_np: np.ndarray, 
+                 thresh_deg: np.ndarray, 
+                 **kwargs):
         """
         INPUTS:
-            u_obs_np:         Observed positions; shape [data_size, 3]
-            row_lengths_np:   Number of observations for each element; shape [elt_batch_size]
+            u_obs_np:         Observed positions; shape [data_size, 3,]
+            mag_app_np:       Observed apparent magnitude; shape [data_size, ]
+            row_lengths_np:   Number of observations for each element; shape [elt_batch_size,]
             thresh_deg: Threshold in degrees for observations to be included;
                               Not the same as the threshold in degrees for the original observation data.
         """
         super(TrajectoryScore, self).__init__(**kwargs)
 
         # Configuration for seralization
-        self.cfg = {
+        self.cfg : Dict = {
             'u_obs_np': u_obs_np,
+            'mag_app_np': mag_app_np,
             'row_lengths_np': row_lengths_np,
             'thresh_deg': thresh_deg
         }
@@ -328,10 +342,14 @@ class TrajectoryScore(keras.layers.Layer):
         self.elt_batch_size = keras.backend.constant(value=row_lengths_np.shape[0], dtype=tf.int32)
         self.data_size = keras.backend.constant(value=tf.reduce_sum(row_lengths_np), dtype=tf.int32)
         self.row_lengths = keras.backend.constant(value=row_lengths_np, shape=row_lengths_np.shape, dtype=tf.int32)
-        u_shape = (self.data_size, space_dims,)        
+        u_shape = (int(self.data_size), space_dims,)
+        mag_shape = (int(self.data_size), )      
 
         # Save the observed directions as a keras constant
         self.u_obs = keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
+
+        # Save the observed apparent magnitude as a keras constant
+        self.mag_app = keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
 
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s = deg2dist(thresh_deg)

@@ -301,6 +301,10 @@ class AsteroidSearchModel(tf.keras.Model):
         cols_u_obs = ['ux', 'uy', 'uz']
         u_obs_np = ztf_elt[cols_u_obs].values.astype(dtype_np)
 
+        # Apparent magnitude; extract from ztf_elt DataFrame
+        cols_mag_app = ['mag_app']
+        mag_app_np = ztf_elt[cols_mag_app].values.astype(dtype_np)
+
         # *****************************************************************************************
         # Layers for candidate elements, asteroid direction and score
         # *****************************************************************************************
@@ -320,7 +324,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.magnitude = AsteroidMagnitude(ts_np=ts_np, row_lengths_np=row_lengths_np, elts=elts, name='magnitude')
 
         # Bind the direction layer to this model for legibility
-        self.position = self.direction.q_layer
+        self.position = self.direction.position
 
         # Calibration arrays (flat)
         self.cols_q_ast = ['qx', 'qy', 'qz']
@@ -332,7 +336,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.position.calibrate(elts=elts, q_ast=self.q_ast, v_ast=self.v_ast)
 
         # Score layer for these observations
-        self.score = TrajectoryScore(row_lengths_np=row_lengths_np, u_obs_np=u_obs_np,
+        self.score = TrajectoryScore(row_lengths_np=row_lengths_np, 
+                                     u_obs_np=u_obs_np, mag_app_np=mag_app_np,
                                      thresh_deg=self.thresh_deg, name='score')
 
         # Position model - used for comparing trajectories of fitted and known orbital elements
