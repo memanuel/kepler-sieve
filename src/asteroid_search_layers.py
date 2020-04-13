@@ -170,6 +170,10 @@ class CandidateElements(keras.layers.Layer):
         """Transformed value of e"""
         return self.e_
 
+    def inverse_e(self, e) -> tf.Tensor:
+        """Inverse transform value of e"""
+        return e
+
     @tf.function
     def get_inc(self) -> tf.Tensor:
         """Transformed value of inc"""
@@ -221,6 +225,25 @@ class CandidateElements(keras.layers.Layer):
         f: tf.Tensor = self.get_f()
         # Return the elements
         return (a, e, inc, Omega, omega, f, self.epoch,)
+
+    def load(self, elts):
+        """Load values from elts DataFrame"""
+        # Compute inverse transforms of the orbital elements
+        a_ = self.inverse_a(elts['a'].values)
+        e_ = self.inverse_e(elts['e'].values)
+        inc_ = self.inverse_inc(elts['inc'].values)
+        Omega_ = self.inverse_angle(elts['Omega'].values)
+        omega_ = self.inverse_angle(elts['omega'].values)
+        f_ = self.inverse_angle(elts['f'].values)
+        epoch = elts['epoch'].values
+        # Assign values to the weight variables
+        self.a_.assign(a_)
+        self.e_.assign(e_)
+        self.inc_.assign(inc_)
+        self.Omega_.assign(Omega_)
+        self.omega_.assign(omega_)
+        self.f_.assign(f_)
+        self.epoch.assign(epoch)
 
     def get_config(self):
         return self.cfg
@@ -305,11 +328,14 @@ class MixtureParameters(keras.layers.Layer):
         """Transformed value of R in degrees"""
         R = self.get_R()        
         return dist2deg(R)
+    
+    @tf.function
+    def get_R_max(self) -> tf.Tensor:
+        """Maximum value of R"""
+        return self.R_min * tf.exp(self.log_R_range)
 
-    def set_R_deg_max(self, R_deg_max: np.ndarray) -> None:
-        """Set the maximum of the resolution parameter in degrees"""
-        # Convert R_deg_max to distance
-        R_max = deg2dist(R_deg_max)
+    def set_R_max(self, R_max: np.ndarray) -> None:
+        """Set the maximum of the resolution parameter"""
         # Get old values of R
         R_old = self.get_R()
         # Apply the constraint to the current values; this is the new value
@@ -320,24 +346,27 @@ class MixtureParameters(keras.layers.Layer):
         # Assign the updated R back to the layer
         self.set_R(R)
 
-    def set_thresh_s2(self, thresh_s2: np.ndarray) -> None:
-        """Set the thresh_s2 parameter"""
-        half_thresh_s2 = 0.5 * thresh_s2
-        self.half_thresh_s2.assign(half_thresh_s2)
-
-    def set_thresh_deg(self, thresh_deg: np.ndarray) -> None:
-        """Set the thresh_s2 paramete by specifying the threshold in degrees"""
-        thresh_s = deg2dist(thresh_deg)
-        thresh_s2 = thresh_s**2
-        self.set_thresh_s2(thresh_s2)
+    def set_R_deg_max(self, R_deg_max: np.ndarray) -> None:
+        """Set the maximum of the resolution parameter in degrees"""
+        # Convert R_deg_max to distance
+        R_max = deg2dist(R_deg_max)
+        # Delegate to set_R_max
+        self.set_R_max(R_max)
 
     @tf.function
     def call(self, inputs=None) -> None:
-        """Return the current candidate orbital elements and mixture model parameters"""
-        # Transform search parameters num_hits and R
+        """Return the current mixture model parameters"""
+        # Transform search parameters num_hits, R and R_max
         num_hits = self.get_num_hits()
         R = self.get_R()
-        return (num_hits, R)
+        R_max = self.get_R_max()
+        return (num_hits, R, R_max)
+
+    def load(self, elts):
+        """Load values from elts DataFrame"""
+        self.set_num_hits(elts.num_hits.values)
+        self.set_R_max(elts.R_max.values)
+        self.set_R(elts.R.values)
 
     def get_config(self):
         return self.cfg

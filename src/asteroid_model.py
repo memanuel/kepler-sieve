@@ -600,6 +600,10 @@ class AsteroidMagnitude(keras.layers.Layer):
 
         return mag
 
+    def load(self, elts):
+        """Load values from elts DataFrame"""
+        self.set_H(elts.H.values)
+
 # ********************************************************************************************************************* 
 # Functional API Models
 # ********************************************************************************************************************* 

@@ -244,11 +244,10 @@ def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float) -> int:
 
 
 # # ********************************************************************************************************************* 
-# class AsteroidSearchLoss(keras.losses.Loss):
+class AsteroidSearchLoss(keras.losses.Loss):
 
-#     def call(self, score_outputs, dummy=None):
-#         loss = score_outputs[2]
-#         return tf.reduce_sum(loss, axis=-1)
+    def call(self, loss, dummy=None):
+        return tf.reduce_sum(loss, axis=-1)
 
 # ********************************************************************************************************************* 
 # Custom model for Asteroid Search
@@ -345,8 +344,8 @@ class AsteroidSearchModel(tf.keras.Model):
             AsteroidDirection(ts_np=ts_np, row_lengths_np=row_lengths_np, site_name=site_name, name='direction')
 
         # The predicted magnitude; shape is [data_size, ]
-        # self.magnitude: AsteroidMagnitude = \
-        #        AsteroidMagnitude(ts_np=ts_np, row_lengths_np=row_lengths_np, elts=elts, name='magnitude')
+        self.magnitude: AsteroidMagnitude = \
+               AsteroidMagnitude(ts_np=ts_np, row_lengths_np=row_lengths_np, elts=elts, name='magnitude')
 
         # Bind the direction layer to this model for legibility
         self.position = self.direction.position
@@ -475,8 +474,13 @@ class AsteroidSearchModel(tf.keras.Model):
         # File name for saving training progress
         self.file_path: str = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
 
-        # Initialize model with frozen score layer
+        # Initialize model with frozen elements and score layer
+        self.freeze_candidate_elements()
         self.freeze_score()
+
+        # Fit one time to "prime the pump" on the loss function.
+        # Not sure why this seems to be necessary
+        self.fit(self.x_eval, verbose=0)
 
     @tf.function
     def calc(self, inputs=None):
@@ -498,13 +502,13 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
         num_hits: tf.Tensor
         R: tf.Tensor
-        num_hits, R = self.mixture_parameters(inputs=inputs)
+        num_hits, R, R_max = self.mixture_parameters(inputs=inputs)
         
         # Stack the current orbital elements.  Shape is [batch_size, 7,]
         orbital_elements: tf.Tensor = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
-        # Stack mixture model parameters. Shape is [batch_size, 2,]
-        mixture_parameters: tf.Tensor = keras.backend.stack([num_hits, R,])
+        # Stack mixture model parameters. Shape is [batch_size, 3,]
+        mixture_params: tf.Tensor = keras.backend.stack([num_hits, R, R_max])
 
         # Tensor of predicted directions.  Shape of u_pred is [data_size, 3,]
         # delta_pred is distance from earth to ast.  
@@ -512,7 +516,10 @@ class AsteroidSearchModel(tf.keras.Model):
         u_pred: tf.Tensor
         delta_pred: tf.Tensor
         q_ast: tf.Tensor
-        u_pred, delta_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)        
+        u_pred, delta_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)
+
+        # Compute the predicted magnitude; shape [data_size,]
+        mag_pred = self.magnitude(q_ast)
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
@@ -546,14 +553,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Alias outputs
         score_outputs = Identity(name='score_outputs')(score_outputs)
         orbital_elements = Identity(name='orbital_elements')(orbital_elements)
-        mixture_parameters = Identity(name='mixture_parameters')(mixture_parameters)
+        mixture_params = Identity(name='mixture_parameters')(mixture_params)
 
         # Wrap outputs
-        outputs = (score_outputs, orbital_elements, mixture_parameters)
+        outputs = (score_outputs, orbital_elements, mixture_params)
 
-        # Add the blended loss to the model
-        # self.add_loss(tf.reduce_sum(loss, name='loss_total'))
-        
         return outputs
 
     # @tf.function
@@ -562,9 +566,8 @@ class AsteroidSearchModel(tf.keras.Model):
         Predict directions from current elements and score them.  
         inputs is a dummmy with no affect on the results; it is there to satisfy keras.Model API
         """
-
         # Calculate the outputs
-        score_outputs, orbital_elements, mixture_parameters = self.calc(inputs=inputs)
+        score_outputs, orbital_elements, mixture_params = self.calc(inputs=inputs)
 
         # Extract the loss
         loss = score_outputs[2]
@@ -638,10 +641,10 @@ class AsteroidSearchModel(tf.keras.Model):
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
         return a, e, inc, Omega, omega, f, epoch
   
-    def get_mixture_params(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_mixture_params(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Extract the current mixture parameters as Numpy arrays"""
-        num_hits, R = self.mixture_parameters(inputs=None)
-        return num_hits.numpy(), R.numpy()
+        num_hits, R, R_max = self.mixture_parameters(inputs=None)
+        return num_hits.numpy(), R.numpy(), R_max.numpy()
 
     def get_thresh_deg(self) -> np.ndarray:
         """Extract the threshold in degrees as a Numpy array"""
@@ -900,16 +903,16 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract mixture parameters
         num_hits = mixture_params[0]
         R = mixture_params[1]
+        R_max = mixture_params[2]
         R_deg = dist2deg(R)
         R_sec = dist2sec(R)
-        log_R = np.log(R)
+        log_R = np.log(R)        
 
         # Extract thresh_deg
         thresh_deg = self.get_thresh_deg()
 
         # Extract the brightness
-        # TODO fix this here and in dict below
-        # H = self.get_H()
+        H = self.get_H()
 
         # Alias candidate elements layer and mixture parameters
         cand = self.candidate_elements
@@ -947,13 +950,14 @@ class AsteroidSearchModel(tf.keras.Model):
             'R_deg': R_deg,
             'R_sec': R_sec,
             'log_R': log_R,
+            # 'log_R_range': log_R_range,
 
             # Threshold
             'thresh_deg': thresh_deg,
             'thresh_s': deg2dist(thresh_deg),
 
             # Brightness H
-            # 'H': H,
+            'H': H,
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -1356,8 +1360,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract thresh_deg from score layer
         thresh_deg = self.get_thresh_deg()
         # Extract the brightness H from magnitude layer
-        # TODO fix this
-        # H = self.get_H()
+        H = self.get_H()
 
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
@@ -1370,6 +1373,8 @@ class AsteroidSearchModel(tf.keras.Model):
         elts['R'] = mixture_params[1].numpy()
         elts['R_deg'] = dist2deg(elts.R)
         elts['R_sec'] = 3600.0 * elts.R_deg
+        elts['R_max'] = mixture_params[2].numpy()
+        elts['R_max_deg'] = dist2deg(elts.R_max)
         elts['thresh_s'] = deg2dist(thresh_deg)
         elts['thresh_deg'] = thresh_deg
         elts['thresh_sec'] = 3600.0 * elts.thresh_deg
@@ -1379,7 +1384,7 @@ class AsteroidSearchModel(tf.keras.Model):
         elts['hits'] = hits.numpy()
 
         # The brightness parameter H
-        # elts['H'] = H
+        elts['H'] = H
 
         # Add columns with the weights in the three modes
         elts['weight_joint'] = self.weight_joint.numpy()
@@ -1428,22 +1433,20 @@ class AsteroidSearchModel(tf.keras.Model):
             if verbose:
                 print(f'Unable to find {self.file_path}.')
             return
-        # Rebuild the layers
-        for layer in self.layers:
-            layer.build(self.batch_size)
-        # self.candidate_elements.build(self.batch_size)
-        # self.mixture_parameters.build(self.batch_size)
 
         # Status message
         if verbose:
             print(f'Loaded candidate elements and training history from {self.file_path}.')
 
-        # Regenerate candidate_elements layer of this model
-        self.candidate_elements = CandidateElements(elts=elts, name='candidate_elements')
-        # Regenerate mixture_parameters layer of this model
-        self.mixture_parameters = MixtureParameters(elts=elts, name='mixture_parameters')
+        # Restore weights on candidate_elements layer of this model
+        self.candidate_elements.load(elts=elts)
+        # Restore weights on mixture_parameters layer of this model
+        self.mixture_parameters.load(elts=elts)
+        # Restore weights on magnitude layer
+        self.magnitude.load(elts=elts)
         # Set the threshold in degrees
         self.score.set_thresh_deg(thresh_deg=self.thresh_deg)
+
         # Restore element weight in the three modes
         self.weight_joint.assign(elts['weight_joint'].values)
         self.weight_element.assign(elts['weight_element'].values)
