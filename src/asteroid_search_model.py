@@ -32,7 +32,8 @@ from asteroid_search_report import traj_diff
 from nearest_asteroid import load_known_ast_pos, nearest_ast_elt_cart, nearest_ast_elt_cov, elt_q_norm
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
-from tf_utils import tf_quiet, Identity
+from tf_utils import tf_quiet, Identity, tf_dist2deg
+# from tf_utils import tf_dist2deg
 from utils import print_header
 
 # Typing
@@ -46,6 +47,10 @@ keras = tf.keras
 # Run TF quietly
 tf_quiet()
 
+# Configure TensorFlow to use GPU memory variably
+# gpu_grow_memory(verbose=True)
+
+# ********************************************************************************************************************* 
 # Constants
 space_dims: int = 3
 
@@ -561,7 +566,13 @@ class AsteroidSearchModel(tf.keras.Model):
         # Weighted loss by element
         self.loss_1 = tf.multiply(loss_log_like, self.loss_factor_log_like, name='loss_1')
         self.loss_2 = tf.multiply(loss_log_like_wtd, self.loss_factor_log_like_wtd, name='loss_2')
-        loss = tf.add(self.loss_1, self.loss_2, name='loss')
+        loss_num: tf.Tensor = tf.add(self.loss_1, self.loss_2, name='loss_num')
+
+        # Divide by threshold to encourage it getting smaller
+        thresh_s2: tf.Tensor = self.score.get_thresh_s2()
+        thresh_2: tf.Tensor = tf.sqrt(thresh_s2)
+        thresh_deg: tf.Tensor = tf_dist2deg(thresh_2)
+        loss: tf.Tensor = tf.divide(loss_num, thresh_deg, name='loss')
 
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs: tf.Tensor = keras.backend.stack([self.log_like, self.hits, loss])

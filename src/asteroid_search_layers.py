@@ -22,7 +22,7 @@ from asteroid_model import AsteroidDirection
 from asteroid_integrate import calc_ast_pos
 from candidate_element import elts_np2df, perturb_elts
 from astro_utils import deg2dist, dist2deg
-from tf_utils import tf_quiet, Identity
+from tf_utils import tf_quiet, gpu_grow_memory, Identity
 
 # Typing
 from typing import List, Tuple, Dict, Optional, Union
@@ -35,6 +35,10 @@ keras = tf.keras
 # Run TF quietly
 tf_quiet()
 
+# Configure TensorFlow to use GPU memory variably
+# gpu_grow_memory(verbose=True)
+
+# ********************************************************************************************************************* 
 # Constants
 space_dims: int = 3
 

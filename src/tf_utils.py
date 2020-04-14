@@ -22,6 +22,9 @@ import datetime
 # Aliases
 keras = tf.keras
 
+# Data type (for degrees / radians etc.)
+dtype = tf.float32
+
 # ********************************************************************************************************************* 
 def tf_quiet():
     """Silence excessive TensorFlow warnings and status messages"""
@@ -69,6 +72,62 @@ def plot_loss_hist(hist,  model_name, key='loss', baseline=None):
 
     return fig, ax
 
+# ********************************************************************************************************************* 
+# Angles between radians and degrees
+coef_rad2deg = tf.constant(value=(np.pi / 180.0), dtype=dtype)
+coef_deg2rad = tf.constant(value=(180.0 / np.pi), dtype=dtype)
+
+# ********************************************************************************************************************* 
+@tf.function
+def tf_deg2rad(deg):  
+    return tf.multiply(deg, coef_deg2rad)
+
+# ********************************************************************************************************************* 
+@tf.function
+def tf_rad2deg(rad):
+    return tf.multiply(rad, coef_rad2deg)
+    
+# ********************************************************************************************************************* 
+@tf.function
+def tf_dist2rad(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to radians in [0, pi]"""
+    half_dist = tf.multiply(dist, 0.5)
+    half_x_rad = tf.asin(half_dist)
+    x_rad = tf.multiply(half_x_rad, 2.0)
+    return x_rad
+
+# ********************************************************************************************************************* 
+@tf.function
+def tf_rad2dist(x_rad):
+    """Convert a distance on unit sphere from radians in [0, pi] to cartesian distance in [0, 2]"""
+    half_x_rad = tf.multiply(x_rad, 0.5)
+    sin_half_x = tf.sin(half_x_rad)
+    dist = tf.multiply(sin_half_x, 2.0)
+    return dist
+
+# ********************************************************************************************************************* 
+@tf.function
+def tf_dist2deg(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to degrees in [0, 180]"""
+    x_rad = tf_dist2rad(dist)
+    return tf_rad2deg(x_rad)
+
+# ********************************************************************************************************************* 
+@tf.function
+def tf_deg2dist(x_deg):
+    """Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]"""
+    x_rad = tf_deg2rad(x_deg)
+    return tf_rad2dist(x_rad)
+
+# ********************************************************************************************************************* 
+@tf.function
+def tf_dist2sec(dist):
+    """Convert a cartesian distance on unit sphere in [0, 2] to arc seconds in [0, 180*3600]"""
+    x_rad = tf_dist2rad(dist)
+    x_deg = tf_rad2deg(x_rad)
+    x_sec = tf.multiply(x_deg, 3600.0)
+    return x_sec
+
 # *************************************************************************************************
 # Custom Callbacks
 # *************************************************************************************************
@@ -80,9 +139,6 @@ class TimeHistory(keras.callbacks.Callback):
     def on_train_begin(self, logs={}):
         self.times = []
         self.train_time_start = time.time()
-
-    # def on_epoch_begin(self, batch, logs={}):
-    #    self.epoch_time_start = time.time()
 
     def on_epoch_end(self, batch, logs={}):
         self.times.append(time.time() - self.train_time_start)
@@ -106,7 +162,7 @@ class EpochLoss(tf.keras.callbacks.Callback):
         epoch = epoch+1
         if (epoch % self.interval == 0) or (epoch == 1):
             self.log_to_screen(epoch, logs)
-            
+
 # ********************************************************************************************************************* 
 # Custom Layers
 # ********************************************************************************************************************* 
@@ -132,80 +188,3 @@ class Divide(keras.layers.Layer):
     
     def get_config(self):
         return dict()
-
-# ********************************************************************************************************************* 
-def make_features_pow(x, powers, input_name, output_name):
-    """
-    Make features with powers of an input feature
-    INPUTS:
-        x: the original feature
-        powers: list of integer powers, e.g. [1,3,5,7]        
-        input_name: the name of the input feature, e.g. 'x' or 'theta'
-        output_name: the name of the output feature layer, e.g. 'phi_0'
-    """
-    # List with layers x**p / p!
-    xps = []
-    # Iterate over the specified powers
-    for p in powers:
-        xp = keras.layers.Lambda(lambda x: tf.pow(x, p) / tf.exp(tf.math.lgamma(p+1.0)), name=f'{input_name}_{p}')(x)
-        xps.append(xp)
-    
-    # Augmented feature layer
-    return keras.layers.concatenate(inputs=xps, name=output_name)
-
-# ********************************************************************************************************************* 
-# Functional Models
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def make_model_pow(func_name, input_name, output_name, powers, hidden_sizes, skip_layers):
-    """
-    Neural net model of functions using powers of x as features
-    INPUTS:
-        func_name: name of the function being fit, e.g. 'cos'
-        input_name: name of the input layer, e.g. 'theta'
-        output_name: name of the output layer, e.g. 'x'
-        powers: list of integer powers of the input in feature augmentation
-        hidden_sizes: sizes of up to 2 hidden layers
-        skip_layers: whether to include skip layers (copy of previous features)
-    Example call: 
-        model_cos_16_16 = make_model_even(
-            func_name='cos',
-            input_name='theta',
-            output_name='x',
-            powers=[2,4,6,8],
-            hidden_sizes=[16, 16])
-    """
-    # Input layer
-    x = keras.Input(shape=(1,), name=input_name)
-
-    # Number of hidden layers
-    num_layers = len(hidden_sizes)
-
-    # Augmented feature layer - selected powers of the input
-    phi_0 = make_features_pow(x=x, powers=powers, input_name=input_name, output_name='phi_0')
-    phi_n = phi_0
-
-    # Dense feature layers
-    
-    # First hidden layer if applicable
-    if num_layers > 0:
-        phi_1 = keras.layers.Dense(units=hidden_sizes[0], activation='tanh', name='phi_1')(phi_0)
-        if skip_layers:
-            phi_1 = keras.layers.concatenate(inputs=[phi_0, phi_1], name='phi_1_aug')
-        phi_n = phi_1
-
-    # Second hidden layer if applicable
-    if num_layers > 1:
-        phi_2 = keras.layers.Dense(units=hidden_sizes[1], activation='tanh', name='phi_2')(phi_1)
-        if skip_layers:
-            phi_2 = keras.layers.concatenate(inputs=[phi_1, phi_2], name='phi_2_aug')
-        phi_n = phi_2
-
-    # Output layer
-    y = keras.layers.Dense(units=1, name=output_name)(phi_n)
-
-    # Wrap into a model
-    model_name = f'model_{func_name}_' + str(hidden_sizes)
-    model = keras.Model(inputs=x, outputs=y, name=model_name) 
-    return model

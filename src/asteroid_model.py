@@ -34,7 +34,7 @@ keras = tf.keras
 tf_quiet()
 
 # Configure TensorFlow to use GPU memory variably
-gpu_grow_memory(verbose=True)
+# gpu_grow_memory(verbose=True)
 
 # ********************************************************************************************************************* 
 # Constants
