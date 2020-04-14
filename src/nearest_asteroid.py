@@ -43,7 +43,8 @@ ts = np.arange(t0, t1, dt)
 
 # ********************************************************************************************************************* 
 # Module level constants defined below after manufacturing functions defined:
-# q_ast = calc_elt_pos(elts=elts_ast, ts=ts)
+# q_known_ast = calc_elt_pos(elts=elts_ast, ts=ts)
+# X_known_ast = keras.backend.constant(value=q_known_ast, dtype=dtype)
 # ast_elt_xf, interp_tbl = ast_elt_transform(ast_elt)
 # beta, X_beta = calc_beta(ast_elts_xf)
 
@@ -131,15 +132,14 @@ def load_known_ast_pos():
     
     return q_ast
 
-
 # ********************************************************************************************************************* 
 # Load the known asteroid positions
-q_ast = load_known_ast_pos()
+q_known_ast = load_known_ast_pos()
 # Convert to a float32 tensor
-X = tf.constant(q_ast, dtype=tf.float32)
+X_known_ast = tf.constant(q_known_ast, dtype=tf.float32)
 
 # ********************************************************************************************************************* 
-def nearest_ast_elt_cart(elts):
+def nearest_ast_elt_cart(elts, X_known_ast=X_known_ast):
     """
     Search for nearest asteroid element based on Cartesian orbits
     """
@@ -152,7 +152,7 @@ def nearest_ast_elt_cart(elts):
     Y = tf.constant(q_elt, dtype=tf.float32)
 
     # Number of asteroids and test elements
-    N_ast = X.shape[0]
+    N_ast = X_known_ast.shape[0]
     N_elt = Y.shape[0]
     # Sqrt of N_ast used to get RMS distance
     sqrt_N_ast = np.sqrt(N_ast).astype(np.float32)
@@ -165,7 +165,7 @@ def nearest_ast_elt_cart(elts):
     # Iterate over candidates    
     for i in range(N_elt):
         # dist_i is the distance between element i and all N_ast asteroids; shape [N_ast,]
-        dist_i = tf.linalg.norm(X - Y[i], axis=(-2, -1))
+        dist_i = tf.linalg.norm(X_known_ast - Y[i], axis=(-2, -1))
         # The index of the closest asteroid
         j = tf.argmin(dist_i)
         # Save the asteroid number and distance of the closest asteroid

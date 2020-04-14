@@ -29,7 +29,7 @@ from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
 from ztf_element import ztf_elt_hash
 from asteroid_search_report import traj_diff
-from nearest_asteroid import nearest_ast_elt_cart, nearest_ast_elt_cov, elt_q_norm
+from nearest_asteroid import load_known_ast_pos, nearest_ast_elt_cart, nearest_ast_elt_cov, elt_q_norm
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
 from tf_utils import tf_quiet, Identity
@@ -55,6 +55,11 @@ dtype_np: type = np.float32
 
 # Save directory for candidate elements
 save_dir: str = '../data/candidate_elt'
+
+# # Load the known asteroid positions
+# q_known_ast = load_known_ast_pos()
+# # Convert to a float32 tensor
+# X_known_ast = tf.constant(q_known_ast, dtype=tf.float32)
 
 # Set plot style variables
 mpl.rcParams['figure.figsize'] = [16.0, 10.0]
@@ -555,6 +560,11 @@ class AsteroidSearchModel(tf.keras.Model):
         orbital_elements = Identity(name='orbital_elements')(orbital_elements)
         mixture_params = Identity(name='mixture_parameters')(mixture_params)
 
+        # Save last outputs onto the model
+        self.score_outputs = score_outputs
+        self.orbital_elements = orbital_elements
+        self.mixture_params = mixture_params
+
         # Wrap outputs
         outputs = (score_outputs, orbital_elements, mixture_params)
 
@@ -601,14 +611,9 @@ class AsteroidSearchModel(tf.keras.Model):
     # Methods to calculate outputs, log likelihood, loss
     # *********************************************************************************************
 
-    def calc_outputs(self):
-        """Calculate the outputs; no input required (uses cached x_eval)"""
-        # return self(self.x_eval)
-        return self.calc(self.x_eval)
-    
     def calc_score(self):
         """Calculate a tuple of score outputs; no input required (uses cached x_eval)"""
-        outputs = self.calc_outputs()
+        outputs = self.calc()
         # score_outputs = outputs['score_outputs']
         score_outputs = outputs[0]
         return score_outputs
@@ -845,7 +850,7 @@ class AsteroidSearchModel(tf.keras.Model):
     def save_weights(self, is_update: bool=False):
         """Save the current weights, log likelihood and training history"""
         # Generate the outputs
-        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
+        score_outputs, orbital_elements, mixture_params = self.calc()
         log_like, hits, loss = score_outputs
 
         # is_update is true when we are updating weights that have already been written
@@ -1215,7 +1220,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.epochs_per_episode = epochs_per_episode
 
         # Apply learning_rate input if it was specified
-        if learning_rate is not None and learning_rate != self.learning_rate:
+        original_learning_rate = self.learning_rate
+        if learning_rate is not None and learning_rate != self.learning_rate:            
             self.learning_rate = learning_rate
             self.recompile()
 
@@ -1277,6 +1283,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Save training progress to disk
         if save_at_end:
             self.save_state(verbose=True)
+
+        # Restore original learning_rate if it was altered
+        if self.learning_rate != original_learning_rate:
+            self.learning_rate = original_learning_rate
+            self.recompile()
 
     def sieving_round(self, thresh_deg_max: float, batches_elt: int=5000, batches_mix: int=1000):
         """
@@ -1353,7 +1364,7 @@ class AsteroidSearchModel(tf.keras.Model):
     def candidates_df(self):
         """The current candidates as a DataFrame."""
         # Generate the outputs
-        score_outputs, orbital_elements, mixture_params = self.calc_outputs()
+        score_outputs, orbital_elements, mixture_params = self.calc()
 
         # Unpack score_outputs
         log_like, hits, loss = score_outputs
@@ -1596,20 +1607,16 @@ class AsteroidSearchModel(tf.keras.Model):
         # Drop irrelevant columns
         self.elts_fit.drop(columns=['weight_joint', 'weight_element', 'weight_mixture'], inplace=True)
 
-        # Table of functions to find nearest asteroid
-        nearest_ast_elt_tbl = {
-            'cart' : nearest_ast_elt_cart,
-            'cov' : nearest_ast_elt_cov,
-        }
-        nearest_ast_elt_func = nearest_ast_elt_tbl[search_type]
-
         # Search for nearest asteroids to the fitted elements
-        self.elts_near_ast = nearest_ast_elt_func(self.elts_fit)
-
-        # If we ran a Cartesian search, add an extra column with the Q_norm
         if search_type == 'cart':
+            self.elts_near_ast = nearest_ast_elt_cart(self.elts_fit)
+            # If we ran a Cartesian search, add an extra column with the Q_norm
             q_norm = elt_q_norm(elts=self.elts_fit, ast_num=self.elts_fit.nearest_ast_num)
             self.elts_fit['nearest_ast_q_norm'] = q_norm
+        elif search_type == 'cov':
+            self.elts_near_ast = nearest_ast_elt_cov(self.elts_fit)
+        else:
+            raise ValueError(f'Bad search_type {search_type}, must be one of \'cart\', \'cov\'.')
 
         # Return the inputs and nearest asteroids
         return self.elts_fit, self.elts_near_ast
@@ -1841,7 +1848,7 @@ class AsteroidSearchModel(tf.keras.Model):
     def report(self):
         """Run model and report a few summary outputs to console"""
         # Run model on current candidates
-        score_outputs, candidate_elements, mixture_params = self.calc_outputs()
+        score_outputs, candidate_elements, mixture_params = self.calc()
 
         # Unpacke score_outputs
         log_like, hits, loss = score_outputs

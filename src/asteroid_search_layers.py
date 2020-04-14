@@ -434,14 +434,15 @@ class TrajectoryScore(keras.layers.Layer):
             tf.Variable(initial_value=log_thresh_s2_range, trainable=False, 
                         dtype=dtype, name='log_thresh_s2_range')
 
-        # Tensor with control variable for thres_s2; shape [batch_size]
+        # Tensor with control variable for thresh_s2; shape [batch_size]
         self.thresh_s2_: tf.Variable = \
             tf.Variable(initial_value=self.inverse_thresh_s2(thresh_s2), trainable=True, 
                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0),
                         dtype=dtype, name='thresh_s2_')
 
         # Tensor with threshold distance squared; shape [batch_size]
-        # self.thresh_s2_elt = tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
+        # self.thresh_s2_elt: tf.Variable = \
+        #   tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post: keras.backend.constant = \
