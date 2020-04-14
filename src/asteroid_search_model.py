@@ -270,7 +270,7 @@ class AsteroidSearchModel(tf.keras.Model):
                  site_name: str='geocenter', 
                  thresh_deg: float = 1.0,
                  optimizer_type: str = 'adam',
-                 learning_rate: float = 2.0**-15, 
+                 learning_rate: float = 2.0**-10, 
                  clipnorm: float = 1.0,
                  **kwargs):
         """
@@ -415,7 +415,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.episode_t0: float = time.time()
 
         # Cached values of log likelihood and loss
-        self.log_like: np.ndarray = np.zeros(self.batch_size, dtype=dtype_np)
+        self.log_like_np: np.ndarray = np.zeros(self.batch_size, dtype=dtype_np)
         self.hits: np.ndarray = np.zeros(self.batch_size, dtype=dtype_np)
         self.log_like_mean: float = 0.0
         self.hits_mean: float = 0.0
@@ -445,11 +445,17 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_early_stop()
         self.callbacks = [self.early_stop]
 
+        # Metric for mean log likelihood
+        # self.metric_mean_log_like = tf.keras.metrics.MeanTensor(name='metric_mean_log_like', dtype=dtype)
+        # self.metrics = [metric_mean_log_like]
+
         # Initialize lists with training history
-        # Weights, elements and mixture parameters
+        # Weights, elements and mixture parameters; for rolling back bad updates
         self.candidate_elements_hist: List[tf.Tensor] = []
         self.mixture_parameters_hist: List[tf.Tensor] = []
-
+        self.magnitude_hist: List[tf.Tensor] = []
+        self.score_hist: List[tf.Tensor] = []
+      
         # Log likelihoods and losses
         self.log_like_hist: List[np.ndarray] = []
         self.hits_hist: List[np.ndarray] = []
@@ -553,9 +559,9 @@ class AsteroidSearchModel(tf.keras.Model):
         loss_log_like_wtd: tf.Tensor = tf.negative(tf.multiply(self.elt_weight , self.log_like_wtd))
         
         # Weighted loss by element
-        loss_1 = tf.multiply(loss_log_like, self.loss_factor_log_like, name='loss_1')
-        loss_2 = tf.multiply(loss_log_like_wtd, self.loss_factor_log_like_wtd, name='loss_2')
-        loss = tf.add(loss_1, loss_2, name='loss')
+        self.loss_1 = tf.multiply(loss_log_like, self.loss_factor_log_like, name='loss_1')
+        self.loss_2 = tf.multiply(loss_log_like_wtd, self.loss_factor_log_like_wtd, name='loss_2')
+        loss = tf.add(self.loss_1, self.loss_2, name='loss')
 
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs: tf.Tensor = keras.backend.stack([self.log_like, self.hits, loss])
@@ -566,6 +572,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.mixture_params = Identity(name='mixture_parameters')(mixture_params)
 
         # Wrap outputs
+        outputs: Tuple[tf.Tensor, tf.Tensor, tf.Tensor]
         outputs = (self.score_outputs, self.orbital_elements, self.mixture_params)
 
         return outputs
@@ -580,54 +587,68 @@ class AsteroidSearchModel(tf.keras.Model):
         score_outputs, orbital_elements, mixture_params = self.calc(inputs=inputs)
 
         # Extract the loss by candidate element
-        loss = score_outputs[2]
+        loss: tf.Tensor = score_outputs[2]
+
+        # Filter out nan
+        loss_is_nan = tf.math.is_nan(loss)
+        # Apply placeholder of +5 (pretty bad score) over NaN until they are rolled back
+        loss_clean = tf.where(condition=loss_is_nan, x=5.0, y=loss)
 
         # Add the blended loss to the model
-        self.add_loss(tf.reduce_sum(loss, name='loss_total'))
+        self.add_loss(tf.reduce_sum(loss_clean, name='loss_total'))
         
         return loss
 
-    def predict_position(self):
+    def predict_position(self) -> Tuple[tf.Tensor, tf.Tensor]:
         """Predict position q and velocity v"""
         # Extract the candidate elements and mixture parameters
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
 
         # Ragged tensor of predicted position and velocity.  Shape is [batch_size, num_obs, 3,]
+        q_pred: tf.Tensor
+        v_pred: tf.Tensor
         q_pred, v_pred = self.position(a, e, inc, Omega, omega, f, epoch)        
 
         return (q_pred, v_pred)
 
-    def predict_direction(self):
+    def predict_direction(self) -> Tuple[tf.Tensor, tf.Tensor]:
         """Predict direction u and displacement r"""
         # Extract the candidate elements and mixture parameters
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
 
         # Ragged tensor of predicted directions.  Shape is [batch_size, num_obs, 3,]
-        u_pred, r_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)        
+        u_pred: tf.Tensor
+        r_pred: tf.Tensor
+        u_pred, delta_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)        
 
-        return (u_pred, r_pred)
+        return (u_pred, delta_pred)
 
     # *********************************************************************************************
     # Methods to calculate outputs, log likelihood, loss
     # *********************************************************************************************
 
-    def calc_score(self):
+    def calc_score(self) -> tf.Tensor:
         """Calculate a tuple of score outputs; no input required (uses cached x_eval)"""
         outputs = self.calc()
-        # score_outputs = outputs['score_outputs']
-        score_outputs = outputs[0]
+        score_outputs: tf.Tensor = outputs[0]
         return score_outputs
     
-    def calc_log_like(self):
+    def calc_log_like(self) -> Tuple[tf.Tensor, tf.Tensor]:
         """Calculate the log likelihood as tensor of shape [batch_size,]"""
-        score_outputs = self.calc_score()
+        score_outputs: tf.Tensor = self.calc_score()
+        log_like: tf.Tensor
+        hits: tf.Tensor
+        loss: tf.Tensor
         log_like, hits, loss = score_outputs
-        log_like_mean = tf.reduce_mean(log_like).numpy()
+        log_like_mean: tf.Tensor = tf.reduce_mean(log_like).numpy()
         return log_like, log_like_mean
 
-    def calc_loss(self):
+    def calc_loss(self) -> tf.Tensor:
         """Calculate loss function by element with current inputs; shape [batch_size]"""
-        score_outputs = self.calc_score()
+        score_outputs: tf.Tensor = self.calc_score()
+        log_like: tf.Tensor
+        hits: tf.Tensor
+        loss: tf.Tensor
         log_like, hits, loss = score_outputs
         return loss
 
@@ -640,14 +661,20 @@ class AsteroidSearchModel(tf.keras.Model):
     #     """Calculate difference in trajectories from two sets of orbital elements"""
     #     return traj_diff(elts0, elts1, self.model_pos)
 
-    def get_orbital_elts(self):
+    # *********************************************************************************************
+    def get_orbital_elts(self) \
+        -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
         """Extract the current orbital elements as Numpy arrays"""
         # Extract the candidate elements
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=None)
         return a, e, inc, Omega, omega, f, epoch
   
+    # *********************************************************************************************
     def get_mixture_params(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Extract the current mixture parameters as Numpy arrays"""
+        num_hits: tf.Tensor
+        R: tf.Tensor
+        R_max: tf.Tensor
         num_hits, R, R_max = self.mixture_parameters(inputs=None)
         return num_hits.numpy(), R.numpy(), R_max.numpy()
 
@@ -669,16 +696,17 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def get_active_weight(self) -> tf.Variable:
         """Get the currently active weight"""
-        weight = {
+        weight_tbl : Dict[str, tf.Tensor]= {
             'joint': self.weight_joint,
             'element': self.weight_element,
             'mixture': self.weight_mixture,
-        }[self.training_mode]
+        }
+        weight: tf.Tensor = weight_tbl[self.training_mode]
         return weight
 
     def set_active_weight(self, weight) -> None:
         """Set the currently active weight"""
-        weight_active = {
+        weight_active : Dict[str, tf.Tensor] = {
             'joint': self.weight_joint,
             'element': self.weight_element,
             'mixture': self.weight_mixture,
@@ -690,7 +718,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def reset_active_weight(self) -> None:
         """Reset the active weight to all 1s"""
-        weight_ones = np.ones(self.batch_size, dtype=dtype_np)
+        weight_ones: np.ndarray = np.ones(self.batch_size, dtype=dtype_np)
         self.set_active_weight(weight_ones)
 
     # *********************************************************************************************
@@ -703,7 +731,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # tf.keras.Model.compile(self, optimizer=self.optimizer)
         self.compile(optimizer=self.optimizer)
 
-    def set_learning_rate(self, learning_rate):
+    # *********************************************************************************************
+    def set_learning_rate(self, learning_rate: float):
         """Set the learning rate"""
         self.learning_rate = learning_rate
         # Recompile with the new learning rate
@@ -711,21 +740,24 @@ class AsteroidSearchModel(tf.keras.Model):
                                   clipnorm=self.clipnorm, clipvalue=None)
         self.recompile()
         
-    def adjust_learning_rate(self, lr_factor, verbose: bool=True):
+    # *********************************************************************************************
+    def adjust_learning_rate(self, lr_factor: float, verbose: bool=True):
         """Adjust the learning rate and recompile the model"""
         if verbose:
             print(f'Changing learning rate by factor {lr_factor:8.6f} from '
                   f'{self.learning_rate:8.3e} to {self.learning_rate*lr_factor:8.3e}.')
-        learning_rate = self.learning_rate * lr_factor
+        learning_rate: float = self.learning_rate * lr_factor
         # Apply the new learning rate
         self.set_learning_rate(learning_rate)
 
+    # *********************************************************************************************
     def set_clipnorm(self, clipnorm):
         """Set the clipnorm parameter for gradient clipping."""
         self.clipnorm = clipnorm
         # Delegate to set_learning_rate to rebuild the optimizer
         self.set_learning_rate(self.learing_rate)
         
+    # *********************************************************************************************
     def set_R_deg_max(self, R_deg_max: float):
         """Adjust resolution R_deg to at most R_deg_max"""
         # If R_deg_max was a scalar, promote it to a full numpy array
@@ -734,6 +766,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Apply the new R_max value to the mixture parameters layer
         self.mixture_parameters.set_R_deg_max(R_deg_max)
 
+    # *********************************************************************************************
     def set_thresh_deg(self, thresh_deg: np.ndarray):
         """Adjust the threshold for which observations are included in the score function"""
         # If thresh_deg was a scalar, promote it to a full numpy array
@@ -745,6 +778,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.score.set_thresh_deg(self.thresh_deg)
         self.mixture_parameters.set_thresh_deg(self.thresh_deg)
 
+    # *********************************************************************************************
     def set_thresh_deg_max(self, thresh_deg_max: float):
         """Adjust thresh_deg to at most thresh_deg_max"""
         # If thresh_deg_max was a scalar, promote it to a full numpy array
@@ -754,24 +788,28 @@ class AsteroidSearchModel(tf.keras.Model):
         self.thresh_deg = np.minimum(self.thresh_deg, thresh_deg_max)
         # Apply the new max threshold to the score layer
         self.score.set_thresh_deg_max(thresh_deg_max)
-        # Apply the updated value to the mixture parameters layer
-        self.mixture_parameters.set_thresh_deg(self.thresh_deg)
 
+    # *********************************************************************************************
     def recalibrate(self):
         """Recalibrate Kepler model rebound integration at current orbital elements"""
         # Element IDs as a Numpy array
-        element_ids = self.element_id.numpy()
+        element_ids: np.ndarray = self.element_id.numpy()
 
         # Current candidates in DataFrame format for calc_ast_data
-        cols_elt = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+        cols_elt: List[str] = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
         elts = self.candidates_df()[cols_elt]
 
         # Get unique times and inverse indices
+        mjd: np.ndarray
+        unq_idx: np.ndarray
         mjd, unq_idx = np.unique(self.ts.numpy(), return_inverse=True)
-        mjd0 = np.min(mjd) - 1.0
-        mjd1 = np.max(mjd) + 1.0
+        mjd0: float = np.min(mjd) - 1.0
+        mjd1: float = np.max(mjd) + 1.0
 
         # Calculate positions in this date range, sampled daily
+        df_ast_daily: pd.DataFrame
+        df_earth_daily: pd.DataFrame
+        df_sun_daily: pd.DataFrame
         df_ast_daily, df_earth_daily, df_sun_daily = \
             calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_ids)
 
@@ -781,15 +819,16 @@ class AsteroidSearchModel(tf.keras.Model):
                               mjd=mjd, include_elts=False)
 
         # Iterate over the elements
+        element_id: np.int32
         for element_id in element_ids:
             # Mask for observations of this element
-            mask_ztf = (self.ztf_elt.element_id == element_id)
-            ztf_i = self.ztf_elt[mask_ztf]
+            mask_ztf: pd.Series = (self.ztf_elt.element_id == element_id)
+            # ztf_i: pd.DataFrame = self.ztf_elt[mask_ztf]
             # Mask for asteroid position of this element
-            mask_df = (df_ast.element_id==element_id)
-            df_ast_i = df_ast[mask_df]
+            mask_df: pd.Series = (df_ast.element_id==element_id)
+            df_ast_i: pd.DataFrame = df_ast[mask_df]
             # Index into df_ast_i on selected rows
-            df_idx = unq_idx[mask_ztf]
+            df_idx: np.ndarray = unq_idx[mask_ztf]
             # Overwrite relevant slices of q_ast and v_ast with the newly integrated q, v
             self.q_ast_np[mask_ztf] = df_ast_i[self.cols_q_ast].iloc[df_idx]
             self.v_ast_np[mask_ztf] = df_ast_i[self.cols_v_ast].iloc[df_idx]            
@@ -801,6 +840,7 @@ class AsteroidSearchModel(tf.keras.Model):
     # Freeze and thaw layers relating to orbital elements and mixture parameters
     # *********************************************************************************************
 
+    # *********************************************************************************************
     def freeze_candidate_elements(self):
         """Make the candidate orbital elements not trainable; only update mixture parameters"""
         self.candidate_elements.trainable = False
@@ -815,6 +855,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_early_stop()
         self.training_mode = 'joint' if self.mixture_parameters.trainable else 'element'
 
+    # *********************************************************************************************
     def freeze_mixture_parameters(self):
         """Make the mixture parameters not trainable; only update candidate oribtal elements"""
         self.mixture_parameters.trainable = False
@@ -829,6 +870,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_early_stop()
         self.training_mode = 'joint' if self.candidate_elements.trainable else 'mixture'
 
+    # *********************************************************************************************
     def freeze_magnitude(self):
         """Make the magnitude layer not trainable"""
         self.magnitude.trainable = False
@@ -841,6 +883,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.recompile()
         self.update_early_stop()
 
+    # *********************************************************************************************
     def freeze_score(self):
         """Make the score layer (e.g. thresh_deg) not trainable"""
         self.score.trainable = False
@@ -860,7 +903,13 @@ class AsteroidSearchModel(tf.keras.Model):
     def save_weights(self, is_update: bool=False):
         """Save the current weights, log likelihood and training history"""
         # Generate the outputs
+        score_outputs: tf.Tensor
+        orbital_elements: tf.Tensor
+        mixture_params: tf.Tensor
         score_outputs, orbital_elements, mixture_params = self.calc()
+        log_like: tf.Tensor
+        hits: tf.Tensor
+        loss: tf.Tensor
         log_like, hits, loss = score_outputs
 
         # is_update is true when we are updating weights that have already been written
@@ -868,7 +917,7 @@ class AsteroidSearchModel(tf.keras.Model):
         is_new: bool = ~is_update
         
         # Calculate mean log likelihood, mean hits, and loss; save them to cache        
-        self.log_like = log_like.numpy()
+        self.log_like_np = log_like.numpy()
         self.hits = hits.numpy()
         self.log_like_mean = tf.reduce_mean(log_like).numpy()
         self.hits_mean = tf.reduce_mean(hits).numpy()
@@ -878,19 +927,23 @@ class AsteroidSearchModel(tf.keras.Model):
         if is_new:
             self.candidate_elements_hist.append(self.candidate_elements.get_weights())
             self.mixture_parameters_hist.append(self.mixture_parameters.get_weights())
+            self.magnitude_hist.append(self.magnitude.get_weights())
+            self.score_hist.append(self.score.get_weights())
         else:
             self.candidate_elements_hist[-1] = self.candidate_elements.get_weights()
             self.mixture_parameters_hist[-1] = self.mixture_parameters.get_weights()
+            self.magnitude_hist[-1] = self.magnitude.get_weights()
+            self.score_hist[-1] = self.score.get_weights()
         
         # Write history of log likelihood and loss
         if is_new:
-            self.log_like_hist.append(self.log_like)
+            self.log_like_hist.append(self.log_like_np)
             self.hits_hist.append(self.hits)
             self.log_like_mean_hist.append(self.log_like_mean)
             self.hits_mean_hist.append(self.hits_mean)
             self.loss_hist.append(self.loss)
         else:
-            self.log_like_hist[-1] = self.log_like
+            self.log_like_hist[-1] = self.log_like_np
             self.hits_hist[-1] = self.hits
             self.log_like_mean_hist[-1] = self.log_like_mean
             self.hits_mean_hist[-1] = self.hits_mean
@@ -908,6 +961,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Deduplicate if we did an update
         self.train_hist_deduplicate()
 
+    # *********************************************************************************************
     def save_train_hist(self, score_outputs, orbital_elements, mixture_params):
         """Save training history, both summary and by element"""
 
@@ -925,6 +979,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Extract thresh_deg
         thresh_deg = self.get_thresh_deg()
+        thresh_s = deg2dist(thresh_deg)
 
         # Extract the brightness and standard deviation of the magnitude
         H = self.get_H()
@@ -966,15 +1021,17 @@ class AsteroidSearchModel(tf.keras.Model):
             'R_deg': R_deg,
             'R_sec': R_sec,
             'log_R': log_R,
-            # 'log_R_range': log_R_range,
+            'minus_log_R': -log_R,
 
             # Threshold
             'thresh_deg': thresh_deg,
-            'thresh_s': deg2dist(thresh_deg),
+            'thresh_s': thresh_s,
+            'minus_log_thresh_s': -np.log(thresh_s),
 
             # Brightness H and standard deviation of magnitude
             'H': H,
             'sigma_mag': sigma_mag,
+            'minus_log_sigma_mag': -np.log(sigma_mag),
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -985,7 +1042,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'f_': cand.f_.numpy(),
             # Control variables - mixture parameters
             'num_hits_': mixt.num_hits_.numpy(),
-            'R_': mixt.R_.numpy(),
+            'R_': mixt.R_.numpy(),            
 
             # Weights in three modes
             'weight_joint': self.weight_joint.numpy(),
@@ -1059,6 +1116,7 @@ class AsteroidSearchModel(tf.keras.Model):
         train_hist_summary_cur = pd.DataFrame(hist_sum_dict, index=hist_sum_dict['key'])
         self.train_hist_summary = pd.concat([self.train_hist_summary, train_hist_summary_cur])
 
+    # *********************************************************************************************
     def train_hist_deduplicate(self):
         """Drop duplicate entries from training history"""
         # for hist in [self.train_hist_elt, self.train_hist_summary]:
@@ -1078,9 +1136,11 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Get old and new log_like, candidate_elements and mixture_parameters
         log_like_old, log_like_new = self.log_like_hist[n-2:n]
-        log_like_mean_old, log_like_mean_new = self.log_like_mean_hist[n-2:n]
+        # log_like_mean_old, log_like_mean_new = self.log_like_mean_hist[n-2:n]
         candidate_elements_old, candidate_elements_new = self.candidate_elements_hist[n-2:n]
         mixture_parameters_old, mixture_parameters_new = self.mixture_parameters_hist[n-2:n]
+        magnitude_old, magnitude_new = self.magnitude_hist[n-2:n]
+        score_old, score_new = self.score_hist[n-2:n]
 
         # Test which elements have gotten worse (usually this should be false)
         is_less_likely = tf.math.less(log_like_new, log_like_old)
@@ -1092,17 +1152,21 @@ class AsteroidSearchModel(tf.keras.Model):
             return
 
         # If we get here, at least one candidate got worse.  Want to restore it.
-        # Calculate the best weights on the candidate elements and mixture parameters
-        # log_like_best = tf.math.maximum(x=log_like_old, y=log_like_new)
-        log_like_best = tf.where(condition=is_worse, x=log_like_old, y=log_like_new)
-        candidate_elements_best = tf.where(condition=is_worse, x=candidate_elements_old, y=candidate_elements_new)
-        mixture_parameters_best = tf.where(condition=is_worse, x=mixture_parameters_old, y=mixture_parameters_new)
+        # log_like_best = tf.where(condition=is_worse, x=log_like_old, y=log_like_new)
 
-        # Apply the best weights to the trainable layers if they are not frozen
+        # Calculate the best weights on the trainable layers. Then restore them.
         if self.candidate_elements.trainable:
+            candidate_elements_best = tf.where(condition=is_worse, x=candidate_elements_old, y=candidate_elements_new)
             self.candidate_elements.set_weights(candidate_elements_best)
         if self.mixture_parameters.trainable:
+            mixture_parameters_best = tf.where(condition=is_worse, x=mixture_parameters_old, y=mixture_parameters_new)
             self.mixture_parameters.set_weights(mixture_parameters_best)
+        if self.magnitude.trainable:
+            magnitude_best = tf.where(condition=is_worse, x=magnitude_old, y=magnitude_new)
+            self.magnitude.set_weights(magnitude_best)
+        if self.score.trainable:
+            score_best = tf.where(condition=is_worse, x=score_old, y=score_new)
+            self.score.set_weights(score_best)
 
         # If we edited weights in this iteration, we also need to apply the changes to the history tables
         self.save_weights(is_update=True)
@@ -1127,6 +1191,7 @@ class AsteroidSearchModel(tf.keras.Model):
             self.bad_episode_count += 1
             print(f'Increasing bad_episode_count to {self.bad_episode_count}.')
        
+    # *********************************************************************************************
     def update_early_stop(self):
         """Update early stopping monitor"""
         baseline = self.calc_loss_total()
@@ -1137,6 +1202,7 @@ class AsteroidSearchModel(tf.keras.Model):
             min_delta=0.0, 
             restore_best_weights=False)
     
+    # *********************************************************************************************
     def episode_end(self, hist, verbose: int = 1):
         """Post-processing after one episode of adaptive training"""
         # Update training counters
@@ -1302,7 +1368,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Restore original learning_rate if it was altered
         if self.learning_rate != original_learning_rate:
-            print(f'Restoring original learning rate {original_learning_rate}.')
+            print(f'Restoring original learning rate {original_learning_rate:6.2e}.')
             self.set_learning_rate(original_learning_rate)
 
     def sieving_round(self, thresh_deg_max: float, batches_elt: int=5000, batches_mix: int=1000):

@@ -440,10 +440,6 @@ class TrajectoryScore(keras.layers.Layer):
                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0),
                         dtype=dtype, name='thresh_s2_')
 
-        # Tensor with threshold distance squared; shape [batch_size]
-        # self.thresh_s2_elt: tf.Variable = \
-        #   tf.Variable(initial_value=thresh_s2_elt, trainable=False, dtype=dtype, name='thresh_s2_elt')
-
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post: keras.backend.constant = \
             keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
