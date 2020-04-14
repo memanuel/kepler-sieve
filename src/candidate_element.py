@@ -20,23 +20,26 @@ from asteroid_element import load_ast_elt
 from planets import make_sim_planets
 from astro_utils import mjd_to_datetime, deg2dist, dist2deg
 
+# Typing
+from typing import List, Tuple, Dict, Optional
+
 # ********************************************************************************************************************* 
 # DataFrame of asteroid snapshots
-ast_elt = load_ast_elt()
+ast_elt: pd.DataFrame = load_ast_elt()
 
 # ********************************************************************************************************************* 
 # Default data type
-dtype = np.float64
+dtype: type = np.float64
 
 # ********************************************************************************************************************* 
 # Convert between different representations for orbital elements: Numpy table, dictionary and DataFrame
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def elts_np2dict(elts_np):
+def elts_np2dict(elts_np: np.ndarray) -> Dict[str, np.ndarray]:
     """Convert an Nx7 array of orbital elements into a dict"""
     # Dictionary
-    elts_dict = {
+    elts_dict: Dict = {
         'a': elts_np[:,0],
         'e': elts_np[:,1],
         'inc': elts_np[:,2],
@@ -48,18 +51,18 @@ def elts_np2dict(elts_np):
     return elts_dict
 
 # ********************************************************************************************************************* 
-def elts_np2df(elts_np):
+def elts_np2df(elts_np: np.ndarray) -> pd.DataFrame:
     """Convert an Nx7 array of orbital elements into a DataFrame"""
     # Dictionary
-    elts_dict = elts_np2dict(elts_np=elts_np)
+    elts_dict: pd.DataFrame = elts_np2dict(elts_np=elts_np)
     # Return a DataFrame
     return pd.DataFrame(elts_dict)
 
 # ********************************************************************************************************************* 
-def elts_df2dict(elts_df):
+def elts_df2dict(elts_df: pd.DataFrame) -> Dict[str, np.ndarray]:
     """Convert a DataFrame of orbital elements into a dict (built-in Dataframe.to_dict() method fails)"""
     # Columns in the elements DataFrame
-    cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
+    cols_elt: List = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
     # Return a dict
     return {col: elts_df[col] for col in cols_elt}
 
@@ -81,16 +84,16 @@ def asteroid_elts(ast_nums: np.ndarray, dtype = dtype) -> pd.DataFrame:
                   Also includes h and R for mixture model
     """
     # The orbital elements and epoch
-    a = ast_elt.a[ast_nums].values.astype(dtype)
-    e = ast_elt.e[ast_nums].values.astype(dtype)
-    inc = ast_elt.inc[ast_nums].values.astype(dtype)
-    Omega = ast_elt.Omega[ast_nums].values.astype(dtype)
-    omega = ast_elt.omega[ast_nums].values.astype(dtype)
-    f = ast_elt.f[ast_nums].values.astype(dtype)
-    epoch = ast_elt.epoch[ast_nums].to_numpy().astype(dtype)
+    a: np.ndarray = ast_elt.a[ast_nums].values.astype(dtype)
+    e: np.ndarray = ast_elt.e[ast_nums].values.astype(dtype)
+    inc: np.ndarray = ast_elt.inc[ast_nums].values.astype(dtype)
+    Omega: np.ndarray = ast_elt.Omega[ast_nums].values.astype(dtype)
+    omega: np.ndarray = ast_elt.omega[ast_nums].values.astype(dtype)
+    f: np.ndarray = ast_elt.f[ast_nums].values.astype(dtype)
+    epoch: np.ndarray = ast_elt.epoch[ast_nums].to_numpy().astype(dtype)
     
     # Wrap into dictionary
-    elts_dict = {
+    elts_dict : Dict[str, np.ndarray] = {
         # 'asteroid_num': ast_nums,
         'element_id': ast_nums,
         'a': a,
@@ -103,61 +106,75 @@ def asteroid_elts(ast_nums: np.ndarray, dtype = dtype) -> pd.DataFrame:
     }
 
     # Convert dict to DataFrame
-    elts = pd.DataFrame(elts_dict)
+    elts: pd.DataFrame = pd.DataFrame(elts_dict)
 
     return elts
 
 # ********************************************************************************************************************* 
 def perturb_elts(elts: pd.DataFrame, 
-                 sigma_a=0.00, sigma_e=0.00, sigma_inc_deg=0.0,
-                 sigma_f_deg=1.0, sigma_Omega_deg=0.0, sigma_omega_deg=0.0,
-                 mask_pert=None, random_seed: int = 42):
-    """Apply perturbations to orbital elements"""
+                 sigma_a: float=0.00, sigma_e: float=0.00, sigma_inc_deg: float=0.0,
+                 sigma_f_deg:float=1.0, sigma_Omega_deg:float=0.0, sigma_omega_deg:float=0.0,
+                 mask_pert:Optional[np.ndarray]=None, random_seed: int = 42) \
+                 -> pd.DataFrame:
+    """
+    Apply perturbations to orbital elements
+    INPUTS:
+        sigma_a:            Standard deviation of normal shift applied to log(a)
+        sigma_e:            Standard deviation of normal shift applied to log(e)
+        sigma_inc_deg:      Standard deviation of normal shift applied to inc in degrees
+        sigma_f_deg:        Standard deviation of normal shift applied to f in degrees
+        sigma_Omega_deg:    Standard deviation of normal shift applied to Omega in degrees
+        sigma_omega_deg:    Standard deviation of normal shift applied to omega in degrees
+        mask_per:           Mask of bool indicating which elements are perturbed
+        random_seed:        Random seed for reproducibility
+    OUTPUTS:
+        elts:               A perturbed copy of the input elements.  Does not affect input elts.
+    """
     # Copy the elements; overwrite the original reference to prevent accidentally changing them
     # This can happen due to separate handles to the same numpy array! Caused an obscure bug.
-    elts = elts.copy()
+    elts: pd.DataFrame = elts.copy()
 
     # Default for mask_pert is all elements
     if mask_pert is None:
         mask_pert = np.ones_like(elts['a'], dtype=bool)
 
     # Number of elements to perturb
-    num_shift = np.sum(mask_pert)
+    num_shift: int = np.sum(mask_pert)
 
     # Set random seed
     np.random.seed(seed=random_seed)
 
     # Apply shift log(a)
-    log_a = np.log(elts['a'])
+    log_a: np.ndarray = np.log(elts['a'])
     log_a[mask_pert] += np.random.normal(scale=sigma_a, size=num_shift)
     elts['a'] = np.exp(log_a)
     
     # Apply shift to log(e)
-    log_e = np.log(elts['e'])
+    log_e: np.ndarray = np.log(elts['e'])
     log_e[mask_pert] += np.random.normal(scale=sigma_e, size=num_shift)
     elts['e'] = np.exp(log_e)
     
     # Apply shift directly to inclination inc
-    inc = elts['inc'].values
-    sigma_inc = np.deg2rad(sigma_inc_deg)
+    inc: np.ndarray = elts['inc'].values
+    sigma_inc: np.ndarray = np.deg2rad(sigma_inc_deg)
     inc[mask_pert] += np.random.normal(scale=sigma_inc, size=num_shift)
     elts['inc'] = inc
     
     # Apply shift directly to true anomaly f
-    f = elts['f'].values
-    sigma_f = np.deg2rad(sigma_f_deg)
+    f: np.ndarray = elts['f'].values
+    sigma_f: np.ndarray = np.deg2rad(sigma_f_deg)
     f[mask_pert] += np.random.normal(scale=sigma_f, size=num_shift)
     elts['f'] = f
     
     # Apply shift directly to Omega
-    Omega = elts['Omega'].values
-    sigma_Omega = np.deg2rad(sigma_Omega_deg)
+    Omega: np.ndarray = elts['Omega'].values
+    sigma_Omega: np.ndarray = np.deg2rad(sigma_Omega_deg)
     Omega[mask_pert] += np.random.normal(scale=sigma_Omega, size=num_shift)
     elts['Omega'] = Omega
 
     # Apply shift directly to omega
-    omega = elts['omega'].values
-    sigma_omega = np.deg2rad(sigma_omega_deg)
+    omega: np.ndarray = elts['omega'].values
+    sigma_omega: np.ndarray = np.deg2rad(sigma_omega_deg)
     omega[mask_pert] += np.random.normal(scale=sigma_omega, size=num_shift)
     elts['omega'] = omega
 
@@ -188,24 +205,24 @@ def random_elts(element_id_start: np.int32 = 0,
     np.random.seed(random_seed)
 
     # Randomly sample a, e, inc, Omega from empirical observations
-    a = np.random.choice(ast_elt.a, size=size)
-    e = np.random.choice(ast_elt.e, size=size)
-    inc = np.random.choice(ast_elt.inc, size=size)
-    Omega = np.random.choice(ast_elt.Omega, size=size)
+    a: np.ndarray = np.random.choice(ast_elt.a, size=size)
+    e: np.ndarray = np.random.choice(ast_elt.e, size=size)
+    inc: np.ndarray = np.random.choice(ast_elt.inc, size=size)
+    Omega: np.ndarray = np.random.choice(ast_elt.Omega, size=size)
 
     # Sample mean anomaly M and omega randomly
     two_pi = 2.0*np.pi
-    M = np.random.uniform(low=0.0, high=two_pi, size=size)
-    omega = np.random.uniform(low=0.0, high=two_pi, size=size)
+    M: np.ndarray = np.random.uniform(low=0.0, high=two_pi, size=size)
+    omega: np.ndarray = np.random.uniform(low=0.0, high=two_pi, size=size)
 
     # Allocate array for the true anomaly f
-    f = np.zeros(size)
+    f: np.ndarray = np.zeros(size)
 
     # The epoch
-    epoch0 = ast_elt.epoch.values[0]
+    epoch0: float = ast_elt.epoch.values[0]
 
     # Epoch as a datetime
-    epoch_dt = mjd_to_datetime(epoch0)
+    epoch_dt: float = mjd_to_datetime(epoch0)
 
     # Base Rebound simulation of the planets and moons on this date
     sim = make_sim_planets(epoch_dt=epoch_dt)
@@ -213,6 +230,7 @@ def random_elts(element_id_start: np.int32 = 0,
     sim.N_active = sim.N
 
     # Iterate over candidate elements
+    i: int
     for i in range(size):
             # Set the primary to the sun (NOT the solar system barycenter!)
             # Put this inside the loop b/c not guaranteed to remain constant as particles are added
@@ -227,11 +245,11 @@ def random_elts(element_id_start: np.int32 = 0,
             ast.hash = rebound.hash(f'{i}')
 
     # The element_id and epoch arrays
-    element_id = np.arange(element_id_start, element_id_start+size, dtype=np.int32)
-    epoch = np.full(shape=size, fill_value=epoch0)
+    element_id: np.ndarray = np.arange(element_id_start, element_id_start+size, dtype=np.int32)
+    epoch: np.ndarray = np.full(shape=size, fill_value=epoch0)
 
     # Elements as a Python dict with required columns in order
-    elts_dict = {
+    elts_dict: Dict[str, np.ndarray] = {
         'element_id': element_id,
         'a': a.astype(dtype),
         'e': e.astype(dtype),
@@ -243,7 +261,7 @@ def random_elts(element_id_start: np.int32 = 0,
     }
 
     # Convert these arrays to a DataFrame
-    elts = pd.DataFrame(elts_dict)
+    elts: pd.DataFrame = pd.DataFrame(elts_dict)
 
     return elts
 
@@ -264,26 +282,6 @@ def elts_add_num_hits(elts: pd.DataFrame, num_hits: int = 10):
     # Update or add column num_hits
     elts['num_hits'] = num_hits
 
-# # ********************************************************************************************************************* 
-# def elts_add_hit_rate(elts: pd.DataFrame, score_by_elt: pd.DataFrame, num_hits: int = 10):
-#     """
-#     Populate the hit rate h by guessing each element has num_hits hits
-#     INPUTS:
-#         elts: DataFrame with columns a, e, inc, Omega, omega, f, epoch
-#         score_by_elt: DataFrame generated by ztf_score_by_element in ztf_element.py
-#         num_hits:     Number of hits to assume for computing the initial guess on hit rate h
-#     OUTPUTS:
-#         Modifies elts in place
-#     """
-#     # Filter down to the intersection
-#     is_match = elts.element_id.isin(score_by_elt.index)
-#     # elts = elts[is_match]
-#     idx_missing = elts.index[~is_match]
-#     elts.drop(idx_missing, inplace=True)
-    
-#     # Update column h
-#     elts['h'] = num_hits / score_by_elt.num_obs.values
-
 # ********************************************************************************************************************* 
 def elts_add_R_deg(elts: pd.DataFrame, R_deg: float, dtype=dtype):
     """
@@ -295,10 +293,10 @@ def elts_add_R_deg(elts: pd.DataFrame, R_deg: float, dtype=dtype):
         Modifies elts in place
     """
     # Number of asteroids in this batch
-    N_ast = elts.shape[0]
+    N_ast: int = elts.shape[0]
 
     # Convert R from degrees to Cartesian
-    R = deg2dist(R_deg)
+    R: float = deg2dist(R_deg)
 
     # Add column for R
     elts['R'] = np.full(fill_value=R, shape=N_ast, dtype=dtype)
@@ -314,30 +312,33 @@ def elts_add_thresh_deg(elts: pd.DataFrame, thresh_deg: float, dtype=dtype):
         Modifies elts in place
     """
     # Number of asteroids in this batch
-    N_ast = elts.shape[0]
+    N_ast: int = elts.shape[0]
 
     # Convert R from degrees to Cartesian
-    thresh_s = deg2dist(thresh_deg)
+    thresh_s: float = deg2dist(thresh_deg)
 
     # Add column for R
     elts['thresh_s'] = np.full(fill_value=thresh_s, shape=N_ast, dtype=dtype)
 
 # ********************************************************************************************************************* 
-def elts_add_H(elts: pd.DataFrame, H: float=16.5, dtype=dtype):
+def elts_add_H(elts: pd.DataFrame, H: float=16.5, sigma_mag: float = 4.0, dtype=dtype)-> None:
     """
     Add column to a DataFrame of orbital elements for the brightness (magnitude) parameter H
     INPUTS:
-        elts:   DataFrame with columns a, e, inc, Omega, omega, f, epoch
-        H:      Brightness parameter; default of 16.5 by trial and error on 64 most common asteroids
-                Mean of JPL data is 13.68, but ZTF apparent magnitudes are dimmer than model by about 2.5-3.0 range.
+        elts:       DataFrame with columns a, e, inc, Omega, omega, f, epoch
+        H:          Brightness parameter; default of 16.5 by trial and error on 64 most common asteroids
+                    Mean of JPL data is 13.68, but ZTF apparent magnitudes are dimmer 
+                    than predicted by about 2.5-3.0; not sure why.
+        sigma_mag:  Standard deviation of magnitude for conditional probability
     OUTPUTS:
         Modifies elts in place
     """
     # Number of asteroids in this batch
-    N_ast = elts.shape[0]
+    N_ast: int = elts.shape[0]
 
-    # Add column for H
+    # Add columns for H and sigma_mag
     elts['H'] = np.full(fill_value=H, shape=N_ast, dtype=dtype)
+    elts['sigma_mag'] = np.full(fill_value=sigma_mag, shape=N_ast, dtype=dtype)
     
 # ********************************************************************************************************************* 
 def elts_add_mixture_params(elts: pd.DataFrame, 

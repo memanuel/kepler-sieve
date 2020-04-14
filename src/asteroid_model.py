@@ -56,6 +56,10 @@ light_speed_au_day: np.float64 = astropy.constants.c.to(au / day).value
 H_min_: float = 8.0
 H_max_: float = 24.0
 
+# Range of sigma_mag for conditional probability given magnitude
+sigma_mag_min_: float = 0.5
+sigma_mag_max_: float = 8.0
+
 # Number of spatial dimensions
 space_dims: int = 3
 
@@ -219,6 +223,7 @@ class AsteroidPosition(keras.layers.Layer):
         self.dv: tf.Variable = \
             tf.Variable(initial_value=np.zeros(traj_shape), dtype=dtype, trainable=False, name='dv')
 
+    @tf.function
     def update_dq_dv(self, dq: tf.Tensor, dv: tf.Tensor) -> None:
         """Update the value of dq and dv"""
         self.dq.assign(dq)
@@ -386,6 +391,7 @@ class AsteroidDirection(keras.layers.Layer):
         self.q_obs: keras.backend.constant = \
             keras.backend.constant(value=q_obs_np, shape=traj_shape, dtype=dtype, name='q_obs')
 
+    @tf.function
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by calibrating the underlying position layer"""
         # Calibrate the position model
@@ -504,10 +510,24 @@ class AsteroidMagnitude(keras.layers.Layer):
         # Dynamic range of H
         self.log_H_range: keras.backend.constant = \
             keras.backend.constant(value=np.log(H_max_ / H_min_), dtype=dtype)       
-        # Tensor with control variable for num_hits
+        # Tensor with control variable for H
         self.H_: tf.Variable = \
                 tf.Variable(initial_value=self.inverse_H(elts['H']), trainable=True, dtype=dtype,
                             constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='num_hits_')
+
+        # Control of the learned parameter sigma_mag
+        # Min and max of sigma_mag are static; controlled gloablly
+        self.sigma_mag_min: keras.backend.constant = \
+            keras.backend.constant(value=sigma_mag_min_, dtype=dtype)
+        self.sigma_mag_max: keras.backend.constant = \
+            keras.backend.constant(value=sigma_mag_max_, dtype=dtype)
+        # Dynamic range of sigma_mag
+        self.log_sigma_mag_range: keras.backend.constant = \
+            keras.backend.constant(value=np.log(sigma_mag_max_ / sigma_mag_min_), dtype=dtype)       
+        # Tensor with control variable for sigma_mag
+        self.sigma_mag_: tf.Variable = \
+                tf.Variable(initial_value=self.inverse_sigma_mag(elts['sigma_mag']), trainable=True, dtype=dtype,
+                            constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0), name='simga_mag_')
 
         # Follow convention and assume G = 0.15; because it is constant, upsample it to full data size for speed
         G_np: np.ndarray = np.full(shape=self.data_size, fill_value=0.15, dtype=dtype_np)
@@ -516,9 +536,6 @@ class AsteroidMagnitude(keras.layers.Layer):
         self.one_minus_G: keras.backend.constant = \
             keras.backend.constant(value=(1.0 - G_np), dtype=dtype, name='one_minus_G')
 
-        # The natural log of 10 (used to compute log(x) base 10, which is not a tensorflow function)
-        # self.log10: keras.backend.constant = \
-        #    keras.backend.constant(value=np.log(10.0), dtype=dtype, name='log10')
         # Coefficient for distance adjustment term 5.0 * log10(r*delta) = (5 / log(10)) * log(r*delta)
         self.dist_adj_coef: keras.backend.constant = \
             keras.backend.constant(value=(5.0 / np.log(10.0)), dtype=dtype, name='dist_adj_coef')
@@ -554,14 +571,29 @@ class AsteroidMagnitude(keras.layers.Layer):
         self.H_.assign(self.inverse_H(H))
 
     @tf.function
+    def get_sigma_mag(self) -> tf.Tensor:
+        """Transformed value of sigma_mag"""
+        return self.sigma_mag_min * tf.exp(self.sigma_mag_ * self.log_sigma_mag_range)
+
+    def inverse_sigma_mag(self, sigma_mag) -> tf.Tensor:
+        """Inverse transform value of sigma_mag"""
+        return tf.math.log(sigma_mag / self.sigma_mag_min) / self.log_sigma_mag_range
+
+    def set_sigma_mag(self, sigma_mag: np.ndarray) -> tf.Tensor:
+        """Set the standard deviation of the magnitude, sigma_mag"""
+        self.sigma_mag_.assign(self.inverse_sigma_mag(sigma_mag))
+
+    @tf.function
     def call(self, q_ast) -> tf.Tensor:
         """
         Compute the apparent magnitude V of the asteroid.
         """
-        # Transformed value of H; shape [batch_size,]
+        # Transformed value of H and sigma_mag; shape [batch_size,]
         H_elt: tf.Tensor = self.get_H()
-        # Upsample H to data size
+        sigma_mag_elt: tf.Tensor = self.get_sigma_mag()
+        # Upsample H and sigma_mag to data size
         H: tf.Tensor = tf.repeat(input=H_elt, repeats=self.row_lengths, name='H')
+        sigma_mag: tf.Tensor = tf.repeat(input=sigma_mag_elt, repeats=self.row_lengths, name='sigma_mag')
 
         # Distance delta from observer (earth) to asteroid
         delta: tf.Tensor = tf.linalg.norm(self.q_obs - q_ast, axis=-1, name='delta')
@@ -596,9 +628,9 @@ class AsteroidMagnitude(keras.layers.Layer):
         phase_adj: tf.Tensor = -tf.multiply(self.phase_adj_coef, phase_adj_sum)
 
         # The predicted apparent magnitude (sometimes called V)
-        mag: tf.Tensor = keras.layers.add(inputs=[H, dist_adj, phase_adj], name='mag')
+        mag_pred: tf.Tensor = keras.layers.add(inputs=[H, dist_adj, phase_adj], name='mag')
 
-        return mag
+        return mag_pred, sigma_mag
 
     def load(self, elts):
         """Load values from elts DataFrame"""

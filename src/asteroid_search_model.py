@@ -435,6 +435,12 @@ class AsteroidSearchModel(tf.keras.Model):
         self.active_weight_mean: float = 1.0
         self.effective_learning_rate: float = self.learning_rate * self.active_weight_mean
 
+        # Weight factors for two terms in composite loss
+        self.loss_factor_log_like: keras.backend.constant = \
+            keras.backend.constant(value=0.90, dtype=dtype, name='loss_factor_log_like')
+        self.loss_factor_log_like_wtd: keras.backend.constant = \
+            keras.backend.constant(value=0.10, dtype=dtype, name='loss_factor_log_like_wtd')
+
         # Early stopping callback
         self.update_early_stop()
         self.callbacks = [self.early_stop]
@@ -468,8 +474,11 @@ class AsteroidSearchModel(tf.keras.Model):
         self.bad_episode_thresh: float = 0.00
         self.bad_episode_count: int = 0
 
-        # Elements in search for nearest asteroid: fit (inputs) and nearest asteroid (outputs)
-        self.elts_fit: pd.DataFrame = None
+        # Current fit
+        self.elts_fit: pd.DataFrame = pd.DataFrame()
+        self.candidates_df()
+
+        # Elements of the nearest asteroid
         self.elts_near_ast: pd.DataFrame = None
 
         # Save hash IDs for elts and ztf_elts
@@ -505,68 +514,59 @@ class AsteroidSearchModel(tf.keras.Model):
         a, e, inc, Omega, omega, f, epoch, = self.candidate_elements(inputs=inputs)
         
         # Extract mixture parameters; pass dummy inputs to satisfy keras Layer API
-        num_hits: tf.Tensor
-        R: tf.Tensor
-        num_hits, R, R_max = self.mixture_parameters(inputs=inputs)
+        self.num_hits: tf.Tensor
+        self.R: tf.Tensor
+        self.num_hits, self.R, self.R_max = self.mixture_parameters(inputs=inputs)
         
         # Stack the current orbital elements.  Shape is [batch_size, 7,]
         orbital_elements: tf.Tensor = keras.backend.stack([a, e, inc, Omega, omega, f, epoch,])
 
         # Stack mixture model parameters. Shape is [batch_size, 3,]
-        mixture_params: tf.Tensor = keras.backend.stack([num_hits, R, R_max])
+        mixture_params: tf.Tensor = keras.backend.stack([self.num_hits, self.R, self.R_max])
 
         # Tensor of predicted directions.  Shape of u_pred is [data_size, 3,]
         # delta_pred is distance from earth to ast.  
         # q_ast also included for use in magnitude calculation. Shape [data_size, 3]
-        u_pred: tf.Tensor
-        delta_pred: tf.Tensor
-        q_ast: tf.Tensor
-        u_pred, delta_pred, q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)
+        self.u_pred: tf.Tensor
+        self.delta_pred: tf.Tensor
+        self.q_ast: tf.Tensor
+        self.u_pred, self.delta_pred, self.q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)
 
         # Compute the predicted magnitude; shape [data_size,]
-        mag_pred = self.magnitude(q_ast)
+        self.mag_pred, self.sigma_mag = self.magnitude(self.q_ast)
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
-        log_like: tf.Tensor
-        log_like_wtd: tf.Tensor
-        hits: tf.Tensor
-        row_lengths_close: tf.Tensor
-        log_like, log_like_wtd, hits, row_lengths_close = self.score(u_pred, num_hits=num_hits, R=R)
+        self.log_like: tf.Tensor
+        self.log_like_wtd: tf.Tensor
+        self.hits: tf.Tensor
+        self.row_lengths_close: tf.Tensor
+        self.log_like, self.log_like_wtd, self.hits, self.row_lengths_close = \
+            self.score(self.u_pred, num_hits=self.num_hits, R=self.R, 
+                       mag_pred=self.mag_pred, sigma_mag=self.sigma_mag)
         
         # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
-        elt_weight: tf.Variable = self.get_active_weight()
+        self.elt_weight: tf.Variable = self.get_active_weight()
         # total log_like by element, weighted by elt_weight
-        loss_log_like: tf.Tensor = tf.negative(tf.multiply(elt_weight, log_like))
-        loss_log_like_wtd: tf.Tensor = tf.negative(tf.multiply(elt_weight , log_like_wtd))
+        loss_log_like: tf.Tensor = tf.negative(tf.multiply(self.elt_weight, self.log_like))
+        loss_log_like_wtd: tf.Tensor = tf.negative(tf.multiply(self.elt_weight , self.log_like_wtd))
         
-        # Create a combined loss with two terms
-        loss_factor_log_like: keras.backend.constant = \
-            keras.backend.constant(value=0.90, dtype=dtype, name='loss_factor_log_like')
-        loss_factor_log_like_wtd: keras.backend.constant = \
-            keras.backend.constant(value=0.10, dtype=dtype, name='loss_factor_log_like_wtd')
-
         # Weighted loss by element
-        loss_1 = tf.multiply(loss_log_like, loss_factor_log_like, name='loss_1')
-        loss_2 = tf.multiply(loss_log_like_wtd, loss_factor_log_like_wtd, name='loss_2')
+        loss_1 = tf.multiply(loss_log_like, self.loss_factor_log_like, name='loss_1')
+        loss_2 = tf.multiply(loss_log_like_wtd, self.loss_factor_log_like_wtd, name='loss_2')
         loss = tf.add(loss_1, loss_2, name='loss')
 
         # Stack score outputs. Shape is [batch_size, 2,]
-        score_outputs: tf.Tensor = keras.backend.stack([log_like, hits, loss])
+        score_outputs: tf.Tensor = keras.backend.stack([self.log_like, self.hits, loss])
 
-        # Alias outputs
-        score_outputs = Identity(name='score_outputs')(score_outputs)
-        orbital_elements = Identity(name='orbital_elements')(orbital_elements)
-        mixture_params = Identity(name='mixture_parameters')(mixture_params)
-
-        # Save last outputs onto the model
-        self.score_outputs = score_outputs
-        self.orbital_elements = orbital_elements
-        self.mixture_params = mixture_params
+        # Alias outputs and save onto the model
+        self.score_outputs = Identity(name='score_outputs')(score_outputs)
+        self.orbital_elements = Identity(name='orbital_elements')(orbital_elements)
+        self.mixture_params = Identity(name='mixture_parameters')(mixture_params)
 
         # Wrap outputs
-        outputs = (score_outputs, orbital_elements, mixture_params)
+        outputs = (self.score_outputs, self.orbital_elements, self.mixture_params)
 
         return outputs
 
@@ -579,7 +579,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Calculate the outputs
         score_outputs, orbital_elements, mixture_params = self.calc(inputs=inputs)
 
-        # Extract the loss
+        # Extract the loss by candidate element
         loss = score_outputs[2]
 
         # Add the blended loss to the model
@@ -658,6 +658,10 @@ class AsteroidSearchModel(tf.keras.Model):
     def get_H(self) -> np.ndarray:
         """Extract the brightness parameter H as a Numpy array"""
         return self.magnitude.get_H().numpy()
+
+    def get_sigma_mag(self) -> np.ndarray:
+        """Extract the standard deviation of the magnitude as a Numpy array"""
+        return self.magnitude.get_sigma_mag().numpy()
 
     # *********************************************************************************************
     # Element weights; equivalent to independent learning rates for each element in the batch
@@ -916,8 +920,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract thresh_deg
         thresh_deg = self.get_thresh_deg()
 
-        # Extract the brightness
+        # Extract the brightness and standard deviation of the magnitude
         H = self.get_H()
+        sigma_mag = self.get_sigma_mag()
 
         # Alias candidate elements layer and mixture parameters
         cand = self.candidate_elements
@@ -961,8 +966,9 @@ class AsteroidSearchModel(tf.keras.Model):
             'thresh_deg': thresh_deg,
             'thresh_s': deg2dist(thresh_deg),
 
-            # Brightness H
+            # Brightness H and standard deviation of magnitude
             'H': H,
+            'sigma_mag': sigma_mag,
 
             # Control variables - candidate orbital elements
             'a_': cand.a_.numpy(),
@@ -1370,8 +1376,9 @@ class AsteroidSearchModel(tf.keras.Model):
         log_like, hits, loss = score_outputs
         # Extract thresh_deg from score layer
         thresh_deg = self.get_thresh_deg()
-        # Extract the brightness H from magnitude layer
+        # Extract the brightness H and standard deviation of magnitude from magnitude layer
         H = self.get_H()
+        sigma_mag = self.get_sigma_mag()
 
         # Build DataFrame of orbital elements
         elts = elts_np2df(orbital_elements.numpy().T)
@@ -1394,13 +1401,17 @@ class AsteroidSearchModel(tf.keras.Model):
         elts['log_like'] = log_like.numpy()
         elts['hits'] = hits.numpy()
 
-        # The brightness parameter H
+        # The brightness parameter H and standard deviation of magnitude
         elts['H'] = H
+        elts['sigma_mag'] = sigma_mag
 
         # Add columns with the weights in the three modes
         elts['weight_joint'] = self.weight_joint.numpy()
         elts['weight_element'] = self.weight_element.numpy()
         elts['weight_mixture'] = self.weight_mixture.numpy()
+
+        # Save this onto the model as the attribute elts_fit
+        self.elts_fit = elts
 
         return elts
 

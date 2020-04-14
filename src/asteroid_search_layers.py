@@ -415,7 +415,7 @@ class TrajectoryScore(keras.layers.Layer):
             keras.backend.constant(value=u_obs_np, shape=u_shape, dtype=dtype)
 
         # Save the observed apparent magnitude as a keras constant
-        self.mag_app: keras.backend.constant = \
+        self.mag_obs: keras.backend.constant = \
             keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
 
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
@@ -501,8 +501,13 @@ class TrajectoryScore(keras.layers.Layer):
         self.set_thresh_s2(thresh_s2)
 
     @tf.function        
-    def call(self, u_pred: tf.Tensor, num_hits: tf.Tensor, R: tf.Tensor) \
-            -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    def call(self, 
+             u_pred: tf.Tensor, 
+             num_hits: tf.Tensor, 
+             R: tf.Tensor,
+             mag_pred: tf.Tensor,
+             sigma_mag: tf.Tensor) \
+             -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
         """
         Score candidate trajectories in current batch based on how well they match observations
         INPUTS:
@@ -510,6 +515,8 @@ class TrajectoryScore(keras.layers.Layer):
             u_obs:      observed directions
             num_hits:   number of hits in mixture model
             R:          resolution parameter (Cartesian distance)
+            mag_pred:   predicted asteroid magnitude
+            sigma_mag:  standard deviation of asteroid magnitude
         """
         # Transform thresh_s2_ to thresh_s2_elt
         self.thresh_s2_elt: tf.Tensor = self.get_thresh_s2()
@@ -534,7 +541,7 @@ class TrajectoryScore(keras.layers.Layer):
         # Filter to only include terms where z2 is within the threshold distance^2
         is_close: tf.Tensor = tf.math.less(s2, self.thresh_s2, name='is_close')
 
-        # Relative distance v on data inside threshold
+        # Relative distance v on data inside threshold; shape is [num_close,]
         v_num: tf.Tensor = tf.boolean_mask(tensor=s2, mask=is_close, name='v_num')
         v_den: tf.Tensor = tf.boolean_mask(tensor=self.thresh_s2, mask=is_close, name='v_den')
         v: tf.Tensor = tf.divide(v_num, v_den, name='v')
@@ -547,7 +554,7 @@ class TrajectoryScore(keras.layers.Layer):
         
         # Row_lengths, for close observations only
         # is_close_r = tf.RaggedTensor.from_row_lengths(
-        # values=is_close, row_lengths=self.row_lengths, name='is_close_r')
+        #   values=is_close, row_lengths=self.row_lengths, name='is_close_r')
         ragged_map_func = lambda x : \
             tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths)
         is_close_r: tf.RaggedTensor = \
@@ -577,8 +584,37 @@ class TrajectoryScore(keras.layers.Layer):
         p_cond_dist_den: tf.Tensor = tf.subtract(1.0, tf.exp(-lam_vec), name='p_cond_dist_den')
         p_cond_dist: tf.Tensor = tf.divide(p_cond_dist_num, p_cond_dist_den, name='p_cond_dist')
 
+        # Difference between predicted and observed magnitude
+        mag_diff_all: tf.Tensor = tf.subtract(mag_pred, self.mag_obs, name='mag_diff_all')
+
+        # Mask mag_diff and sigma_mag to only the close rows; shape is now [num_close,]
+        mag_diff: tf.Tensor = tf.boolean_mask(tensor=mag_diff_all, mask=is_close, name='mag_diff')
+        sigma_mag: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=is_close, name='sigma_mag')
+
         # Conditional probability based on difference between predicted and observed magnitude
-        p_cond_mag: tf.Tensor = tf.ones_like(p_cond_dist, name='p_cond_mag')
+        mag_z: tf.Tensor = tf.divide(mag_diff, sigma_mag, name='mag_z')
+        mag_z2: tf.Tensor = tf.square(mag_z, name='mag_z2')
+        mag_arg: tf.Tensor = tf.multiply(mag_z2, -0.5, name='mag_arg')
+
+        # Map from flat tensors of nearby rows to ragged tensors
+        ragged_map_func_close = lambda x : \
+            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
+
+        # The normalized probability based on the magnitude is the unnormalized prob over the normalizer
+
+        # The numerator is the exp(mag_arg); shape [num_close,]
+        p_mag_num: tf.Tensor = tf.exp(mag_arg, name='p_mag_num')
+        # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, close_elt,]
+        p_mag_num_r: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_mag_num_r')(p_mag_num)
+        # The denominator is the elementwise mean; shape [batch_size, close_elt,]
+        p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
+        # Upsample the denominator to a flat array of shape [num_close,]
+        # Attempted division with broadcasting [batch_size, close_elt] / [batch_size,] but it didn't work
+        p_mag_den: tf.Tensor = tf.repeat(input=p_mag_den_r, repeats=row_lengths_close, name='p_mag_den')
+        # The conditional probability based on the magnitude is the quotient; shape [num_close,]
+        # This array has elementwise mean 1.0 by construction
+        p_cond_mag: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag')
 
         # Combined conditional probability of a hit
         p_hit_cond: tf.Tensor = tf.multiply(p_cond_dist, p_cond_mag, name='p_hit_cond')
@@ -599,8 +635,6 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Rearrange to ragged tensors
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
-        ragged_map_func_close = lambda x : \
-            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
         log_p: tf.Tensor = \
             tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
         log_p_wtd: tf.Tensor = \
