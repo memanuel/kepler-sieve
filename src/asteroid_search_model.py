@@ -358,11 +358,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Calibration arrays (flat)
         self.cols_q_ast: List[str] = ['qx', 'qy', 'qz']
         self.cols_v_ast: List[str] = ['vx', 'vy', 'vz']
-        self.q_ast: np.ndarray = ztf_elt[self.cols_q_ast].values.astype(dtype_np)
-        self.v_ast: np.ndarray = ztf_elt[self.cols_v_ast].values.astype(dtype_np)
+        self.q_ast_np: np.ndarray = ztf_elt[self.cols_q_ast].values.astype(dtype_np)
+        self.v_ast_np: np.ndarray = ztf_elt[self.cols_v_ast].values.astype(dtype_np)
 
         # Run calibration
-        self.position.calibrate(elts=elts, q_ast=self.q_ast, v_ast=self.v_ast)
+        self.position.calibrate(elts=elts, q_ast=self.q_ast_np, v_ast=self.v_ast_np)
 
         # Score layer for these observations
         self.score: TrajectoryScore = \
@@ -706,22 +706,26 @@ class AsteroidSearchModel(tf.keras.Model):
     def set_learning_rate(self, learning_rate):
         """Set the learning rate"""
         self.learning_rate = learning_rate
-        
-    def set_clipnorm(self, clipnorm):
-        """Set the clipnorm parameter for gradient clipping"""
-        self.clipnorm = clipnorm
+        # Recompile with the new learning rate
+        self.optimizer = make_opt(optimizer_type=self.optimizer_type, learning_rate=self.learning_rate, 
+                                  clipnorm=self.clipnorm, clipvalue=None)
+        self.recompile()
         
     def adjust_learning_rate(self, lr_factor, verbose: bool=True):
         """Adjust the learning rate and recompile the model"""
         if verbose:
             print(f'Changing learning rate by factor {lr_factor:8.6f} from '
                   f'{self.learning_rate:8.3e} to {self.learning_rate*lr_factor:8.3e}.')
-        self.learning_rate = self.learning_rate * lr_factor
-        # Recompile with the new learning rate
-        self.optimizer = make_opt(optimizer_type=self.optimizer_type, learning_rate=self.learning_rate, 
-                                  clipnorm=self.clipnorm, clipvalue=None)
-        self.recompile()
+        learning_rate = self.learning_rate * lr_factor
+        # Apply the new learning rate
+        self.set_learning_rate(learning_rate)
 
+    def set_clipnorm(self, clipnorm):
+        """Set the clipnorm parameter for gradient clipping."""
+        self.clipnorm = clipnorm
+        # Delegate to set_learning_rate to rebuild the optimizer
+        self.set_learning_rate(self.learing_rate)
+        
     def set_R_deg_max(self, R_deg_max: float):
         """Adjust resolution R_deg to at most R_deg_max"""
         # If R_deg_max was a scalar, promote it to a full numpy array
@@ -768,11 +772,13 @@ class AsteroidSearchModel(tf.keras.Model):
         mjd1 = np.max(mjd) + 1.0
 
         # Calculate positions in this date range, sampled daily
-        df_ast_daily, df_earth_daily, df_sun_daily = calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_ids)
+        df_ast_daily, df_earth_daily, df_sun_daily = \
+            calc_ast_data(elts=elts, mjd0=mjd0, mjd1=mjd1, element_id=element_ids)
 
         # Spline positions at ztf times
-        df_ast, df_earth, df_sun = spline_ast_vec_df(df_ast=df_ast_daily, df_earth=df_earth_daily, df_sun=df_sun_daily, 
-                                                    mjd=mjd, include_elts=False)
+        df_ast, df_earth, df_sun = \
+            spline_ast_vec_df(df_ast=df_ast_daily, df_earth=df_earth_daily, df_sun=df_sun_daily, 
+                              mjd=mjd, include_elts=False)
 
         # Iterate over the elements
         for element_id in element_ids:
@@ -785,11 +791,11 @@ class AsteroidSearchModel(tf.keras.Model):
             # Index into df_ast_i on selected rows
             df_idx = unq_idx[mask_ztf]
             # Overwrite relevant slices of q_ast and v_ast with the newly integrated q, v
-            self.q_ast[mask_ztf] = df_ast_i[self.cols_q_ast].iloc[df_idx]
-            self.v_ast[mask_ztf] = df_ast_i[self.cols_v_ast].iloc[df_idx]            
+            self.q_ast_np[mask_ztf] = df_ast_i[self.cols_q_ast].iloc[df_idx]
+            self.v_ast_np[mask_ztf] = df_ast_i[self.cols_v_ast].iloc[df_idx]            
 
         # Run calibration with the new q, v
-        self.position.calibrate(elts=elts, q_ast=self.q_ast, v_ast=self.v_ast)
+        self.position.calibrate(elts=elts, q_ast=self.q_ast_np, v_ast=self.v_ast_np)
 
     # *********************************************************************************************
     # Freeze and thaw layers relating to orbital elements and mixture parameters
@@ -1077,7 +1083,9 @@ class AsteroidSearchModel(tf.keras.Model):
         mixture_parameters_old, mixture_parameters_new = self.mixture_parameters_hist[n-2:n]
 
         # Test which elements have gotten worse (usually this should be false)
-        is_worse = tf.math.less(log_like_new, log_like_old)
+        is_less_likely = tf.math.less(log_like_new, log_like_old)
+        is_nan = tf.math.is_nan(log_like_new)
+        is_worse = tf.math.logical_or(is_less_likely, is_nan)
 
         # If none of the elements have gotten worse, terminate early
         if not tf.math.reduce_any(is_worse):
@@ -1085,7 +1093,8 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # If we get here, at least one candidate got worse.  Want to restore it.
         # Calculate the best weights on the candidate elements and mixture parameters
-        log_like_best = tf.math.maximum(x=log_like_old, y=log_like_new)
+        # log_like_best = tf.math.maximum(x=log_like_old, y=log_like_new)
+        log_like_best = tf.where(condition=is_worse, x=log_like_old, y=log_like_new)
         candidate_elements_best = tf.where(condition=is_worse, x=candidate_elements_old, y=candidate_elements_new)
         mixture_parameters_best = tf.where(condition=is_worse, x=mixture_parameters_old, y=mixture_parameters_new)
 
@@ -1227,9 +1236,10 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Apply learning_rate input if it was specified
         original_learning_rate = self.learning_rate
-        if learning_rate is not None and learning_rate != self.learning_rate:            
-            self.learning_rate = learning_rate
-            self.recompile()
+        if learning_rate is not None and learning_rate != self.learning_rate:
+            log2_lr = np.log2(learning_rate)
+            print(f'Applying learning_rate {learning_rate:6.2e} (2.0^{log2_lr:5.1f}) for adaptive training.')
+            self.set_learning_rate(learning_rate)
 
         # Reset the active weights to 1 if requested
         if reset_active_weight:
@@ -1282,7 +1292,7 @@ class AsteroidSearchModel(tf.keras.Model):
             print_header(f'Terminating: Completed {self.current_episode} episodes.')
         elif self.bad_episode_count >= max_bad_episodes:
             print_header(f'Terminating: Had {self.bad_episode_count} bad episodes.')
-        elif self.learning_rate <= self.effective_learning_rate:
+        elif self.effective_learning_rate <= min_learning_rate:
             print_header(f'Terminating: Effective Learning Rate '
                          f'{self.effective_learning_rate:8.3e} <= minimum {min_learning_rate:8.3e}.')
 
@@ -1292,8 +1302,8 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Restore original learning_rate if it was altered
         if self.learning_rate != original_learning_rate:
-            self.learning_rate = original_learning_rate
-            self.recompile()
+            print(f'Restoring original learning rate {original_learning_rate}.')
+            self.set_learning_rate(original_learning_rate)
 
     def sieving_round(self, thresh_deg_max: float, batches_elt: int=5000, batches_mix: int=1000):
         """

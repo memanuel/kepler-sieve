@@ -391,7 +391,6 @@ class AsteroidDirection(keras.layers.Layer):
         self.q_obs: keras.backend.constant = \
             keras.backend.constant(value=q_obs_np, shape=traj_shape, dtype=dtype, name='q_obs')
 
-    @tf.function
     def calibrate(self, elts: pd.DataFrame, q_ast: np.ndarray, v_ast: np.ndarray):
         """Calibrate this model by calibrating the underlying position layer"""
         # Calibrate the position model
