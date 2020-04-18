@@ -54,7 +54,12 @@ a_max_: float = 32.0
 
 # Range for e
 e_min_: float = 0.0
-e_max_: float = 1.0 - 2.0**-10
+# e_max_: float = 1.0 - 2.0**-10
+e_max_: float = 1.0 - 2.0**-6
+
+# Range for inc
+sin_inc_max_: float = 1.0 - 2.0**-8
+inc_max_: float = np.arcsin(sin_inc_max_)
 
 # Range for num_hits
 num_hits_min_: float = 6.0
@@ -134,7 +139,7 @@ class CandidateElements(keras.layers.Layer):
                         constraint=lambda t: tf.clip_by_value(t, self.e_min, self.e_max), name='e_')
         
         # Control over inc_, in range -pi/2 to pi/2
-        self.inc_max = keras.backend.constant(np.pi/2*(1-2**-20), dtype=dtype)
+        self.inc_max = keras.backend.constant(inc_max_, dtype=dtype)
         self.inc_min = -self.inc_max
         self.inc_range = keras.backend.constant(self.inc_max - self.inc_min, dtype=dtype)
         self.inc_: tf.Variable = \

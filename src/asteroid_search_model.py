@@ -33,7 +33,7 @@ from nearest_asteroid import load_known_ast_pos, nearest_ast_elt_cart, nearest_a
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
 from tf_utils import tf_quiet, Identity
-from tf_astro_utils import tf_dist2deg
+from tf_astro_utils import tf_dist2deg, tf_dist2sec
 from utils import print_header
 
 # Typing
@@ -275,7 +275,7 @@ class AsteroidSearchModel(tf.keras.Model):
                  site_name: str='geocenter', 
                  thresh_deg: float = 1.0,
                  optimizer_type: str = 'adam',
-                 learning_rate: float = 2.0**-10, 
+                 learning_rate: float = 2.0**-12, 
                  clipnorm: float = 1.0,
                  **kwargs):
         """
@@ -499,9 +499,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # File name for saving training progress
         self.file_path: str = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
 
-        # Initialize model with frozen elements and score layer
+        # Initialize model with frozen elements
         self.freeze_candidate_elements()
-        self.freeze_score()
 
         # Fit one time to "prime the pump" on the loss function.
         # Not sure why this seems to be necessary
@@ -560,19 +559,28 @@ class AsteroidSearchModel(tf.keras.Model):
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
         self.elt_weight: tf.Variable = self.get_active_weight()
         # total log_like by element, weighted by elt_weight
-        loss_log_like: tf.Tensor = tf.negative(tf.multiply(self.elt_weight, self.log_like))
-        loss_log_like_wtd: tf.Tensor = tf.negative(tf.multiply(self.elt_weight , self.log_like_wtd))
+        obj_log_like: tf.Tensor = tf.multiply(self.elt_weight, self.log_like)
+        obj_log_like_wtd: tf.Tensor = tf.multiply(self.elt_weight , self.log_like_wtd)
         
         # Weighted loss by element
-        self.loss_1 = tf.multiply(loss_log_like, self.loss_factor_log_like, name='loss_1')
-        self.loss_2 = tf.multiply(loss_log_like_wtd, self.loss_factor_log_like_wtd, name='loss_2')
-        loss_num: tf.Tensor = tf.add(self.loss_1, self.loss_2, name='loss_num')
+        self.obj_1 = tf.multiply(obj_log_like, self.loss_factor_log_like, name='obj_1')
+        self.obj_2 = tf.multiply(obj_log_like_wtd, self.loss_factor_log_like_wtd, name='obj_2')
+        obj_num: tf.Tensor = tf.add(self.obj_1, self.obj_2, name='obj_num')
 
-        # Divide by threshold to encourage it getting smaller
+        # Divide by threshold to encourage it getting smaller; objective function to maximize
         thresh_s2: tf.Tensor = self.score.get_thresh_s2()
         thresh_2: tf.Tensor = tf.sqrt(thresh_s2)
-        thresh_deg: tf.Tensor = tf_dist2deg(thresh_2)
-        loss: tf.Tensor = tf.divide(loss_num, thresh_deg, name='loss')
+        # thresh_deg: tf.Tensor = tf_dist2deg(thresh_2)
+        thresh_sec: tf.Tensor = tf_dist2sec(thresh_2)
+        obj: tf.Tensor = tf.divide(obj_num, thresh_sec, name='obj')
+
+        # Take the log of the objective function plus 1 because it's too big
+        # obj_plus_1: tf.Tensor = tf.add(obj, 1.0, name='obj_plus_1')
+        # log_obj: tf.Tensor = tf.math.log(obj_plus_1)
+
+        # Take the negative of the objective function as the loss
+        # loss: tf.Tensor = tf.negative(log_obj)
+        loss: tf.Tensor = tf.negative(obj)
 
         # Stack score outputs. Shape is [batch_size, 2,]
         score_outputs: tf.Tensor = keras.backend.stack([self.log_like, self.hits, loss])
@@ -608,8 +616,6 @@ class AsteroidSearchModel(tf.keras.Model):
         # Total the clean closs over all the elements in the batch
         loss_sum: tf.Tensor
         loss_sum = tf.reduce_sum(loss_clean, name='loss_sum')
-
-        # Take the log of this because it gets really big
 
         # Add the blended loss to the model
         self.add_loss(loss_sum)
@@ -816,6 +822,10 @@ class AsteroidSearchModel(tf.keras.Model):
         cols_elt: List[str] = ['element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch']
         elts = self.candidates_df()[cols_elt]
 
+        # Filter NaN out when training gets messed up; bad settings will be rolled back later
+        cols_filter = ['Omega', 'omega', 'f']
+        elts[cols_filter] = np.nan_to_num(elts[cols_filter].values, nan=0.0)
+
         # Get unique times and inverse indices
         mjd: np.ndarray
         unq_idx: np.ndarray
@@ -860,6 +870,9 @@ class AsteroidSearchModel(tf.keras.Model):
     # *********************************************************************************************
     def freeze_candidate_elements(self):
         """Make the candidate orbital elements not trainable; only update mixture parameters"""
+        # Quit early if already frozen
+        if not self.candidate_elements.trainable:
+            return
         self.candidate_elements.trainable = False
         self.recompile()
         self.update_early_stop()
@@ -867,6 +880,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def thaw_candidate_elements(self):
         """Make the candidate orbital elements trainable (unfrozen)"""
+        # Quit early if already thawed
+        if self.candidate_elements.trainable:
+            return
         self.candidate_elements.trainable = True
         self.recompile()
         self.update_early_stop()
@@ -875,6 +891,9 @@ class AsteroidSearchModel(tf.keras.Model):
     # *********************************************************************************************
     def freeze_mixture_parameters(self):
         """Make the mixture parameters not trainable; only update candidate oribtal elements"""
+        # Quit early if already frozen
+        if not self.mixture_parameters.trainable:
+            return
         self.mixture_parameters.trainable = False
         self.recompile()
         self.update_early_stop()
@@ -882,6 +901,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
     def thaw_mixture_parameters(self):
         """Make the mixture parameters trainable (unfrozen)"""
+        # Quit early if already thawed
+        if self.mixture_parameters.trainable:
+            return
         self.mixture_parameters.trainable = True
         self.recompile()
         self.update_early_stop()
@@ -890,12 +912,18 @@ class AsteroidSearchModel(tf.keras.Model):
     # *********************************************************************************************
     def freeze_magnitude(self):
         """Make the magnitude layer not trainable"""
+        # Quit early if already frozen
+        if not self.magnitude.trainable:
+            return
         self.magnitude.trainable = False
         self.recompile()
         self.update_early_stop()
 
     def thaw_magnitude(self):
         """Make the magnitude layer trainable (unfrozen)"""
+        # Quit early if already thawed
+        if self.magnitude.trainable:
+            return
         self.magnitude.trainable = True
         self.recompile()
         self.update_early_stop()
@@ -903,15 +931,34 @@ class AsteroidSearchModel(tf.keras.Model):
     # *********************************************************************************************
     def freeze_score(self):
         """Make the score layer (e.g. thresh_deg) not trainable"""
+        # Quit early if already frozen
+        if not self.score.trainable:
+            return
         self.score.trainable = False
         self.recompile()
         self.update_early_stop()
 
     def thaw_score(self):
         """Make the score layer (e.g. thresh_deg) trainable (unfrozen)"""
+        # Quit early if already thawed
+        if self.score.trainable:
+            return
         self.score.trainable = True
         self.recompile()
         self.update_early_stop()
+
+    # *********************************************************************************************
+    def thaw_all(self):
+        """Make all layers trainable (unfrozen)"""
+        # Go through each layer and make it trainable
+        self.candidate_elements.trainable = True
+        self.mixture_parameters.trainable = True
+        self.magnitude.trainable = True
+        self.score.trainable = True
+        # Recompile the model; update early stopping threshold, and training mode
+        self.recompile()
+        self.update_early_stop()
+        self.training_mode = 'joint'       
 
     # *********************************************************************************************
     # Adaptive training; save weights and history at episode end
@@ -1238,7 +1285,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_weights()
 
         # Geometric mean of resolution
-        R_deg_geomean = dist2deg(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
+        # R_deg_geomean = dist2deg(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
+        R_sec_geomean = dist2sec(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
 
         # Update early_stop
         self.update_early_stop()
@@ -1253,14 +1301,16 @@ class AsteroidSearchModel(tf.keras.Model):
         if verbose > 0:
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
             # print(f'Total Log Likelihood: {log_like_total:8.2f}')
-            print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees ({R_deg_geomean*3600:6.1f} arc seconds)')
-            print(f'Mean Hits          :  {self.hits_mean:8.2f}')
-            print(f'Mean Log Likelihood:  {self.log_like_mean:8.2f}')
+            # print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees ({R_deg_geomean*3600:6.1f} arc seconds)')
+            print(f'Geom Mean Resolution: {R_sec_geomean:8.2f} arc seconds')
+            print(f'Mean Hits           :  {self.hits_mean:8.2f}')
+            print(f'Mean Log Likelihood :  {self.log_like_mean:8.2f}')
 
     # *********************************************************************************************
     # Main adaptive search routine; called by external consumers
     # *********************************************************************************************
 
+    # *********************************************************************************************
     def train_one_episode(self, verbose=1):
         """One episode of training"""
         # Status update for this episode
@@ -1290,6 +1340,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Episode end processing; includes LR adjustment
         self.episode_end(hist)
 
+    # *********************************************************************************************
     def search_adaptive(self, 
                         max_batches: int = 1000, 
                         batches_per_epoch: int = 100, 
@@ -1388,78 +1439,16 @@ class AsteroidSearchModel(tf.keras.Model):
             print(f'Restoring original learning rate {original_learning_rate:6.2e}.')
             self.set_learning_rate(original_learning_rate)
 
-    def sieving_round(self, thresh_deg_max: float, batches_elt: int=5000, batches_mix: int=1000):
-        """
-        One round of sieving
-        INPUTS:
-            thresh_deg_max: Maximum of threshold parameter
-            batches_elt:    Number of batches to train orbital elements
-            batches_mix:    Number of batches to train just mixture
-        """
-
-        # Adaptive search parameters
-        batches_per_epoch = 100
-        epochs_per_episode = 5
-        learning_rate = 2.0**-15
-        reset_active_weight = True
-        save_at_end = False
-        verbose = 1
-
-        # Set threshold
-        self.set_thresh_deg_max(thresh_deg_max)
-
-        # Train orbital elements and mixture parameters
-        self.thaw_candidate_elements()
-        self.thaw_mixture_parameters()
-        self.search_adaptive(
-            max_batches=self.current_batch+batches_elt, 
-            batches_per_epoch=batches_per_epoch,
-            epochs_per_episode=epochs_per_episode,
-            learning_rate=learning_rate,
-            reset_active_weight=reset_active_weight,
-            save_at_end=save_at_end,
-            verbose=verbose)
-
-        # Train with frozen orbital elements
-        self.freeze_candidate_elements()
-        self.search_adaptive(
-            max_batches=self.current_batch+batches_mix, 
-            batches_per_epoch=batches_per_epoch,
-            epochs_per_episode=epochs_per_episode,
-            learning_rate=learning_rate,
-            reset_active_weight=reset_active_weight,
-            save_at_end=save_at_end,
-            verbose=verbose)
-
-        # Report progress and save
-        self.report()
-        self.save_state()
-
+    # *********************************************************************************************
     def sieve(self):
-        """Run a predetermined sequence of adaptive searches"""
-
-        # Training rounds on schedule
-        training_schedule = [
-            (2.00, 0, 2000,),
-            (2.00, 5000, 1000,),
-            (1.75, 5000, 1000,),
-            (1.50, 5000, 1000,),
-            (1.25, 5000, 1000,),
-            (1.00, 5000, 1000,),
-            (0.80, 5000, 1000,),
-            (0.70, 5000, 1000,),
-            (0.60, 5000, 1000,),
-            (0.50, 5000, 1000,),
-        ]
-
-        # Iterate over training schedule
-        for thresh_deg_max, batches_elt, batches_mix in training_schedule:
-            self.sieving_round(thresh_deg_max=thresh_deg_max, batches_elt=batches_elt, batches_mix=batches_mix)
+        """One shot method for automated search"""
+        pass
 
     # *********************************************************************************************
     # Output candidate elements as DataFrame; save and load model state (including training history)
     # *********************************************************************************************
 
+    # *********************************************************************************************
     def candidates_df(self):
         """The current candidates as a DataFrame."""
         # Generate the outputs
@@ -1508,6 +1497,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         return elts
 
+    # *********************************************************************************************
     def save_state(self, verbose: bool=False):
         """Save model state to disk: candidate elements and training history"""
         # Generate DataFrame with current candidates
@@ -1529,6 +1519,7 @@ class AsteroidSearchModel(tf.keras.Model):
         if self.elts_near_ast is not None:
             self.elts_near_ast.to_hdf(self.file_path, key='elts_near_ast', mode='a')
 
+    # *********************************************************************************************
     def load(self, verbose: bool=False):
         """Load model state from disk: candidate elements and training history"""
         try:
@@ -1598,6 +1589,7 @@ class AsteroidSearchModel(tf.keras.Model):
     # Plot training results: bar or time series charts
     # *********************************************************************************************
 
+    # *********************************************************************************************
     def plot_bar(self, att_name: str = 'log_like', sorted: bool = True, episode=None):
         """
         Bar chart for one of the attributes monitored during training
@@ -1645,6 +1637,7 @@ class AsteroidSearchModel(tf.keras.Model):
         plt.show()
         return fig, ax
 
+    # *********************************************************************************************
     def plot_hist(self, att_name: str = 'log_like'):
         """
         Learning curve chart (progress vs. episode) for one of the score attributes log_like or hits.
@@ -1699,6 +1692,7 @@ class AsteroidSearchModel(tf.keras.Model):
     # Find asteroid with nearest orbital elements; calculate position error vs. known elements
     # *********************************************************************************************
 
+    # *********************************************************************************************
     def nearest_ast(self, search_type='cart'):
         """
         Search for the asteroid that is nearest in orbital trajectory to the candidate elements
@@ -1717,6 +1711,7 @@ class AsteroidSearchModel(tf.keras.Model):
             # If we ran a Cartesian search, add an extra column with the Q_norm
             q_norm = elt_q_norm(elts=self.elts_fit, ast_num=self.elts_fit.nearest_ast_num)
             self.elts_fit['nearest_ast_q_norm'] = q_norm
+            self.elts_near_ast['nearest_ast_q_norm'] = q_norm
         elif search_type == 'cov':
             self.elts_near_ast = nearest_ast_elt_cov(self.elts_fit)
         else:
@@ -1725,6 +1720,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Return the inputs and nearest asteroids
         return self.elts_fit, self.elts_near_ast
 
+    # *********************************************************************************************
     def calc_error(self, elts_true):
         """
         Calculate error vs. known orbital elements
@@ -1777,6 +1773,7 @@ class AsteroidSearchModel(tf.keras.Model):
     # Plot error vs. known orbital elements or selected element
     # *********************************************************************************************
 
+    # *********************************************************************************************
     def plot_elt_error(self, elt_name: str, elts_true=None, is_log: bool=True, elt_num: int=None):
         """
         Plot (log) error of selected orbital element vs. known elements
@@ -1833,11 +1830,17 @@ class AsteroidSearchModel(tf.keras.Model):
         plt.show()
         return fig, ax
 
-    def plot_q_error(self, elts_true=None, is_log: bool=False, use_near_ast_dist: bool=True):
+    # *********************************************************************************************
+    def plot_q_error(self, 
+                     elts_true=None, 
+                     plot_type: str = 'cart',
+                     is_log: bool=False, 
+                     use_near_ast_dist: bool=True):
         """
         Bar chart of position error by orbital element.
         INPUTS:
             elts_true: DataFrame of true orbital elements
+            plot_type: One of 'cart' or 'cov' for Cartesian Distance in AU or dimenionless covariance metric
             is_log:    Whether to plot log(q_err) instead of q_err
             use_near_ast_dist:
                     use_ast_dist=True means plot the distance to the nearest asteroid
@@ -1852,31 +1855,55 @@ class AsteroidSearchModel(tf.keras.Model):
         # Calculate distance error with selected method: live or from near_ast
         if use_near_ast_dist:
             q_err = self.elts_near_ast.nearest_ast_dist
-            calc_method = 'Observation Dates'
+            calc_method = '20 Years of Monthly Dates'
         else:
             hist_err, q_err = self.calc_error(elts_true)
-            calc_method = 'Near Ast. Dates'
-        
+            calc_method = 'Observation Dates'
+
+        # Compute the q_norm error
+        # q_norm_err = elt_q_norm(elts=self.elts_fit, ast_num=model.elts_near_ast.nearest_ast_num)
+        q_norm_err = self.elts_near_ast.nearest_ast_q_norm
+
+        # Choose between Cartesian distance and q_norm
+        err_tbl = {
+            'cart': q_err,
+            'cov': q_norm_err,
+        }
+        err = err_tbl[plot_type]
+
         # Get element numbers and mean error over the whole batch
         element_num = np.arange(self.batch_size, dtype=np.int32)
-        mean_err = np.exp(np.mean(np.log(q_err+2**-40))) if is_log else np.mean(q_err)
+        mean_err = np.exp(np.mean(np.log(err+2**-40))) if is_log else np.mean(err)
+
+        # Type of error
+        is_q_norm: bool = (plot_type == 'cov')
+        # error_type = 'Covariance' if is_q_norm else 'Cartesian'
+        error_tag = 'Covariance Error' if is_q_norm else 'Mean Position Error in AU'
+
+        # Caption for y-axis
+        ylabel_prefix = 'Inverse ' if is_log else ''
+        ylabel_suffix = ' (log scaled)' if is_log else ''
+        ylabel = f'{ylabel_prefix}{error_tag}{ylabel_suffix}'
 
         # Plot selected error
         fig, ax = plt.subplots()
-        ax.set_title(f'Mean Position Error vs. Elements on {calc_method}')
+        ax.set_title(f'{error_tag} vs. Elements on {calc_method}')
         ax.set_xlabel('Element')
-        ax.set_ylabel('Mean Position Error in AU')
-        ax.bar(x=element_num, height=q_err, label='elt', color='blue')
-        ax.axhline(y=mean_err, label='mean', color='red')
+        ax.set_ylabel(ylabel)
         if is_log:
+            ax.bar(x=element_num, height=1.0/err, label='elt', color='blue')
+            ax.axhline(y=1.0/mean_err, label='mean', color='red')
             ax.set_yscale('log', basey=2)
+        else:
+            ax.bar(x=element_num, height=err, label='elt', color='blue')
+            ax.axhline(y=mean_err, label='mean', color='red')
         ax.grid()
         ax.legend()
         # fig.savefig('../figs/training/q_error.png', bbox_inches='tight')
         plt.show()
         return fig, ax
         
-
+    # *********************************************************************************************
     def plot_control(self, element_num):
         """Plot control variables"""
         # Get control variables for selected element_num
@@ -1910,6 +1937,7 @@ class AsteroidSearchModel(tf.keras.Model):
         plt.show()
         return fig, ax
 
+    # *********************************************************************************************
     def plot_element_att(self, att_name: str, element_num: int):
         """
         Plot an attribute for a specified candidate element
@@ -1972,26 +2000,27 @@ class AsteroidSearchModel(tf.keras.Model):
         hits_max = np.max(hits)
 
         # Summarize resolution
-        # num_hits = mixture_params[0].numpy()
-        R_deg = dist2deg(mixture_params[1].numpy())
-        R_deg_mean = np.mean(R_deg)
-        R_deg_std = np.std(R_deg)
-        R_deg_min = np.min(R_deg)
-        R_deg_max = np.max(R_deg)
+        R = mixture_params[1].numpy()
+        R_sec = dist2sec(R)
+        R_sec_mean = np.mean(R_sec)
+        R_sec_std = np.std(R_sec)
+        R_sec_min = np.min(R_sec)
+        R_sec_max = np.max(R_sec)
 
-        # Threshold in degrees
+        # Threshold in arc seconds
         thresh_deg = self.get_thresh_deg()
-        thresh_deg_mean = np.mean(thresh_deg)
-        thresh_deg_std = np.std(thresh_deg)
-        thresh_deg_min = np.min(thresh_deg)
-        thresh_deg_max = np.max(thresh_deg)
+        thresh_sec = thresh_deg * 3600.0
+        thresh_sec_mean = np.mean(thresh_sec)
+        thresh_sec_std = np.std(thresh_sec)
+        thresh_sec_min = np.min(thresh_sec)
+        thresh_sec_max = np.max(thresh_sec)
 
         # Report on log likelihood and resolution
-        print(f'     \  log_like :  hits  :  R_deg    :    R_sec : thresh_deg')
-        print(f'Mean : {log_like_mean:8.2f}  : {hits_mean:6.2f} :  {R_deg_mean:8.6f} : {R_deg_mean*3600:8.2f} : {thresh_deg_mean:8.6f}')
-        print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} :  {R_deg_std:8.6f} : {R_deg_std*3600:8.2f} : {thresh_deg_std:8.6f}')
-        print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} :  {R_deg_min:8.6f} : {R_deg_min*3600:8.2f} : {thresh_deg_min:8.6f}')
-        print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} :  {R_deg_max:8.6f} : {R_deg_max*3600:8.2f} : {thresh_deg_max:8.6f}')
+        print(f'     \  log_like :  hits  :    R_sec : thresh_sec')
+        print(f'Mean : {log_like_mean:8.2f}  : {hits_mean:6.2f} : {R_sec_mean:8.2f} : {thresh_sec_mean:8.2f}')
+        print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} : {R_sec_std:8.2f} : {thresh_sec_std:8.2f}')
+        print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} : {R_sec_min:8.2f} : {thresh_sec_min:8.2f}')
+        print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} : {R_sec_max:8.2f} : {thresh_sec_max:8.2f}')
         print(f'Trained for {self.current_batch} batches over {self.current_epoch} epochs and {self.current_episode} episodes.')
 
     def review_members(self):
