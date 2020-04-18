@@ -32,8 +32,8 @@ from asteroid_search_report import traj_diff
 from nearest_asteroid import load_known_ast_pos, nearest_ast_elt_cart, nearest_ast_elt_cov, elt_q_norm
 from asteroid_dataframe import calc_ast_data, spline_ast_vec_df
 from astro_utils import deg2dist, dist2deg, dist2sec
-from tf_utils import tf_quiet, Identity, tf_dist2deg
-# from tf_utils import tf_dist2deg
+from tf_utils import tf_quiet, Identity
+from tf_astro_utils import tf_dist2deg
 from utils import print_header
 
 # Typing
@@ -605,10 +605,16 @@ class AsteroidSearchModel(tf.keras.Model):
         # Apply placeholder of +5 (pretty bad score) over NaN until they are rolled back
         loss_clean = tf.where(condition=loss_is_nan, x=5.0, y=loss)
 
+        # Total the clean closs over all the elements in the batch
+        loss_sum: tf.Tensor
+        loss_sum = tf.reduce_sum(loss_clean, name='loss_sum')
+
+        # Take the log of this because it gets really big
+
         # Add the blended loss to the model
-        self.add_loss(tf.reduce_sum(loss_clean, name='loss_total'))
+        self.add_loss(loss_sum)
         
-        return loss
+        return loss_sum
 
     def predict_position(self) -> Tuple[tf.Tensor, tf.Tensor]:
         """Predict position q and velocity v"""
