@@ -630,7 +630,7 @@ class TrajectoryScore(keras.layers.Layer):
         p: tf.Tensor = tf.add(p_hit, p_miss, name='p')
         log_p_flat: tf.Tensor = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
         # Weighted log probability, by observation weight
-        log_p_wtd_flat: tf.Tensor = tf.multiply(log_p_flat, obs_weight_flat, name='log_p_wtd_flat')
+        # log_p_wtd_flat: tf.Tensor = tf.multiply(log_p_flat, obs_weight_flat, name='log_p_wtd_flat')
 
         # The posterior hit probability is p_hit / p
         p_hit_post_flat: tf.Tensor = tf.divide(p_hit, p)
@@ -642,10 +642,10 @@ class TrajectoryScore(keras.layers.Layer):
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
         log_p: tf.Tensor = \
             tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
-        log_p_wtd: tf.Tensor = \
-            tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p_wtd')(log_p_wtd_flat)
-        obs_weight: tf.Tensor = \
-            tf.keras.layers.Lambda(function=ragged_map_func_close, name='obs_weight')(obs_weight_flat)
+        # log_p_wtd: tf.Tensor = \
+        #    tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p_wtd')(log_p_wtd_flat)
+        # obs_weight: tf.Tensor = \
+        #     tf.keras.layers.Lambda(function=ragged_map_func_close, name='obs_weight')(obs_weight_flat)
         # Count hits
         p_hit_filtered: tf.Tensor = \
             tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
@@ -655,17 +655,17 @@ class TrajectoryScore(keras.layers.Layer):
         log_like: tf.Tensor = tf.reduce_sum(log_p, axis=1, name='log_like')
         # Weighted Log likelihood by element
         # First sum by element
-        log_like_wtd_by_elt: tf.Tensor = tf.reduce_sum(log_p_wtd, axis=1, name='log_like_wtd_by_elt')
+        # log_like_wtd_by_elt: tf.Tensor = tf.reduce_sum(log_p_wtd, axis=1, name='log_like_wtd_by_elt')
         # Multiply the score for each element by the number of close observations so units are comparable log like
-        log_like_wtd_num: tf.Tensor = \
-            tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
-        log_like_wtd_den: tf.Tensor = tf.reduce_sum(obs_weight, axis=1, name='log_like_wtd_den')
-        log_like_wtd: tf.Tensor = tf.divide(log_like_wtd_num, log_like_wtd_den)
+        # log_like_wtd_num: tf.Tensor = \
+        #     tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
+        # log_like_wtd_den: tf.Tensor = tf.reduce_sum(obs_weight, axis=1, name='log_like_wtd_den')
+        # log_like_wtd: tf.Tensor = tf.divide(log_like_wtd_num, log_like_wtd_den)
         # Hit count count by element
         hits: tf.Tensor = tf.reduce_sum(p_hit_filtered, axis=1, name='hits')
 
         # Return the log likelihood and hits by element
-        return log_like, log_like_wtd, hits, row_lengths_close
+        return log_like, hits, row_lengths_close
 
     def get_config(self):
         return self.cfg

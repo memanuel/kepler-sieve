@@ -490,7 +490,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.candidates_df()
 
         # Elements of the nearest asteroid
-        self.elts_near_ast: pd.DataFrame = None
+        self.elts_near_ast: pd.DataFrame = pd.DataFrame()
 
         # Save hash IDs for elts and ztf_elts
         self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=self.thresh_deg_data)
@@ -548,10 +548,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
         self.log_like: tf.Tensor
-        self.log_like_wtd: tf.Tensor
+        # self.log_like_wtd: tf.Tensor
         self.hits: tf.Tensor
         self.row_lengths_close: tf.Tensor
-        self.log_like, self.log_like_wtd, self.hits, self.row_lengths_close = \
+        # self.log_like, self.log_like_wtd, self.hits, self.row_lengths_close = \
+        self.log_like, self.hits, self.row_lengths_close = \
             self.score(self.u_pred, num_hits=self.num_hits, R=self.R, 
                        mag_pred=self.mag_pred, sigma_mag=self.sigma_mag)
         
@@ -560,26 +561,23 @@ class AsteroidSearchModel(tf.keras.Model):
         self.elt_weight: tf.Variable = self.get_active_weight()
         # total log_like by element, weighted by elt_weight
         obj_log_like: tf.Tensor = tf.multiply(self.elt_weight, self.log_like)
-        obj_log_like_wtd: tf.Tensor = tf.multiply(self.elt_weight , self.log_like_wtd)
+        # obj_log_like_wtd: tf.Tensor = tf.multiply(self.elt_weight , self.log_like_wtd)
         
         # Weighted loss by element
-        self.obj_1 = tf.multiply(obj_log_like, self.loss_factor_log_like, name='obj_1')
-        self.obj_2 = tf.multiply(obj_log_like_wtd, self.loss_factor_log_like_wtd, name='obj_2')
-        obj_num: tf.Tensor = tf.add(self.obj_1, self.obj_2, name='obj_num')
+        # obj_1 = tf.multiply(obj_log_like, self.loss_factor_log_like, name='obj_1')
+        # obj_2 = tf.multiply(obj_log_like_wtd, self.loss_factor_log_like_wtd, name='obj_2')
+        # obj_num: tf.Tensor = tf.add(obj_1, obj_2, name='obj_num')
+        obj_num: tf.Tensor = tf.multiply(obj_log_like, self.loss_factor_log_like, name='obj_num')
 
         # Divide by threshold to encourage it getting smaller; objective function to maximize
         thresh_s2: tf.Tensor = self.score.get_thresh_s2()
         thresh_2: tf.Tensor = tf.sqrt(thresh_s2)
-        # thresh_deg: tf.Tensor = tf_dist2deg(thresh_2)
         thresh_sec: tf.Tensor = tf_dist2sec(thresh_2)
-        obj: tf.Tensor = tf.divide(obj_num, thresh_sec, name='obj')
-
-        # Take the log of the objective function plus 1 because it's too big
-        # obj_plus_1: tf.Tensor = tf.add(obj, 1.0, name='obj_plus_1')
-        # log_obj: tf.Tensor = tf.math.log(obj_plus_1)
+        # obj_den: tf.Tensor = tf.math.pow(x=thresh_sec, y=1.5, name='obj_den')
+        obj_den: tf.Tensor = tf.math.square(x=thresh_sec, name='obj_den')
+        obj: tf.Tensor = tf.divide(obj_num, obj_den, name='obj')
 
         # Take the negative of the objective function as the loss
-        # loss: tf.Tensor = tf.negative(log_obj)
         loss: tf.Tensor = tf.negative(obj)
 
         # Stack score outputs. Shape is [batch_size, 2,]
@@ -1039,11 +1037,13 @@ class AsteroidSearchModel(tf.keras.Model):
         R_max = mixture_params[2]
         R_deg = dist2deg(R)
         R_sec = dist2sec(R)
-        log_R = np.log(R)        
+        log_R = np.log(R)
 
         # Extract thresh_deg
         thresh_deg = self.get_thresh_deg()
+        thresh_sec = thresh_deg * 3600.0
         thresh_s = deg2dist(thresh_deg)
+        log_thresh = np.log(thresh_s)
 
         # Extract the brightness and standard deviation of the magnitude
         H = self.get_H()
@@ -1089,6 +1089,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
             # Threshold
             'thresh_deg': thresh_deg,
+            'thresh_sec': thresh_sec,
             'thresh_s': thresh_s,
             'minus_log_thresh_s': -np.log(thresh_s),
 
@@ -1136,6 +1137,8 @@ class AsteroidSearchModel(tf.keras.Model):
             'log_like_std': [np.std(log_like)],
             'log_like_min': [np.min(log_like)],
             'log_like_max': [np.max(log_like)],
+            'log_like_q20': [np.quantile(log_like, q=0.2)],
+            'log_like_q80': [np.quantile(log_like, q=0.8)],
 
             # Worst and best element in this batch
             'log_like_argmin': [np.argmin(log_like)],
@@ -1147,30 +1150,48 @@ class AsteroidSearchModel(tf.keras.Model):
             'hits_std': [np.std(hits)],
             'hits_min': [np.min(hits)],
             'hits_max': [np.max(hits)],
+            'hits_q20': [np.quantile(hits, q=0.2)],
+            'hits_q80': [np.quantile(hits, q=0.8)],
 
             # Summary of mixture parameter num_hits
             'num_hits_mean': [np.mean(num_hits)],
             'num_hits_std': [np.std(num_hits)],
             'num_hits_min': [np.min(num_hits)],
             'num_hits_max': [np.max(num_hits)],
+            'num_hits_q20': [np.quantile(num_hits, q=0.2)],
+            'num_hits_q80': [np.quantile(num_hits, q=0.8)],
 
             # Summary of mixture parameter R
-            'R_deg_mean': [np.mean(R_deg)],
-            'R_deg_std': [np.std(R_deg)],
-            'R_deg_min': [np.min(R_deg)],
-            'R_deg_max': [np.max(R_deg)],
+            'R_sec_mean': [np.mean(R_sec)],
+            'R_sec_std': [np.std(R_sec)],
+            'R_sec_min': [np.min(R_sec)],
+            'R_sec_max': [np.max(R_sec)],
+            'R_sec_q20': [np.quantile(R_sec, q=0.2)],
+            'R_sec_q80': [np.quantile(R_sec, q=0.8)],
 
-            # Summary of mixture parameter R
+            # Summary of mixture parameter log(R)
             'log_R_mean': [np.mean(log_R)],
             'log_R_std': [np.std(log_R)],
             'log_R_min': [np.min(log_R)],
             'log_R_max': [np.max(log_R)],
+            'log_R_q20': [np.quantile(log_R, q=0.2)],
+            'log_R_q80': [np.quantile(log_R, q=0.8)],
 
-            # Summary of threshold_deg
-            'thresh_deg_mean' : [np.mean(thresh_deg)],
-            'thresh_deg_std' : [np.std(thresh_deg)],
-            'thresh_deg_min' : [np.min(thresh_deg)],
-            'thresh_deg_max' : [np.max(thresh_deg)],
+            # Summary of threshold_sec
+            'thresh_sec_mean' : [np.mean(thresh_sec)],
+            'thresh_sec_std' : [np.std(thresh_sec)],
+            'thresh_sec_min' : [np.min(thresh_sec)],
+            'thresh_sec_max' : [np.max(thresh_sec)],
+            'thresh_sec_q20': [np.quantile(thresh_sec, q=0.2)],
+            'thresh_sec_q80': [np.quantile(thresh_sec, q=0.8)],
+
+            # Summary of log(threshold)
+            'log_thresh_mean': [np.mean(log_thresh)],
+            'log_thresh_std' : [np.std(log_thresh)],
+            'log_thresh_min' : [np.min(log_thresh)],
+            'log_thresh_max' : [np.max(log_thresh)],
+            'log_thresh_q20': [np.quantile(log_thresh, q=0.2)],
+            'log_thresh_q80': [np.quantile(log_thresh, q=0.8)],
 
             # Extra data required to rebuild model state
             'candidate_elements_trainable': self.candidate_elements.trainable,
@@ -1284,9 +1305,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_weights()
         self.update_weights()
 
-        # Geometric mean of resolution
-        # R_deg_geomean = dist2deg(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
+        # Geometric mean of resolution and threshold
         R_sec_geomean = dist2sec(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
+        thresh_sec_geomean = dist2sec(np.exp(self.train_hist_summary.log_thresh_mean.values[-1]))
 
         # Update early_stop
         self.update_early_stop()
@@ -1300,9 +1321,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # Status message
         if verbose > 0:
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
-            # print(f'Total Log Likelihood: {log_like_total:8.2f}')
-            # print(f'Geom Mean Resolution: {R_deg_geomean:8.6f} degrees ({R_deg_geomean*3600:6.1f} arc seconds)')
-            print(f'Geom Mean Resolution: {R_sec_geomean:8.2f} arc seconds')
+            print(f'Geom Mean Resolution:  {R_sec_geomean:8.2f} arc seconds')
+            print(f'Geom Mean Threshold :  {thresh_sec_geomean:8.2f} arc seconds')
             print(f'Mean Hits           :  {self.hits_mean:8.2f}')
             print(f'Mean Log Likelihood :  {self.log_like_mean:8.2f}')
 
@@ -1440,9 +1460,112 @@ class AsteroidSearchModel(tf.keras.Model):
             self.set_learning_rate(original_learning_rate)
 
     # *********************************************************************************************
-    def sieve(self):
-        """One shot method for automated search"""
-        pass
+    def sieve(self, nearest_ast: bool=True):
+        """
+        One shot method for automated search
+        INPUTS:
+            nearest_ast: Run comparison to nearest known asteroids at end
+        """
+        # Set learning rates
+        learning_rate_frozen = 2.0**-12
+        learning_rate_thawed = 2.0**-14
+        # Minimum learning rate
+        min_learning_rate = 2.0**-20
+        # Episode sizes
+        num_batches_frozen = 1000
+        num_batches_thawed = 5000
+        # Reset active weight flag
+        reset_active_weight = False
+
+        # Round 1: frozen elements
+        print_header(f'Round 1: 2,000 batches @ LR 2^-12 with frozen elements.')
+        self.thaw_all()        
+        self.freeze_candidate_elements()
+        self.search_adaptive(
+            max_batches=2000,
+            learning_rate=learning_rate_frozen,
+            reset_active_weight=True)
+        # Report progress
+        self.report()
+        self.plot_bar('log_like', sorted=False)
+        self.plot_bar('hits', sorted=False)
+        self.save_state()
+
+        # Round 2: live elements
+        print_header(f'Round 2: {num_batches_thawed} batches @ LR 2^-14 with frozen elements.')
+        self.thaw_candidate_elements()
+        self.search_adaptive(
+            max_batches=self.current_batch + num_batches_thawed,
+            learning_rate=learning_rate_thawed,
+            min_learning_rate=min_learning_rate,
+            reset_active_weight=True)
+        # Report progress
+        self.report()
+        self.plot_bar('log_like', sorted=False)
+        self.plot_bar('hits', sorted=False)
+        self.save_state()
+
+        # Round 3: frozen elements
+        print_header(f'Round 3: {num_batches_frozen} batches @ LR 2^-12 with frozen elements.')
+        self.freeze_candidate_elements()
+        self.search_adaptive(
+            max_batches=self.current_batch + num_batches_frozen,
+            learning_rate=learning_rate_frozen,
+            reset_active_weight=reset_active_weight)
+        # Report progress
+        self.report()
+        self.plot_bar('log_like', sorted=False)
+        self.plot_bar('hits', sorted=False)
+        self.save_state()
+
+        # Round 4: live elements
+        print_header(f'Round 4: {num_batches_thawed} batches @ LR 2^-14 with frozen elements.')
+        self.thaw_candidate_elements()
+        self.search_adaptive(
+            max_batches=self.current_batch + num_batches_thawed,
+            learning_rate=learning_rate_thawed,
+            min_learning_rate=min_learning_rate,
+            reset_active_weight=reset_active_weight)
+        # Report progress
+        self.report()
+        self.plot_bar('log_like', sorted=False)
+        self.plot_bar('hits', sorted=False)
+        self.save_state()
+
+        # Round 5: frozen elements
+        print_header(f'Round 3: {num_batches_frozen} batches @ LR 2^-12 with frozen elements.')
+        self.freeze_candidate_elements()
+        self.search_adaptive(
+            max_batches=self.current_batch + num_batches_frozen,
+            learning_rate=learning_rate_frozen,
+            reset_active_weight=reset_active_weight)
+        # Report progress
+        self.report()
+        self.save_state()
+
+        # Full round of charts
+        self.plot_bar('log_like', sorted=False)
+        self.plot_bar('hits', sorted=False)
+        self.plot_bar('minus_log_R', sorted=False)
+        self.plot_hist('log_like')
+        self.plot_hist('hits')
+
+        # Compare to nearest known asteroid if requested
+        if nearest_ast:
+            _ = self.nearest_ast()
+
+            # Plot position error vs. nearest known asteroid
+            self.plot_q_error(plot_type='cart', is_log=True, use_near_ast_dist=True)
+            # Plot covariance error
+            self.plot_q_error(plot_type='cov', is_log=True, use_near_ast_dist=True)
+
+            # Plot error in orbital elements
+            self.plot_elt_error_bar(elt_name='a', is_log=True)
+            self.plot_elt_error_bar(elt_name='e', is_log=True)
+            self.plot_elt_error_bar(elt_name='inc', is_log=True)
+            self.plot_elt_error_bar(elt_name='Omega', is_log=True)
+            self.plot_elt_error_bar(elt_name='omega', is_log=True)
+            self.plot_elt_error_bar(elt_name='f', is_log=True)
 
     # *********************************************************************************************
     # Output candidate elements as DataFrame; save and load model state (including training history)
@@ -1513,11 +1636,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.train_hist_deduplicate()
         self.train_hist_summary.to_hdf(self.file_path, key='train_hist_summary', mode='a')
         self.train_hist_elt.to_hdf(self.file_path, key='train_hist_elt', mode='a')
-        # Save elts_fit and elts_near_ast if populated
-        if self.elts_fit is not None:
-            self.elts_fit.to_hdf(self.file_path, key='elts_fit', mode='a')
-        if self.elts_near_ast is not None:
-            self.elts_near_ast.to_hdf(self.file_path, key='elts_near_ast', mode='a')
+        # Save elts_fit and elts_near_ast
+        self.elts_fit.to_hdf(self.file_path, key='elts_fit', mode='a')
+        self.elts_near_ast.to_hdf(self.file_path, key='elts_near_ast', mode='a')
 
     # *********************************************************************************************
     def load(self, verbose: bool=False):
@@ -1529,12 +1650,9 @@ class AsteroidSearchModel(tf.keras.Model):
             self.train_hist_elt = pd.read_hdf(self.file_path, key='train_hist_elt')
             # Set the threshold for scoring
             self.thresh_deg = elts['thresh_deg']
-            # Load nearest asteroid information if available
-            try:
-                self.elts_fit = pd.read_hdf(self.file_path, key='elts_fit')
-                self.elts_near_ast = pd.read_hdf(self.file_path, key='elts_near_ast')
-            except KeyError:
-                pass
+            # Load nearest asteroid information; empty DataFrame when not yet calculated
+            self.elts_fit = pd.read_hdf(self.file_path, key='elts_fit')
+            self.elts_near_ast = pd.read_hdf(self.file_path, key='elts_near_ast')
         except FileNotFoundError:
             if verbose:
                 print(f'Unable to find {self.file_path}.')
@@ -1614,6 +1732,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Sort the values in descending order if sorting was requested
         values_plot = np.sort(values)[::-1] if sorted else values
 
+        # Mean of the plotted values
+        values_mean = np.mean(values)
+
         # Score attributed formatted for inclusion in chart title or labels
         att_title_tbl = {
             'log_like': 'Log Likelihood',
@@ -1630,7 +1751,8 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.set_title(f'{att_title} by Element (Episode {episode})')
         ax.set_xlabel(xlabel)
         ax.set_ylabel(f'{att_title}')
-        ax.bar(x=hist.element_num, height=values_plot, color='blue')
+        ax.bar(x=hist.element_num, height=values_plot, color='blue', label='elt')
+        ax.axhline(y=values_mean, color='red', label=f'mean')
         # ax.legend()
         ax.grid()
         # fig.savefig('../figs/training/{att_name}_bar.png', bbox_inches='tight')
@@ -1652,8 +1774,10 @@ class AsteroidSearchModel(tf.keras.Model):
         score_std = hist[f'{att_name}_std'].values
         score_min = hist[f'{att_name}_min'].values
         score_max = hist[f'{att_name}_max'].values
-        score_lo = score_mean - score_std
-        score_hi = score_mean + score_std
+        # score_lo = score_mean - score_std
+        # score_hi = score_mean + score_std
+        score_lo = hist[f'{att_name}_q20']
+        score_hi = hist[f'{att_name}_q80']
 
         # Only tabulate argmin for log likelihood
         min_elt = hist.log_like_argmin.values[-1]
@@ -1676,8 +1800,11 @@ class AsteroidSearchModel(tf.keras.Model):
         ax.set_ylabel(f'{att_title}')
         # Plot mean +/- 1 SD
         ax.plot(hist.batch, score_mean, color=color_mean, label='Mean')
-        ax.plot(hist.batch, score_lo, color=color_lo, label='Mean -1 SD')
-        ax.plot(hist.batch, score_hi, color=color_hi, label='Mean +1 SD')
+        # ax.plot(hist.batch, score_lo, color=color_lo, label='Mean -1 SD')
+        # ax.plot(hist.batch, score_hi, color=color_hi, label='Mean +1 SD')
+        # Plot quantiles 20 and 80
+        ax.plot(hist.batch, score_lo, color=color_lo, label='Quantile 20')
+        ax.plot(hist.batch, score_hi, color=color_hi, label='Quantile 80')
         # Plot min and max
         ax.plot(hist.batch, score_min, color=color_min, label=min_label)
         ax.plot(hist.batch, score_max, color=color_max, label=max_label)
@@ -1711,7 +1838,9 @@ class AsteroidSearchModel(tf.keras.Model):
             # If we ran a Cartesian search, add an extra column with the Q_norm
             q_norm = elt_q_norm(elts=self.elts_fit, ast_num=self.elts_fit.nearest_ast_num)
             self.elts_fit['nearest_ast_q_norm'] = q_norm
-            self.elts_near_ast['nearest_ast_q_norm'] = q_norm
+            # self.elts_near_ast['nearest_ast_q_norm'] = q_norm
+            loc = self.elts_near_ast.columns.get_loc('nearest_ast_dist')+1
+            self.elts_near_ast.insert(loc=loc, column='nearest_ast_q_norm', value=q_norm)            
         elif search_type == 'cov':
             self.elts_near_ast = nearest_ast_elt_cov(self.elts_fit)
         else:
@@ -1774,63 +1903,6 @@ class AsteroidSearchModel(tf.keras.Model):
     # *********************************************************************************************
 
     # *********************************************************************************************
-    def plot_elt_error(self, elt_name: str, elts_true=None, is_log: bool=True, elt_num: int=None):
-        """
-        Plot (log) error of selected orbital element vs. known elements
-        INPUTS:
-            elt_name:  Name of orbital element; one of 'a', 'e', 'inc', 'Omega', 'omega', 'f'
-            elts_true: DataFrame of true orbital elements; defaults to self.near_ast
-            is_log:    Flag; whether to plot log(err) (True) or err (False)
-            elt_num:   Specific element_num to plot; plot just this one rather than mean, std, etc.
-        """
-        # If elts_true wasn't specified, it defaults to nearest asteroid elements
-        elts_true = self.elts_near_ast
-
-        # Calculate error
-        hist_err, q_err = self.calc_error(elts_true)
-        
-        # Column names with error
-        col_err = f'{elt_name}_err'
-        col_log_err = f'{elt_name}_log_err'
-        col_plot = col_log_err if is_log else col_err
-        title = f'Log Error of {elt_name}' if is_log else f'Error of {elt_name}'
-        ylabel = f'Log Error' if is_log else f'Error'
-
-        # Selected error; reshape to size (episode_count, batch_size)
-        err = hist_err[col_plot].values.reshape((-1, self.batch_size))
-
-        # Style of plot: summary or selected element
-        is_summary: bool = elt_num is None
-
-        # The errors to plot
-        if is_summary:
-            err_mean = np.mean(err, axis=1)
-            err_std = np.std(err, axis=1)
-            err_min = np.min(err, axis=1)
-            err_max = np.max(err, axis=1)
-        else:
-            err_selected = err[:, elt_num]
-
-        # Plot selected error
-        fig, ax = plt.subplots()
-        ax.set_title(title)
-        ax.set_xlabel('Episode')
-        ax.set_ylabel(ylabel)
-        if is_summary:
-            ax.plot(err_mean, color=color_mean, label='mean')
-            ax.plot(err_mean - err_std, color=color_lo, label='mean -1 SD')
-            ax.plot(err_mean + err_std, color=color_hi, label='mean +1 SD')
-            ax.plot(err_min, color=color_min, label='min')
-            ax.plot(err_max, color=color_max, label='max')
-        else:
-            ax.plot(err_selected, color='blue', label=f'element_num {element_num}')
-        ax.legend()
-        ax.grid()
-        # fig.savefig('../figs/training/log_like_bar.png', bbox_inches='tight')
-        plt.show()
-        return fig, ax
-
-    # *********************************************************************************************
     def plot_q_error(self, 
                      elts_true=None, 
                      plot_type: str = 'cart',
@@ -1861,7 +1933,6 @@ class AsteroidSearchModel(tf.keras.Model):
             calc_method = 'Observation Dates'
 
         # Compute the q_norm error
-        # q_norm_err = elt_q_norm(elts=self.elts_fit, ast_num=model.elts_near_ast.nearest_ast_num)
         q_norm_err = self.elts_near_ast.nearest_ast_q_norm
 
         # Choose between Cartesian distance and q_norm
@@ -1877,32 +1948,174 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Type of error
         is_q_norm: bool = (plot_type == 'cov')
-        # error_type = 'Covariance' if is_q_norm else 'Cartesian'
+
+        # Reference errors for plot
+        ref_err = 0.01 if is_q_norm else 0.001
+
+        # Heights for plot
+        height = 1.0 / err if is_log else err
+        mean_height = 1.0 / mean_err if is_log else mean_err
+        ref_height = 1.0 / ref_err if is_log else ref_err
+
+        # Chart title
         error_tag = 'Covariance Error' if is_q_norm else 'Mean Position Error in AU'
+        title_tag_log = 'Precision of Covariance' if is_q_norm else 'Mean Precision of Position in AU'
+        title_tag = title_tag_log if is_log else error_tag
+        title = f'{title_tag} vs. Elements on {calc_method}'
 
         # Caption for y-axis
         ylabel_prefix = 'Inverse ' if is_log else ''
-        ylabel_suffix = ' (log scaled)' if is_log else ''
-        ylabel = f'{ylabel_prefix}{error_tag}{ylabel_suffix}'
+        # ylabel_suffix = ' (log scaled)' if is_log else ''
+        ylabel = f'{ylabel_prefix}{error_tag}'
 
         # Plot selected error
         fig, ax = plt.subplots()
-        ax.set_title(f'{error_tag} vs. Elements on {calc_method}')
+        ax.set_title(title)
         ax.set_xlabel('Element')
         ax.set_ylabel(ylabel)
+        ax.bar(x=element_num, height=height, label='elt', color='blue')
+        ax.axhline(y=mean_height, label='mean', color='red')
+        ax.axhline(y=ref_height, label=f'err={ref_err}', color='black')
         if is_log:
-            ax.bar(x=element_num, height=1.0/err, label='elt', color='blue')
-            ax.axhline(y=1.0/mean_err, label='mean', color='red')
             ax.set_yscale('log', basey=2)
-        else:
-            ax.bar(x=element_num, height=err, label='elt', color='blue')
-            ax.axhline(y=mean_err, label='mean', color='red')
         ax.grid()
         ax.legend()
         # fig.savefig('../figs/training/q_error.png', bbox_inches='tight')
         plt.show()
         return fig, ax
         
+    # *********************************************************************************************
+    def plot_elt_error_bar(self,
+                           elt_name: str, 
+                           elts_true=None,
+                           is_log: bool=False):
+        """Bar chart of error in a specified element"""
+        # If elts_true wasn't specified, it defaults to nearest asteroid elements
+        elts_true = self.elts_near_ast
+
+        # Get element numbers and mean error over the whole batch
+        element_num = np.arange(self.batch_size, dtype=np.int32)
+
+        # Fitted value of the selected orbital element
+        sel_elt_fit = self.elts_fit[elt_name].values
+
+        # True value of selected orbital element
+        sel_elt_true = elts_true[elt_name].values
+
+        # Error in selected element
+        is_angle = elt_name in ['inc', 'Omega', 'omega', 'f']
+        if is_angle:
+            diff_deg = np.rad2deg(sel_elt_fit - sel_elt_true)
+            # Subtract out full circles to get error in the interval [-180, 180)
+            n = (diff_deg + 180.0) // 360.0
+            # The error in degrees is the absolute value; in [0, 180)
+            elt_err = np.abs(diff_deg - n * 360.0)
+        else:
+            elt_err = np.abs(sel_elt_fit - sel_elt_true)
+
+        # Error to plot
+        values_plot = 1.0 / elt_err if is_log else elt_err
+        
+        # Mean
+        mean_plot = np.exp(np.mean(np.log(values_plot))) if is_log else np.mean(elt_err)
+
+        # Table with reference values
+        ref_err_tbl = {
+            'a': 0.001,
+            'e': 0.0001,
+            'inc': 0.1,
+            'Omega': 0.1,
+            'omega': 0.1,
+            'f': 0.1,
+        }
+        ref_err = ref_err_tbl[elt_name]
+        ref_plot = 1.0 / ref_err if is_log else ref_err
+
+        # Chart titles
+        title_prefix = 'Precision' if is_log else 'Error'
+        title_suffix = ' (degrees)' if is_angle else ''
+        title = f'{title_prefix} in Orbital Element {elt_name}{title_suffix}'
+        err_label = 'Inverse Error in' if is_log else 'Absolute Error in'
+
+        # Bar plot of error in selected orbital element
+        fig, ax = plt.subplots()
+        ax.set_title(title)
+        ax.set_xlabel('Candidate Element')
+        ax.set_ylabel(f'{err_label} {elt_name}{title_suffix}')
+        ax.bar(x=element_num, height=values_plot, color='blue', label='elt')
+        ax.axhline(y=mean_plot, color='red', label='mean')
+        ax.axhline(y=ref_plot, color='black', label=f'error= {ref_err}')
+        if is_log:
+            ax.set_yscale('log', basey=2)
+        ax.legend()
+        ax.grid()
+        # fig.savefig('../figs/training/{att_name}_bar.png', bbox_inches='tight')
+        plt.show()
+        return fig, ax
+
+    # *********************************************************************************************
+    def plot_elt_error_hist(self, elt_name: str, elts_true=None, is_log: bool=True, elt_num: int=None):
+        """
+        Plot (log) error of selected orbital element vs. known elements
+        INPUTS:
+            elt_name:  Name of orbital element; one of 'a', 'e', 'inc', 'Omega', 'omega', 'f'
+            elts_true: DataFrame of true orbital elements; defaults to self.near_ast
+            is_log:    Flag; whether to plot log(err) (True) or err (False)
+            elt_num:   Specific element_num to plot; plot just this one rather than mean, std, etc.
+        """
+        # If elts_true wasn't specified, it defaults to nearest asteroid elements
+        if elts_true is None:
+            elts_true = self.elts_near_ast
+
+        # Calculate error
+        hist_err, q_err = self.calc_error(elts_true)
+        
+        # Column names with error
+        col_err = f'{elt_name}_err'
+        col_log_err = f'{elt_name}_log_err'
+        col_plot = col_log_err if is_log else col_err
+        title = f'Log Error of {elt_name}' if is_log else f'Error of {elt_name}'
+        ylabel = f'Log Error' if is_log else f'Error'
+
+        # Selected error; reshape to size (episode_count, batch_size)
+        err = hist_err[col_plot].values.reshape((-1, self.batch_size))
+
+        # Style of plot: summary or selected element
+        is_summary: bool = elt_num is None
+
+        # The errors to plot
+        if is_summary:
+            err_mean = np.mean(err, axis=1)
+            err_std = np.std(err, axis=1)
+            err_min = np.min(err, axis=1)
+            err_max = np.max(err, axis=1)
+            err_lo = np.quantile(err, q=0.20, axis=1)
+            err_hi = np.quantile(err, q=0.80, axis=1)
+        else:
+            err_selected = err[:, elt_num]
+
+        # Plot selected error
+        fig, ax = plt.subplots()
+        ax.set_title(title)
+        ax.set_xlabel('Episode')
+        ax.set_ylabel(ylabel)
+        if is_summary:
+            ax.plot(err_mean, color=color_mean, label='mean')
+            # ax.plot(err_mean - err_std, color=color_lo, label='mean -1 SD')
+            # ax.plot(err_mean + err_std, color=color_hi, label='mean +1 SD')
+            ax.plot(err_lo, color=color_lo, label='quantile 20')
+            ax.plot(err_hi, color=color_hi, label='quantile 80')
+            ax.plot(err_min, color=color_min, label='min')
+            ax.plot(err_max, color=color_max, label='max')
+        else:
+            element_num = np.arange(self.batch_size, dtype=np.int32)
+            ax.plot(err_selected, color='blue', label=f'element_num {element_num}')
+        ax.legend()
+        ax.grid()
+        # fig.savefig('../figs/training/log_like_bar.png', bbox_inches='tight')
+        plt.show()
+        return fig, ax
+
     # *********************************************************************************************
     def plot_control(self, element_num):
         """Plot control variables"""
@@ -1987,14 +2200,18 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Summarize log likelihood
         log_like = log_like.numpy()
+        log_like_med = np.median(log_like)
         log_like_mean = np.mean(log_like)
+        log_like_geo = np.exp(np.mean(np.log(np.maximum(log_like, 1.0))))
         log_like_std = np.std(log_like)
         log_like_min = np.min(log_like)
         log_like_max = np.max(log_like)
 
         # Summarize hits
         hits = hits.numpy()
+        hits_med = np.median(hits)
         hits_mean = np.mean(hits)
+        hits_geo = np.exp(np.mean(np.log(hits+1.0)))
         hits_std = np.std(hits)
         hits_min = np.min(hits)
         hits_max = np.max(hits)
@@ -2002,6 +2219,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # Summarize resolution
         R = mixture_params[1].numpy()
         R_sec = dist2sec(R)
+        R_sec_med = np.median(R_sec)
+        R_sec_geo = np.exp(np.mean(np.log(R_sec+1.0)))
         R_sec_mean = np.mean(R_sec)
         R_sec_std = np.std(R_sec)
         R_sec_min = np.min(R_sec)
@@ -2010,6 +2229,8 @@ class AsteroidSearchModel(tf.keras.Model):
         # Threshold in arc seconds
         thresh_deg = self.get_thresh_deg()
         thresh_sec = thresh_deg * 3600.0
+        thresh_sec_med = np.median(thresh_sec)
+        thresh_sec_geo = np.exp(np.mean(np.log(thresh_sec+1.0)))
         thresh_sec_mean = np.mean(thresh_sec)
         thresh_sec_std = np.std(thresh_sec)
         thresh_sec_min = np.min(thresh_sec)
@@ -2017,10 +2238,12 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Report on log likelihood and resolution
         print(f'     \  log_like :  hits  :    R_sec : thresh_sec')
-        print(f'Mean : {log_like_mean:8.2f}  : {hits_mean:6.2f} : {R_sec_mean:8.2f} : {thresh_sec_mean:8.2f}')
-        print(f'Std  : {log_like_std:8.2f}  : {hits_std:6.2f} : {R_sec_std:8.2f} : {thresh_sec_std:8.2f}')
-        print(f'Min  : {log_like_min:8.2f}  : {hits_min:6.2f} : {R_sec_min:8.2f} : {thresh_sec_min:8.2f}')
-        print(f'Max  : {log_like_max:8.2f}  : {hits_max:6.2f} : {R_sec_max:8.2f} : {thresh_sec_max:8.2f}')
+        print(f'Mean   : {log_like_mean:8.2f}  : {hits_mean:6.2f} : {R_sec_mean:8.2f} : {thresh_sec_mean:8.2f}')
+        print(f'Median : {log_like_med:8.2f}  : {hits_med:6.2f} : {R_sec_med:8.2f} : {thresh_sec_med:8.2f}')
+        print(f'GeoMean: {log_like_geo:8.2f}  : {hits_geo:6.2f} : {R_sec_geo:8.2f} : {thresh_sec_geo:8.2f}')
+        print(f'Std    : {log_like_std:8.2f}  : {hits_std:6.2f} : {R_sec_std:8.2f} : {thresh_sec_std:8.2f}')
+        print(f'Min    : {log_like_min:8.2f}  : {hits_min:6.2f} : {R_sec_min:8.2f} : {thresh_sec_min:8.2f}')
+        print(f'Max    : {log_like_max:8.2f}  : {hits_max:6.2f} : {R_sec_max:8.2f} : {thresh_sec_max:8.2f}')
         print(f'Trained for {self.current_batch} batches over {self.current_epoch} epochs and {self.current_episode} episodes.')
 
     def review_members(self):
