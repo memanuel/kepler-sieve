@@ -450,10 +450,6 @@ class AsteroidSearchModel(tf.keras.Model):
         self.update_early_stop()
         self.callbacks = [self.early_stop]
 
-        # Metric for mean log likelihood
-        # self.metric_mean_log_like = tf.keras.metrics.MeanTensor(name='metric_mean_log_like', dtype=dtype)
-        # self.metrics = [metric_mean_log_like]
-
         # Initialize lists with training history
         # Weights, elements and mixture parameters; for rolling back bad updates
         self.candidate_elements_hist: List[tf.Tensor] = []
@@ -564,17 +560,22 @@ class AsteroidSearchModel(tf.keras.Model):
         # obj_log_like_wtd: tf.Tensor = tf.multiply(self.elt_weight , self.log_like_wtd)
         
         # Weighted loss by element
-        # obj_1 = tf.multiply(obj_log_like, self.loss_factor_log_like, name='obj_1')
-        # obj_2 = tf.multiply(obj_log_like_wtd, self.loss_factor_log_like_wtd, name='obj_2')
-        # obj_num: tf.Tensor = tf.add(obj_1, obj_2, name='obj_num')
         obj_num: tf.Tensor = tf.multiply(obj_log_like, self.loss_factor_log_like, name='obj_num')
 
         # Divide by threshold to encourage it getting smaller; objective function to maximize
         thresh_s2: tf.Tensor = self.score.get_thresh_s2()
-        thresh_2: tf.Tensor = tf.sqrt(thresh_s2)
-        thresh_sec: tf.Tensor = tf_dist2sec(thresh_2)
-        # obj_den: tf.Tensor = tf.math.pow(x=thresh_sec, y=1.5, name='obj_den')
-        obj_den: tf.Tensor = tf.math.square(x=thresh_sec, name='obj_den')
+        thresh_s: tf.Tensor = tf.sqrt(thresh_s2)
+        # thresh_sec: tf.Tensor = tf_dist2sec(thresh_s)
+        thresh_log1p: tf.Tensor = tf.math.log1p(thresh_s)
+        # obj_den: tf.Tensor = tf.math.square(x=thresh_sec, name='obj_den')
+        obj_den: tf.Tensor = tf.math.square(x=thresh_log1p, name='obj_den')
+        # obj_den: tf.Tensor = tf.math.pow(x=thresh_sec, y=2.0, name='obj_den')
+        # Divide by resolution R to encourage it getting smaller
+        # R_sec: tf.Tensor = tf_dist2sec(self.R)
+        # obj_den_1: tf.Tensor = tf.math.pow(x=thresh_sec, y=1.5, name='obj_den_1')
+        # obj_den_2: tf.Tensor = tf.math.pow(x=R_sec, y=0.5, name='obj_den_2')
+        # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1
+        # obj_den: tf.Tensor = tf.multiply(obj_den_1, obj_den_2, name='obj_den')
         obj: tf.Tensor = tf.divide(obj_num, obj_den, name='obj')
 
         # Take the negative of the objective function as the loss
@@ -1309,6 +1310,12 @@ class AsteroidSearchModel(tf.keras.Model):
         R_sec_geomean = dist2sec(np.exp(self.train_hist_summary.log_R_mean.values[-1]))
         thresh_sec_geomean = dist2sec(np.exp(self.train_hist_summary.log_thresh_mean.values[-1]))
 
+        # Count number of good elements (with at least 10 hits)
+        hits = np.round(self.hits)
+        is_good_elt = (hits >= 10.0)
+        num_good_elts = np.sum(is_good_elt)
+        mean_hits_good = np.mean(hits[is_good_elt])
+
         # Update early_stop
         self.update_early_stop()
 
@@ -1323,8 +1330,9 @@ class AsteroidSearchModel(tf.keras.Model):
             # print(f'Epoch {self.current_epoch:4}. Elapsed time = {self.episode_time:0.0f} sec')
             print(f'Geom Mean Resolution:  {R_sec_geomean:8.2f} arc seconds')
             print(f'Geom Mean Threshold :  {thresh_sec_geomean:8.2f} arc seconds')
-            print(f'Mean Hits           :  {self.hits_mean:8.2f}')
             print(f'Mean Log Likelihood :  {self.log_like_mean:8.2f}')
+            print(f'Mean Hits           :  {self.hits_mean:8.2f}')
+            print(f'Good Elements       :  {num_good_elts:8.2f} (with {mean_hits_good:d} hits each)')
 
     # *********************************************************************************************
     # Main adaptive search routine; called by external consumers
@@ -1492,7 +1500,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_state()
 
         # Round 2: live elements
-        print_header(f'Round 2: {num_batches_thawed} batches @ LR 2^-14 with frozen elements.')
+        print_header(f'Round 2: {num_batches_thawed} batches @ LR 2^-14 with thawed elements.')
         self.thaw_candidate_elements()
         self.search_adaptive(
             max_batches=self.current_batch + num_batches_thawed,
@@ -1519,7 +1527,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_state()
 
         # Round 4: live elements
-        print_header(f'Round 4: {num_batches_thawed} batches @ LR 2^-14 with frozen elements.')
+        print_header(f'Round 4: {num_batches_thawed} batches @ LR 2^-14 with thawed elements.')
         self.thaw_candidate_elements()
         self.search_adaptive(
             max_batches=self.current_batch + num_batches_thawed,
@@ -2211,10 +2219,13 @@ class AsteroidSearchModel(tf.keras.Model):
         hits = hits.numpy()
         hits_med = np.median(hits)
         hits_mean = np.mean(hits)
-        hits_geo = np.exp(np.mean(np.log(hits+1.0)))
+        hits_geo = np.exp(np.mean(np.log(hits+1.0)))-1.0
         hits_std = np.std(hits)
         hits_min = np.min(hits)
         hits_max = np.max(hits)
+
+        # Number of quality elements
+        num_good_elts = np.sum(hits >= 10.0)
 
         # Summarize resolution
         R = mixture_params[1].numpy()
@@ -2244,6 +2255,7 @@ class AsteroidSearchModel(tf.keras.Model):
         print(f'Std    : {log_like_std:8.2f}  : {hits_std:6.2f} : {R_sec_std:8.2f} : {thresh_sec_std:8.2f}')
         print(f'Min    : {log_like_min:8.2f}  : {hits_min:6.2f} : {R_sec_min:8.2f} : {thresh_sec_min:8.2f}')
         print(f'Max    : {log_like_max:8.2f}  : {hits_max:6.2f} : {R_sec_max:8.2f} : {thresh_sec_max:8.2f}')
+        print(f'Good elements (hits > 10): {num_good_elts:6.2f}')
         print(f'Trained for {self.current_batch} batches over {self.current_epoch} epochs and {self.current_episode} episodes.')
 
     def review_members(self):

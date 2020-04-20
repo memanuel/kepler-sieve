@@ -164,7 +164,7 @@ class CandidateElements(keras.layers.Layer):
         self.epoch: tf.Variable = \
             tf.Variable(initial_value=elts['epoch'], 
                         trainable=False, dtype=dtype, name='epoch')
-        
+
     @tf.function
     def get_a(self) -> tf.Tensor:
         """Transformed value of a"""
@@ -449,9 +449,15 @@ class TrajectoryScore(keras.layers.Layer):
                         constraint=lambda t: tf.clip_by_value(t, 0.0, 1.0),
                         dtype=dtype, name='thresh_s2_')
 
+        # Threshold distance for counting a hit; 10.0 arc seconds
+        thresh_hit_s: float = deg2dist(10.0/3600)
+        thresh_hit_s2: float = thresh_hit_s**2
+        self.thresh_hit_s2: keras.backend.constant = \
+                keras.backend.constant(value=thresh_hit_s2, dtype=dtype)
+
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post: keras.backend.constant = \
-            keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
+            keras.backend.constant(value=0.99, dtype=dtype, name='thresh_hit_prob_post')
 
     def get_thresh_s2(self) -> tf.Tensor:
         """Transformed value of thresh_s2"""
@@ -551,12 +557,6 @@ class TrajectoryScore(keras.layers.Layer):
         v_den: tf.Tensor = tf.boolean_mask(tensor=self.thresh_s2, mask=is_close, name='v_den')
         v: tf.Tensor = tf.divide(v_num, v_den, name='v')
 
-        # Observation weight; weight observations close to predicted location higher
-        # weight = exp(-2.0 (s/thresh_s)) ; the last observations will have a weight of e^-2.0
-        sqrt_v: tf.Tensor = tf.sqrt(v, name='sqrt_v')
-        obs_weight_arg: tf.Tensor = tf.multiply(sqrt_v, -2.0)
-        obs_weight_flat: tf.Tensor = tf.exp(obs_weight_arg)
-        
         # Row_lengths, for close observations only
         # is_close_r = tf.RaggedTensor.from_row_lengths(
         #   values=is_close, row_lengths=self.row_lengths, name='is_close_r')
@@ -611,7 +611,7 @@ class TrajectoryScore(keras.layers.Layer):
         p_mag_num: tf.Tensor = tf.exp(mag_arg, name='p_mag_num')
         # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, close_elt,]
         p_mag_num_r: tf.Tensor = \
-            tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_mag_num_r')(p_mag_num)
+           tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_mag_num_r')(p_mag_num)
         # The denominator is the elementwise mean; shape [batch_size, close_elt,]
         p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
         # Upsample the denominator to a flat array of shape [num_close,]
@@ -629,38 +629,29 @@ class TrajectoryScore(keras.layers.Layer):
         p_miss: tf.Tensor = tf.subtract(1.0, h_vec, name='p_miss')
         p: tf.Tensor = tf.add(p_hit, p_miss, name='p')
         log_p_flat: tf.Tensor = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
-        # Weighted log probability, by observation weight
-        # log_p_wtd_flat: tf.Tensor = tf.multiply(log_p_flat, obs_weight_flat, name='log_p_wtd_flat')
 
         # The posterior hit probability is p_hit / p
         p_hit_post_flat: tf.Tensor = tf.divide(p_hit, p)
-        # Filter effective hits: only those with 95% or better probability        
-        is_real_hit: tf.Tensor = tf.math.greater(p_hit_post_flat, self.thresh_hit_prob_post)
-        p_hit_filtered_flat: tf.Tensor = tf.where(condition=is_real_hit, x=p_hit_post_flat, y=0.0)
+        # Filter effective hits: only those with probability above threshold
+        is_high_prob_hit: tf.Tensor = \
+                tf.math.greater(p_hit_post_flat, self.thresh_hit_prob_post, name='is_high_prob_hit')
+        # Filter effective hits: only those close enough; v_num is s2 filtered for near observations only
+        is_near_hit: tf.Tensor = tf.math.less(v_num, self.thresh_hit_s2, name='is_near_hit')
+        # Quality hits are close enough with high enough posterior probability
+        is_quality_hit: tf.Tensor = tf.math.logical_and(is_near_hit, is_high_prob_hit, name='is_quality_hit')
+        # Count the effective number of quality hits
+        p_hit_filtered_flat: tf.Tensor = tf.where(condition=is_quality_hit, x=p_hit_post_flat, y=0.0)
 
         # Rearrange to ragged tensors
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
         log_p: tf.Tensor = \
             tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p')(log_p_flat)
-        # log_p_wtd: tf.Tensor = \
-        #    tf.keras.layers.Lambda(function=ragged_map_func_close, name='log_p_wtd')(log_p_wtd_flat)
-        # obs_weight: tf.Tensor = \
-        #     tf.keras.layers.Lambda(function=ragged_map_func_close, name='obs_weight')(obs_weight_flat)
         # Count hits
         p_hit_filtered: tf.Tensor = \
             tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
-        # p_hit_post = tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_post')(p_hit_post_flat)
 
         # Log likelihood by element
         log_like: tf.Tensor = tf.reduce_sum(log_p, axis=1, name='log_like')
-        # Weighted Log likelihood by element
-        # First sum by element
-        # log_like_wtd_by_elt: tf.Tensor = tf.reduce_sum(log_p_wtd, axis=1, name='log_like_wtd_by_elt')
-        # Multiply the score for each element by the number of close observations so units are comparable log like
-        # log_like_wtd_num: tf.Tensor = \
-        #     tf.multiply(row_lengths_close_float, log_like_wtd_by_elt, name='log_like_wtd_num')
-        # log_like_wtd_den: tf.Tensor = tf.reduce_sum(obs_weight, axis=1, name='log_like_wtd_den')
-        # log_like_wtd: tf.Tensor = tf.divide(log_like_wtd_num, log_like_wtd_den)
         # Hit count count by element
         hits: tf.Tensor = tf.reduce_sum(p_hit_filtered, axis=1, name='hits')
 
