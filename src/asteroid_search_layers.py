@@ -495,6 +495,10 @@ class TrajectoryScore(keras.layers.Layer):
         thresh_s2: np.ndarray = thresh_s**2
         self.set_thresh_s2(thresh_s2)
 
+    def set_thresh_sec(self, thresh_sec: np.ndarray) -> None:
+        thresh_deg = thresh_sec / 3600.0
+        self.set_thresh_deg(thresh_deg)
+
     def set_thresh_deg_max(self, thresh_deg_max: np.ndarray) -> None:
         """Set the maximum of the thresh_degparameter"""
         # Get old values of the threshold
@@ -510,6 +514,10 @@ class TrajectoryScore(keras.layers.Layer):
         self.log_thresh_s2_range.assign(log_thresh_s2_range)
         # Assign the updated thresh_s2 back to the layer
         self.set_thresh_s2(thresh_s2)
+
+    def set_thresh_sec_max(self, thresh_sec_max: np.ndarray) -> None:
+        thresh_deg_max = thresh_sec_max / 3600.0
+        self.set_thresh_deg_max(thresh_sec_max)
 
     @tf.function        
     def call(self, 
