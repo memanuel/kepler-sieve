@@ -579,7 +579,9 @@ class TrajectoryScore(keras.layers.Layer):
             tf.cast(x=row_lengths_close, dtype=dtype)
 
         # Compute the implied hit rate h from the number of hits and row_lengths_close; shape [batch_size,]
-        h: tf.Tensor = tf.divide(num_hits, row_lengths_close_float, name='h')
+        h: tf.Tensor = tf.divide(num_hits, row_lengths_close_float, name='h_raw')
+        # The hit rate must be in [0, 1]
+        h = tf.clip_by_value(h, clip_value_min=0.0, clip_value_max=1.0)
 
         # Shape of parameters
         close_size: tf.Tensor = tf.reduce_sum(row_lengths_close)
