@@ -419,11 +419,19 @@ class AsteroidSearchModel(tf.keras.Model):
         thresh_s: tf.Tensor = tf.sqrt(thresh_s2)
         thresh_log1p: tf.Tensor = tf.math.log1p(thresh_s)
         obj_den: tf.Tensor = tf.math.square(x=thresh_log1p, name='obj_den')
-        # obj_den: tf.Tensor = tf.math.pow(x=thresh_log1p, y=1.5, name='obj_den')
+        # obj_den_1: tf.Tensor = tf.math.square(x=thresh_log1p, name='obj_den_1')
+        # obj_den_1: tf.Tensor = tf.math.pow(x=thresh_log1p, y=1.5, name='obj_den')       
+        
         # Divide by resolution R to encourage it getting smaller
         # R_log1p: tf.Tensor = tf.math.log1p(self.R)
         # obj_den_1: tf.Tensor = tf.math.pow(x=thresh_log1p, y=1.0, name='obj_den_1')
         # obj_den_2: tf.Tensor = tf.math.pow(x=R_log1p, y=1.0, name='obj_den_2')
+        
+        # Divide by sigma_mag to encourage it getting smaller
+        # sigma_mag: tf.Tensor = self.magnitude.get_sigma_mag()
+        # obj_den_2: tf.Tensor = tf.math.pow(tf.math.log1p(tf.divide(sigma_mag, 0.5)), 0.2)
+        # obj_den: tf.Tensor = tf.multiply(obj_den_1, obj_den_2, name='obj_den')
+
         # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1
         # obj_den: tf.Tensor = tf.multiply(obj_den_1, obj_den_2, name='obj_den')
         obj: tf.Tensor = tf.divide(obj_num, obj_den, name='obj')
@@ -1072,6 +1080,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Get old and new log_like, candidate_elements and mixture_parameters
         log_like_old, log_like_new = self.log_like_hist[n-2:n]
+        loss_old, loss_new = self.loss_hist[n-2:n]
         # log_like_mean_old, log_like_mean_new = self.log_like_mean_hist[n-2:n]
         candidate_elements_old, candidate_elements_new = self.candidate_elements_hist[n-2:n]
         mixture_parameters_old, mixture_parameters_new = self.mixture_parameters_hist[n-2:n]
@@ -1080,15 +1089,14 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Test which elements have gotten worse (usually this should be false)
         is_less_likely = tf.math.less(log_like_new, log_like_old)
+        is_higher_loss = tf.math.greater(loss_new, loss_old)
         is_nan = tf.math.is_nan(log_like_new)
-        is_worse = tf.math.logical_or(is_less_likely, is_nan)
+        is_worse = tf.math.logical_or(is_less_likely, is_higher_loss)
+        is_worse = tf.math.logical_or(is_worse, is_nan)
 
         # If none of the elements have gotten worse, terminate early
         if not tf.math.reduce_any(is_worse):
             return
-
-        # If we get here, at least one candidate got worse.  Want to restore it.
-        # log_like_best = tf.where(condition=is_worse, x=log_like_old, y=log_like_new)
 
         # Calculate the best weights on the trainable layers. Then restore them.
         if self.candidate_elements.trainable:
@@ -1395,7 +1403,8 @@ class AsteroidSearchModel(tf.keras.Model):
         learning_rate_joint = 2.0**-16
         
         # Minimum learning rate
-        min_learning_rate = 2.0**-24
+        min_learning_rate_mixture = 2.0**-20
+        min_learning_rate_joint = 2.0**-24
 
         # Set batches_per_epoch parameter
         batches_per_epoch: int = 50
@@ -1431,7 +1440,7 @@ class AsteroidSearchModel(tf.keras.Model):
                              epochs_per_episode=epochs_per_episode,
                              training_mode='mixture', 
                              learning_rate=learning_rate_mixture, 
-                             min_learning_rate=min_learning_rate,
+                             min_learning_rate=min_learning_rate_mixture,
                              reset_active_weight=reset_active_weight,
                              R_sec_max=R_sec_max,
                              thresh_sec_max=thresh_sec_max)
@@ -1443,49 +1452,17 @@ class AsteroidSearchModel(tf.keras.Model):
                              epochs_per_episode=epochs_per_episode,
                              training_mode='joint',
                              learning_rate=learning_rate_joint, 
-                             min_learning_rate=min_learning_rate,
+                             min_learning_rate=min_learning_rate_joint,
                              reset_active_weight=reset_active_weight)
 
         # Fine tuning at the end
-        # self.set_R_sec_max(200.0)
-        # self.set_thresh_sec_max(400.0)
-
-        # self.thaw_mixture_parameters()
-        # self.freeze_candidate_elements()
-        # self.search_adaptive(
-        #             max_batches=self.current_batch + 1000,
-        #             batches_per_epoch=50,
-        #             epochs_per_episode=4,
-        #             learning_rate=2**-12,
-        #             min_learning_rate=2**-20,
-        #             reset_active_weight=True)
-
-        # self.thaw_candidate_elements()
-        # self.search_adaptive(
-        #             max_batches=self.current_batch + 4000,
-        #             batches_per_epoch=50,
-        #             epochs_per_episode=4,
-        #             learning_rate=2**-18,
-        #             min_learning_rate=2**-26,
-        #             reset_active_weight=True)
-
-        # self.thaw_mixture_parameters()
-        # self.freeze_candidate_elements()
-        # self.search_adaptive(
-        #             max_batches=self.current_batch + 2000,
-        #             batches_per_epoch=50,
-        #             epochs_per_episode=4,
-        #             learning_rate=2**-12,
-        #             min_learning_rate=2**-24,
-        #             reset_active_weight=True)
-
         self.sieve_round(round=schedule_len+1, 
                          num_batches=1000, 
                          batches_per_epoch=batches_per_epoch,
                          epochs_per_episode=epochs_per_episode,
                          training_mode='mixture', 
-                         learning_rate=2**-12, 
-                         min_learning_rate=2**-20,
+                         learning_rate=learning_rate_mixture, 
+                         min_learning_rate=min_learning_rate_mixture,
                          reset_active_weight=True,
                          R_sec_max=200.0,
                          thresh_sec_max=400.0)                    
@@ -1504,8 +1481,8 @@ class AsteroidSearchModel(tf.keras.Model):
                          batches_per_epoch=batches_per_epoch,
                          epochs_per_episode=epochs_per_episode,
                          training_mode='mixture', 
-                         learning_rate=2**-12, 
-                         min_learning_rate=2**-20,
+                         learning_rate=learning_rate_mixture, 
+                         min_learning_rate=min_learning_rate_mixture,
                          reset_active_weight=True)
 
         # Full round of charts

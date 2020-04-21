@@ -428,8 +428,8 @@ class TrajectoryScore(keras.layers.Layer):
             keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
 
         # Normalizer for sigma_mag
-        self.sigma_mag_normalizer: keras.backend.constant = \
-                keras.backend.constant(value=sigma_mag_normalizer_, dtype=dtype)
+        # self.sigma_mag_normalizer: keras.backend.constant = \
+        #        keras.backend.constant(value=sigma_mag_normalizer_, dtype=dtype)
 
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s: np.ndarray = deg2dist(thresh_deg)
@@ -604,11 +604,7 @@ class TrajectoryScore(keras.layers.Layer):
         p_cond_dist: tf.Tensor = tf.divide(p_cond_dist_num, p_cond_dist_den, name='p_cond_dist')
 
         # Difference between predicted and observed magnitude
-        mag_diff_all: tf.Tensor = tf.subtract(mag_pred, self.mag_obs, name='mag_diff_all')
-
-        # Mask mag_diff and sigma_mag to only the close rows; shape is now [num_close,]
-        mag_diff: tf.Tensor = tf.boolean_mask(tensor=mag_diff_all, mask=is_close, name='mag_diff')
-        sigma_mag: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=is_close, name='sigma_mag')
+        mag_diff: tf.Tensor = tf.subtract(mag_pred, self.mag_obs, name='mag_diff')
 
         # Conditional probability based on difference between predicted and observed magnitude
         mag_z: tf.Tensor = tf.divide(mag_diff, sigma_mag, name='mag_z')
@@ -621,24 +617,25 @@ class TrajectoryScore(keras.layers.Layer):
 
         # The normalized probability based on the magnitude is the unnormalized prob over the normalizer
 
-        # The numerator is the exp(mag_arg); shape [num_close,]
-        p_mag_num: tf.Tensor = tf.exp(mag_arg, name='p_mag_num')
-        # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, close_elt,]
+        # The numerator is the exp(mag_arg); shape [data_size,]
+        p_mag_num_all: tf.Tensor = tf.exp(mag_arg, name='p_mag_num_all')
+        # Filter to only the close rows; shape [num_close,]
+        p_mag_num: tf.Tensor = tf.boolean_mask(tensor=p_mag_num_all, mask=is_close, name='p_mag_num')
+        # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, num_rows,]
         p_mag_num_r: tf.Tensor = \
-          tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_mag_num_r')(p_mag_num)
-        # The denominator is the elementwise mean; shape [batch_size, close_elt,]
+            tf.keras.layers.Lambda(function=ragged_map_func, name='p_mag_num_r')(p_mag_num_all)
+        # The denominator is the elementwise mean; shape [batch_size, ]
         p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
         # Upsample the denominator to a flat array of shape [num_close,]
         p_mag_den: tf.Tensor = tf.repeat(input=p_mag_den_r, repeats=row_lengths_close, name='p_mag_den')
         # The conditional probability based on the magnitude is the quotient; shape [num_close,]
-        # This array has elementwise mean 1.0 * (sigma_mag_normalizer / sigma_mag) by construction
-        p_cond_mag_1: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag_1')
-        # Adjustment factor to encourage sigma_mag to get smaller
-        p_mag_adj: tf.Tensor = tf.divide(sigma_mag, self.sigma_mag_normalizer)
-        # Adjusted p_cond_mag
-        p_cond_mag: tf.Tensor = tf.multiply(p_cond_mag_1, p_mag_adj, name='p_cond_mag')
+        # This array has elementwise mean 1.0 over all the data in the row by construction
+        p_cond_mag: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag')
+        # Take max of this and 1
+        p_cond_mag = tf.maximum(p_cond_mag, 1.0)
 
         # Combined conditional probability of a hit
+        # p_hit_cond: tf.Tensor = p_cond_dist
         p_hit_cond: tf.Tensor = tf.multiply(p_cond_dist, p_cond_mag, name='p_hit_cond')
 
         # Probability according to mixture model
