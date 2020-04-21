@@ -55,18 +55,14 @@ ast_elt = load_ast_elt()
 if __name__ == '__main__':    
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Search for asteroids.')
-    parser.add_argument('-R_deg', nargs='?', metavar='R_deg', type=float, default=0.2,
-                        help='initial value of resolution factor, R, in degrees')
     parser.add_argument('-thresh_deg', nargs='?', metavar='thresh_deg', type=float, default=1.0,
                         help='threshold in degrees; observations further from candidate elements than this are ignored')
-    parser.add_argument('-R_is_trainable', default=True, action='store_true',
-                        help='whether resolution R is trainable')
+    parser.add_argument('-R_deg', nargs='?', metavar='R_deg', type=float, default=0.2,
+                        help='initial value of resolution factor, R, in degrees')
     parser.add_argument('-elt_batch_size', nargs='?', metavar='elt_batch_size', type=int, default=64,
                         help='the number of candidate orbital elements per batch')
     parser.add_argument('-epochs', nargs='?', metavar='elt_batch_size', type=int, default=10,
                         help='the number of epochs to train')
-    parser.add_argument('-cycles_per_epoch', nargs='?', metavar='elt_batch_size', type=int, default=50,
-                        help='number of times to cycle through all data points before declaring an epoch complete')
     parser.add_argument('-gpu_num', nargs='?', metavar='gpu_num', type=int, default=1,
                         help='the GPU to use; defaults to 1 to avoid clash with Jupyter sessions')
     parser.add_argument('--test', default=True, action='store_true',
@@ -95,11 +91,3 @@ if __name__ == '__main__':
     if args.test:
         with gpu_device:
             print(f'Running test_easy_batch with gpu {gpu_num}.')
-            test_easy_batch(R_deg=R_deg, 
-                            thresh_deg=thresh_deg, 
-                            R_is_trainable=R_is_trainable,
-                            elt_batch_size=elt_batch_size,
-                            time_batch_size=time_batch_size,
-                            epochs=epochs,
-                            cycles_per_epoch=cycles_per_epoch,
-                            use_calibration=use_calibration)

@@ -112,7 +112,7 @@ def make_ztf_near_elt(ztf: pd.DataFrame,
     # Threshold as Cartesian distance
     thresh_s = deg2dist(thresh_deg)    
     # Threshold value of z = 1- s^2 / 2
-    thresh_z = 1.0 - thresh_s**2 / 2.0
+    # thresh_z = 1.0 - thresh_s**2 / 2.0
 
     # Theshold for hits is 2.0 arc seconds (completely separate from threshold above, for inclusion)
     thresh_hit_sec = 2.0

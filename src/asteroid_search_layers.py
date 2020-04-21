@@ -427,9 +427,9 @@ class TrajectoryScore(keras.layers.Layer):
         self.mag_obs: keras.backend.constant = \
             keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
 
-        # Normalizer for sigma_mag
-        # self.sigma_mag_normalizer: keras.backend.constant = \
-        #        keras.backend.constant(value=sigma_mag_normalizer_, dtype=dtype)
+        # Normalizer for sigma_mag; multiplty magnitude PDF by this so it has mean ~1
+        self.sigma_mag_normalizer: keras.backend.constant = \
+               keras.backend.constant(value=np.exp(1.0) * sigma_mag_normalizer_, dtype=dtype)
 
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s: np.ndarray = deg2dist(thresh_deg)
@@ -504,7 +504,7 @@ class TrajectoryScore(keras.layers.Layer):
         self.set_thresh_deg(thresh_deg)
 
     def set_thresh_deg_max(self, thresh_deg_max: np.ndarray) -> None:
-        """Set the maximum of the thresh_degparameter"""
+        """Set the maximum of the thresh_deg parameter"""
         # Get old values of the threshold
         thresh_s2_old: tf.Tensor = self.get_thresh_s2()
         # Convert the constraint from degrees into s2
@@ -520,6 +520,7 @@ class TrajectoryScore(keras.layers.Layer):
         self.set_thresh_s2(thresh_s2)
 
     def set_thresh_sec_max(self, thresh_sec_max: np.ndarray) -> None:
+        """Set the maximum of the thresh_deg parameter, specified in arc seconds"""
         thresh_deg_max = thresh_sec_max / 3600.0
         self.set_thresh_deg_max(thresh_deg_max)
 
@@ -616,23 +617,26 @@ class TrajectoryScore(keras.layers.Layer):
             tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
 
         # The normalized probability based on the magnitude is the unnormalized prob over the normalizer
-
         # The numerator is the exp(mag_arg); shape [data_size,]
         p_mag_num_all: tf.Tensor = tf.exp(mag_arg, name='p_mag_num_all')
         # Filter to only the close rows; shape [num_close,]
         p_mag_num: tf.Tensor = tf.boolean_mask(tensor=p_mag_num_all, mask=is_close, name='p_mag_num')
+        p_mag_den: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=is_close, name='p_mag_den')
+        p_mag_pdf: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_mag_pdf')
+        p_cond_mag: tf.Tensor = tf.multiply(self.sigma_mag_normalizer, p_mag_pdf, name='p_cond_mag')
+        # Take max of this and 1
+        # p_cond_mag = tf.maximum(p_cond_mag, 1.0)
+        
         # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, num_rows,]
-        p_mag_num_r: tf.Tensor = \
-            tf.keras.layers.Lambda(function=ragged_map_func, name='p_mag_num_r')(p_mag_num_all)
+        # p_mag_num_r: tf.Tensor = \
+        #    tf.keras.layers.Lambda(function=ragged_map_func, name='p_mag_num_r')(p_mag_num_all)
         # The denominator is the elementwise mean; shape [batch_size, ]
-        p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
+        # p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
         # Upsample the denominator to a flat array of shape [num_close,]
-        p_mag_den: tf.Tensor = tf.repeat(input=p_mag_den_r, repeats=row_lengths_close, name='p_mag_den')
+        # p_mag_den: tf.Tensor = tf.repeat(input=p_mag_den_r, repeats=row_lengths_close, name='p_mag_den')
         # The conditional probability based on the magnitude is the quotient; shape [num_close,]
         # This array has elementwise mean 1.0 over all the data in the row by construction
-        p_cond_mag: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag')
-        # Take max of this and 1
-        p_cond_mag = tf.maximum(p_cond_mag, 1.0)
+        # p_cond_mag: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag')
 
         # Combined conditional probability of a hit
         # p_hit_cond: tf.Tensor = p_cond_dist
