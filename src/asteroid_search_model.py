@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 # Utility
+import os
 import time
 from datetime import timedelta
 
@@ -123,6 +124,7 @@ class AsteroidSearchModel(tf.keras.Model):
                  optimizer_type: str = 'adam',
                  learning_rate: float = 2.0**-12, 
                  clipnorm: float = 1.0,
+                 file_name: str = None,
                  **kwargs):
         """
         INPUTS:
@@ -340,8 +342,10 @@ class AsteroidSearchModel(tf.keras.Model):
         self.elts_hash_id: int = candidate_elt_hash(elts=elts, thresh_deg=self.thresh_deg_data)
         self.ztf_elt_hash_id: int = \
             ztf_elt_hash(elts=elts, ztf=self.ztf_elt, thresh_deg=self.thresh_deg_data, near_ast=False)
+        
         # File name for saving training progress
-        self.file_path: str = f'{save_dir}/candidate_elt_{self.elts_hash_id}.h5'
+        self.file_name: str = 'candidate_elt_{self.elts_hash_id}.h5' if file_name is None else file_name
+        self.file_path: str = os.path.join(save_dir, self.file_name)
 
         # Initialize model with frozen elements
         self.freeze_candidate_elements()
@@ -400,10 +404,6 @@ class AsteroidSearchModel(tf.keras.Model):
             self.score(self.u_pred, num_hits=self.num_hits, R=self.R, 
                        mag_pred=self.mag_pred, sigma_mag=self.sigma_mag)
         
-        # The number of hits is at most row_lengths_close
-        # num_hits_adj: tf.Tensor = tf.minimum(self.hits, self.row_lengths_close)
-        # self.mixture_paramaters.set_num_hits(num_hits_adj)
-
         # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
         self.elt_weight: tf.Variable = self.get_active_weight()
@@ -893,9 +893,11 @@ class AsteroidSearchModel(tf.keras.Model):
         num_hits = mixture_params[0]
         R = mixture_params[1]
         R_max = mixture_params[2]
+        # Transform to degrees or log
         R_deg = dist2deg(R)
         R_sec = dist2sec(R)
         log_R = np.log(R)
+        R_deg_max = dist2deg(R_max)
 
         # Extract thresh_deg
         thresh_deg = self.get_thresh_deg()
@@ -937,6 +939,7 @@ class AsteroidSearchModel(tf.keras.Model):
             'Omega': orbital_elements[3].numpy(),
             'omega': orbital_elements[4].numpy(),
             'f': orbital_elements[5].numpy(),
+            'epoch_ast': orbital_elements[6].numpy(),
             
             # Mixture parameters
             'num_hits': num_hits,
@@ -945,6 +948,8 @@ class AsteroidSearchModel(tf.keras.Model):
             'R_sec': R_sec,
             'log_R': log_R,
             'minus_log_R': -log_R,
+            'R_max': R_max,
+            'R_deg_max': R_deg_max,
 
             # Threshold
             'thresh_deg': thresh_deg,
@@ -1539,7 +1544,7 @@ class AsteroidSearchModel(tf.keras.Model):
         elts['R_deg'] = dist2deg(elts.R)
         elts['R_sec'] = 3600.0 * elts.R_deg
         elts['R_max'] = mixture_params[2].numpy()
-        elts['R_max_deg'] = dist2deg(elts.R_max)
+        elts['R_deg_max'] = dist2deg(elts.R_max)
         elts['thresh_s'] = deg2dist(thresh_deg)
         elts['thresh_deg'] = thresh_deg
         elts['thresh_sec'] = 3600.0 * elts.thresh_deg
@@ -1584,27 +1589,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.elts_near_ast.to_hdf(self.file_path, key='elts_near_ast', mode='a')
 
     # *********************************************************************************************
-    def load(self, verbose: bool=False):
-        """Load model state from disk: candidate elements and training history"""
-        try:
-            # Load DataFrames for candidate elements and auxiliary data
-            elts = pd.read_hdf(self.file_path, key='elts')
-            self.train_hist_summary = pd.read_hdf(self.file_path, key='train_hist_summary')
-            self.train_hist_elt = pd.read_hdf(self.file_path, key='train_hist_elt')
-            # Set the threshold for scoring
-            self.thresh_deg = elts['thresh_deg']
-            # Load nearest asteroid information; empty DataFrame when not yet calculated
-            self.elts_fit = pd.read_hdf(self.file_path, key='elts_fit')
-            self.elts_near_ast = pd.read_hdf(self.file_path, key='elts_near_ast')
-        except FileNotFoundError:
-            if verbose:
-                print(f'Unable to find {self.file_path}.')
-            return
-
-        # Status message
-        if verbose:
-            print(f'Loaded candidate elements and training history from {self.file_path}.')
-
+    def set_elements(self, elts: pd.DataFrame):
+        """Set training state """
         # Restore weights on candidate_elements layer of this model
         self.candidate_elements.load(elts=elts)
         # Restore weights on mixture_parameters layer of this model
@@ -1645,6 +1631,58 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Run the save_weights method so the current weights are available to restore a bad training episode
         self.save_weights()
+
+    # *********************************************************************************************
+    def load(self, verbose: bool=False):
+        """Load model state from disk: candidate elements and training history"""
+        try:
+            # Load DataFrames for candidate elements and auxiliary data
+            elts = pd.read_hdf(self.file_path, key='elts')
+            self.train_hist_summary = pd.read_hdf(self.file_path, key='train_hist_summary')
+            self.train_hist_elt = pd.read_hdf(self.file_path, key='train_hist_elt')
+            # Set the threshold for scoring
+            self.thresh_deg = elts['thresh_deg']
+            # Load nearest asteroid information; empty DataFrame when not yet calculated
+            self.elts_fit = pd.read_hdf(self.file_path, key='elts_fit')
+            self.elts_near_ast = pd.read_hdf(self.file_path, key='elts_near_ast')
+        except FileNotFoundError:
+            if verbose:
+                print(f'Unable to find {self.file_path}.')
+            return
+
+        # Set candidate elements and mixture paramters
+        self.set_elements(elts)
+
+        # Status message
+        if verbose:
+            print(f'Loaded candidate elements and training history from {self.file_path}.')
+
+    # *********************************************************************************************
+    def revert_training(self, episode: int):
+        """Revert training to the specified epoch"""
+        # Mask for this epoch on training history
+        hist = self.train_hist_elt
+        mask = (hist.episode == episode)
+
+        # Required columns for training state
+        cols = self.candidates_df().columns
+        # Candidate  elements used to restore training state
+        elts = hist[cols][mask]
+        # Rename the column epoch_ast to epoch; there is a name clash between
+        # epoch of training and epoch in astronomy!
+        elts['epoch'] = hist['epoch_ast'][mask]
+
+        # Mask for history up to and including this episode
+        mask = (hist.episode <= episode)
+        self.train_hist_elt = hist[mask]
+
+        # Summary history
+        summary = self.train_hist_summary
+        mask = (summary.episode <= episode)
+        self.train_hist_summary = summary[mask]
+
+        # Apply these elements with the shortened history
+        self.set_elements(elts)
 
     # *********************************************************************************************
     # Plot training results: bar or time series charts
@@ -1703,11 +1741,12 @@ class AsteroidSearchModel(tf.keras.Model):
         return fig, ax
 
     # *********************************************************************************************
-    def plot_hist(self, att_name: str = 'log_like'):
+    def plot_hist(self, att_name: str = 'log_like', x_axis: str = 'batch'):
         """
         Learning curve chart (progress vs. episode) for one of the score attributes log_like or hits.
         INPUTS:
             score_att: Name of the attribute to plot.  One of 'log_like', 'hits', 'R_deg'
+            x_axis:    x-axis for plot; one of 'batch', 'epoch', 'episode', 'time'
         """
         # Alias the training history
         hist = self.train_hist_summary
@@ -1736,21 +1775,35 @@ class AsteroidSearchModel(tf.keras.Model):
         }
         att_title = att_title_tbl.get(att_name, att_name)
 
+        # x-axis for plot
+        if x_axis == 'batch':
+            xlabel = 'Batch Trained'
+            x_plot = hist.batch
+        elif x_axis == 'epoch':
+            x_label = 'Epoch Trained'
+            x_plot = hist.epoch
+        elif x_axis == 'episode':
+            x_label = 'Episode Trained'
+            x_plot = hist.episode
+        elif x_axis == 'time':
+            x_label = 'Training Time (sec)'
+            x_plot = hist.training_time
+        else:
+            raise ValueError('Bad x_axis input; must be one of batch, epoch, episode, time.')
+
         # Plot total log likelihood over training
         fig, ax = plt.subplots()
         ax.set_title(f'Training Progress: {att_title} by Element')
-        ax.set_xlabel('Batch Trained')
-        ax.set_ylabel(f'{att_title}')
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(att_title)
         # Plot mean +/- 1 SD
-        ax.plot(hist.batch, score_mean, color=color_mean, label='Mean')
-        # ax.plot(hist.batch, score_lo, color=color_lo, label='Mean -1 SD')
-        # ax.plot(hist.batch, score_hi, color=color_hi, label='Mean +1 SD')
+        ax.plot(x_plot, score_mean, color=color_mean, label='Mean')
         # Plot quantiles 20 and 80
-        ax.plot(hist.batch, score_lo, color=color_lo, label='Quantile 20')
-        ax.plot(hist.batch, score_hi, color=color_hi, label='Quantile 80')
+        ax.plot(x_plot, score_lo, color=color_lo, label='Quantile 20')
+        ax.plot(x_plot, score_hi, color=color_hi, label='Quantile 80')
         # Plot min and max
-        ax.plot(hist.batch, score_min, color=color_min, label=min_label)
-        ax.plot(hist.batch, score_max, color=color_max, label=max_label)
+        ax.plot(x_plot, score_min, color=color_min, label=min_label)
+        ax.plot(x_plot, score_max, color=color_max, label=max_label)
         # Legend etc
         ax.legend()
         ax.grid()
