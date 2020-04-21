@@ -59,6 +59,7 @@ H_max_: float = 24.0
 # Range of sigma_mag for conditional probability given magnitude
 sigma_mag_min_: float = 0.5
 sigma_mag_max_: float = 8.0
+sigma_mag_normalizer_: float = np.sqrt(sigma_mag_min_ * sigma_mag_max_)
 
 # Number of spatial dimensions
 space_dims: int = 3

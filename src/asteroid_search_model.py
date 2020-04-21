@@ -24,6 +24,7 @@ from datetime import timedelta
 # MSE imports
 from asteroid_model import AsteroidDirection, AsteroidMagnitude, make_model_ast_pos
 from asteroid_search_layers import CandidateElements, MixtureParameters, TrajectoryScore
+from asteroid_search_optimizers import make_opt
 from candidate_element import elts_np2df
 from asteroid_integrate import calc_ast_pos
 from candidate_element import perturb_elts
@@ -76,161 +77,6 @@ color_lo: str = 'orange'
 color_hi: str = 'green'
 color_min: str = 'red'
 color_max: str = 'purple'
-
-# ********************************************************************************************************************* 
-def make_opt_adam(learning_rate: float, 
-                  clipnorm: float=1.0, 
-                  clipvalue:Optional[float]=None) \
-                  -> keras.optimizers.Optimizer:
-    """
-    Build Adam optimizer for training
-    INPUTS:
-        learning_rate: The learning rate for the optimizer
-        clipnorm:      Parameter for gradient clipping by norm.
-        clipvalue:     Parameter for gradient clipping by value; probably better to use clipnorm.
-    Default settings in tensorflow are:
-    learning_rate = 1.0E-3
-    clipnorm = None
-    clipvalue = None
-    These are changed based on trial and error.
-    Other arguments left at default settings
-    """
-
-    # Settings for other arguments; leave at defaults
-    beta_1: float = 0.900          # default 0.900
-    beta_2: float = 0.999          # default 0.999
-    epsilon: float = 1.0E-7        # default 1.0E-7
-    amsgrad: float = False         # default False
-
-    # Optimizer arguments - wrap as dict.  Point is to permit clip=None
-    opt_args: Dict[str, float] = {
-        'learning_rate': learning_rate,
-        'beta_1': beta_1,
-        'beta_2': beta_2,
-        'epsilon': epsilon,
-        'amsgrad': amsgrad,
-    }
-    # Add clipnorm if it was set
-    if clipnorm is not None:
-        opt_args['clipnorm'] = clipnorm
-    # Add clipvalue if it was set
-    if clipvalue is not None:
-        opt_args['clipvalue'] = clipvalue
-
-    # Build the optimizer
-    opt: keras.optimizers.Optimizer = keras.optimizers.Adam(**opt_args)
-    return opt
-    
-# ********************************************************************************************************************* 
-def make_opt_rmsprop(learning_rate: float, 
-                     clipnorm: float=1.0, 
-                     clipvalue: Optional[float]=None) \
-                     -> keras.optimizers.Optimizer:
-    """
-    Build RMSprop optimizer for training 
-    INPUTS:
-        learning_rate: The learning rate for the optimizer. Recommended default is 2^-15.
-        clipnorm:      Parameter for gradient clipping by norm.
-        clipvalue:     Parameter for gradient clipping by value; probably better to use clipnorm.
-    Default settings in tensorflow are:
-    learning_rate = 1.0E-3
-    rho = 0.90
-    momentum = 0.0
-    epsilon = 1.0E-7
-    centered = False
-    clipnorm = None
-    clipvalue = None
-    """
-
-    # Settings for other arguments; leave at defaults
-    rho: float = 0.900             # default 0.900
-    momentum: float = 0.000        # default 0.000
-    epsilon: float = 2.0**-23      # default 1.0E-7; nearest power of 2
-    centered: bool = False
-
-    # Optimizer arguments - wrap as dict.  Point is to permit clip=None
-    opt_args: Dict = {
-        'learning_rate': learning_rate,
-        'rho': rho,
-        'momentum': momentum,
-        'epsilon': epsilon,
-        'centered': centered,
-    }
-    # Add clipnorm if it was set
-    if clipnorm is not None:
-        opt_args['clipnorm'] = clipnorm
-    # Add clipvalue if it was set
-    if clipvalue is not None:
-        opt_args['clipvalue'] = clipvalue
-
-    # Build the optimizer
-    opt: keras.optimizers.Optimizer = keras.optimizers.RMSprop(**opt_args)
-    return opt
-
-# ********************************************************************************************************************* 
-def make_opt_adadelta(learning_rate: float, 
-                      clipnorm: float=1.0, 
-                      clipvalue: Optional[float]=None) \
-                      -> keras.optimizers.Optimizer:
-    """
-    Build Adadelta optimizer for training 
-    INPUTS:
-        learning_rate: The learning rate for the optimizer. Recommended default is 2^-15.
-        clipnorm:      Parameter for gradient clipping by norm.
-        clipvalue:     Parameter for gradient clipping by value; probably better to use clipnorm.
-    Default settings in tensorflow are:
-    learning_rate = 1.0E-3
-    rho = 0.950
-    epsilon = 1.0E-7
-    clipnorm = None
-    clipvalue = None
-    """
-
-    # Settings for other arguments; leave at defaults
-    rho: float = 0.950             # default 0.950
-    epsilon: float = 2.0**-23      # default 1.0E-7; nearest power of 2
-
-    # Optimizer arguments - wrap as dict.  Point is to permit clip=None
-    opt_args: Dict = {
-        'learning_rate': learning_rate,
-        'rho': rho,
-        'epsilon': epsilon,
-    }
-    # Add clipnorm if it was set
-    if clipnorm is not None:
-        opt_args['clipnorm'] = clipnorm
-    # Add clipvalue if it was set
-    if clipvalue is not None:
-        opt_args['clipvalue'] = clipvalue
-
-    # Build the optimizer
-    opt = keras.optimizers.Adadelta(**opt_args)
-    return opt
-
-# ********************************************************************************************************************* 
-def make_opt(optimizer_type: str, 
-             learning_rate: float, 
-             clipnorm: float=1.0, 
-             clipvalue: Optional[float]=None) \
-             -> keras.optimizers.Optimizer:
-    """
-    Create an instance of the specified optimizer.
-    INPUTS:
-        learning_rate: The learning rate for the optimizer. Recommended default is 2^-15.
-        optimizer_type: one of 'adam', 'rmsprop', 'adadelta'
-        clipnorm:       gradient clipping by norm of gradient vector
-        clipvalue:      gradient clipping by element of gradient vector
-    """
-    # Table of factory functions keyed by optimizer_type
-    optimizer_func: Dict = {
-        'adam': make_opt_adam,
-        'rmsprop': make_opt_rmsprop,
-        'adadelta': make_opt_adadelta,
-    }
-    # The factor function for the selected optimizer_type
-    optimizer_func = optimizer_func[optimizer_type]
-    # Instantiate this optimizer with selected input parameters
-    return optimizer_func(learning_rate=learning_rate, clipnorm=clipnorm, clipvalue=clipvalue)
 
 # ********************************************************************************************************************* 
 def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float) -> int:
@@ -1345,8 +1191,8 @@ class AsteroidSearchModel(tf.keras.Model):
             print(f'                    \  All Elts : Bad Elts : Good Elts ({int(num_good_elts)})')
             print(f'Geom Mean Resolution:  {R_sec_mean:8.2f} : {R_sec_bad:8.2f} : {R_sec_good:8.2f} arc seconds')
             print(f'Geom Mean Threshold :  {thr_sec_mean:8.2f} : {thr_sec_bad:8.2f} : {thr_sec_good:8.2f} arc seconds')
-            print(f'Mean Log Likelihood :  {log_like_mean:8.2f} : {log_like_bad:8.2f}: {log_like_good:8.2f}')
-            print(f'Mean Hits           :  {hits_mean:8.2f} : {hits_bad:8.2f}: {hits_good:8.2f}')
+            print(f'Mean Log Likelihood :  {log_like_mean:8.2f} : {log_like_bad:8.2f} : {log_like_good:8.2f}')
+            print(f'Mean Hits           :  {hits_mean:8.2f} : {hits_bad:8.2f} : {hits_good:8.2f}')
             print(f'Good Elements       :  {num_good_elts:8.2f}')
 
     # *********************************************************************************************
@@ -1434,7 +1280,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Define one epoch as a number of batches        
         self.samples_per_epoch = self.batches_per_epoch * self.batch_size
         # Maximum number of episodes is twice the expected number if all episodes are full
-        max_episodes = (max_batches*2) // (batches_per_epoch * epochs_per_episode)
+        max_episodes = self.current_episode + (max_batches - self.current_batch)*2 // (batches_per_epoch * epochs_per_episode)
 
         # Reset the bad episode counter
         self.bad_episode_count = 0
@@ -1488,24 +1334,30 @@ class AsteroidSearchModel(tf.keras.Model):
                     num_batches: int, 
                     batches_per_epoch: int,
                     epochs_per_episode: int,
-                    live_elts: bool,
-                    learning_rate: float, min_learning_rate: float,
+                    training_mode: str,
+                    learning_rate: float, 
+                    min_learning_rate: float,
                     reset_active_weight: bool=False,
                     R_sec_max: Optional[float]=None,
                     thresh_sec_max: Optional[float]=None):
         """One round of sieving"""
         # Status update
         log2_lr: int = int(np.round(np.log(learning_rate) / np.log(2.0)))
-        elt_tag: str = 'live' if live_elts else 'frozen'
-        msg: str = f'Round {round}: {num_batches} batches @ LR 2^{log2_lr} with {elt_tag} elements'
+        msg: str = f'Round {round}: {num_batches} batches @ LR 2^{log2_lr} in {training_mode} mode'
         msg_suffix: str = '.' if thresh_sec_max is None else f'; thresh_sec_max = {thresh_sec_max}'
         print_header(f'{msg}{msg_suffix}')
 
         # Thaw or freeze elements as requested
-        if live_elts:
-            self.thaw_candidate_elements()
-        else:            
+        if training_mode == 'mixture':
+            self.thaw_mixture_parameters()
             self.freeze_candidate_elements()
+        elif training_mode == 'joint':
+            self.thaw_all()
+        elif training_mode == 'element':            
+            self.thaw_candidate_elements()
+            self.freeze_mixture_parameters()
+        else:
+            raise ValueError('Bad training_mode.  Must be one of mixture, joint, element')
 
         # Set R_sec_max if it was specified
         if R_sec_max is not None:
@@ -1539,60 +1391,122 @@ class AsteroidSearchModel(tf.keras.Model):
             nearest_ast: Run comparison to nearest known asteroids at end
         """
         # Set learning rates
-        learning_rate_frozen = 2.0**-12
-        learning_rate_thawed = 2.0**-15
+        learning_rate_mixture = 2.0**-12
+        learning_rate_joint = 2.0**-16
+        
         # Minimum learning rate
         min_learning_rate = 2.0**-24
 
         # Set batches_per_epoch parameter
-        batches_per_epoch: int = 25
-        epochs_per_episode: int = 16
+        batches_per_epoch: int = 50
+        epochs_per_episode: int = 4
 
         # Episode sizes
-        num_batches_frozen = 400
-        num_batches_thawed = 2000
+        num_batches_mixture = 400
+        num_batches_joint = 1600
 
         # Set all layers thawed
         self.thaw_all()
 
         # Schedule of max thresholds and resolution
         sched = pd.DataFrame()
-        sched['thresh_sec'] = np.array([7200, 5400, 3600, 3000, 2400, 1800, 
-                                        1200, 800, 600, 400, 300, 200, 100,], dtype=dtype_np)
-        sched['R_sec'] = sched.thresh_sec * 0.25
+        sched['thresh_sec'] = np.array([7200, 5400, 3600, 3000, 2400, 1800], dtype=dtype_np)
+        sched['R_sec'] = np.maximum(sched.thresh_sec * 0.50, 50.0)
         # Lenght of the schedule
         schedule_len = sched.shape[0]
 
         for i in range(schedule_len):
             # The round number, R_sec_max and thresh_sec_max
-            round = 2*i+1
+            round = 2*i
             R_sec_max = sched.R_sec[i]
             thresh_sec_max = sched.thresh_sec[i]
 
-            # Reset the active weight every 4 rounds
-            # reset_active_weight = (i % 4 == 0)
-            reset_active_weight = True
+            # Reset the active weight every round
+            reset_active_weight = (i % 3 == 0)
             
-            # Frozen elements with adjusted R_sec_max and thresh_sec_max
-            self.sieve_round(round=round, 
-                             num_batches=num_batches_frozen, 
+            # Mixture parameters
+            self.sieve_round(round=round+1, 
+                             num_batches=num_batches_mixture, 
                              batches_per_epoch=batches_per_epoch,
                              epochs_per_episode=epochs_per_episode,
-                             live_elts=False, 
-                             learning_rate=learning_rate_frozen, 
+                             training_mode='mixture', 
+                             learning_rate=learning_rate_mixture, 
                              min_learning_rate=min_learning_rate,
                              reset_active_weight=reset_active_weight,
                              R_sec_max=R_sec_max,
                              thresh_sec_max=thresh_sec_max)
 
-            # Live elements
-            self.sieve_round(round=round+1, 
-                             num_batches=num_batches_thawed, 
+            # Joint (mixture and candidate elements)
+            self.sieve_round(round=round+2, 
+                             num_batches=num_batches_joint, 
                              batches_per_epoch=batches_per_epoch,
-                             live_elts=True, 
-                             learning_rate=learning_rate_thawed, 
+                             epochs_per_episode=epochs_per_episode,
+                             training_mode='joint',
+                             learning_rate=learning_rate_joint, 
                              min_learning_rate=min_learning_rate,
                              reset_active_weight=reset_active_weight)
+
+        # Fine tuning at the end
+        # self.set_R_sec_max(200.0)
+        # self.set_thresh_sec_max(400.0)
+
+        # self.thaw_mixture_parameters()
+        # self.freeze_candidate_elements()
+        # self.search_adaptive(
+        #             max_batches=self.current_batch + 1000,
+        #             batches_per_epoch=50,
+        #             epochs_per_episode=4,
+        #             learning_rate=2**-12,
+        #             min_learning_rate=2**-20,
+        #             reset_active_weight=True)
+
+        # self.thaw_candidate_elements()
+        # self.search_adaptive(
+        #             max_batches=self.current_batch + 4000,
+        #             batches_per_epoch=50,
+        #             epochs_per_episode=4,
+        #             learning_rate=2**-18,
+        #             min_learning_rate=2**-26,
+        #             reset_active_weight=True)
+
+        # self.thaw_mixture_parameters()
+        # self.freeze_candidate_elements()
+        # self.search_adaptive(
+        #             max_batches=self.current_batch + 2000,
+        #             batches_per_epoch=50,
+        #             epochs_per_episode=4,
+        #             learning_rate=2**-12,
+        #             min_learning_rate=2**-24,
+        #             reset_active_weight=True)
+
+        self.sieve_round(round=schedule_len+1, 
+                         num_batches=1000, 
+                         batches_per_epoch=batches_per_epoch,
+                         epochs_per_episode=epochs_per_episode,
+                         training_mode='mixture', 
+                         learning_rate=2**-12, 
+                         min_learning_rate=2**-20,
+                         reset_active_weight=True,
+                         R_sec_max=200.0,
+                         thresh_sec_max=400.0)                    
+
+        self.sieve_round(round=schedule_len+2, 
+                         num_batches=4000, 
+                         batches_per_epoch=batches_per_epoch,
+                         epochs_per_episode=epochs_per_episode,
+                         training_mode='joint',
+                         learning_rate=2**-18,
+                         min_learning_rate=2**-26,
+                         reset_active_weight=True)
+
+        self.sieve_round(round=schedule_len+3, 
+                         num_batches=2000, 
+                         batches_per_epoch=batches_per_epoch,
+                         epochs_per_episode=epochs_per_episode,
+                         training_mode='mixture', 
+                         learning_rate=2**-12, 
+                         min_learning_rate=2**-20,
+                         reset_active_weight=True)
 
         # Full round of charts
         self.plot_bar('log_like', sorted=False)
@@ -2304,7 +2218,7 @@ class AsteroidSearchModel(tf.keras.Model):
         thresh_sec_max = np.max(thresh_sec)
 
         # Report on log likelihood and resolution
-        print(f'\nGood elements (hits > 10): {num_good_elts:6.2f}\n')
+        print(f'\nGood elements (hits >= 10): {num_good_elts:6.2f}\n')
         print(f'         \\  log_like :  hits  :    R_sec : thresh_sec')
         print(f'Mean Good: {log_like_good:8.2f}  : {hits_good:6.2f} : {R_sec_good:8.2f} : {thresh_sec_good:8.2f}')
         print(f'Mean Bad : {log_like_bad:8.2f}  : {hits_bad:6.2f} : {R_sec_bad:8.2f} : {thresh_sec_bad:8.2f}')
@@ -2315,7 +2229,8 @@ class AsteroidSearchModel(tf.keras.Model):
         print(f'Min      : {log_like_min:8.2f}  : {hits_min:6.2f} : {R_sec_min:8.2f} : {thresh_sec_min:8.2f}')
         print(f'Max      : {log_like_max:8.2f}  : {hits_max:6.2f} : {R_sec_max:8.2f} : {thresh_sec_max:8.2f}')
 
-        print(f'Trained for {self.current_batch} batches over {self.current_epoch} epochs and {self.current_episode} episodes.')
+        print(f'Trained for {self.current_batch} batches over {self.current_epoch} epochs '
+              f'and {self.current_episode} episodes (elapsed time {int(np.round(self.training_time))} seconds).')
 
     def review_members(self):
         """Print diagnostic review of members to console"""

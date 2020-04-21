@@ -18,7 +18,7 @@ import time
 from datetime import timedelta
 
 # Local imports
-from asteroid_model import AsteroidDirection
+from asteroid_model import AsteroidDirection, sigma_mag_normalizer_
 from asteroid_integrate import calc_ast_pos
 from candidate_element import elts_np2df, perturb_elts
 from astro_utils import deg2dist, dist2deg
@@ -427,6 +427,10 @@ class TrajectoryScore(keras.layers.Layer):
         self.mag_obs: keras.backend.constant = \
             keras.backend.constant(value=mag_app_np, shape=mag_shape, dtype=dtype)
 
+        # Normalizer for sigma_mag
+        self.sigma_mag_normalizer: keras.backend.constant = \
+                keras.backend.constant(value=sigma_mag_normalizer_, dtype=dtype)
+
         # The threshold distance and its square; numpy arrays of shape [batch_size,]
         thresh_s: np.ndarray = deg2dist(thresh_deg)
         thresh_s2: np.ndarray = thresh_s**2
@@ -517,7 +521,7 @@ class TrajectoryScore(keras.layers.Layer):
 
     def set_thresh_sec_max(self, thresh_sec_max: np.ndarray) -> None:
         thresh_deg_max = thresh_sec_max / 3600.0
-        self.set_thresh_deg_max(thresh_sec_max)
+        self.set_thresh_deg_max(thresh_deg_max)
 
     @tf.function        
     def call(self, 
@@ -621,15 +625,18 @@ class TrajectoryScore(keras.layers.Layer):
         p_mag_num: tf.Tensor = tf.exp(mag_arg, name='p_mag_num')
         # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, close_elt,]
         p_mag_num_r: tf.Tensor = \
-           tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_mag_num_r')(p_mag_num)
+          tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_mag_num_r')(p_mag_num)
         # The denominator is the elementwise mean; shape [batch_size, close_elt,]
         p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
         # Upsample the denominator to a flat array of shape [num_close,]
-        # Attempted division with broadcasting [batch_size, close_elt] / [batch_size,] but it didn't work
         p_mag_den: tf.Tensor = tf.repeat(input=p_mag_den_r, repeats=row_lengths_close, name='p_mag_den')
         # The conditional probability based on the magnitude is the quotient; shape [num_close,]
-        # This array has elementwise mean 1.0 by construction
-        p_cond_mag: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag')
+        # This array has elementwise mean 1.0 * (sigma_mag_normalizer / sigma_mag) by construction
+        p_cond_mag_1: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag_1')
+        # Adjustment factor to encourage sigma_mag to get smaller
+        p_mag_adj: tf.Tensor = tf.divide(sigma_mag, self.sigma_mag_normalizer)
+        # Adjusted p_cond_mag
+        p_cond_mag: tf.Tensor = tf.multiply(p_cond_mag_1, p_mag_adj, name='p_cond_mag')
 
         # Combined conditional probability of a hit
         p_hit_cond: tf.Tensor = tf.multiply(p_cond_dist, p_cond_mag, name='p_hit_cond')
