@@ -226,9 +226,6 @@ class AsteroidSearchModel(tf.keras.Model):
                             u_obs_np=u_obs_np, mag_app_np=mag_app_np,
                             thresh_deg=self.thresh_deg, name='score')
 
-        # Position model - used for comparing trajectories of fitted and known orbital elements
-        # self.model_pos: keras.Model = make_model_ast_pos(ts_np=ts_np, row_lengths_np=row_lengths_np)
-
         # *****************************************************************************************
         # Variables for adaptive training and training history
         # *****************************************************************************************
@@ -247,15 +244,14 @@ class AsteroidSearchModel(tf.keras.Model):
         self.recompile()
 
         # Set the learning rate factors for adaptive training
-        # self.lr_factor_dn: float = 0.5      # global learning rate; currently not used
         self.lr_factor_elt_dn: float = 0.5  # elementwise learning rate
 
         # Initialize loss history and total training time
         self.training_time: float = 0.0
 
         # Epoch and episode counters
-        self.batches_per_epoch: int = 100
-        self.epochs_per_episode: int = 5
+        self.batches_per_epoch: int = 64
+        self.epochs_per_episode: int = 4
         self.samples_per_epoch: int = self.batches_per_epoch * self.batch_size
         self.episode_length: int = 0
         self.current_episode: int = 0
@@ -295,11 +291,11 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Power of resolution in the denominator of objective function
         self.obj_den_R_power: tf.Variable = \
-            tf.Variable(initial_value=1.0, trainable=False, dtype=dtype, name='obj_den_R_power')
+            tf.Variable(initial_value=0.0, trainable=False, dtype=dtype, name='obj_den_R_power')
 
         # Power of threshold in the denominator of objective function
         self.obj_den_thresh_power: tf.Variable = \
-            tf.Variable(initial_value=1.0, trainable=False, dtype=dtype, name='obj_den_thresh_power')
+            tf.Variable(initial_value=0.0, trainable=False, dtype=dtype, name='obj_den_thresh_power')
 
         # Early stopping callback
         self.update_early_stop()
@@ -415,7 +411,7 @@ class AsteroidSearchModel(tf.keras.Model):
         # Divide by threshold to encourage it getting smaller; objective function to maximize
         thresh_s2: tf.Tensor = self.score.get_thresh_s2()
         thresh_s: tf.Tensor = tf.sqrt(thresh_s2)
-        thresh_log1p: tf.Tensor = td.add(tf.math.log1p(thresh_s), 1.0)
+        thresh_log1p: tf.Tensor = tf.add(tf.math.log1p(thresh_s), 1.0)
         obj_den_1: tf.Tensor = tf.math.pow(x=thresh_log1p, y=self.obj_den_thresh_power, name='obj_den_1')       
         
         # Divide by resolution R to encourage it getting smaller
@@ -424,7 +420,8 @@ class AsteroidSearchModel(tf.keras.Model):
         
         # Divide by sigma_mag to encourage it getting smaller
         sigma_mag: tf.Tensor = self.magnitude.get_sigma_mag()
-        sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(tf.divide(sigma_mag, 4.0), 1.0))
+        sigma_mag_scaled: tf.Tensor = tf.sqrt(tf.divide(sigma_mag, 0.5))
+        sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(sigma_mag_scaled), 1.0)
         obj_den_3: tf.Tensor = tf.math.pow(x=sigma_mag_log1p, y=1.0)
         
         # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1

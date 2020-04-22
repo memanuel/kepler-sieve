@@ -604,43 +604,8 @@ class TrajectoryScore(keras.layers.Layer):
         p_cond_dist_den: tf.Tensor = tf.subtract(1.0, tf.exp(-lam_vec), name='p_cond_dist_den')
         p_cond_dist: tf.Tensor = tf.divide(p_cond_dist_num, p_cond_dist_den, name='p_cond_dist')
 
-        # Difference between predicted and observed magnitude
-        mag_diff: tf.Tensor = tf.subtract(mag_pred, self.mag_obs, name='mag_diff')
-
-        # Conditional probability based on difference between predicted and observed magnitude
-        mag_z: tf.Tensor = tf.divide(mag_diff, sigma_mag, name='mag_z')
-        mag_z2: tf.Tensor = tf.square(mag_z, name='mag_z2')
-        mag_arg: tf.Tensor = tf.multiply(mag_z2, -0.5, name='mag_arg')
-
-        # Map from flat tensors of nearby rows to ragged tensors
-        ragged_map_func_close = lambda x : \
-            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
-
-        # The normalized probability based on the magnitude is the unnormalized prob over the normalizer
-        # The numerator is the exp(mag_arg); shape [data_size,]
-        p_mag_num_all: tf.Tensor = tf.exp(mag_arg, name='p_mag_num_all')
-        # Filter to only the close rows; shape [num_close,]
-        p_mag_num: tf.Tensor = tf.boolean_mask(tensor=p_mag_num_all, mask=is_close, name='p_mag_num')
-        p_mag_den: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=is_close, name='p_mag_den')
-        p_mag_pdf: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_mag_pdf')
-        p_cond_mag: tf.Tensor = tf.multiply(self.sigma_mag_normalizer, p_mag_pdf, name='p_cond_mag')
-        # Take max of this and 1
-        # p_cond_mag = tf.maximum(p_cond_mag, 1.0)
-        
-        # Arrange the numerator as a ragged tensor to take the mean by element; shape [batch_size, num_rows,]
-        # p_mag_num_r: tf.Tensor = \
-        #    tf.keras.layers.Lambda(function=ragged_map_func, name='p_mag_num_r')(p_mag_num_all)
-        # The denominator is the elementwise mean; shape [batch_size, ]
-        # p_mag_den_r: tf.Tensor = tf.reduce_mean(p_mag_num_r, axis=-1, name='p_mag_den_r')
-        # Upsample the denominator to a flat array of shape [num_close,]
-        # p_mag_den: tf.Tensor = tf.repeat(input=p_mag_den_r, repeats=row_lengths_close, name='p_mag_den')
-        # The conditional probability based on the magnitude is the quotient; shape [num_close,]
-        # This array has elementwise mean 1.0 over all the data in the row by construction
-        # p_cond_mag: tf.Tensor = tf.divide(p_mag_num, p_mag_den, name='p_cond_mag')
-
         # Combined conditional probability of a hit
-        # p_hit_cond: tf.Tensor = p_cond_dist
-        p_hit_cond: tf.Tensor = tf.multiply(p_cond_dist, p_cond_mag, name='p_hit_cond')
+        p_hit_cond: tf.Tensor = p_cond_dist
 
         # Probability according to mixture model
         p_hit: tf.Tensor = tf.multiply(h_vec, p_hit_cond, name='p_hit')
@@ -660,6 +625,10 @@ class TrajectoryScore(keras.layers.Layer):
         # Count the effective number of quality hits
         p_hit_filtered_flat: tf.Tensor = tf.where(condition=is_quality_hit, x=p_hit_post_flat, y=0.0)
 
+        # Map from flat tensors of nearby rows to ragged tensors
+        ragged_map_func_close = lambda x : \
+            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths_close)
+
         # Rearrange to ragged tensors
         # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=row_lengths_close, name='log_p')
         log_p: tf.Tensor = \
@@ -667,11 +636,53 @@ class TrajectoryScore(keras.layers.Layer):
         # Count hits
         p_hit_filtered: tf.Tensor = \
             tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
+        # Sum hit probability by element for magnitude calculation below
+        p_hit_r: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='p_hit_r')(p_hit)
 
-        # Log likelihood by element
-        log_like: tf.Tensor = tf.reduce_sum(log_p, axis=1, name='log_like')
+        # Log likelihood by element due to distance
+        log_like_dist: tf.Tensor = tf.reduce_sum(log_p, axis=1, name='log_like_dist')
         # Hit count count by element
         hits: tf.Tensor = tf.reduce_sum(p_hit_filtered, axis=1, name='hits')
+
+        # Difference between predicted and observed magnitude
+        mag_diff_all: tf.Tensor = tf.subtract(mag_pred, self.mag_obs, name='mag_diff_all')
+        # Denominator for normalizing p_hit
+        p_hit_den_elt: tf.Tensor = tf.reduce_sum(p_hit_r, axis=-1, name='p_hit_den_elt')
+        # Upsample the denominator
+        p_hit_den: tf.Tensor = tf.repeat(input=p_hit_den_elt, repeats=row_lengths_close, name='p_hit_den')
+        # Normalized hit probability; sums to 1 over each element
+        p_hit_norm: tf.Tensor = tf.divide(p_hit, p_hit_den, name='p_hit_norm')
+
+        # Mask difference and sigma_mag down to close rows only
+        mag_diff: tf.Tensor = tf.boolean_mask(tensor=mag_diff_all, mask=is_close, name='mag_diff')
+        sigma_mag: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=is_close, name='sigma_mag')
+
+        # Conditional probability based on difference between predicted and observed magnitude
+        mag_z: tf.Tensor = tf.divide(mag_diff, sigma_mag, name='mag_z')
+        mag_z2: tf.Tensor = tf.square(mag_z, name='mag_z2')
+        mag_arg: tf.Tensor = tf.multiply(mag_z2, -0.5, name='mag_arg')
+
+        # Log of the PDF of the magnitude
+        log_sigma_mag: tf.Tensor = tf.math.log(sigma_mag, name='log_sigma_mag')
+        mag_log_pdf: tf.Tensor = tf.subtract(mag_arg, log_sigma_mag, name='mag_log_pdf')
+
+        # Equal weight for each observation associated with an element
+        w_equal_elt = tf.divide(1.0, row_lengths_close_float, name='w_equal_elt')
+        # Upsample the equal weights; these sum up to 1.0 now on each element
+        w_equal = tf.repeat(input=w_equal_elt, repeats=row_lengths_close)
+        # Weights for log likelihood of magnitude
+        w_mag: tf.Tensor = tf.subtract(p_hit_norm, w_equal, name='w_mag')        
+        # The log likelihood of the magnitude; flat, by observation
+        mag_log_like_flat = tf.multiply(w_mag, mag_log_pdf, name='mag_log_like_flat')
+        # Rearrange mag_log_like as a ragged tensor
+        mag_log_like_r: tf.Tensor = \
+            tf.keras.layers.Lambda(function=ragged_map_func_close, name='mag_log_like_r')(mag_log_like_flat)
+        # Log likelihood by element due to magnitude
+        log_like_mag: tf.Tensor = tf.reduce_sum(mag_log_like_r, axis=1, name='log_like_mag')
+
+        # Combined log likelihood by element due to magnitude
+        log_like: tf.Tensor = tf.add(log_like_dist, log_like_mag, name='log_like')
 
         # Return the log likelihood and hits by element
         return log_like, hits, row_lengths_close
