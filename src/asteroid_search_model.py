@@ -411,17 +411,17 @@ class AsteroidSearchModel(tf.keras.Model):
         # Divide by threshold to encourage it getting smaller; objective function to maximize
         thresh_s2: tf.Tensor = self.score.get_thresh_s2()
         thresh_s: tf.Tensor = tf.sqrt(thresh_s2)
-        thresh_log1p: tf.Tensor = tf.add(tf.math.log1p(thresh_s), 1.0)
+        thresh_log1p: tf.Tensor = tf.add(tf.math.log1p(thresh_s), 2.0**-8)
         obj_den_1: tf.Tensor = tf.math.pow(x=thresh_log1p, y=self.obj_den_thresh_power, name='obj_den_1')       
         
         # Divide by resolution R to encourage it getting smaller
-        R_log1p: tf.Tensor = tf.add(tf.math.log1p(self.R), 1.0)
+        R_log1p: tf.Tensor = tf.add(tf.math.log1p(self.R), 2.0**-8)
         obj_den_2: tf.Tensor = tf.math.pow(x=R_log1p, y=self.obj_den_R_power, name='obj_den_2')
         
         # Divide by sigma_mag to encourage it getting smaller
         sigma_mag: tf.Tensor = self.magnitude.get_sigma_mag()
         sigma_mag_scaled: tf.Tensor = tf.sqrt(tf.divide(sigma_mag, 0.5))
-        sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(sigma_mag_scaled), 1.0)
+        sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(sigma_mag_scaled), 2.0**-2)
         obj_den_3: tf.Tensor = tf.math.pow(x=sigma_mag_log1p, y=1.0)
         
         # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1
