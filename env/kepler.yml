@@ -4,13 +4,13 @@ channels:
 dependencies:
   - _anaconda_depends=2019.03=py37_0
   - _libgcc_mutex=0.1=main
+  - _tflow_select=2.1.0=gpu
   - alabaster=0.7.12=py37_0
   - anaconda=custom=py37_1
   - anaconda-client=1.7.2=py37_0
   - anaconda-project=0.8.4=py_0
   - asn1crypto=1.3.0=py37_0
   - astroid=2.3.3=py37_0
-  - astropy=4.0=py37h7b6447c_0
   - atomicwrites=1.3.0=py37_1
   - attrs=19.3.0=py_0
   - babel=2.8.0=py_0
@@ -23,11 +23,13 @@ dependencies:
   - bkcharts=0.2=py37_0
   - blas=1.0=mkl
   - bleach=3.1.0=py37_0
+  - blinker=1.4=py37_0
   - blosc=1.16.3=hd408876_0
   - bokeh=1.4.0=py37_0
   - boto=2.49.0=py37_0
   - bottleneck=1.3.2=py37heb32a55_0
   - bzip2=1.0.8=h7b6447c_0
+  - c-ares=1.15.0=h7b6447c_1001
   - ca-certificates=2020.1.1=0
   - cairo=1.14.12=h8948797_3
   - certifi=2019.11.28=py37_0
@@ -40,6 +42,9 @@ dependencies:
   - colorcet=2.0.2=py_0
   - contextlib2=0.6.0.post1=py_0
   - cryptography=2.8=py37h1ba5d50_0
+  - cudatoolkit=10.1.243=h6bb024c_0
+  - cudnn=7.6.5=cuda10.1_0
+  - cupti=10.1.168=0
   - curl=7.68.0=hbc83047_0
   - cycler=0.10.0=py37_0
   - cython=0.29.15=py37he6710b0_0
@@ -69,6 +74,7 @@ dependencies:
   - glob2=0.7=py_0
   - gmp=6.1.2=h6c8ec71_1
   - gmpy2=2.0.8=py37h10f8cd9_2
+  - google-auth-oauthlib=0.4.1=py_2
   - graphite2=1.3.13=h23475e2_0
   - greenlet=0.4.15=py37h7b6447c_0
   - gst-plugins-base=1.14.0=hbbd80ab_1
@@ -105,6 +111,8 @@ dependencies:
   - jupyter_core=4.6.1=py37_0
   - jupyterlab=1.2.6=pyhf63ae98_0
   - jupyterlab_server=1.0.6=py_0
+  - keras-applications=1.0.8=py_0
+  - keras-preprocessing=1.1.0=py_1
   - keyring=21.1.0=py37_0
   - kiwisolver=1.1.0=py37he6710b0_0
   - krb5=1.17.1=h173b8e3_0
@@ -118,6 +126,7 @@ dependencies:
   - libgfortran-ng=7.3.0=hdf63c60_0
   - liblief=0.9.0=h7725739_2
   - libpng=1.6.37=hbc83047_0
+  - libprotobuf=3.11.4=hd408876_0
   - libsodium=1.0.16=h1bed415_0
   - libssh2=1.8.2=h1ba5d50_0
   - libstdcxx-ng=9.1.0=hdf63c60_0
@@ -132,6 +141,7 @@ dependencies:
   - lxml=4.5.0=py37hefd8a0e_0
   - lz4-c=1.8.1.2=h14c3975_0
   - lzo=2.10=h49e0be7_2
+  - markdown=3.1.1=py37_0
   - markupsafe=1.1.1=py37h7b6447c_0
   - matplotlib=3.1.3=py37_0
   - matplotlib-base=3.1.3=py37hef1b27d_0
@@ -159,11 +169,13 @@ dependencies:
   - numba=0.48.0=py37h0573a6f_0
   - numexpr=2.7.1=py37h423224d_0
   - numpy-base=1.18.1=py37hde5b4d6_1
-  - numpydoc=0.9.2=py_0
+  - oauthlib=3.1.0=py_0
   - olefile=0.46=py37_0
   - openpyxl=3.0.3=py_0
   - openssl=1.1.1d=h7b6447c_4
+  - opt_einsum=3.1.0=py_0
   - packaging=20.1=py_0
+  - pandas=1.0.1=py37h0573a6f_0
   - pandoc=2.2.3.2=0
   - pandocfilters=1.4.2=py37_1
   - pango=1.42.4=h049681c_0
@@ -191,6 +203,7 @@ dependencies:
   - ptyprocess=0.6.0=py37_0
   - py=1.8.1=py_0
   - py-lief=0.9.0=py37h7725739_2
+  - pyasn1=0.4.8=py_0
   - pycodestyle=2.5.0=py37_0
   - pycosat=0.6.3=py37h7b6447c_0
   - pycparser=2.19=py37_0
@@ -199,6 +212,7 @@ dependencies:
   - pycurl=7.43.0.5=py37h1ba5d50_0
   - pyflakes=2.1.1=py37_0
   - pygments=2.5.2=py_0
+  - pyjwt=1.7.1=py37_0
   - pylint=2.4.4=py37_0
   - pyodbc=4.0.30=py37he6710b0_0
   - pyopenssl=19.1.0=py37_0
@@ -227,7 +241,9 @@ dependencies:
   - qtpy=1.9.0=py_0
   - readline=7.0=h7b6447c_5
   - requests=2.22.0=py37_1
+  - requests-oauthlib=1.3.0=py_0
   - rope=0.16.0=py_0
+  - rsa=4.0=py_0
   - ruamel_yaml=0.15.87=py37h7b6447c_0
   - scikit-image=0.16.2=py37h0573a6f_0
   - scikit-learn=0.22.1=py37hd81dba3_0
@@ -262,6 +278,9 @@ dependencies:
   - sympy=1.5.1=py37_0
   - tbb=2020.0=hfd86e86_0
   - tblib=1.6.0=py_0
+  - tensorflow=2.1.0=gpu_py37h7a4bb67_0
+  - tensorflow-base=2.1.0=gpu_py37h6c5654b_0
+  - tensorflow-estimator=2.1.0=pyhd54b08b_0
   - terminado=0.8.3=py37_0
   - testpath=0.4.4=py_0
   - tk=8.6.8=hbc83047_0
@@ -294,25 +313,28 @@ dependencies:
     - absl-py==0.7.1
     - alerce==0.2.3
     - astor==0.8.0
+    - astropy==3.2.1
+    - cachetools==4.0.0
     - ephem==3.7.7.1
     - gast==0.2.2
+    - google-auth==1.11.3
     - google-pasta==0.1.7
     - grpcio==1.23.0
     - ipython==5.8.0
     - jplephem==2.12
-    - keras-applications==1.0.8
-    - keras-preprocessing==1.1.0
-    - markdown==3.1.1
     - numpy==1.17.0
+    - numpydoc==0.9.1
     - opt-einsum==3.0.1
-    - pandas==0.24.2
     - prompt-toolkit==1.0.18
     - protobuf==3.9.1
     - psycopg2-binary==2.8.4
+    - pyasn1-modules==0.2.8
     - rebound==3.10.0
     - sgp4==2.3
+    - silence-tensorflow==1.1.1
     - skyfield==1.17
     - tb-nightly==1.15.0a20190806
+    - tensorboard==2.1.1
     - tensorflow-gpu==2.0.0rc0
     - termcolor==1.1.0
     - tf-estimator-nightly==1.14.0.dev2019080601
