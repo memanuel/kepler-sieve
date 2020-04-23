@@ -1553,16 +1553,18 @@ class AsteroidSearchModel(tf.keras.Model):
                             charts=charts)
 
         # Full round of charts
-        self.plot_bar('log_like', sorted=False)
-        self.plot_bar('hits', sorted=False)
-        self.plot_bar('minus_log_R', sorted=False)
-        self.plot_hist('log_like')
-        self.plot_hist('hits')
+        if charts:
+            self.plot_bar('log_like', sorted=False)
+            self.plot_bar('hits', sorted=False)
+            self.plot_bar('minus_log_R', sorted=False)
+            self.plot_hist('log_like')
+            self.plot_hist('hits')
 
         # Compare to nearest known asteroid if requested
         if nearest_ast:
             _ = self.nearest_ast()
 
+        if nearest_ast and charts:
             # Plot position error vs. nearest known asteroid
             self.plot_q_error(plot_type='cart', is_log=True, use_near_ast_dist=True)
             # Plot covariance error

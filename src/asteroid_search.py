@@ -324,6 +324,16 @@ def train_one_batch(i: int, random_seed: int, ztf_ast: pd.DataFrame):
     # Report before training starts
     model.report()
 
+    # If the model has already been trained, quit early
+    if model.current_batch > 10000:
+        return
+
+    # Train the model    
+    model.sieve()
+
+    # Save the trained model
+    model.save_state()
+
     # Get a common timestamp for both entries (elements and hits)
     timestamp = pd.to_datetime('today')
 
