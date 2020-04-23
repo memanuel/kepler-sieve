@@ -24,7 +24,7 @@ from datetime import timedelta
 
 # MSE imports
 from asteroid_model import AsteroidDirection, AsteroidMagnitude, make_model_ast_pos
-from asteroid_search_layers import CandidateElements, MixtureParameters, TrajectoryScore
+from asteroid_search_layers import CandidateElements, MixtureParameters, TrajectoryScore, R_min_
 from asteroid_search_optimizers import make_opt
 from candidate_element import elts_np2df
 from asteroid_integrate import calc_ast_pos
@@ -53,6 +53,9 @@ tf_quiet()
 # Configure TensorFlow to use GPU memory variably
 # gpu_grow_memory(verbose=True)
 
+# Ignore irrelevant numpy errors
+np.seterr(all='ignore')
+
 # ********************************************************************************************************************* 
 # Constants
 space_dims: int = 3
@@ -66,11 +69,6 @@ save_dir: str = '../data/candidate_elt'
 
 # Load the ZTF asteroid data
 ztf_ast = load_ztf_nearest_ast()
-
-# # Load the known asteroid positions
-# q_known_ast = load_known_ast_pos()
-# # Convert to a float32 tensor
-# X_known_ast = tf.constant(q_known_ast, dtype=tf.float32)
 
 # Set plot style variables
 mpl.rcParams['figure.figsize'] = [16.0, 10.0]
@@ -102,12 +100,6 @@ def candidate_elt_hash(elts: pd.DataFrame, thresh_deg: float) -> int:
     hash_id: int = abs(hash(hash_df + (thresh_deg_int, )))
 
     return hash_id
-
-# ********************************************************************************************************************* 
-class AsteroidSearchLoss(keras.losses.Loss):
-
-    def call(self, loss, dummy=None):
-        return tf.reduce_sum(loss, axis=-1)
 
 # ********************************************************************************************************************* 
 # Custom model for Asteroid Search
@@ -296,6 +288,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Power of threshold in the denominator of objective function
         self.obj_den_thresh_power: tf.Variable = \
             tf.Variable(initial_value=0.0, trainable=False, dtype=dtype, name='obj_den_thresh_power')
+        # Minimum value of resolution R (Cartesian)
+        # self.R_min: keras.backend.constant = \
+        #         keras.backend.constant(value=R_min_, dtype=dtype, name='R_min')
 
         # Early stopping callback
         self.update_early_stop()
@@ -417,11 +412,12 @@ class AsteroidSearchModel(tf.keras.Model):
         # Divide by threshold to encourage it getting smaller; objective function to maximize
         thresh_s2: tf.Tensor = self.score.get_thresh_s2()
         thresh_s: tf.Tensor = tf.sqrt(thresh_s2)
-        thresh_log1p: tf.Tensor = tf.add(tf.math.log1p(thresh_s), 2.0**-8)
+        thresh_log1p: tf.Tensor = tf.math.log1p(thresh_s)
         obj_den_1: tf.Tensor = tf.math.pow(x=thresh_log1p, y=self.obj_den_thresh_power, name='obj_den_1')       
         
         # Divide by resolution R to encourage it getting smaller
-        R_log1p: tf.Tensor = tf.add(tf.math.log1p(self.R), 2.0**-8)
+        # The minimum resolution of 1.0 arc second = 7.77E-7 ~ 2^-20.3
+        R_log1p: tf.Tensor = tf.add(tf.math.log1p(self.R), 2.0**-24)
         obj_den_2: tf.Tensor = tf.math.pow(x=R_log1p, y=self.obj_den_R_power, name='obj_den_2')
         
         # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1
@@ -1119,10 +1115,12 @@ class AsteroidSearchModel(tf.keras.Model):
         # Tune the magnitude based on the most recent log likelihood
         # self.tune_mag()
 
-        # Get old and new log_like, candidate_elements and mixture_parameters
+        # Get old and new log_like, hits, and loss; to figure out if an element improved
         log_like_old, log_like_new = self.log_like_hist[n-2:n]
+        hits_old, hits_new = self.hits_hist[n-2:n]
         loss_old, loss_new = self.loss_hist[n-2:n]
-        # log_like_mean_old, log_like_mean_new = self.log_like_mean_hist[n-2:n]
+        
+        # Get old and new weights; to revert an element if necessary
         candidate_elements_old, candidate_elements_new = self.candidate_elements_hist[n-2:n]
         mixture_parameters_old, mixture_parameters_new = self.mixture_parameters_hist[n-2:n]
         magnitude_old, magnitude_new = self.magnitude_hist[n-2:n]
@@ -1130,11 +1128,14 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Test which elements have gotten worse (usually this should be false)
         is_less_likely = tf.math.less(log_like_new, log_like_old)
+        is_less_hits = tf.math.less(hits_new, hits_old)
         is_higher_loss = tf.math.greater(loss_new, loss_old)
         is_nan = tf.math.is_nan(log_like_new)
+
+        # Accumulate different ways an update can be worse than the preceding one
+        is_worse = tf.math.logical_or(is_less_likely, is_less_hits)
         is_worse = tf.math.logical_or(is_less_likely, is_higher_loss)
-        is_worse = tf.math.logical_or(is_worse, is_nan)
-        # is_worse = tf.math.logical_or(is_less_likely, is_nan)
+        is_worse = tf.math.logical_or(is_worse, is_nan)        
 
         # If none of the elements have gotten worse, terminate early
         if not tf.math.reduce_any(is_worse):
@@ -1391,7 +1392,8 @@ class AsteroidSearchModel(tf.keras.Model):
                     obj_den_R_power: Optional[float]=None,
                     obj_den_thresh_power: Optional[float]=None,
                     R_sec_max: Optional[float]=None,
-                    thresh_sec_max: Optional[float]=None):
+                    thresh_sec_max: Optional[float]=None,
+                    charts: bool=False):
         """One round of sieving"""
         # Status update
         log2_lr: int = int(np.round(np.log(learning_rate) / np.log(2.0)))
@@ -1437,12 +1439,13 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Report progress
         self.report()
-        self.plot_bar('log_like', sorted=False)
-        self.plot_bar('hits', sorted=False)
+        if charts:
+            self.plot_bar('log_like', sorted=False)
+            self.plot_bar('hits', sorted=False)
         self.save_state()
 
     # *********************************************************************************************
-    def sieve(self, base_size: int=64, nearest_ast: bool=True):
+    def sieve(self, base_size: int=64, nearest_ast: bool=True, charts: bool=False):
         """
         One shot method for automated search
         INPUTS:
@@ -1494,7 +1497,8 @@ class AsteroidSearchModel(tf.keras.Model):
                              min_learning_rate=min_learning_rate_mixture,
                              reset_active_weight=reset_active_weight_mixture,
                              R_sec_max=R_sec_max,
-                             thresh_sec_max=thresh_sec_max)
+                             thresh_sec_max=thresh_sec_max,
+                             charts=charts)
 
             # Joint (mixture and candidate elements)
             self.sieve_round(round=round+2, 
@@ -1504,38 +1508,49 @@ class AsteroidSearchModel(tf.keras.Model):
                              training_mode='joint',
                              learning_rate=learning_rate_joint, 
                              min_learning_rate=min_learning_rate_joint,
-                             reset_active_weight=reset_active_weight_joint)
+                             reset_active_weight=reset_active_weight_joint,
+                             charts=charts)
         
         # Powers for denominator adjustment during fine tuning at the end
-        den_powers = pd.DataFrame()
-        den_powers['mixture'] = np.array([2.0, 3.0, 4.0])
-        den_powers['joint'] = np.array([1.0, 2.0, 3.0])
+        fine_tuning = pd.DataFrame()
+        fine_tuning['obj_den_R_power_mixture'] = np.array([2.0, 3.0, 4.0])
+        fine_tuning['obj_den_thresh_power_mixture'] = np.array([4.0, 8.0, 16.0])
+        fine_tuning['obj_den_R_power_joint'] = np.array([1.0, 2.0, 3.0])
+        fine_tuning['obj_den_thresh_power_joint'] = np.array([2.0, 4.0, 8.0])
+        fine_tuning['lr_adj_mixture'] = np.array([0.5, 0.5, 0.25])
+        fine_tuning['lr_adj_joint'] = np.array([0.5, 0.5, 0.25])
 
-        for i in range(den_powers.shape[0]):            
+        for i in range(fine_tuning.shape[0]):            
             # Fine tuning at the end
-            den_power_mixture = den_powers.mixture.values[i]
+            obj_den_R_power = fine_tuning.obj_den_R_power_mixture.values[i]
+            obj_den_thresh_power = fine_tuning.obj_den_R_power_mixture.values[i]
+            lr_adj = fine_tuning.lr_adj_mixture.values[i]
             self.sieve_round(round=2*(schedule_len+i)+1,
                             num_batches=num_batches_mixture, 
                             batches_per_epoch=batches_per_epoch,
                             epochs_per_episode=epochs_per_episode,
                             training_mode='mixture', 
-                            learning_rate=learning_rate_mixture, 
-                            min_learning_rate=min_learning_rate_mixture,
+                            learning_rate=learning_rate_mixture*lr_adj, 
+                            min_learning_rate=min_learning_rate_mixture*lr_adj,
                             reset_active_weight=True,
-                            obj_den_R_power=den_power_mixture,
-                            obj_den_thresh_power=den_power_mixture)
-            
-            den_power_joint = den_powers.joint.values[i]
-            self.sieve_round(round=*(schedule_len+i)+2, 
+                            obj_den_R_power=obj_den_R_power,
+                            obj_den_thresh_power=obj_den_thresh_power,
+                            charts=charts)
+
+            obj_den_R_power = fine_tuning.obj_den_R_power_joint.values[i]
+            obj_den_thresh_power = fine_tuning.obj_den_R_power_joint.values[i]
+            lr_adj = fine_tuning.lr_adj_mixture.values[i]
+            self.sieve_round(round=2*(schedule_len+i)+2, 
                             num_batches=num_batches_joint, 
                             batches_per_epoch=batches_per_epoch,
                             epochs_per_episode=epochs_per_episode,
                             training_mode='joint',
-                            learning_rate=learning_rate_joint,
-                            min_learning_rate=min_learning_rate_joint,
+                            learning_rate=learning_rate_joint*lr_adj,
+                            min_learning_rate=min_learning_rate_joint*lr_adj,
                             reset_active_weight=True,
-                            obj_den_R_power=den_power_joint,
-                            obj_den_thresh_power=den_power_joint)
+                            obj_den_R_power=obj_den_R_power,
+                            obj_den_thresh_power=obj_den_thresh_power,
+                            charts=charts)
 
         # Full round of charts
         self.plot_bar('log_like', sorted=False)
@@ -1749,7 +1764,7 @@ class AsteroidSearchModel(tf.keras.Model):
         ztf_hits = make_ztf_batch(elts=elts_fit, ztf=ztf_slice, thresh_deg=thresh_deg)
         # Filter to relevant columns
         cols = \
-            ['ztf_id', 'element_id', 'ObjectID', 'CandidateID', 'TimeStampID', 
+            ['element_id', 'ztf_id', 'ObjectID', 'CandidateID', 'TimeStampID', 
             'mjd', 'ra', 'dec', 'mag_app', 'ux', 'uy', 'uz',
             'qx', 'qy', 'qz', 'vx', 'vy', 'vz', 
             'elt_ux', 'elt_uy', 'elt_uz', 'elt_r', 's_sec']

@@ -23,6 +23,9 @@ from candidate_element import asteroid_elts, random_elts
 from ztf_element import load_ztf_batch, ztf_score_by_elt
 from astro_utils import deg2dist
 
+# Typing
+from typing import List, Tuple, Dict, Optional
+
 # ********************************************************************************************************************* 
 # Constants
 # dtype = tf.float32
@@ -32,12 +35,6 @@ space_dims = 3
 # ********************************************************************************************************************* 
 def make_ztf_ast(known_ast: bool):
     """Build the ZTF DataFrame including nearest asteroid information"""
-    # Load orbital elements for known asteroids
-    ast_elt = load_ast_elt()
-
-    # Number of asteroids
-    N_ast = ast_elt.shape[0]
-
     # Load ztf nearest asteroid data
     ztf_ast = load_ztf_nearest_ast()
  
@@ -60,8 +57,10 @@ def best_elt_file_path(seed: int, known_ast: bool, batch_size_init: int, batch_s
     return file_path
 
 # ********************************************************************************************************************* 
-def calc_best_elts(elts_init: pd.DataFrame, ztf_elt: pd.DataFrame, batch_size: int, element_id_start: int):
-    """Extract the best elements from a batch of candidate random elements"""
+def select_best_elts(elts_init: pd.DataFrame, ztf_elt: pd.DataFrame, batch_size: int, element_id_start: int):
+    """
+    Extract the best elements from a batch of candidate random elements
+    """
     # Score by element on the original batch
     score_by_elt = ztf_score_by_elt(ztf_elt)
     
@@ -86,58 +85,122 @@ def calc_best_elts(elts_init: pd.DataFrame, ztf_elt: pd.DataFrame, batch_size: i
     return elts
 
 # ********************************************************************************************************************* 
-def best_random_elts(random_seed: int, known_ast: bool, batch_size_init: int=1024, batch_size: int=64, thresh_deg: float=2.0):
+def calc_best_random_elts(random_seed: int, known_ast: bool, 
+                          batch_size_init: int=1024, batch_size: int=64, thresh_deg: float=2.0,
+                          ztf_ast: Optional[pd.DataFrame]=None):
+    """
+    Load the best random elements if available, or recompute on the fly
+    INPUTS:
+        random_seed:        Random seed used to generate random orbital elements
+        known_ast:          True: include only hits (<2 arc sec) vs. a known ast; False: only non-hits
+        batch_size_init:    Batch size for large initial batch, e.g. 1024
+        batch_size:         Batch size for small final batch, e.g. 64 best out of 1024
+        thresh_deg:         Threshold for observations to be included, e.g. 2.0 degrees
+    """
+    # Path where this file will be saved
     file_path = best_elt_file_path(seed=random_seed, known_ast=known_ast, batch_size_init=batch_size_init, 
                                     batch_size=batch_size, thresh_deg=thresh_deg)
-    elts = pd.read_hdf(file_path, key='elts')
-    return elts
 
-# ********************************************************************************************************************* 
-def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_ast: bool, thresh_deg: float):
-    """Main program body"""
-    
-    # Build the ztf_ast DataFrame
-    known_type = 'HITS' if known_ast else 'NO HITS'
-    print(f'Building ZTF DataFrame: {known_type} vs. known asteroids; thresh = {thresh_deg}\n')
-    ztf_ast = make_ztf_ast(known_ast=known_ast)
+    # Build the ztf_ast DataFrame if it was not passed
+    if ztf_ast is None:
+        known_type = 'HITS' if known_ast else 'NO HITS'
+        print(f'Building ZTF DataFrame: {known_type} vs. known asteroids; thresh = {thresh_deg}\n')
+        ztf_ast = make_ztf_ast(known_ast=known_ast)
 
     # Build the initial array of random elements with element_id starting at 0
     element_id_start_init = 0
     # Additional inputs for load_ztf_batch
     near_ast = False
     regenerate = False
+
+    # Inital large batch of random elements
+    elts_init = random_elts(element_id_start=element_id_start_init, size=batch_size_init,
+                            random_seed=random_seed, dtype=dtype_np)
+
+    # Load or generate ZTF batch for the big random elements
+    ztf_elt_init = load_ztf_batch(elts=elts_init, ztf=ztf_ast, thresh_deg=thresh_deg, 
+                                    near_ast=near_ast, regenerate=regenerate)
+
+    # Extract the best elements from the candidates
+    element_id_start = random_seed * batch_size
+    elts = select_best_elts(elts_init=elts_init, ztf_elt=ztf_elt_init, 
+                            batch_size=batch_size, element_id_start=element_id_start)
+
+    # Save the best elements        
+    file_path = best_elt_file_path(seed=random_seed, known_ast=known_ast, batch_size_init=batch_size_init, 
+                                    batch_size=batch_size, thresh_deg=thresh_deg)
+    elts.to_hdf(file_path, key='elts', mode='w')
+    print(f'Saved random elements in {file_path}.')
+
+    # Regenerate ztf_elt for just the batch of good orbital elements
+    load_ztf_batch(elts=elts, ztf=ztf_ast, thresh_deg=thresh_deg, near_ast=near_ast, regenerate=regenerate)        
+
+    return elts
+
+# ********************************************************************************************************************* 
+def load_best_random_elts(random_seed: int, known_ast: bool, 
+                          batch_size_init: int=1024, batch_size: int=64, thresh_deg: float=2.0,
+                          ztf_ast: Optional[pd.DataFrame]=None):
+    """
+    Load the best random elements if available, or recompute on the fly
+    INPUTS:
+        random_seed:        Random seed used to generate random orbital elements
+        known_ast:          True: include only hits (<2 arc sec) vs. a known ast; False: only non-hits
+        batch_size_init:    Batch size for large initial batch, e.g. 1024
+        batch_size:         Batch size for small final batch, e.g. 64 best out of 1024
+        thresh_deg:         Threshold for observations to be included, e.g. 2.0 degrees
+        ztf_ast:            Optional precomputed DataFrame of ZTF observations 
+                            filtered for either known or unkown asteroids
+    """
+    # Path where this file is expected to be
+    file_path = best_elt_file_path(seed=random_seed, known_ast=known_ast, batch_size_init=batch_size_init, 
+                                    batch_size=batch_size, thresh_deg=thresh_deg)
+
+    # Load the file if available
+    try:
+        elts = pd.read_hdf(file_path, key='elts')
+        print(f'Loaded random elements in {file_path}.')
+    # Otherwise regenerate it
+    except FileNotFoundError:
+        elts = calc_best_random_elts(random_seed=random_seed, known_ast=known_ast,
+                                     batch_size_init=batch_size_init, thresh_deg=thresh_deg,
+                                     ztf_ast=None)
+    return elts
+
+# ********************************************************************************************************************* 
+def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_ast: bool, thresh_deg: float):
+    """
+    Main program body
+    INPUTS:
+        seed0:              The first random seed, inclusive
+        seed1:              The last random seed, exclusive
+        batch_size_init:    Batch size for large initial batch, e.g. 1024
+        batch_size:         Batch size for small final batch, e.g. 64 best out of 1024
+        known_ast:          True: include only hits (<2 arc sec) vs. a known ast; False: only non-hits
+        thresh_deg:         Threshold for observations to be included, e.g. 2.0 degrees
+    """
     
+    # Build the ztf_ast DataFrame
+    known_type = 'HITS' if known_ast else 'NO HITS'
+    print(f'Building ZTF DataFrame: {known_type} vs. known asteroids; thresh = {thresh_deg}\n')
+    ztf_ast = make_ztf_ast(known_ast=known_ast)
+
     # Iterate over random seeds in the specified range
     random_seeds = list(range(seed0, seed1))
     for i, random_seed in enumerate(random_seeds):
-        # Inital large batch of random elements
-        elts_init = random_elts(element_id_start=element_id_start_init, size=batch_size_init,
-                                random_seed=random_seed, dtype=dtype_np)
-
         # Status
         time_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f'\nItem {i:3}, random_seed {random_seed}. {time_str}')
         
-        # Load or generate ZTF batch for the big random elements
-        ztf_elt_init = load_ztf_batch(elts=elts_init, ztf=ztf_ast, thresh_deg=thresh_deg, near_ast=near_ast, regenerate=regenerate)
-
-        # Extract the best elements from the candidates
-        element_id_start = random_seed * batch_size
-        elts = calc_best_elts(elts_init=elts_init, ztf_elt=ztf_elt_init, batch_size=batch_size, element_id_start=element_id_start)
-
-        # Save the best elements        
-        file_path = best_elt_file_path(seed=random_seed, known_ast=known_ast, batch_size_init=batch_size_init, 
-                                       batch_size=batch_size, thresh_deg=thresh_deg)
-        elts.to_hdf(file_path, key='elts', mode='w')
-        print(f'Saved random elements in {file_path}.')
-
-        # Regenerate ztf_elt for just the batch of good orbital elements
-        ztf_elt = load_ztf_batch(elts=elts, ztf=ztf_ast, thresh_deg=thresh_deg, near_ast=near_ast, regenerate=regenerate)        
+        # Delegate to load_best_random_elts using precomputed ztf_ast
+        load_best_random_elts(random_seed=random_seed, known_ast=known_ast,
+                              batch_size_init=batch_size_init, batch_size=batch_size, thresh_deg=thresh_deg,
+                              ztf_ast=ztf_ast)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':    
     # Process command line arguments
-    parser = argparse.ArgumentParser(description='Search for asteroids.')
+    parser = argparse.ArgumentParser(description='Build ZTF DataFrames for best random elements.')
     parser.add_argument('-seed0', nargs='?', metavar='s0', type=int, default=0,
                         help='First random seed to process, inclusive.')
     parser.add_argument('-seed1', nargs='?', metavar='s1', type=int, default=256,
@@ -146,10 +209,10 @@ if __name__ == '__main__':
                         help='Large batch size for initial pass.')
     parser.add_argument('-batch_size', nargs='?', metavar='bs', type=int, default=64,
                         help='Small batch size; final result, after filtering.')
-    known_asg_help_msg= 'when true, match ZTF observations that match a known asteroid to 2.0 arc seconds.\n' \
+    known_ast_help_msg= 'when true, match ZTF observations that match a known asteroid to 2.0 arc seconds.\n' \
                         'when false, match ZTF observations that do not match a known asteroid.'
     parser.add_argument('-known_ast', default=False, action='store_true',
-                        help=known_asg_help_msg)
+                        help=known_ast_help_msg)
     parser.add_argument('-thresh_deg', nargs='?', metavar='thresh_deg', type=float, default=2.0,
                         help='Threshold in degrees; max distance from elements direction to observation.')
 

@@ -46,10 +46,6 @@ space_dims: int = 3
 dtype = tf.float32
 dtype_np = np.float32
 
-# Tensorflow constants for true and false
-tf_true = tf.constant(True, dtype=tf.bool)
-tf_false = tf.constant(False, dtype=tf.bool)
-
 # ********************************************************************************************************************* 
 # Transformations of orbital elements for search
 # Range for a
