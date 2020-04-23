@@ -347,11 +347,15 @@ class AsteroidSearchModel(tf.keras.Model):
         self.file_name: str = f'candidate_elt_{self.elts_hash_id}.h5' if file_name is None else file_name
         self.file_path: str = os.path.join(save_dir, self.file_name)
 
+        # Initial tuning of magnitude
+        self.calc()
+        self.tune_mag()
+
         # Initialize model with frozen elements
         self.freeze_candidate_elements()
 
         # Fit one time to "prime the pump" on the loss function.
-        # Not sure why this seems to be necessary
+        # Not sure why this seems to be necessary but it is.
         self.fit(self.x_eval, verbose=0)
 
     @tf.function
@@ -399,8 +403,8 @@ class AsteroidSearchModel(tf.keras.Model):
         self.hits: tf.Tensor
         self.row_lengths_close: tf.Tensor
         self.log_like, self.hits, self.row_lengths_close = \
-            self.score(self.u_pred, num_hits=self.num_hits, R=self.R, 
-                       mag_pred=self.mag_pred, sigma_mag=self.sigma_mag)
+            self.score(self.u_pred, mag_pred=self.mag_pred, 
+                       num_hits=self.num_hits, R=self.R, sigma_mag=self.sigma_mag)
         
         # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
@@ -418,15 +422,15 @@ class AsteroidSearchModel(tf.keras.Model):
         R_log1p: tf.Tensor = tf.add(tf.math.log1p(self.R), 2.0**-8)
         obj_den_2: tf.Tensor = tf.math.pow(x=R_log1p, y=self.obj_den_R_power, name='obj_den_2')
         
-        # Divide by sigma_mag to encourage it getting smaller
-        sigma_mag: tf.Tensor = self.magnitude.get_sigma_mag()
-        sigma_mag_scaled: tf.Tensor = tf.sqrt(tf.divide(sigma_mag, 0.5))
-        sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(sigma_mag_scaled), 2.0**-2)
-        obj_den_3: tf.Tensor = tf.math.pow(x=sigma_mag_log1p, y=1.0)
+        # # Divide by sigma_mag to encourage it getting smaller
+        # sigma_mag: tf.Tensor = self.magnitude.get_sigma_mag()
+        # sigma_mag_scaled: tf.Tensor = tf.sqrt(tf.divide(sigma_mag, 0.5))
+        # sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(sigma_mag_scaled), 2.0**-2)
+        # obj_den_3: tf.Tensor = tf.math.pow(x=sigma_mag_log1p, y=1.0)
         
         # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1
         obj_den: tf.Tensor = tf.multiply(obj_den_1, obj_den_2, name='obj_den')
-        obj_den = tf.multiply(obj_den, obj_den_3)
+        # obj_den = tf.multiply(obj_den, obj_den_3)
 
         # Objective function is the quotient of log_like over powers of R and thresh
         obj: tf.Tensor = tf.divide(obj_num, obj_den, name='obj')
@@ -740,6 +744,28 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Run calibration with the new q, v
         self.position.calibrate(elts=elts, q_ast=self.q_ast_np, v_ast=self.v_ast_np)
+
+    # *********************************************************************************************
+    def tune_mag(self):
+        """Tune the magnitude"""
+        # Is the magnitude good on each element?
+        mag_is_good: tf.Tensor = tf.cast(self.score.mag_is_good, tf.bool)
+
+        # delta_H value to apply on good and bad elements, respectively
+        delta_H_bad: tf.Tensor = self.score.delta_H
+        delta_H_good: tf.Tensor = tf.zeros_like(delta_H_bad)
+
+        # sigma_mag value to apply on good and bad elements, respectively
+        sigma_mag_good: tf.Tensor = self.magnitude.get_sigma_mag()
+        sigma_mag_bad: tf.Tensor = self.score.sigma_hat
+
+        # Filter delta_H and sigma_mag between good and bad values
+        delta_H: tf.Tensor = tf.where(mag_is_good, delta_H_good, delta_H_good)
+        sigma_mag: tf.Tensor = tf.where(mag_is_good, sigma_mag_good, sigma_mag_bad)
+
+        # Apply these updates to magnitude layer
+        self.magnitude.shift_H(delta_H)
+        self.magnitude.set_sigma_mag(sigma_mag)
 
     # *********************************************************************************************
     # Freeze and thaw layers relating to orbital elements and mixture parameters
@@ -1094,6 +1120,9 @@ class AsteroidSearchModel(tf.keras.Model):
         if n < 2:
             return
 
+        # Tune the magnitude based on the most recent log likelihood
+        self.tune_mag()
+
         # Get old and new log_like, candidate_elements and mixture_parameters
         log_like_old, log_like_new = self.log_like_hist[n-2:n]
         loss_old, loss_new = self.loss_hist[n-2:n]
@@ -1109,6 +1138,7 @@ class AsteroidSearchModel(tf.keras.Model):
         is_nan = tf.math.is_nan(log_like_new)
         is_worse = tf.math.logical_or(is_less_likely, is_higher_loss)
         is_worse = tf.math.logical_or(is_worse, is_nan)
+        # is_worse = tf.math.logical_or(is_less_likely, is_nan)
 
         # If none of the elements have gotten worse, terminate early
         if not tf.math.reduce_any(is_worse):
@@ -1255,9 +1285,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
     # *********************************************************************************************
     def search_adaptive(self, 
-                        max_batches: int = 1000, 
-                        batches_per_epoch: int = 100, 
-                        epochs_per_episode: int = 5,
+                        max_batches: int = 1024, 
+                        batches_per_epoch: int = 64, 
+                        epochs_per_episode: int = 4,
                         thresh_deg_start: float = None,
                         thresh_deg_end: float = None,
                         max_bad_episodes: int = 3,

@@ -570,6 +570,12 @@ class AsteroidMagnitude(keras.layers.Layer):
         """Set the brightness parameter H"""
         self.H_.assign(self.inverse_H(H))
 
+    def shift_H(self, delta_H: np.ndarray) -> tf.Tensor:
+        """Apply a linear shift to the brightness parameter H"""
+        H_old = self.get_H().numpy()
+        H_new = H_old + delta_H
+        self.set_H(H_new)
+
     @tf.function
     def get_sigma_mag(self) -> tf.Tensor:
         """Transformed value of sigma_mag"""

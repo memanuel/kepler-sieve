@@ -469,17 +469,21 @@ class TrajectoryScore(keras.layers.Layer):
 
         # Threshold posterior hit probability for counting a hit
         self.thresh_hit_prob_post: keras.backend.constant = \
-            keras.backend.constant(value=0.99, dtype=dtype, name='thresh_hit_prob_post')
+            keras.backend.constant(value=0.95, dtype=dtype, name='thresh_hit_prob_post')
 
-        # Variables to maintain state of near observations, row_lengths_close
-        is_close_shape: Tuple[int] = (int(self.data_size), )
-        is_close_init = tf.ones(shape=is_close_shape, dtype=tf.bool)
-        self.is_close: tf.Variable = \
-            tf.Variable(initial_value=is_close_init, dtype=tf.bool, trainable=False)
-        row_lengths_shape: Tuple[int] = (int(self.batch_size), )
+        # Maintain state of row_lengths_close to avoid needlessly passing it around between methods
+        shape: Tuple[int] = (int(self.batch_size), )
         self.row_lengths_close: tf.Variable = \
-            tf.Variable(initial_value=self.row_lengths, shape=row_lengths_shape, 
+            tf.Variable(initial_value=self.row_lengths, shape=shape, 
                         dtype=tf.int32, trainable=False)
+
+        # Variables for calibrating magnitude
+        self.mag_is_good: tf.Variable = \
+            tf.Variable(initial_value=np.full(shape, False), shape=shape, dtype=dtype, trainable=False)
+        self.delta_H: tf.Variable = \
+            tf.Variable(initial_value=np.zeros(shape), shape=shape, dtype=dtype, trainable=False)
+        self.sigma_hat: tf.Variable = \
+            tf.Variable(initial_value=np.ones(shape), shape=shape, dtype=dtype, trainable=False)
 
     # *******************************************************************************************************
     # Get and set parameters on score layer
@@ -550,61 +554,6 @@ class TrajectoryScore(keras.layers.Layer):
     # Calculate conditional probabilities; helper for mixture probability model
     # *******************************************************************************************************
 
-    # @tf.function
-    # def upsample(self, x_elt, is_close: tf.bool):
-    #     """
-    #     Upsample a quantity x from elementwise (shape [batch_size]) to full size
-    #     INPUTS:
-    #         x_elt:      Tensor of shape [batch_size] e.g. [64,]; one number for each candidate element
-    #         is_close:   Whether to upsample all rows (False) or only close rows (True)
-    #     OUTPUT:
-    #         x_flat:     Tensor of shape [data_size,] or [num_close,]; upsampled from the batch
-    #     """
-    #     # Get the relevant row lengths
-    #     row_lengths = tf.where(condition=is_close, x=row_lengths_close, y=self.row_lengths)
-    #     # Get the relevant data shape for the output
-    #     output_shape: Tuple[int] = tf.where(is_close, (self.data_size_close,), (self.data_size,))
-    #     # Upsample and reshape x_elt
-    #     x_rep: tf.Tensor = \
-    #         tf.repeat(input=x_elt, repeats=row_lengths, name='upsample_x_rep')
-    #     # Explicitly reshape rather than using the values attribute so TF knows the shape
-    #     x_flat: tf.Tensor = \
-    #         tf.reshape(tensor=x_rep, shape=output_shape, name='upsample_x_obs')
-    #     return x_flat
-
-    # def make_ragged(self, x_flat, is_close: tf.bool):
-    #     """
-    #     Rearrange a tensor x from flat to ragged
-    #     INPUTS:
-    #         x_flat:     Tensor of shape [data_size,] or [num_close,]; one entry per observation
-    #         is_close:   Whether the inputs are all rows or only the close ones
-    #     OUTPUTS:
-    #         x_r:        Ragged thensor of shape [batch_size, None,]
-    #     """
-    #     # Choose the relevant mapping function
-    #     x_r : tf.RaggedTensor = \
-    #         tf.cond(condition=is_close, 
-    #                 true_fn=tf.RaggedTensor.from_row_lengths(values=x_flat, row_lengths=row_lengths_close),
-    #                 false_fn=tf.RaggedTensor.from_row_lengths(values=x_flat, row_lengths=self.row_lengths))
-    #     return x_r
-
-    def normalize_prob(self, p, row_lengths):
-        """Normalize an input probability so it sums to 1 over each element"""
-        # Mapping function to make ragged tensors
-        ragged_map_func = lambda x : \
-            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=row_lengths)
-        # Sum unnormalized probability by element
-        p_r: tf.Tensor = \
-            tf.keras.layers.Lambda(function=ragged_map_func, name='p_r')(p)
-        # Denominator for normalizing p
-        p_den_elt: tf.Tensor = tf.reduce_sum(p_r, axis=-1, name='p_den_elt')
-        # Upsample the denominator
-        p_den: tf.Tensor = tf.repeat(input=p_den_elt, repeats=row_lengths, name='p_den')
-        # Normalized hit probability; sums to 1 over each element
-        p_norm: tf.Tensor = tf.divide(p, p_den, name='p_norm')
-        # Return the normalized probability
-        return p_norm
-
     # *******************************************************************************************************
     @tf.function        
     def calc_dist(self, u_pred: tf.Tensor, thresh_s2_elt: tf.Tensor) \
@@ -645,28 +594,28 @@ class TrajectoryScore(keras.layers.Layer):
         # Compute the row lengths (number of close observations per candidate element)
         row_lengths_close = tf.reduce_sum(tf.cast(is_close_r, tf.int32), axis=1)
 
-        # Assign is_close
-        self.is_close.assign(is_close)
+        # Assign row_lengths_close
+        # self.is_close.assign(is_close)
         self.row_lengths_close.assign(row_lengths_close)
 
-        return s2, v
+        return s2, v, is_close
 
     # *******************************************************************************************************
     @tf.function
-    def cond_pdf_dist(self, v, R, thresh_s2_elt):
+    def cond_pdf_dist(self, v: tf.Tensor, R_elt: tf.Tensor, thresh_s2_elt: tf.Tensor):
         """
         Calculate conditional probability due to distance
         INPUTS:
-            v:                  Distance squared over thresh_s2; in [0, 1]
-            R:                  Resolution parameter in Cartesian distance
-            thresh_s2_elt:      The threshold in distance squared
+            v:                  Distance squared over thresh_s2, in [0, 1]; shape [data_size,]
+            R_elt:              Resolution parameter in Cartesian distance; shape [batch_size,]
+            thresh_s2_elt:      The threshold in distance squared; shape [batch_size,]
         OUTPUTS:
             q_hit:              Probability density conditional on a hit
             q_miss:             Probability density conditional on a miss
         """
         # Convert R to exponential decay parameter lam
         half_thresh_s2_elt: tf.Tensor = tf.multiply(thresh_s2_elt, 0.5, name='half_thresh_s2_elt')
-        R2_elt: tf.Tensor = tf.square(R, name='R2_elt')
+        R2_elt: tf.Tensor = tf.square(R_elt, name='R2_elt')
         lam_elt: tf.Tensor = tf.divide(half_thresh_s2_elt, R2_elt, name='lam_elt')
 
         # Shape of close rows
@@ -693,106 +642,107 @@ class TrajectoryScore(keras.layers.Layer):
 
     # *******************************************************************************************************
     @tf.function
-    def cond_pdf_mag(self, mag_pred, sigma_mag):
-        """
-        Calculate conditional probability due to magnitude
-        INPUTS:
-            mag_pred:           Predicted magnitude
-            sigma_mag:          Standard deviation of magnitude
-        OUTPUTS:
-            q_hit:      Probability density conditional on a hit
-            q_miss:     Probability density conditional on a miss
-        """
-        # Mask the observed and predicted observations, and sigma_mag, to the close rows
-        mag_obs: tf.Tensor = tf.boolean_mask(tensor=self.mag_obs, mask=self.is_close, name='mag_obs_close')      
-        mag_pred: tf.Tensor = tf.boolean_mask(tensor=mag_pred, mask=self.is_close, name='mag_pred')
-        sigma_mag: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=self.is_close, name='sigma_mag')
-
-        # Difference between predicted and observed magnitude
-        mag_diff: tf.Tensor = tf.subtract(mag_pred, mag_obs, name='mag_diff')
-
-        # Conditional probability given a hit based on difference between predicted and observed magnitude
-        z_hit: tf.Tensor = tf.divide(mag_diff, sigma_mag, name='z_hit')
-        z2_hit: tf.Tensor = tf.square(z_hit, name='z2_hit')
-        arg_hit: tf.Tensor = tf.multiply(z2_hit, -0.5, name='arg_hit')
-        exp_arg_hit: tf.Tensor = tf.math.exp(arg_hit, name='exp_arg_hit')
-        coef_hit: tf.Tensor = tf.divide(self.inv_root_2pi, sigma_mag, name='coef_hit')
-        q_hit: tf.Tensor = tf.multiply(coef_hit, exp_arg_hit, name='q_hit')
-
+    def mag_standardize(self, mag_obs_close):
+        """Return the mean, standard deviation and z-score of the magnitude by element"""
         # Shape of close rows
         data_size_close = tf.reduce_sum(self.row_lengths_close)
         data_shape_close: Tuple[tf.int32] = (data_size_close,)
         
         # The mean magnitude of all the observations by element
         mag_obs_r: tf.Tensor = tf.RaggedTensor.from_row_lengths(
-            values=mag_obs, row_lengths=self.row_lengths_close, name='mag_obs_r')
+            values=mag_obs_close, row_lengths=self.row_lengths_close, name='mag_obs_r')
         mag_mean_elt: tf.Tensor = tf.reduce_mean(mag_obs_r, axis=-1)
-        # Upsample the mean
+        # Upsample the mean to the close rows
         mag_mean_rep: tf.Tensor = tf.repeat(input=mag_mean_elt, repeats=self.row_lengths_close, name='mag_mean_rep')
         mag_mean: tf.Tensor = tf.reshape(mag_mean_rep, shape=data_shape_close, name='mag_mean')
 
-        # Compute the variance by element
-        mag_demean: tf.Tensor = tf.subtract(mag_obs, mag_mean, name='mag_demean')
+        # Compute the variance by element on the close rows
+        mag_demean: tf.Tensor = tf.subtract(mag_obs_close, mag_mean, name='mag_demean')
         mag_demean2: tf.Tensor = tf.square(mag_demean, name='mag_demean2')
         mag_demean2_r: tf.Tensor = tf.RaggedTensor.from_row_lengths(
             values=mag_demean2, row_lengths=self.row_lengths_close, name='mag_demean2_r')        
         mag_var_elt: tf.Tensor = tf.reduce_mean(mag_demean2_r, axis=-1, name='mag_var_elt')
         # The estimated standard deviation by element on the close rows
-        sigmahat_elt: tf.Tensor = tf.math.sqrt(mag_var_elt, name='sigmahat_elt')
+        sigma_hat_elt: tf.Tensor = tf.math.sqrt(mag_var_elt, name='sigma_hat_elt')
+
         # Upsample the standard deviation
-        sigmahat_rep: tf.Tensor = tf.repeat(input=sigmahat_elt, repeats=self.row_lengths_close, name='sigmahat_rep')
-        sigmahat: tf.Tensor = tf.reshape(sigmahat_rep, shape=data_shape_close, name='sigmahat')
+        sigma_hat_rep: tf.Tensor = tf.repeat(input=sigma_hat_elt, repeats=self.row_lengths_close, name='sigma_hat_rep')
+        sigma_hat: tf.Tensor = tf.reshape(sigma_hat_rep, shape=data_shape_close, name='sigma_hat')
+
+        # Difference from the mean
+        z: tf.Tensor = tf.divide(mag_demean, sigma_hat, name='mag_z')
+
+        return z, mag_mean, sigma_hat
+
+    # *******************************************************************************************************
+    @tf.function
+    def cond_pdf_mag(self, mag_pred: tf.Tensor, sigma_mag: tf.Tensor, is_close: tf.Tensor):
+        """
+        Calculate conditional probability due to magnitude
+        INPUTS:
+            mag_pred:       Predicted magnitude; shape [data_size,]
+            sigma_mag_elt:  Standard deviation of magnitude; shape [batch_size,]
+            is_close:       Mask indicating which observations are within the threshold distance    
+        OUTPUTS:
+            q_hit:      Probability density conditional on a hit
+            q_miss:     Probability density conditional on a miss
+        """
+        # Mask the observed and predicted observations, and sigma_mag, to the close rows
+        mag_obs_close: tf.Tensor = tf.boolean_mask(tensor=self.mag_obs, mask=is_close, name='mag_obs_close')      
+        mag_pred_close: tf.Tensor = tf.boolean_mask(tensor=mag_pred, mask=is_close, name='mag_pred_close')
+        sigma_mag_close: tf.Tensor = tf.boolean_mask(tensor=sigma_mag, mask=is_close, name='sigma_mag_close')
+
+        # Difference between predicted and observed magnitude
+        mag_diff_close: tf.Tensor = tf.subtract(mag_pred_close, mag_obs_close, name='mag_diff_close')
+
+        # Conditional probability given a hit based on difference between predicted and observed magnitude
+        z_hit: tf.Tensor = tf.divide(mag_diff_close, sigma_mag_close, name='z_hit')
+        z2_hit: tf.Tensor = tf.square(z_hit, name='z2_hit')
+        arg_hit: tf.Tensor = tf.multiply(z2_hit, -0.5, name='arg_hit')
+        exp_arg_hit: tf.Tensor = tf.math.exp(arg_hit, name='exp_arg_hit')
+        coef_hit: tf.Tensor = tf.divide(self.inv_root_2pi, sigma_mag_close, name='coef_hit')
+        q_hit: tf.Tensor = tf.multiply(coef_hit, exp_arg_hit, name='q_hit')
+
+        # Mean and standard deviation of magnitude for PDF conditional on a miss
+        z_miss, mag_mean, sigma_hat = self.mag_standardize(mag_obs_close)
 
         # Conditional probability given a miss based on normal distribution matching the data
-        z_miss: tf.Tensor = tf.divide(mag_demean, sigmahat, name='z_miss')
         z2_miss: tf.Tensor = tf.square(z_miss, name='z2_miss')
         arg_miss: tf.Tensor = tf.multiply(z2_miss, -0.5, name='arg_miss')
         exp_arg_miss: tf.Tensor = tf.math.exp(arg_miss, name='exp_arg_miss')
-        coef_miss: tf.Tensor = tf.divide(self.inv_root_2pi, sigmahat, name='coef_miss')
+        coef_miss: tf.Tensor = tf.divide(self.inv_root_2pi, sigma_hat, name='coef_miss')
         q_miss: tf.Tensor = tf.multiply(coef_miss, exp_arg_miss, name='q_miss')
 
+        # Arrange mag_diff_close as a ragged tensor for computing delta_H required to neutralize it
+        delta_H_r: tf.Tensor = tf.RaggedTensor.from_row_lengths(
+            values=tf.negative(mag_diff_close), row_lengths=self.row_lengths_close, name='delta_H_r')
+        sigma_hat_r: tf.Tensor = tf.RaggedTensor.from_row_lengths(
+            values=sigma_hat, row_lengths=self.row_lengths_close, name='sigma_hat_r')
+
+        # Take the mean to get the elementwise delta_H and sigma_hat
+        delta_H: tf.Tensor = tf.reduce_mean(delta_H_r, axis=-1)
+        sigma_hat: tf.Tensor = tf.reduce_mean(sigma_hat_r, axis=-1)
+
+        # Assign these to variables
+        self.delta_H.assign(delta_H)
+        self.sigma_hat.assign(sigma_hat)
+
         # Return the conditional PDFs
-        return q_hit, q_miss  
+        return q_hit, q_miss 
 
     # *******************************************************************************************************
     # Calculate log likelihood using mixture probability model between hits and misses
     # *******************************************************************************************************
 
     # *******************************************************************************************************
-    @tf.function        
-    def call(self, 
-             u_pred: tf.Tensor, 
-             num_hits: tf.Tensor, 
-             R: tf.Tensor,
-             mag_pred: tf.Tensor,
-             sigma_mag: tf.Tensor) \
-             -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    def mixture_model(self, q_hit: tf.Tensor, q_miss: tf.Tensor, num_hits: tf.Tensor):
         """
-        Score candidate trajectories in current batch based on how well they match observations
+        Compute log likelihood under a mixture model
         INPUTS:
-            u_pred:     predicted directions with current batch of elements
-            num_hits:   number of hits in mixture model
-            R:          resolution parameter (Cartesian distance)
-            mag_pred:   predicted asteroid magnitude
-            sigma_mag:  standard deviation of asteroid magnitude
+            q_hit:      Conditional PDF, conditioned on this observation being a hit
+            q_miss:     Conditional PDF, conditioned on this observation being a miss
+            num_hits:   Number of hits in the mixture model
         """
-        # Transform thresh_s2_ to thresh_s2_elt
-        thresh_s2_elt: tf.Tensor = self.get_thresh_s2()
-
-        # Calculate s2, v and is_close flag
-        s2, v = self.calc_dist(u_pred=u_pred, thresh_s2_elt=thresh_s2_elt)
-
-        # Conditional probability q in distance model, conditional on a hit or a miss
-        q_hit_dist: tf.Tensor
-        q_miss_dist: tf.Tensor
-        q_hit_dist, q_miss_dist = \
-                self.cond_pdf_dist(v=v, R=R, thresh_s2_elt=thresh_s2_elt)
-
-        # Conditional probability q in magnitude model
-        q_hit_mag: tf.Tensor
-        q_miss_mag: tf.Tensor
-        q_hit_mag, q_miss_mag = \
-            self.cond_pdf_mag(mag_pred=mag_pred, sigma_mag=sigma_mag)
 
         # Shape of close rows
         data_size_close = tf.reduce_sum(self.row_lengths_close)
@@ -812,51 +762,133 @@ class TrajectoryScore(keras.layers.Layer):
         # Complement of h
         one_minus_h: tf.Tensor = tf.subtract(1.0, h, name='one_minus_h')
 
-        # Assume for now that only the distance probability is in play
-        q_hit: tf.Tensor = q_hit_dist
-        q_miss: tf.Tensor = q_miss_dist
+        # Two contributions to PDF under the mixture model: from hits and misses
+        p_mix_hit: tf.Tensor = tf.multiply(h, q_hit, name='p_mix_hit')
+        p_mix_miss: tf.Tensor = tf.multiply(one_minus_h, q_miss, name='p_mix_miss')
+        # PDF according to mixture model and baseline with no hits
+        p_mix: tf.Tensor = tf.add(p_mix_hit, p_mix_miss, name='p_mix')
+        p_miss: tf.Tensor = q_miss
 
-        # Probability according to mixture model
-        p_hit: tf.Tensor = tf.multiply(h, q_hit, name='p_hit')
-        p_miss: tf.Tensor = tf.multiply(one_minus_h, q_miss, name='p_miss')
+        # Log of PDF under the mixture model and the baseline 
+        log_p_mix: tf.Tensor = tf.math.log(p_mix, name='log_p_mix')
+        log_p_miss: tf.Tensor = tf.math.log(p_miss, name='log_p_miss')
         
-        # Probability according to mixture model
-        p: tf.Tensor = tf.add(p_hit, p_miss, name='p')
-        log_p_flat: tf.Tensor = keras.layers.Activation(tf.math.log, name='log_p_flat')(p)
-
-        # The posterior hit probability is p_hit / p
-        p_hit_post_flat: tf.Tensor = tf.divide(p_hit, p)
-        # Filter effective hits: only those with probability above threshold
-        is_high_prob_hit: tf.Tensor = \
-            tf.math.greater(p_hit_post_flat, self.thresh_hit_prob_post, name='is_high_prob_hit')
-        # Filter effective hits: only those close enough
-        is_near_hit: tf.Tensor = tf.math.less(s2, self.thresh_hit_s2, name='is_near_hit')
-        # Quality hits are close enough with high enough posterior probability
-        is_quality_hit: tf.Tensor = tf.math.logical_and(is_near_hit, is_high_prob_hit, name='is_quality_hit')
-        # Count the effective number of quality hits
-        p_hit_filtered_flat: tf.Tensor = tf.where(condition=is_quality_hit, x=p_hit_post_flat, y=0.0)
-
-        # Map from flat tensors of nearby rows to ragged tensors
-        self.ragged_map_func_close = lambda x : \
-            tf.RaggedTensor.from_row_lengths(values=x, row_lengths=self.row_lengths_close)
+        # The posterior hit probability is p_hit / p_mix
+        p_hit_post: tf.Tensor = tf.divide(p_mix_hit, p_mix)
 
         # Rearrange to ragged tensors
-        # log_p = tf.RaggedTensor.from_row_lengths(values=log_p_flat, row_lengths=self.row_lengths_close, name='log_p')
-        log_p: tf.Tensor = \
-            tf.keras.layers.Lambda(function=self.ragged_map_func_close, name='log_p')(log_p_flat)
+        log_p_mix_r = tf.RaggedTensor.from_row_lengths(
+            values=log_p_mix, row_lengths=self.row_lengths_close, name='log_p_mix_r')
+        log_p_miss_r = tf.RaggedTensor.from_row_lengths(
+            values=log_p_miss, row_lengths=self.row_lengths_close, name='log_p_miss_r')
+
+        # Compute totals by element
+        log_like_mix: tf.Tensor = tf.reduce_sum(log_p_mix_r, axis=-1, name='log_like_mix')
+        log_like_miss: tf.Tensor = tf.reduce_sum(log_p_miss_r, axis=-1, name='log_like_miss')
+
+        # Report the differnce in log likelihood for the mixture model over the baseline of all misses
+        log_like: tf.Tensor = tf.subtract(log_like_mix, log_like_miss, name='log_like')
+
+        return log_like, p_hit_post
+
+    # *******************************************************************************************************
+    def calc_hits(self, s2: tf.Tensor, p_hit_post: tf.Tensor):
+        """
+        Compute log likelihood under a mixture model
+        INPUTS:
+            q_hit:      Conditional PDF, conditioned on this observation being a hit
+            s2:         Distance squared; used for counting hits
+        """
+        # Filter quality hits: only those close enough
+        is_near_hit: tf.Tensor = tf.math.less(s2, self.thresh_hit_s2, name='is_near_hit')
+        # Filter quality hits: only those with probability above threshold
+        # is_high_prob_hit: tf.Tensor = \
+        #    tf.math.greater(p_hit_post, self.thresh_hit_prob_post, name='is_high_prob_hit')
+        # Quality hits are close enough with high enough posterior probability
+        # is_quality_hit: tf.Tensor = tf.math.logical_and(is_near_hit, is_high_prob_hit, name='is_quality_hit')
+        is_quality_hit = is_near_hit
+        # Count the effective number of quality hits
+        p_hit: tf.Tensor = tf.where(condition=is_quality_hit, x=p_hit_post, y=0.0, name='p_hit_quality')
+
+        # Rearrange to ragged tensors
+        p_hit_r = tf.RaggedTensor.from_row_lengths(
+            values=p_hit, row_lengths=self.row_lengths_close, name='p_hit_quality_r')
+
+        # Compute totals by element
+        hits: tf.Tensor = tf.reduce_sum(p_hit_r, axis=1, name='hits')
+
+        return hits
+
+    # *******************************************************************************************************
+    @tf.function        
+    def call(self, 
+             u_pred: tf.Tensor, 
+             mag_pred: tf.Tensor,
+             num_hits: tf.Tensor, 
+             R: tf.Tensor,
+             sigma_mag: tf.Tensor) \
+             -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+        """
+        Score candidate trajectories in current batch based on how well they match observations
+        INPUTS:
+            u_pred:     predicted directions with current batch of elements
+            mag_pred:   predicted asteroid magnitude
+            num_hits:   number of hits in mixture model
+            R:          resolution parameter (Cartesian distance)
+            sigma_mag:  standard deviation of asteroid magnitude
+        """
+        # Alias the input R to indicate that it is by element; sigma_mag passed for all rows
+        R_elt: tf.Tensor = R
+
+        # Get the threshold by element
+        thresh_s2_elt = self.get_thresh_s2()
+
+        # Calculate distance squared s2 and relative distance squared v
+        s2, v, is_close = self.calc_dist(u_pred=u_pred, thresh_s2_elt=thresh_s2_elt)
+
+        # Conditional probability q in distance model, conditional on a hit or a miss
+        q_hit_d: tf.Tensor
+        q_miss_d: tf.Tensor
+        q_hit_d, q_miss_d = \
+                self.cond_pdf_dist(v=v, R_elt=R_elt, thresh_s2_elt=thresh_s2_elt)
+
+        # Conditional probability q in magnitude model
+        q_hit_m: tf.Tensor
+        q_miss_m: tf.Tensor
+        q_hit_m, q_miss_m = \
+            self.cond_pdf_mag(mag_pred=mag_pred, sigma_mag=sigma_mag, is_close=is_close)
+
+        # PDF in the joint model
+        q_hit_j: tf.Tensor = tf.multiply(q_hit_d, q_hit_m, name='q_hit')
+        q_miss_j: tf.Tensor = tf.multiply(q_miss_d, q_miss_m, name='q_miss')
+
+        # Compute the mixture model for distance
+        log_like_d, p_hit_post = self.mixture_model(q_hit=q_hit_d, q_miss=q_miss_d, num_hits=num_hits)
+
+        # Mixture model for magnitude
+        log_like_m, _ = self.mixture_model(q_hit=q_hit_m, q_miss=q_miss_m, num_hits=num_hits)
+
+        # Mixture model for joint
+        log_like_j, _ = self.mixture_model(q_hit=q_hit_j, q_miss=q_miss_j, num_hits=num_hits)
+
+        # Non-negative part of magnitude log_like and separable log_like
+        log_like_m_pos: tf.Tensor = tf.maximum(log_like_m, 0.0)
+        log_like_sep: tf.Tensor = tf.add(log_like_d, log_like_m_pos, name='log_like_sep')
+        # Better of joint and distance log_like
+        log_like_best: tf.Tensor = tf.maximum(log_like_j, log_like_d, 'log_like_j_best')
+
+        # Blended log_like
+        log_like_sep_wtd = tf.multiply(log_like_sep, 0.50)
+        log_like_best_wtd = tf.multiply(log_like_best, 0.50)
+        log_like = tf.add(log_like_sep_wtd, log_like_best_wtd)
+
         # Count hits
-        p_hit_filtered: tf.Tensor = \
-            tf.keras.layers.Lambda(function=self.ragged_map_func_close, name='p_hit_filtered')(p_hit_filtered_flat)
+        hits = self.calc_hits(s2=s2, p_hit_post=p_hit_post)
 
-        # Log likelihood by element due to distance
-        log_like_dist: tf.Tensor = tf.reduce_sum(log_p, axis=1, name='log_like_dist')
-        # Hit count count by element
-        hits: tf.Tensor = tf.reduce_sum(p_hit_filtered, axis=1, name='hits')
-
-        # # Combined log likelihood by element due to magnitude
-        # log_like: tf.Tensor = tf.add(log_like_dist, log_like_mag, name='log_like')
-
-        log_like: tf.Tensor = log_like_dist
+        # Flag indicating whether the magnitude is good
+        # mag_is_good = tf.cast(tf.math.greater(log_like_j, log_like_d), dtype)
+        mag_is_good = tf.cast(tf.math.greater(log_like_m, 0.0), dtype)
+        self.mag_is_good.assign(mag_is_good)
 
         # Return the log likelihood and hits by element
         return log_like, hits, self.row_lengths_close
