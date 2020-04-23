@@ -52,6 +52,17 @@ def get_gpu_device(gpu_num: int):
     return gpu_device
 
 # ********************************************************************************************************************* 
+def set_gpu_device(gpu_num: int):
+    """Make the selected GPU the only visible device"""
+    # Get available GPUs
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            tf.config.experimental.set_visible_devices(gpus[gpu_num], 'GPU')
+        except RuntimeError as e:
+            print(e)
+
+# ********************************************************************************************************************* 
 def plot_loss_hist(hist,  model_name, key='loss', baseline=None):
     """Plot loss vs. wall time"""
     # Extract loss and wall time arrays

@@ -284,6 +284,17 @@ def train_one_batch(i: int, random_seed: int, ztf_ast: pd.DataFrame):
     learning_rate = 2.0**-12
     clipnorm = 1.0
 
+    # File name
+    file_name = file_name_model(seed=random_seed, known_ast=known_ast, 
+                                batch_size_init=batch_size_init, batch_size=batch_size, 
+                                thresh_deg=thresh_deg)
+    file_path = os.path.join(save_dir, file_name)
+
+    # If this file already exists, quit early
+    if os.path.isfile(file_path):
+        print(f'Found file for trained model {file_path}, moving on to next one.')
+        return
+
     # Status
     time_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'\nItem {i:3}, random_seed {random_seed}. {time_str}')
@@ -305,11 +316,6 @@ def train_one_batch(i: int, random_seed: int, ztf_ast: pd.DataFrame):
 
     # Add brightness parameter H
     elts_add_H(elts=elts)
-
-    # File name
-    file_name = file_name_model(seed=random_seed, known_ast=known_ast, 
-                                batch_size_init=batch_size_init, batch_size=batch_size, 
-                                thresh_deg=thresh_deg)
 
     # Build asteroid search model
     model = AsteroidSearchModel(
@@ -388,18 +394,18 @@ if __name__ == '__main__':
     # Process command line arguments
 
     parser = argparse.ArgumentParser(description='Search for asteroids.')
-    parser.add_argument('-seed0', nargs='?', metavar='s0', type=int, default=0,
+    parser.add_argument('-seed0', nargs='?', metavar='s0', type=int, default=-1,
                         help='First random seed to process, inclusive.')
-    parser.add_argument('-seed1', nargs='?', metavar='s1', type=int, default=1,
+    parser.add_argument('-seed1', nargs='?', metavar='s1', type=int, default=1024,
                         help='Last random seed to process, exclusive.')
-    parser.add_argument('-stride', nargs='?', metavar='str', type=int, default=1,
+    parser.add_argument('-stride', nargs='?', metavar='str', type=int, default=4,
                         help='Stride for stepping through seeeds.')
     known_ast_help_msg= 'when true, match ZTF observations that match a known asteroid to 2.0 arc seconds.\n' \
                         'when false, match ZTF observations that do not match a known asteroid.'
     parser.add_argument('-known_ast', default=False, action='store_true',
                         help=known_ast_help_msg)
-    parser.add_argument('-gpu_num', nargs='?', metavar='gpu_num', type=int, default=1,
-                        help='the GPU to use; defaults to 1 to avoid clash with Jupyter sessions')
+    # parser.add_argument('-gpu_num', nargs='?', metavar='gpu_num', type=int, default=0,
+    #                     help='the GPU to use; defaults to 0.')
     parser.add_argument('-batch_size_init', nargs='?', metavar='bsi', type=int, default=1024,
                         help='Large batch size for initial pass.')
     parser.add_argument('-batch_size', nargs='?', metavar='bs', type=int, default=64,
@@ -417,11 +423,21 @@ if __name__ == '__main__':
     seed1 = args.seed1
     stride = args.stride
     known_ast = args.known_ast
-    gpu_num = args.gpu_num
+    # gpu_num = args.gpu_num
     batch_size_init = args.batch_size_init
     batch_size = args.batch_size
     R_deg = args.R_deg
     thresh_deg = args.thresh_deg
+
+    # Get the environment variable with cuda visible devices
+    cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES')
+    print(f'Environment variables:')
+    print(f'CUDA_VISIBLE_DEVICES = {cuda_visible_devices}')
+
+    # If the default start of -1 was passed, use the visible device
+    gpu_num: int = int(cuda_visible_devices[0])
+    if seed0 < 0 :
+        seed0 = gpu_num
 
     # Report inputs
     print(f'\nInputs to asteroid search:')
@@ -430,7 +446,7 @@ if __name__ == '__main__':
     print(f'stride          = {stride:5}.     Stride for stepping through random seeds.')
     print(f'known_ast       = {known_ast:5}.     '
           f'Match ZTF observations < 2.0 arc sec to known asteroids (true) or >= 2.0 sec (false).')
-    print(f'gpu_num         = {gpu_num:5}.     GPU on which computations are run.')
+    # print(f'gpu_num         = {gpu_num:5}.     GPU on which computations are run.')
     print(f'batch_size_init = {batch_size_init:5}.     Size of initial batch of random elements.')
     print(f'batch_size      = {batch_size:5}.     Size of final batch of elements; top scoring.')
     print(f'R_deg           = {R_deg:5}.     Resolution in degrees.')
@@ -438,9 +454,9 @@ if __name__ == '__main__':
           f'Maximum distance in sky between predicted direction of elements and ZTF observation.\n')
 
     # The selected gpu device
-    gpu_device = get_gpu_device(gpu_num)
+    # gpu_device = get_gpu_device(gpu_num)
 
-    with gpu_device:
-        main(seed0=seed0, seed1=seed1, stride=stride, 
-             known_ast=known_ast, R_deg=R_deg, thresh_deg=thresh_deg,
-             batch_size_init=batch_size_init, batch_size=batch_size)
+    # with gpu_device:
+    main(seed0=seed0, seed1=seed1, stride=stride, 
+            known_ast=known_ast, R_deg=R_deg, thresh_deg=thresh_deg,
+            batch_size_init=batch_size_init, batch_size=batch_size)
