@@ -395,16 +395,18 @@ class AsteroidSearchModel(tf.keras.Model):
         self.u_pred, self.delta_pred, self.q_ast, = self.direction(a, e, inc, Omega, omega, f, epoch)
 
         # Compute the predicted magnitude; shape [data_size,]
-        self.mag_pred, self.sigma_mag = self.magnitude(self.q_ast)
+        # self.mag_pred, self.sigma_mag = self.magnitude(self.q_ast)
         
         # Compute the log likelihood by element from the predicted direction and mixture model parameters
         # Shape is [elt_batch_size, 3]
         self.log_like: tf.Tensor
         self.hits: tf.Tensor
         self.row_lengths_close: tf.Tensor
+        # self.log_like, self.hits, self.row_lengths_close = \
+        #     self.score(self.u_pred, mag_pred=self.mag_pred, 
+        #                num_hits=self.num_hits, R=self.R, sigma_mag=self.sigma_mag)
         self.log_like, self.hits, self.row_lengths_close = \
-            self.score(self.u_pred, mag_pred=self.mag_pred, 
-                       num_hits=self.num_hits, R=self.R, sigma_mag=self.sigma_mag)
+            self.score(self.u_pred, num_hits=self.num_hits, R=self.R)
         
         # Add the loss function - the NEGATIVE of the log likelihood weighted by each element's weight
         # Take negative b/c TensorFlow minimizes the loss function, and we want to maximize the log likelihood
@@ -421,12 +423,6 @@ class AsteroidSearchModel(tf.keras.Model):
         # Divide by resolution R to encourage it getting smaller
         R_log1p: tf.Tensor = tf.add(tf.math.log1p(self.R), 2.0**-8)
         obj_den_2: tf.Tensor = tf.math.pow(x=R_log1p, y=self.obj_den_R_power, name='obj_den_2')
-        
-        # # Divide by sigma_mag to encourage it getting smaller
-        # sigma_mag: tf.Tensor = self.magnitude.get_sigma_mag()
-        # sigma_mag_scaled: tf.Tensor = tf.sqrt(tf.divide(sigma_mag, 0.5))
-        # sigma_mag_log1p: tf.Tensor = tf.add(tf.math.log1p(sigma_mag_scaled), 2.0**-2)
-        # obj_den_3: tf.Tensor = tf.math.pow(x=sigma_mag_log1p, y=1.0)
         
         # Denominator of objective function includes terms for thresh_sec^2 * R_sec^1
         obj_den: tf.Tensor = tf.multiply(obj_den_1, obj_den_2, name='obj_den')
@@ -1121,7 +1117,7 @@ class AsteroidSearchModel(tf.keras.Model):
             return
 
         # Tune the magnitude based on the most recent log likelihood
-        self.tune_mag()
+        # self.tune_mag()
 
         # Get old and new log_like, candidate_elements and mixture_parameters
         log_like_old, log_like_new = self.log_like_hist[n-2:n]
@@ -1509,40 +1505,37 @@ class AsteroidSearchModel(tf.keras.Model):
                              learning_rate=learning_rate_joint, 
                              min_learning_rate=min_learning_rate_joint,
                              reset_active_weight=reset_active_weight_joint)
+        
+        # Powers for denominator adjustment during fine tuning at the end
+        den_powers = pd.DataFrame()
+        den_powers['mixture'] = np.array([2.0, 3.0, 4.0])
+        den_powers['joint'] = np.array([1.0, 2.0, 3.0])
 
-        # Fine tuning at the end
-        self.sieve_round(round=schedule_len+1,
-                         num_batches=num_batches_mixture*2, 
-                         batches_per_epoch=batches_per_epoch,
-                         epochs_per_episode=epochs_per_episode,
-                         training_mode='mixture', 
-                         learning_rate=learning_rate_mixture*0.5, 
-                         min_learning_rate=min_learning_rate_mixture,
-                         reset_active_weight=True,
-                         obj_den_R_power=2.0,
-                         obj_den_thresh_power=2.0)
-
-        self.sieve_round(round=schedule_len+2, 
-                         num_batches=num_batches_joint, 
-                         batches_per_epoch=batches_per_epoch,
-                         epochs_per_episode=epochs_per_episode,
-                         training_mode='joint',
-                         learning_rate=learning_rate_joint*0.25,
-                         min_learning_rate=min_learning_rate_joint*0.25,
-                         reset_active_weight=True,
-                         obj_den_R_power=1.0,
-                         obj_den_thresh_power=1.0)
-
-        self.sieve_round(round=schedule_len+3,
-                         num_batches=num_batches_mixture, 
-                         batches_per_epoch=batches_per_epoch,
-                         epochs_per_episode=epochs_per_episode,
-                         training_mode='joint', 
-                         learning_rate=learning_rate_joint*0.25,
-                         min_learning_rate=min_learning_rate_joint*0.25,
-                         reset_active_weight=True,
-                         obj_den_R_power=2.0,
-                         obj_den_thresh_power=2.0)
+        for i in range(den_powers.shape[0]):            
+            # Fine tuning at the end
+            den_power_mixture = den_powers.mixture.values[i]
+            self.sieve_round(round=2*(schedule_len+i)+1,
+                            num_batches=num_batches_mixture, 
+                            batches_per_epoch=batches_per_epoch,
+                            epochs_per_episode=epochs_per_episode,
+                            training_mode='mixture', 
+                            learning_rate=learning_rate_mixture, 
+                            min_learning_rate=min_learning_rate_mixture,
+                            reset_active_weight=True,
+                            obj_den_R_power=den_power_mixture,
+                            obj_den_thresh_power=den_power_mixture)
+            
+            den_power_joint = den_powers.joint.values[i]
+            self.sieve_round(round=*(schedule_len+i)+2, 
+                            num_batches=num_batches_joint, 
+                            batches_per_epoch=batches_per_epoch,
+                            epochs_per_episode=epochs_per_episode,
+                            training_mode='joint',
+                            learning_rate=learning_rate_joint,
+                            min_learning_rate=min_learning_rate_joint,
+                            reset_active_weight=True,
+                            obj_den_R_power=den_power_joint,
+                            obj_den_thresh_power=den_power_joint)
 
         # Full round of charts
         self.plot_bar('log_like', sorted=False)

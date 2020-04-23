@@ -735,6 +735,7 @@ class TrajectoryScore(keras.layers.Layer):
     # *******************************************************************************************************
 
     # *******************************************************************************************************
+    @tf.function
     def mixture_model(self, q_hit: tf.Tensor, q_miss: tf.Tensor, num_hits: tf.Tensor):
         """
         Compute log likelihood under a mixture model
@@ -792,6 +793,7 @@ class TrajectoryScore(keras.layers.Layer):
         return log_like, p_hit_post
 
     # *******************************************************************************************************
+    @tf.function
     def calc_hits(self, s2: tf.Tensor, p_hit_post: tf.Tensor):
         """
         Compute log likelihood under a mixture model
@@ -821,7 +823,7 @@ class TrajectoryScore(keras.layers.Layer):
 
     # *******************************************************************************************************
     @tf.function        
-    def call(self, 
+    def calc_score_joint(self, 
              u_pred: tf.Tensor, 
              mag_pred: tf.Tensor,
              num_hits: tf.Tensor, 
@@ -893,8 +895,43 @@ class TrajectoryScore(keras.layers.Layer):
         # Return the log likelihood and hits by element
         return log_like, hits, self.row_lengths_close
 
-    def get_config(self):
-        return self.cfg
+    # *******************************************************************************************************
+    @tf.function        
+    def call(self, 
+             u_pred: tf.Tensor, 
+             num_hits: tf.Tensor, 
+             R: tf.Tensor) \
+             -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+        """
+        Score candidate trajectories in current batch based on how well they match observations
+        INPUTS:
+            u_pred:     predicted directions with current batch of elements
+            num_hits:   number of hits in mixture model
+            R:          resolution parameter (Cartesian distance)
+        """
+        # Alias the input R to indicate that it is by element; sigma_mag passed for all rows
+        R_elt: tf.Tensor = R
+
+        # Get the threshold by element
+        thresh_s2_elt = self.get_thresh_s2()
+
+        # Calculate distance squared s2 and relative distance squared v
+        s2, v, is_close = self.calc_dist(u_pred=u_pred, thresh_s2_elt=thresh_s2_elt)
+
+        # Conditional probability q in distance model, conditional on a hit or a miss
+        q_hit: tf.Tensor
+        q_miss: tf.Tensor
+        q_hit, q_miss = \
+                self.cond_pdf_dist(v=v, R_elt=R_elt, thresh_s2_elt=thresh_s2_elt)
+
+        # Compute the mixture model
+        log_like, p_hit_post = self.mixture_model(q_hit=q_hit, q_miss=q_miss, num_hits=num_hits)
+
+        # Count hits
+        hits = self.calc_hits(s2=s2, p_hit_post=p_hit_post)
+
+        # Return the log likelihood and hits by element
+        return log_like, hits, self.row_lengths_close
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
