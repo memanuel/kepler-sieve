@@ -160,6 +160,11 @@ def append_fitted_elt(fitted_elt: pd.DataFrame, known_ast: bool):
     
     # Save the modified file
     fitted_elts.to_hdf(file_path, key='fitted_elts')
+    
+    # Save the display version
+    fitted_elts_disp = load_fitted_elts(known_ast=known_ast, display=True)
+    file_path_csv = file_path.replace('.h5', '.csv')
+    fitted_elts_disp.to_csv(file_path_csv)
 
 # ********************************************************************************************************************* 
 def load_ztf_hits(known_ast: bool, display: bool=True, min_hits: int=0):
@@ -191,8 +196,7 @@ def load_ztf_hits(known_ast: bool, display: bool=True, min_hits: int=0):
         ztf_hits = ztf_hits[cols_display]
         # Deduplicate
         ztf_hits = ztf_hits.loc[~ztf_hits.index.duplicated(keep='last')]
-        # Sort to show the best fitted elements first
-        ztf_hits.sort_values(by=['element_id', 'ztf_id', 'mjd'], ascending=True, inplace=True)
+        # Don't need to sort; index is already sorted (also it fails b/c of horrible Pandas treatment of indexes)
 
     # If good was specified, limit to only those elements that were well fit
     if min_hits:
@@ -226,6 +230,11 @@ def append_ztf_hit(ztf_hit: pd.DataFrame, known_ast: bool):
     
     # Save the modified file
     ztf_hits.to_hdf(file_path, key='ztf_hits')
+
+    # Save the display version
+    ztf_hits_disp = load_ztf_hits(known_ast=known_ast, display=True)
+    file_path_csv = file_path.replace('.h5', '.csv')
+    ztf_hits_disp.to_csv(file_path_csv)
 
 # ********************************************************************************************************************* 
 def remove_prior_hits(ztf_elt, elts, min_hits: int=10):
