@@ -129,7 +129,7 @@ def load_fitted_elts(known_ast: bool, display:bool=True, min_hits: int=0):
         # Deduplicate
         fitted_elts = fitted_elts.loc[~fitted_elts.index.duplicated(keep='last')]
         # Sort to show the best fitted elements first
-        fitted_elts[cols_display].sort_values(by=['hits', 'log_like'], ascending=False, inplace=True)
+        fitted_elts.sort_values(by=['hits', 'log_like'], ascending=False, inplace=True)
     
     # If min_hits was passed, limit output to only elements with the required number of hits
     if min_hits and fitted_elts.shape[0] > 0:
@@ -192,7 +192,7 @@ def load_ztf_hits(known_ast: bool, display: bool=True, min_hits: int=0):
         # Deduplicate
         ztf_hits = ztf_hits.loc[~ztf_hits.index.duplicated(keep='last')]
         # Sort to show the best fitted elements first
-        ztf_hits[cols_display].sort_values(by=['element_id', 'ztf_id', 'mjd'], ascending=True, inplace=True)
+        ztf_hits.sort_values(by=['element_id', 'ztf_id', 'mjd'], ascending=True, inplace=True)
 
     # If good was specified, limit to only those elements that were well fit
     if min_hits:
