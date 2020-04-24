@@ -315,7 +315,8 @@ def train_one_batch(i: int, random_seed: int, ztf_ast: pd.DataFrame):
         ztf_ast=ztf_ast)
 
     # Load ztf_elt data
-    ztf_elt = load_ztf_batch(elts=elts, thresh_deg=thresh_deg, near_ast=near_ast, regenerate=regenerate)
+    ztf_elt = load_ztf_batch(elts=elts, ztf=ztf_ast, thresh_deg=thresh_deg, 
+                             near_ast=near_ast, regenerate=regenerate)
 
     # Remove rows corresponding to prior hits
     ztf_elt = remove_prior_hits(ztf_elt=ztf_elt, elts=elts)
