@@ -288,9 +288,6 @@ class AsteroidSearchModel(tf.keras.Model):
         # Power of threshold in the denominator of objective function
         self.obj_den_thresh_power: tf.Variable = \
             tf.Variable(initial_value=0.0, trainable=False, dtype=dtype, name='obj_den_thresh_power')
-        # Minimum value of resolution R (Cartesian)
-        # self.R_min: keras.backend.constant = \
-        #         keras.backend.constant(value=R_min_, dtype=dtype, name='R_min')
 
         # Early stopping callback
         self.update_early_stop()
@@ -326,6 +323,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Threshold for and count of the number of bad training episodes
         self.bad_episode_thresh: float = 0.00
         self.bad_episode_count: int = 0
+
+        # Threshold in hits for a "good" candidate element
+        self.hits_good_elt: int = 5
 
         # Current fit
         self.elts_fit: pd.DataFrame = self.candidates_df()        
@@ -886,13 +886,13 @@ class AsteroidSearchModel(tf.keras.Model):
         # Write history of log likelihood and loss
         if is_new:
             self.log_like_hist.append(self.log_like_np)
-            self.hits_hist.append(self.hits_np)
+            self.hits_hist.append(np.round(self.hits_np))
             self.log_like_mean_hist.append(self.log_like_mean)
             self.hits_mean_hist.append(self.hits_mean)
             self.loss_hist.append(self.loss)
         else:
             self.log_like_hist[-1] = self.log_like_np
-            self.hits_hist[-1] = self.hits_np
+            self.hits_hist[-1] = np.round(self.hits_np)
             self.log_like_mean_hist[-1] = self.log_like_mean
             self.hits_mean_hist[-1] = self.hits_mean
             self.loss_hist[-1] = self.loss
@@ -1127,15 +1127,15 @@ class AsteroidSearchModel(tf.keras.Model):
         score_old, score_new = self.score_hist[n-2:n]
 
         # Test which elements have gotten worse (usually this should be false)
-        is_less_likely = tf.math.less(log_like_new, log_like_old)
-        is_less_hits = tf.math.less(hits_new, hits_old)
-        is_higher_loss = tf.math.greater(loss_new, loss_old)
-        is_nan = tf.math.is_nan(log_like_new)
+        is_less_likely: tf.Tensor = tf.math.less(log_like_new, log_like_old)
+        has_fewer_hits: tf.Tensor = tf.math.less(hits_new, hits_old)
+        is_higher_loss: tf.Tensor = tf.math.greater(loss_new, loss_old)
+        is_nan: tf.Tensor = tf.math.is_nan(log_like_new)
 
         # Accumulate different ways an update can be worse than the preceding one
-        is_worse = tf.math.logical_or(is_less_likely, is_less_hits)
-        is_worse = tf.math.logical_or(is_less_likely, is_higher_loss)
-        is_worse = tf.math.logical_or(is_worse, is_nan)        
+        is_worse: tf.Tensor = tf.math.logical_or(is_less_likely, has_fewer_hits)
+        is_worse: tf.Tensor = tf.math.logical_or(is_less_likely, is_higher_loss)
+        is_worse: tf.Tensor = tf.math.logical_or(is_worse, is_nan)        
 
         # If none of the elements have gotten worse, terminate early
         if not tf.math.reduce_any(is_worse):
@@ -1171,7 +1171,7 @@ class AsteroidSearchModel(tf.keras.Model):
             print(f'Adjusted element weight down on {num_changed} candidate elements. Mean weight = {self.active_weight_mean:6.2e}')
         
         # Change in the mean log likelihood after editing history
-        log_like_mean_change = self.log_like_mean_hist[-1] - self.log_like_mean_hist[-2]
+        log_like_mean_change: float = self.log_like_mean_hist[-1] - self.log_like_mean_hist[-2]
 
         # If the change in the mean log likelihood is below a threhold, increment the bad_episode counter
         if log_like_mean_change < self.bad_episode_thresh:
@@ -1187,7 +1187,7 @@ class AsteroidSearchModel(tf.keras.Model):
             patience=0,
             baseline=baseline,
             min_delta=0.0, 
-            restore_best_weights=False)
+            restore_best_weights=True)
     
     # *********************************************************************************************
     def episode_end(self, hist, verbose: int = 1):
@@ -1207,9 +1207,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.save_weights()
         self.update_weights()
 
-        # Count number of good elements (with at least 10 hits)
+        # Count number of good elements (with at least hits_good_elt hits)
         hits = np.round(self.hits_np)
-        is_good_elt = (hits >= 10.0)
+        is_good_elt = (np.round(hits) >= self.hits_good_elt)
         num_good_elts = np.sum(is_good_elt)
 
         # Geometric mean of resolution and threshold
@@ -1239,7 +1239,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Status message
         if verbose > 0:
-            print(f'                    \  All Elts : Bad Elts : Good Elts ({int(num_good_elts)})')
+            print(f'                    \\  All Elts : Bad Elts : Good Elts ({int(num_good_elts)})')
             print(f'Geom Mean Resolution:  {R_sec_mean:8.2f} : {R_sec_bad:8.2f} : {R_sec_good:8.2f} arc seconds')
             print(f'Geom Mean Threshold :  {thr_sec_mean:8.2f} : {thr_sec_bad:8.2f} : {thr_sec_good:8.2f} arc seconds')
             print(f'Mean Log Likelihood :  {log_like_mean:8.2f} : {log_like_bad:8.2f} : {log_like_good:8.2f}')
@@ -1309,9 +1309,9 @@ class AsteroidSearchModel(tf.keras.Model):
         self.epochs_per_episode = epochs_per_episode
 
         # Apply learning_rate input if it was specified
-        original_learning_rate = self.learning_rate
+        original_learning_rate: float = self.learning_rate
         if learning_rate is not None and learning_rate != self.learning_rate:
-            log2_lr = np.log2(learning_rate)
+            log2_lr: float = np.log2(learning_rate)
             print(f'Applying learning_rate {learning_rate:6.2e} (2.0^{log2_lr:5.1f}) for adaptive training.')
             self.set_learning_rate(learning_rate)
 
@@ -1320,7 +1320,7 @@ class AsteroidSearchModel(tf.keras.Model):
             self.reset_active_weight()
         
         # If min_learning_rate was not set, default it to ratio of the current learning rate
-        min_learning_rate = self.learning_rate / 128.0 if min_learning_rate is None else min_learning_rate
+        min_learning_rate: float = min_learning_rate or self.learning_rate / 128.0
 
         # Update batches_per_epoch
         self.batches_per_epoch = batches_per_epoch
@@ -1452,40 +1452,40 @@ class AsteroidSearchModel(tf.keras.Model):
             nearest_ast: Run comparison to nearest known asteroids at end
         """
         # Episode sizes
-        num_batches_mixture = base_size * 8 # 512
-        num_batches_joint = base_size * 32  # 2048
+        num_batches_mixture: int = base_size * 8 # 512
+        num_batches_joint: int = base_size * 32  # 2048
 
         # Set batches_per_epoch parameter
         batches_per_epoch: int = 64
         epochs_per_episode: int = 4
 
         # Set learning rates
-        learning_rate_mixture = 2.0**-12
-        learning_rate_joint = 2.0**-16
+        learning_rate_mixture: float = 2.0**-12
+        learning_rate_joint: float = 2.0**-16
         
         # Minimum learning rate
-        min_learning_rate_mixture = 2.0**-20
-        min_learning_rate_joint = 2.0**-24
+        min_learning_rate_mixture: float = 2.0**-20
+        min_learning_rate_joint: float = 2.0**-24
 
         # Set all layers thawed
         self.thaw_all()
 
         # Schedule of max thresholds and resolution
-        sched = pd.DataFrame()
+        sched: pd.DataFrame = pd.DataFrame()
         sched['thresh_sec'] = np.array([7200, 5400, 3600, 2400], dtype=dtype_np)
         sched['R_sec'] = np.maximum(sched.thresh_sec * 0.50, 50.0)
         # Lenght of the schedule
-        schedule_len = sched.shape[0]
+        schedule_len: int = sched.shape[0]
 
         for i in range(schedule_len):
             # The round number, R_sec_max and thresh_sec_max
-            round = 2*i
-            R_sec_max = sched.R_sec[i]
-            thresh_sec_max = sched.thresh_sec[i]
+            round: int = 2*i
+            R_sec_max: float = sched.R_sec[i]
+            thresh_sec_max: float = sched.thresh_sec[i]
 
             # Reset the active weight every on mixture
-            reset_active_weight_mixture = True
-            reset_active_weight_joint = False
+            reset_active_weight_mixture: bool = True
+            reset_active_weight_joint: bool = False
             
             # Mixture parameters
             self.sieve_round(round=round+1, 
@@ -1512,7 +1512,7 @@ class AsteroidSearchModel(tf.keras.Model):
                              charts=charts)
         
         # Powers for denominator adjustment during fine tuning at the end
-        fine_tuning = pd.DataFrame()
+        fine_tuning: pd.DataFrame = pd.DataFrame()
         fine_tuning['obj_den_R_power_mixture'] = np.array([2.0, 3.0, 4.0])
         fine_tuning['obj_den_thresh_power_mixture'] = np.array([4.0, 8.0, 16.0])
         fine_tuning['obj_den_R_power_joint'] = np.array([1.0, 2.0, 3.0])
@@ -1522,9 +1522,9 @@ class AsteroidSearchModel(tf.keras.Model):
 
         for i in range(fine_tuning.shape[0]):            
             # Fine tuning at the end
-            obj_den_R_power = fine_tuning.obj_den_R_power_mixture.values[i]
-            obj_den_thresh_power = fine_tuning.obj_den_R_power_mixture.values[i]
-            lr_adj = fine_tuning.lr_adj_mixture.values[i]
+            obj_den_R_power: float = fine_tuning.obj_den_R_power_mixture.values[i]
+            obj_den_thresh_power: float = fine_tuning.obj_den_R_power_mixture.values[i]
+            lr_adj: float = fine_tuning.lr_adj_mixture.values[i]
             self.sieve_round(round=2*(schedule_len+i)+1,
                             num_batches=num_batches_mixture, 
                             batches_per_epoch=batches_per_epoch,
@@ -1593,11 +1593,11 @@ class AsteroidSearchModel(tf.keras.Model):
         # Extract thresh_deg from score layer
         thresh_deg = self.get_thresh_deg()
         # Extract the brightness H and standard deviation of magnitude from magnitude layer
-        H = self.get_H()
-        sigma_mag = self.get_sigma_mag()
+        H: np.ndarray = self.get_H()
+        sigma_mag: np.ndarray = self.get_sigma_mag()
 
         # Build DataFrame of orbital elements
-        elts = elts_np2df(orbital_elements.numpy().T)
+        elts: pd.DataFrame = elts_np2df(orbital_elements.numpy().T)
         
         # Add column with the element_id
         elts.insert(loc=0, column='element_id', value=self.element_id.numpy())
@@ -1636,7 +1636,7 @@ class AsteroidSearchModel(tf.keras.Model):
     def save_state(self, verbose: bool=False):
         """Save model state to disk: candidate elements and training history"""
         # Generate DataFrame with current candidates
-        elts = self.candidates_df()
+        elts: pd.DataFrame = self.candidates_df()
         # Status message
         if verbose:
             print(f'Saving candidate elements DataFrame in {self.file_path}.')
@@ -1670,7 +1670,7 @@ class AsteroidSearchModel(tf.keras.Model):
         self.weight_mixture.assign(elts['weight_mixture'].values)
 
         # Alias history
-        hist = self.train_hist_summary
+        hist: pd.DataFrame = self.train_hist_summary
 
         # Restore training counters
         self.current_episode = hist.episode.values[-1]
@@ -1784,13 +1784,6 @@ class AsteroidSearchModel(tf.keras.Model):
         # ztf_hits.insert(loc=loc, column='mag_pred', value=mag_pred_hit)
         ztf_hits['mag_pred'] = mag_pred_hit
         ztf_hits['mag_diff'] = np.abs(ztf_hits.mag_app - ztf_hits.mag_pred)
-
-        # Display columns to visualize this without getting overwhelmed
-        # cols = \
-            # ['ztf_id', 'element_id', 'mjd',
-            # 'ra', 'dec', 'mag_app', 'ux', 'uy', 'uz',
-            # 'elt_ux', 'elt_uy', 'elt_uz', 
-            # 's_sec']
 
         return ztf_hits
 
@@ -2304,9 +2297,9 @@ class AsteroidSearchModel(tf.keras.Model):
         # Unpack score_outputs
         log_like, hits, num_rows_close, loss = score_outputs
 
-        # Count number of good elements (with at least 10 hits)
+        # Count number of good elements (with at least hits_good_elt hits)
         hits = np.round(hits.numpy())
-        is_good_elt = (hits >= 10.0)
+        is_good_elt = (hits >= self.hits_good_elt)
         num_good_elts = np.sum(is_good_elt)
 
         # Number of quality elements
@@ -2358,7 +2351,7 @@ class AsteroidSearchModel(tf.keras.Model):
         thresh_sec_max = np.max(thresh_sec)
 
         # Report on log likelihood and resolution
-        print(f'\nGood elements (hits >= 10): {num_good_elts:6.2f}\n')
+        print(f'\nGood elements (hits >= {self.hits_good_elt}): {num_good_elts:6.2f}\n')
         print(f'         \\  log_like :  hits  :    R_sec : thresh_sec')
         print(f'Mean Good: {log_like_good:8.2f}  : {hits_good:6.2f} : {R_sec_good:8.2f} : {thresh_sec_good:8.2f}')
         print(f'Mean Bad : {log_like_bad:8.2f}  : {hits_bad:6.2f} : {R_sec_bad:8.2f} : {thresh_sec_bad:8.2f}')

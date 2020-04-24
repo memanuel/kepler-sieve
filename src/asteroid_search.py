@@ -121,7 +121,7 @@ def load_fitted_elts(known_ast: bool, display:bool=True, min_hits: int=0):
         fitted_elts = pd.DataFrame()
 
     # If display was requested, return only columns for human consumers
-    if display:
+    if display and fitted_elts.shape[0] > 0:
         cols_display = [
             'element_id', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'epoch',
             'num_hits', 'R_sec', 'thresh_sec', 'log_like', 'hits', 'num_rows_close', 'timestamp']
@@ -187,9 +187,9 @@ def load_ztf_hits(known_ast: bool, display: bool=True, min_hits: int=0):
         ztf_hits = pd.DataFrame()
 
     # If display was requested, return only columns for human consumers
-    if display:
+    if display and ztf_hits.shape[0] > 0:
         cols_display = [
-            'element_id', 'ztf_id', 
+            'element_id', 'ztf_id', 'ObjectID', 'CandidateID', 
             'mjd', 'ra', 'dec', 'mag_app', 'ux', 'uy', 'uz',
             'elt_ux', 'elt_uy', 'elt_uz', 's_sec',
             'timestamp']
@@ -393,6 +393,7 @@ def main(seed0: int, seed1: int, stride: int,
     known_type = 'known' if known_ast else 'unknown'
     print(f'Building ZTF DataFrame: {known_type} asteroids; thresh = {thresh_deg}\n')
     ztf_ast = make_ztf_ast(known_ast=known_ast)
+    print(f'Loaded ztf_ast with {ztf_ast.shape[0]} rows.')
 
     # Iterate over random seeds in the specified range
     random_seeds = list(range(seed0, seed1, stride))
@@ -444,8 +445,10 @@ if __name__ == '__main__':
     print(f'Environment variables:')
     print(f'CUDA_VISIBLE_DEVICES = {cuda_visible_devices}')
 
-    # If the default start of -1 was passed, use the visible device
-    gpu_num: int = int(cuda_visible_devices[0])
+    # Convert the environment variable to a gpu_num; default to 0
+    gpu_num: int =  int(cuda_visible_devices[0]) if cuda_visible_devices is not None else 0
+
+    # If the default start of -1 was passed, use the gpu_num
     if seed0 < 0 :
         seed0 = gpu_num
 
@@ -456,17 +459,13 @@ if __name__ == '__main__':
     print(f'stride          = {stride:5}.     Stride for stepping through random seeds.')
     print(f'known_ast       = {known_ast:5}.     '
           f'Match ZTF observations < 2.0 arc sec to known asteroids (true) or >= 2.0 sec (false).')
-    # print(f'gpu_num         = {gpu_num:5}.     GPU on which computations are run.')
+    print(f'gpu_num         = {gpu_num:5}.     GPU on which computations are run.')
     print(f'batch_size_init = {batch_size_init:5}.     Size of initial batch of random elements.')
     print(f'batch_size      = {batch_size:5}.     Size of final batch of elements; top scoring.')
     print(f'R_deg           = {R_deg:5}.     Resolution in degrees.')
     print(f'thresh_deg      = {thresh_deg:5}.     '
           f'Maximum distance in sky between predicted direction of elements and ZTF observation.\n')
 
-    # The selected gpu device
-    # gpu_device = get_gpu_device(gpu_num)
-
-    # with gpu_device:
     main(seed0=seed0, seed1=seed1, stride=stride, 
             known_ast=known_ast, R_deg=R_deg, thresh_deg=thresh_deg,
             batch_size_init=batch_size_init, batch_size=batch_size)
