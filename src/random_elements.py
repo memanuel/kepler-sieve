@@ -243,5 +243,6 @@ if __name__ == '__main__':
     print(f'thresh_deg = {thresh_deg}. Maximum distance in sky between predicted direction of elements and ZTF observation.\n')
 
     # Main body
-    main(seed0=seed0, seed1=seed1, batch_size_init=batch_size_init, batch_size=batch_size,
+    main(seed0=seed0, seed1=seed1, stride=stride,
+         batch_size_init=batch_size_init, batch_size=batch_size,
          known_ast=known_ast, thresh_deg=thresh_deg)
