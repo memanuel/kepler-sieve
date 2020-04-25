@@ -235,9 +235,9 @@ if __name__ == '__main__':
 
     # Report inputs
     print(f'\nInputs to random elements batch:')
-    print(f'seed0  = {seed0}. First random seed for random elements (inclusive).')
-    print(f'seed1  = {seed1}. Last random seed for random elements (exclusive).')
-    print(f'stride = {stride:5}.     Stride for stepping through random seeds.')
+    print(f'seed0  = {seed0:5}. First random seed for random elements (inclusive).')
+    print(f'seed1  = {seed1:5}. Last random seed for random elements (exclusive).')
+    print(f'stride = {stride:5}. Stride for stepping through random seeds.')
     print(f'batch_size_init = {batch_size_init}. Size of initial batch of random elements.')
     print(f'batch_size = {batch_size}. Size of final batch of elements; top scoring.')
     print(f'known_ast = {known_ast}. Match ZTF observations < 2.0 arc sec to known asteroids (true) or >= 2.0 sec (false).')
