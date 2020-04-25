@@ -442,8 +442,8 @@ if __name__ == '__main__':
 
     # Get the environment variable with cuda visible devices
     cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES')
-    print(f'Environment variables:')
-    print(f'CUDA_VISIBLE_DEVICES = {cuda_visible_devices}')
+    # print(f'Environment variables:')
+    # print(f'CUDA_VISIBLE_DEVICES = {cuda_visible_devices}')
 
     # Convert the environment variable to a gpu_num; default to 0
     gpu_num: int =  int(cuda_visible_devices[0]) if cuda_visible_devices is not None else 0

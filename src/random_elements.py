@@ -168,12 +168,15 @@ def load_best_random_elts(random_seed: int, known_ast: bool,
     return elts
 
 # ********************************************************************************************************************* 
-def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_ast: bool, thresh_deg: float):
+def main(seed0: int, seed1: int, stride: int,
+         batch_size_init: int, batch_size: int, 
+         known_ast: bool, thresh_deg: float):
     """
     Main program body
     INPUTS:
         seed0:              The first random seed, inclusive
         seed1:              The last random seed, exclusive
+        stride:             Stride for stepping through the random seeds
         batch_size_init:    Batch size for large initial batch, e.g. 1024
         batch_size:         Batch size for small final batch, e.g. 64 best out of 1024
         known_ast:          True: include only hits (<2 arc sec) vs. a known ast; False: only non-hits
@@ -186,7 +189,7 @@ def main(seed0: int, seed1: int, batch_size_init: int, batch_size: int, known_as
     ztf_ast = make_ztf_ast(known_ast=known_ast)
 
     # Iterate over random seeds in the specified range
-    random_seeds = list(range(seed0, seed1))
+    random_seeds = list(range(seed0, seed1, stride))
     for i, random_seed in enumerate(random_seeds):
         # Status
         time_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -205,6 +208,8 @@ if __name__ == '__main__':
                         help='First random seed to process, inclusive.')
     parser.add_argument('-seed1', nargs='?', metavar='s1', type=int, default=256,
                         help='Last random seed to process, exclusive.')
+    parser.add_argument('-stride', nargs='?', metavar='str', type=int, default=4,
+                        help='Stride for stepping through seeeds.')
     parser.add_argument('-batch_size_init', nargs='?', metavar='bsi', type=int, default=1024,
                         help='Large batch size for initial pass.')
     parser.add_argument('-batch_size', nargs='?', metavar='bs', type=int, default=64,
@@ -222,6 +227,7 @@ if __name__ == '__main__':
     # Alias arguments
     seed0 = args.seed0
     seed1 = args.seed1
+    stride = args.stride
     batch_size_init = args.batch_size_init
     batch_size = args.batch_size
     known_ast = args.known_ast    
