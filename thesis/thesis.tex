@@ -162,11 +162,12 @@
 % An abstract should be less than 350 words.
 A novel method is presented to learn the orbits of asteroids from a large data set of telescopic observations.
 The problem is formulated as a search over the six dimensional space of Keplerian orbital elements.
-Candidate orbital elements are initialized by randomly choosing each of the six elements independently from a known asteroid.
-A statistical model describes the distribution of angular distances between the directions from the observatory site 
-and the predicted position of a body with these orbital elements.
-This model yields a log likelihood function, which attains large positive values when the candidate orbital elements that are near to the elements
-of a real asteroid viewed many times in the data.
+Candidate orbital elements are initialized by randomly choosing the six elements independently 
+at random, either by sampling from a known asteroid or from uniformly distributed angles.
+A statistical model describes the distribution of angular distances between the directions 
+of observed detections to the predicted direction from the observatory site to a body with these orbital elements.
+This model yields a log likelihood function, which attains large positive values when the candidate orbital elements are near 
+to the elements of a real asteroid viewed many times in the data.
 The candidate elements and the parameters describing the mixture distribution are jointly optimized using gradient descent.
 Computations are performed quickly and efficiently on GPUs using the TensorFlow library.
 
