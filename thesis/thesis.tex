@@ -28,7 +28,7 @@
 \usepackage{longtable}
 
 % references
-\usepackage{natbib}
+% \usepackage{natbib}
 
 % fonts that are nicer than defaults
 \usepackage[sc]{mathpazo}
@@ -225,8 +225,8 @@ It would not have been possible to complete it without extraordinary understandi
 \chapter{Integrating the Solar System}\label{ch:1}
 \input{chapter1}
 
-\input{chapter2}
 \chapter{Predicting Directions from Positions}\label{ch:2}
+\input{chapter2}
 
 \chapter{Searching for Asteroids}\label{ch:3}
 \input{chapter3}
@@ -243,8 +243,9 @@ It would not have been possible to complete it without extraordinary understandi
 \renewcommand{\bibname}{References}
 
 % Any bibliohgraphy style that leaves space between entries is fine
-\bibliographystyle{ecca}
-\bibliography{references}
+% \bibliographystyle{acm}
+% \bibliography{references}
+\input{references}
 \end{singlespacing}
 
 % Appendices from all chapters should go at the end
