@@ -1,0 +1,148 @@
+\section{Introduction}
+\label{section_intro}
+The calculation of planetary orbits is arguably the canonical problem in mathematical physics.
+Isaac Newton invented differential calculatus while working on this problem, and used his theory of gravitation to solve it.
+In the important special case that one body in the system is a dominant central mass,
+and all other bodies are viewed as massless ``test particles'', then a simple closed form solution is possible.
+This formulation of the gravitational problem is often called the \href{https://en.wikipedia.org/wiki/Kepler_problem}{Kepler Problem},
+named after \href{https://en.wikipedia.org/wiki/Johannes_Kepler}{Johannes Kepler}.
+Kepler first studied this problem and published his famous \href{https://en.wikipedia.org/wiki/Kepler\%27s_laws_of_planetary_motion}{three laws of planetary motion},
+the first of which states that the planets move in elliptical orbits with the sun at one focus.
+This is a surprisingly good approximation for the evolution of the solar system, and the basis for the efficient linearized search over orbital elements.
+
+The two body approximation is not, however, sufficiently accurate for a high precision model of the past and future positions of the known bodies in the solar system.
+While the mass of the sun is much larger than that of the heaviest planet, Jupiter, the planets are sufficiently massive
+(and often closer to each other and other bodies of interest) that gravity due to their mass must also be accounted for.
+The modern approach to determining orbits in the solar system is to use numerical integrators of the differential equation of motion.
+
+\section{The \tty{REBOUND} Library for Gravitational Integration}
+\tty{REBOUND} is an open source library for numerically integrating objects under the influence of gravity.
+It is available on \href{https://github.com/hannorein/rebound}{GitHub}.
+It is a first rate piece of software and I would like to thank Matt Holman and Matt Payne for recommending it to me last year.
+At the end of Applied Math 225, I wrote a research paper in which I learned to use this library, 
+extensively tested it on the solar system, and used it to simulate the near approach of the asteroid Apophis to Earth that will take place in 2029.
+In this project, I use \tty{REBOUND} as the ``gold standard'' of numerical integration.
+Because of its important role, I describe below how the \tty{IAS15} integrator I selected works.
+\footnote{\tty{REBOUND} provides a front end to use multiple integrators. In this project, I make exclusive use of the default \tty{IAS15} integrator.}
+
+The \tty{IAS15} integrator, presented in a 2014 paper by Rein and Spiegel, is a an impressive achievement.
+It a fast, adaptive, 15th order integrator for the N-body problem that is (amazingly!) 
+accurate to machine precision over a billion orbits.  
+The explanation is remarkably simple in comparison to what this algorithm can do.  
+Rein and Spiegel start by writing the equation of motion in the form 
+$$y'' = F[y', y, t]$$
+Here $y$ is the position of a particle; $y'$ and $y''$ are its velocity and acceleration;
+and $F$ is a function with the force acting on it over its mass.
+In the case of gravitational forces, the only dependence of $F$ is on $y$; 
+but one of the major advantages of this framework is its flexibility to support other forces,
+including non-conservative forces that may depend on velocity.
+Two practical examples are drag forces and radiation pressure.
+
+This expression for $y''$ is expanded to 7th order in $t$, 
+$$y''[t] \approx y_0'' + a_0t + a_1t^2 + \cdots +a_6 t^7$$
+They next change variables to dimensionless units $h = t / dt$ and coefficients $b_k = a_k dt^{k+1}$:
+$$y''[t] \approx y_0'' + b_0h + b_1h^2 + \cdots + b_6 h^7$$
+The coefficients $h_i$ represent relative sample points in the interval $[0, 1]$ that subdivide a time step.
+Rein and Spiegel call them substeps.  
+The formula is rearranged in terms of new coefficients $g_k$ with the property that $g_k$ depends
+only on force evaluations at substeps $h_i$ for $i \le k$.
+$$y''[t] \approx y_0'' + g_1h + g_2h(h-h_1) + g_3h(h-h_1)(h-h_2) + \cdots + g_8 h (h-h_1) \cdots (h-h_7)$$
+Taking the first two $g_i$ as examples and using the notation $y_n'' = y''[h_n]$,
+$$g_1 = \frac{y_1'' - y_0''}{h_1} \quad\quad  g_2 = \frac{y_2'' - y_0'' -g_1h_2}{h_2(h_2-h_1)}$$
+This idea has a similar feeling to the Jacobi coordinates: a change of coordinates
+with a dependency structure to allow sequential computations.
+
+Using the $b_k$ coefficients, it is possible to write polynomial expressions for $y'[h]$ and $y''[h]$:
+\begin{align*}
+y'[h] &\approx y_0' + h dt \left(y_0'' + \frac{h}{2}\left(b_0 + \frac{2h}{3}\left(b_1 + \frac{}{} \cdots \right)\right) \right) \\
+y[h] &\approx y_0 + y_0' h dt + \frac{h^2dt^2}{2}\left(y_0'' + \frac{h}{3}\left(b_0 + \frac{h}{2}\left(b_1 + \frac{}{} \cdots \right)\right) \right)
+\end{align*}
+
+The next idea is to use \href{http://mathworld.wolfram.com/RadauQuadrature.html}{Gauss-Radau quadrature}
+to approximate this integral with extremely high precision.  
+Gauss-Radau quadrature is similar to standard Gauss quadrature for evaluating numerical integrals, 
+but the first sample point is at the start of the integration window at $h=0$.
+This is a strategic choice here because we already know $y'$ and $y''$ at $h=0$ from the previous time step.
+This setup now reduces calculation of a time step to finding good estimate of the coefficients $b_k$.
+Computing the $b_k$ requires the forces during the time step at the sample points $h_n$,
+which in turn provide estimates for the $g_k$, and then feed back to a new estimate of $b_k$.
+
+This is an implicit system that Rein and Spiegel solve efficiently using what they call a predictor-corrector scheme.
+At the cold start, they set all the $b_k=0$, corresponding to constant acceleration over the time step.
+This leads to improved estimates of the forces at the substeps, and an improved estimates for the path on the step.
+This process is iterated until the positions and velocities have converged to machine precision.
+The first two time steps are solved from the cold start this way.  
+
+Afterwards, a much more efficient initial guess is made.  
+They keep track of the change between the initial prediction of $b_k$ and its value after convergence,
+calling this correction $e_k$.  At each step, the initial guess is $b_k$ at the last step plus $e_k$.
+An adaptive criterion is used to test whether the predictor-corrector loop has converged.
+The error is estimated as 
+$$\widetilde{\delta b_6} = \frac{\max_i |\delta b_{6,i}|}{\max_i |y_i''|}$$
+The index $i$ runs over all 3 components of each particle.
+The loop terminates when $ \widetilde{\delta b_6} < \epsilon_{\delta b}$; they choose $\epsilon_{\delta b} = 10^{-16}$.
+It turns out that the $b_k$ behave well enough for practical problems that this procedure will
+typically converge in just 2 iterations!
+
+The stepsize is controlled adaptively with an analogous procedure.
+The tolerance is set with a dimensionless parameter $\epsilon_b$,
+which they set to $10^{-9}$.
+As long as the step size $dt$ is ``reasonable'' in the sense that it can capture
+the physical phenomena in question, the error in $y''$ will be bounded by the last term
+evaluated at $h=1$, i.e. the error will be bounded by $b_6$.
+The relative error in acceleration $\widetilde{b_6} = b_6 / y''$ is estimated as
+$$ \widetilde{b_6} = \frac{\max_i |b_{6,i}|}{\max_i |y_i''|}$$
+These are similar to the error bounds for convergence of the predictor-corrector loop,
+but involve the magnitude of $b_6$ rather than its change $\delta b_6$.
+An immediate corollary is that changing the time step by a factor $f$ will change $b_6$
+by a factor of $f^7$.
+
+An integration step is computed with a trial step size $dt_{\text{trial}}$.
+At the end of the calculation, we compute the error estimate $\widetilde{b_6}$.
+If it is below the error tolerance $\epsilon_b$, the time step is accepted.
+Otherwise, it is rejected and a new attempt is made with a smaller time step.
+Once a time step is accepted, the next  time step is tuned adaptively according to
+$dt_{\text{required}} = dt_{\text{trial}} \cdot \left( \epsilon_b / \widetilde{b_6}\right)^{1/7}$
+Please note that while the relative error in $y''$ may be of order 7, 
+the use of a 15th order integrator implies that 
+shrinking the time steps by a factor $\alpha$ will improve the error by a factor of $\alpha^{16}$.
+
+Hein and Spiegel include an interesting discussion of the different sources of error in N-body integrators.
+They explore the familiar errors arising from the numerical scheme, 
+but also explore both random and biased numerical errors.
+They give a complete error decomposition
+$$E_{\text{tot}} = E_{\text{floor}} + E_{\text{rand}} + E_{\text{bias}} + E_{\text{scheme}}$$
+$E_{\text{floor}}$ is the baseline numerical error that is unavoidable when we try to represent
+real numbers to limited machine precision.
+$E_{\text{rand}}$ is the familiar errors due to accumulated numerical round-off, 
+provided they are distributed randomly (i.e. unbiased).  
+$E_{\text{bias}}$ is an accumulated effect of numerical round-off that has a bias.
+
+This is a subtle point best illustrated by an example.
+Suppose you have a floating point representation of a 2x2 rotation matrix.
+For a given angle $\phi$, the floating point sum of $\cos^2\phi + \sin^2\phi$
+is likely not to be 1.0 to full machine precision.  
+If it is even a tiny bit less than 1, then repeated application of this rotation matrix
+over many time steps will gradually lead to a contraction.
+Rein and Spiegel devote substantial effort to minimizing rounding errors, 
+particularly by using \href{https://en.wikipedia.org/wiki/Kahan_summation_algorithm}{compensated sums}.
+This simple idea adds only slightly to the run time but can lead to significant accuracy improvements,
+especially over long term simulation, e.g. on the order of one billion orbital periods.
+
+Rein and Spiegel test the phase accuracy of \tty{IAS15} by running integrating the 
+outer solar system forward in time for 50 orbits with a fixed time step,
+then backwards for 50 orbits with the same time step.
+The known answer is that the phases should be the same, allowing for sharp accuracy measurements.
+This test shows that \tty{IAS15} is more accurate than the comparisons including WH at preserving phases.
+
+They also introduce a criterion of optimality and demonstrate that \tty{IAS15} integrator satisfies it.
+A result called Brouwer's Law status that in the presence of round-off, 
+a cumulative sum will have have an error that scales as $n^{1/2}$, i.e. it is a random walk of $n$ steps.
+Angular type variables including the orbital phase grow as $n^{3/2}$.
+The authors tested \tty{IAS15} and other integrators on a long term integration of the outer solar system
+(Jupiter, Saturn, Uranus, Neptune) for one billion Jupiter orbits, approximately 12 billion years.
+The energy errors satisfied Brouwer's law, and grew more slowly than those made by the other schemes.
+One surprising conclusions is that the non-symplectic \tty{IAS15} integrator is ``more symplectic''
+(in the sense of having smaller energy errors) than the symplectic integrators!
+This is a completely non-obvious results, and shows the importance of analyzing and understanding
+all the sources of error in a calculation.
