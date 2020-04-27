@@ -397,7 +397,7 @@ def main():
             ax.plot(test_years, pos_err_dwarfs, label='dwarfs', marker='o', color='red')
         ax.grid()
         ax.legend()
-        fig.savefig(fname=f'../figs/integration_test/planets/sim_ang_error_comp.png', bbox_inches='tight')
+        fig.savefig(fname=f'../figs/integration_test/planets/sim_pos_error_comp.png', bbox_inches='tight')
     
         # Plot angle error
         fig, ax = plt.subplots(figsize=[16,10])
@@ -412,7 +412,7 @@ def main():
             ax.plot(test_years, ang_err_dwarfs, label='dwarfs', marker='o', color='red')
         ax.grid()
         ax.legend()
-        fig.savefig(fname=f'../figs/integration_test/planets/sim_pos_error_comp.png', bbox_inches='tight')
+        fig.savefig(fname=f'../figs/integration_test/planets/sim_ang_error_comp.png', bbox_inches='tight')
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
