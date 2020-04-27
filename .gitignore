@@ -26,6 +26,9 @@
 # VS Code stuff
 .vscode
 
+# Latex intermediates
+*.synctex.gz
+
 # Random directories
 sql/01-MakeTable
 
