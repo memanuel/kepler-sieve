@@ -152,19 +152,35 @@ def append_fitted_elt(fitted_elt: pd.DataFrame, known_ast: bool):
     # Location of the file
     file_path = file_path_fitted_elts(known_ast=known_ast)
     
-    # Load the file
-    fitted_elts = load_fitted_elts(known_ast=known_ast, display=False)
+    # Need to handle possibility that file is locked by another process before saving to it
+    num_tries: int = 10
+    sleep_time: float = 1.0
+    for i in range(num_tries):
+        try:
+            # Load the file
+            fitted_elts = load_fitted_elts(known_ast=known_ast, display=False)
     
-    # Append the new fitted elements
-    fitted_elts = fitted_elts.append(fitted_elt)
+            # Append the new fitted elements
+            fitted_elts = fitted_elts.append(fitted_elt)
+            
+            # Save the modified file
+            fitted_elts.to_hdf(file_path, key='fitted_elts')
+            
+            # If we get here, saving was successful
+            break
+        except:
+            time.sleep(sleep_time)
     
-    # Save the modified file
-    fitted_elts.to_hdf(file_path, key='fitted_elts')
-    
-    # Save the display version
-    fitted_elts_disp = load_fitted_elts(known_ast=known_ast, display=True)
+    # Location of CSV display file
     file_path_csv = file_path.replace('.h5', '.csv')
-    fitted_elts_disp.to_csv(file_path_csv)
+    for i in range(num_tries):
+        try:
+            # Save the display version
+            fitted_elts_disp = load_fitted_elts(known_ast=known_ast, display=True)
+            fitted_elts_disp.to_csv(file_path_csv)
+            break
+        except:
+            continue
 
 # ********************************************************************************************************************* 
 def load_ztf_hits(known_ast: bool, display: bool=True, min_hits: int=0):
@@ -222,19 +238,35 @@ def append_ztf_hit(ztf_hit: pd.DataFrame, known_ast: bool):
     # Location of the file
     file_path = file_path_ztf_hits(known_ast=known_ast)
     
-    # Load the file
-    ztf_hits = load_ztf_hits(known_ast=known_ast, display=False)
-    
-    # Append the new fitted elements
-    ztf_hits = ztf_hits.append(ztf_hit)
-    
-    # Save the modified file
-    ztf_hits.to_hdf(file_path, key='ztf_hits')
+    # Need to handle possibility that file is locked by another process before saving to it
+    num_tries: int = 10
+    sleep_time: float = 1.0
+    for i in range(num_tries):
+        try:
+            # Load the file
+            ztf_hits = load_ztf_hits(known_ast=known_ast, display=False)
+            
+            # Append the new fitted elements
+            ztf_hits = ztf_hits.append(ztf_hit)
+            
+            # Save the modified file
+            ztf_hits.to_hdf(file_path, key='ztf_hits')
 
-    # Save the display version
-    ztf_hits_disp = load_ztf_hits(known_ast=known_ast, display=True)
+            # If we get here, saving was successful
+            break
+        except:
+            time.sleep(sleep_time)
+
+    # Location of CSV display file
     file_path_csv = file_path.replace('.h5', '.csv')
-    ztf_hits_disp.to_csv(file_path_csv)
+    for i in range(num_tries):
+        try:
+            # Save the display version
+            ztf_hits_disp = load_ztf_hits(known_ast=known_ast, display=True)
+            ztf_hits_disp.to_csv(file_path_csv)
+            break
+        except:
+            continue
 
 # ********************************************************************************************************************* 
 def remove_prior_hits(ztf_elt, elts, min_hits: int=10):
