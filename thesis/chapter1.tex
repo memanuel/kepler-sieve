@@ -322,7 +322,7 @@ The test protocol here was the same as for the planets.
 I compared the positions of these asteroids in the barycentric mean ecliptic frame predicted by my integartion at annual dates to the positions quoted by JPL.
 I also compared the instananeous angle from Earth geocenter to the asteroid. \\
 Below are two charts summarizing the results.
-\begin{figure}
+\begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{sim_pos_error_comp.png}
 \includegraphics[width=1.0\textwidth]{sim_ang_error_comp.png}
@@ -331,10 +331,57 @@ My integration is compared to positions extracted from Horizons at 40 dates from
 \end{center}
 \end{figure}
 If we focus on a plausible window of $\pm 5$ years around 2020, we can see that the selected planets integration is extremely accurate.
-Angular errors 5 years out are on the order of $0.5$ arc seconds.
+Angular errors 5 years out are on the order of $0.5$ arc seconds.\\
+The charts and numerical outputs can be obtained at the command line by running
+\begin{lstlisting}[style=CodeSnippet]
+(kepler) $ python planets.py --test
+\end{lstlisting}
+\clearpage
+(\tty{kepler} is the name of the Anaconda environment with the necessary dependencies installed.
+An anaconda environment file \tty{kepler.yml} is included in the \tty{env} directory of the Git repository.)
 
 \section{Efficient Integration of All Known Asteroids}
 \label{section_integrate_known_asteroids}
+In the previous section I have described how to integrate the Sun and Planets where the initial conditions
+are obtained from Horizons using the API included in \tty{REBOUND}.
+While this is a reliable and simple procedure that is ideal if you have only a few bodies to integrate,
+there is too much overhead in querying the Horizons API for it to be feasible for integrating all known asteroids.
+(If you spent 1 second on each of the 797,000 asteroids with available data, 
+you would sit at your computer for over 9 days waiting for the job to complete,
+which it probably wouldn't because the angry folk at JPL would have probably blacklisted your IP address
+for spamming their server long before then.)
+Horizons includes two data files \href{https://ssd.jpl.nasa.gov/?sb_elem}{Small-Body Elements}
+that are intended for bulk integrations and large scale analysis.
+The first two of these contain orbital elements for asteroids:
+\begin{itemize}
+\item Orbital elements for 541,128 asteroids with IAU numbers as of Epoch 58,600
+\item Orbital elements for 255,518 asteroids with designations but without IAU numbers; most elements have been updated to epoch 58,600 but some are older
+\end{itemize}
+I performed a bulk integration of the orbits of all 733,489 of these asteroids that had orbital elements as of the epoch 58600.
+In principle, I could have integrated all of the remaining asteroids with older elements forward in time to 58,600, but I had to draw the line somewhere.
+I took the fact that JPL didn't bother updating these older elements as evidence it wasn't a worthwhile use of time.
+
+The code to do this is in \tty{asteroid\_integrate.py}.
+There are a few parts that are not obvious and worth explanation. \\
+The module \tty{asteroid\_element.py} contains function for working with the orbital elements in these two data files.
+JPL follows different conventions than the defaults in \tty{REBOUND}.
+Here is a brief comment abot the columns used
+\begin{itemize}
+\item \textbf{Num} is the IAU asteroid number; only available in the numbered asteroid file
+\item \textbf{Name} is the offial IAU name; only available in the numbered asteroid file
+\item \textbf{Designation} is the designation of known asteroids without IAU numbers
+\item \textbf{a} is the semi-major axis in AU
+\item \textbf{e} is the eccentricity (dimensionless)
+\item \textbf{i} is the inclination $i$ quoted in degrees
+\item \textbf{w} is the argument of periapsis $\omega$ in degrees
+\item \textbf{Node} is the longitude of the ascending node $\Omega$ in degrees
+\item \textbf{M} is the mean anomaly $M$ quoted in degrees
+\item \textbf{H} is the $H$ parameter (mean brightness) in the H-G model of asteroid magnitude 
+\footnote{https://www.britastro.org/asteroids/dymock4.pdf}{BAA H-G Magnitude System} 
+\item \textbf{G} is $G$ parameter (sensitivity of brightness to phase angle)
+\item \textbf{Ref} is the name of a JPL reference integration
+\end{itemize}
+
 
 \section{Integration of Kepler Two Body Problem in Tensorflow}
 \label{section_kepler_two_body_tensorflow}
