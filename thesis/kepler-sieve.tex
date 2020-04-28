@@ -77,7 +77,12 @@
 
 % Inline Graphics
 \usepackage{graphicx,float,subfig, grffile}
-\graphicspath{{../figs/}{../figs/web/}{../figs/integration_test/planets/}}
+\graphicspath{
+	{../figs/}
+	{../figs/web/}
+	{../figs/integration_test/planets/}
+	{../figs/integration_test/asteroids/}
+}
 
 % Captions
 \captionsetup[figure]{font=small}
@@ -91,7 +96,7 @@
 % MSE Code snippets
 \lstdefinestyle{CodeSnippet}
 {
-    basicstyle=\fontsize{10}{12}\color{black}\ttfamily
+    basicstyle=\linespread{1.0}\fontsize{10}{12}\color{black}\ttfamily
 }
 % MSE Macros
 \newcommand{\tty}[1]{\texttt{#1}}
@@ -193,8 +198,8 @@ All code for this project is publicly available on GitHub at \href{https://githu
 
 \tableofcontents % Table of contents
 
-% The rest of the front matter: Lists of tables, figures, dedication and
-% acknowledment is optional. Comment out whatever you don't like
+% The rest of the front matter: Lists of tables, figures, dedication and acknowledment is optional. 
+% Comment out whatever you don't like
 % \listoftables
 % \listoffigures
 \begin{acknowledgments}
@@ -214,14 +219,12 @@ It would not have been possible to complete it without extraordinary understandi
 %%%%%%%%%%%%%%%% MAIN BODY %%%%%%%%%%%%%%%%
 \pagenumbering{arabic} % reset page numbering and switch to arabic
 
-% Introductory chapter. Comment out if you don't have an intro chapter, but I
-% think most committees expect you to have one.
+% Introductory chapter. Comment out if you don't have an intro chapter, but I think most committees expect you to have one.
 % Don't number the intro chapter, but add to to the table of contents
 \addcontentsline{toc}{chapter}{Introduction}
 \chapter*{Introduction}\label{ch:intro}
 \input{intro}
 
-% \chapter{Hook\footnote{Co-authored with my advisor}}\label{ch:1}
 \chapter{Integrating the Solar System}\label{ch:1}
 \input{chapter1}
 
@@ -235,11 +238,9 @@ It would not have been possible to complete it without extraordinary understandi
 
 % Put appendices, bibliography, and supplemental materials here
 
-% The bibliography may be single spaced within each entry, but must be
-% double-spaced between each entry. Most bibliography styles leave space between
-% entries, so that shouldn't be a problem.
+% The bibliography may be single spaced within each entry, but must be double-spaced between each entry. 
+% Most bibliography styles leave space between entries, so that shouldn't be a problem.
 \begin{singlespacing}
-% I like "References" better than "Bibliography"
 \renewcommand{\bibname}{References}
 
 % Any bibliohgraphy style that leaves space between entries is fine
