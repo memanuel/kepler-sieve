@@ -105,13 +105,104 @@ to relate RA/Dec measurements to directions $\uvec$ in the barycentric mean ecli
 
 \section{Mapping Between RA/Dec and Direction $\vec{u}$ in the Ecliptic Frame}
 \label{section_ra_dec_to_dir}
+In the previous section we have explored the ICRS, which provides the definition of the RA/Dec measurements quoted by astronomers.
+In this section, I review the definition of the barycentric mean ecliptic frame that is used for all calculations in this thesis.
+Then I explain the functions that are used to perform the conversions between RA/Dec and directions in the ecliptic frame.
 
+The barycentric ecliptic frame is the natural choice for computations done in relation to integrations of the solar system.
+It defines the $xy$ plane to containing the mean ecliptic (ellipse of the Earth's orbit around the Sun).
+We take the mean ecliptic because the ecliptic varies slowly over time; 
+the rotation of the Earth around the Sun in any given year would not be contained \textit{exactly} in a plane,
+but there is a mean plane that comes closest in the least square sense to hitting all the points.
+The $z$ axis is the unique direction that is orthogonal to this plane.
+Within the $xy$ plane, the $x$ axis is oriented from the Sun to Earth geocenter at the vernal equinox.
+In particular, the $x$ axis is the direction from the Earth to the Sun at the vernal equinox as of the epoch, 
+which is currently J2000.0 (JD 2451545.0, approximately January 1, 2000 12:00 UTC on the Gregorian calendar).
 
-\section{Introducing the ZTF Dataset}
-\label{section_ztf}
+Here the vernal equinox is not defined with its ancient interpretation as the day when the day and night have equal lengths,
+but by the modern astronomical definition as the intersection of two planes:
+the mean ecliptic plane described above, and the mean equator as of that date.
+The idea of the mean equator as of a date is that as described above, the Earth's equator undergoes small wobbles at high frequency due to nutation.
+The mean equator as of a date disregards these wobbles, and instead considers only the trend of the equator, which changes slowly due to precession.
+This definition has the advantages of being more precisely measurable and changing more slowly than the true equator, making it the standard.
+
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=0.8\textwidth]{heliocentric_ecliptic.png}
+\caption{The Heliocentric Ecliptic Frame, courtesy of \href{https://en.wikipedia.org/wiki/Ecliptic_coordinate_system}{Wikipedia}\\
+The Barycentric Ecliptic Frame is analogous, but the origin is the solar system barycenter rather than the Sun.}
+\end{center}
+\end{figure}
+
+The module \tty{ra\_dec.py} handles conversions between RA/Dec and the direction $\uvec$ in the barycentric mean ecliptic (BME) frame.
+The two workhorse functions are named \tty{radedc2dir} and \tty{dir2radec}.
+The hard work in getting all of this to work comes in understanding the ideas of the coordinate systems and developing tests.
+Once you know what everything means and how to test that the implementation is right, it amounts to just a few lines of code.
+The \tty{astropy SkyCoordinate} class is aware of both the ICRF and the BME frames.
+In order to transform between the two coordinate frames, we need only instantiate a \tty{SkyCoordinate} of the required type, 
+and ask \tty{astropy} to transform it for us.
+It's so easy I will include a code snippet to give the flavor; this is from \tty{radec2dir}:
+\begin{lstlisting}[style=CodeSnippet]
+obs_icrs = astropy.SkyCoord(ra=ra, dec=dec, obstime=obstime, frame=ICRS)
+obs_ecl = obs_icrs.transform_to(BarycentricMeanEcliptic)
+u = obs_ecl.cartesian.xyz
+\end{lstlisting}
+
+How can we test that all of this is working? 
+By comparing my calculations to those done by the JPL.
+At first I struggled to reconcile my results.
+I downloaded the computed position of Earth and Mars from JPL as well as the RA/Dec predicted by JPL for an imaginary observer at Earth geocenter.
+When I compared the JPL results to my own, they did not match,
+I eventually realized that the JPL calculation is accounting for light delay.
+In the next section, I wil explain this calculation and demonstrate that my results are consistent with JPL.
 
 \section{Computing a Direction $\vec{u}$ from Position $\vec{q}$ and Velocity $\vec{v}$}
 \label{section_pos_vel_to_dir}
+Suppose we have computed the position $\qearth$ and $\qast$ where we believe the Earth and an asteroid are at the same time $t$.
+Can we compute the direction $\uvec$ from the Earth to the asteroid by simply subtracting the poitions and normalizing them, i.e. by
+$$ \uvec \stackrel{?}{=} \frac{\qast - \qearth}{\norm{\qast - \qearth}}$$
+The answer is no! This fails to account for the finite speed of light.
+The photons arriving at the observatory at the observation time $t_1$ were not emitted at $t_1$; they were emitted in the past, at time $t_0$.
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=0.8\textwidth]{light_time.png}
+\caption{Computing the Apparent Direction from Earth to an Asteroid, Accounting for the Speed of Light}
+\end{center}
+\end{figure}
+It's straightforward to calculate a correction that is accurate to first order once we draw a picture.
+It requires that we know both the predicted position and the predicted velocity of the asteroid at time $t_1$.
+\begin{align*}
+\mathbf{q}_{\mathrm{rel}} &= \qast - \qearth \\
+T_{\mathrm{light}} &= \norm{ \mathbf{q}_{\mathrm{rel}} } / c \\
+\Delta \qast &= \vvec_{\mathrm{ast}} \cdot T_{\mathrm{light}} \\
+\mathbf{q}_{\mathrm{lt}} &= \mathbf{q}_{\mathrm{rel}} - \Delta \qast \\
+\uvec &= \mathbf{q}_{\mathrm{lt}} / \norm{\mathbf{q}_{\mathrm{lt}}}
+\end{align*}
+Here $c$ is the speed of light as usual.
+
+One slightly counterintuitive fact is that we don't need to know or account for the speed of the Earth, 
+or compute the relative velocity of the asteroid to the Earth. 
+Why is this?
+We are performing all of our calculations in the barycentric mean ecliptic frame.
+This is very nearly an inertial frame of reference, so physics behaves ``nicely'' and everything works as expected.
+The only small departures from this frame being inertial are due to the orbit of the solar system around the Milky Way
+and the acceleration of the Milky way in the entire universe.
+If we used a different reference frame, e.g. the heliocentric frame, we would make errors due to the acceleration of this frame 
+unless we accounted for them, which would be equivalent to the calculations shown here.
+In this frame, we have determined the positions of both the Earth and the asteroid at the instant $t_1$ at which 
+photons landed on the detector of the observatory.
+To calculate the direction from which these photons arrived in the BME frame, we need only know where the asteroid was at the moment
+$t_0$ when photons emitted from it would have arrived at $t_1$.
+It's worth pointing out here that a more fully correct description would be given by solving
+$$ \norm{\qearth(t_1) - \qast(t_0)} = c \cdot (t_1 - t_0) $$
+This is the approach taken by the astronomy library \tty{SkyField}, which solves this equation iteratively.
+Each iterative step matches the first order solution shown above.
+For the purpose of this problem, the light time between an asteroid and the Earth will typically be on the order of 20 minutes or so.
+(The speed of light in AU / minutes is 0.120, so 20 minutes of light travel covers 2.4 AU).
+This is short enough time interval that approximating the motion of the asteroid as linear is highly accurate.
+
+\section{Introducing the ZTF Dataset}
+\label{section_ztf}
 
 \section{Finding the Nearest Asteroid to Each ZTF Observation}
 \label{section_ztf_nearest_ast}
