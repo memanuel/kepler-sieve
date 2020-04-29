@@ -186,13 +186,17 @@ Why is this?
 We are performing all of our calculations in the barycentric mean ecliptic frame.
 This is very nearly an inertial frame of reference, so physics behaves ``nicely'' and everything works as expected.
 The only small departures from this frame being inertial are due to the orbit of the solar system around the Milky Way
-and the acceleration of the Milky way in the entire universe.
+and the acceleration of the Milky Way in the entire universe.
 If we used a different reference frame, e.g. the heliocentric frame, we would make errors due to the acceleration of this frame 
 unless we accounted for them, which would be equivalent to the calculations shown here.
-In this frame, we have determined the positions of both the Earth and the asteroid at the instant $t_1$ at which 
+In the BME frame, we have determined the positions of both the Earth and the asteroid at the instant $t_1$ at which 
 photons landed on the detector of the observatory.
 To calculate the direction from which these photons arrived in the BME frame, we need only know where the asteroid was at the moment
 $t_0$ when photons emitted from it would have arrived at $t_1$.
+This calculation of an astrometric direction is implemented in the function \tty{astrometric\_dir}, also in \tty{ra\_dec.py}.
+It takes as inputs \tty{q\_body}, \tty{v\_body} and \tty{q\_obs}, and returns the astrometric direction $\uvec$
+from the observer to the body accounting for light time.
+
 It's worth pointing out here that a more fully correct description would be given by solving
 $$ \norm{\qearth(t_1) - \qast(t_0)} = c \cdot (t_1 - t_0) $$
 This is the approach taken by the astronomy library \tty{SkyField}, which solves this equation iteratively.
@@ -201,12 +205,88 @@ For the purpose of this problem, the light time between an asteroid and the Eart
 (The speed of light in AU / minutes is 0.120, so 20 minutes of light travel covers 2.4 AU).
 This is short enough time interval that approximating the motion of the asteroid as linear is highly accurate.
 
-\section{Introducing the ZTF Dataset}
-\label{section_ztf}
+We can also use this approach to approach to make a back of the envelope estimate of the errors we might make if 
+we disregarded the light time adjustment
+Suppose an asteroid has $a=3$, so by Kepler's thrid law this body would have an orbital period of $3^{3/2} \approx 5.2$ years.
+At a time when this asteroid is 3.0 AU from Earth, the light time would be 25 minutes, which workds out to 2.20E-4 of its orbital period.
+Converting this into degrees is a multiplication by 360, and into arc seconds a further multiplication by 3600.
+I estimate that ignoring light time could lead in this case to errors on the order of 285 arc seconds 
+if the asteroid were moving perpendicular to its displacement to Earth.
+While that's close enough to aim an amateur's optical telescope, it's a catastrophic error here.
 
-\section{Finding the Nearest Asteroid to Each ZTF Observation}
-\label{section_ztf_nearest_ast}
+There is one more correction we need to account for: the position of the observatory on the surface of the Earth, or ``topos''.
+Our integration of the solar system gives us $\qearth$, the position of the Earth's center of mass in the BME as a function of time.
+But our observatory of course sits on the surface of the earth, not at the center.
+It would be too hot in the center, plus you couldn't see anything from there.
+Fortunately this is another well studied problem that is handled well by mature software libraries.
+I spent a lot of time trying to get a solution working based on the implementation in \tty{astropy},  but I simply could not get it to work.
+Eventually I gave up and decided to use \tty{SkyField} instead.
+The function \tty{calc\_topos} in \tty{ra\_dec.py} computes the topos adjustment at a named observatory site as of a vector of times.
+Currently the only observatory site required is Palomar mountain in California.
+The topos correction is a pair of corrections $\Delta \qvec_{\mathrm{topos}}$ and $\Delta \vvec_{\mathrm{topos}}$ such that
+$$\qobs = \qearth + \Delta \qvec_{\mathrm{topos}}$$
+The spline is generated with the following code snippet (slightly edited for brevity)
+\begin{lstlisting}[style=CodeSnippet]
+obsgeoloc = SkyField.EarthLocation.of_site(site_name))
+longitude, latitude, height = obsgeoloc.geodetic
+topos = SkyField.Topos(latitude=latitude, longitude=longitude, elevatiom=elevation)
+dq_topos = topos.at(obstime_sf).ecliptic_position().au.T * au
+\end{lstlisting}
 
-\section{Analyzing the Distribution of Distance to the Nearest Asteroid}
-\label{section_nearest_ast_distribution}
+The function \tty{qv2dir} combines the capabilities of \tty{astrometric\_dir} and \tty{calc\_topos}.
+It takes as inputs \tty{q\_body}, \tty{v\_body}, \tty{q\_earth}, \tty{obstime\_mjd} and \tty{site\_name}.
+It returns the astrometric direction from an observer at the named site on earth, 
+to a body with the victor position and velocity vectors aligned with the observation times.
+
+The functions described above are based on \tty{numpy} arrays and run normally on the CPU.
+I also created a custom Keras Layer in TensorFlow that performs these calculations called \tty{AsteroidDirection}.
+At initialization, an \tty{AsteroidLayer} requires an array \tty{ts} of MJDs, the row lengths for each observation in the batch, and the site name.
+The main \tty{call} method of this layer accepts seven inputs: the orbital elements including the epoch, namely
+$(a, e, i, \Omega, \omega, f, t_0)$.
+It returns the predicted astrometric direction $\uvec$ from the named observatory to an asteroid with these orbital elements.
+This is the core layer that is used to predict directions to candidate orbital elements during the asteroid search.
+
+We are now ready to review the demonstration that my calculations are consistent with JPL and SkyField.
+You can follow this demonstration interactively in the Jupyter notebook 
+\tty{03\_RA\_DEC.ipynb} in the \tty{jupyter} directory of the project repository.
+I downloaded from Horizons a data set with with the positions and velocities of Earth and Mars.
+These sets contained 29,317 rows spanning a 10 year period from 2010-01-01 to 2020-01-01 sampled at 3 hour intervals.
+I also downloaded from Horizons what they refer to as ``observer'' calculations including a RA/Dec.
+I specified an observer location at Palomar Mountain, which is a preset observatory in Horizons.
+The SkyField calculations use a slick end to end capability to predict where an observer would see an object.
+It uses a downloaded JPL ephemeris file, but is otherwise a self contained calculation that is independent from both JPL and my calculations.
+
+I compared my calculations to two sources: JPL and SkyField, as well as comparing SkyField to JPL.
+The angular distance between two directions on the unit circle can be calculated with a simple formula that I will review later.  
+For very small distances, the angular difference in radians is equal to the Cartesian difference between the two direction
+vectors $\uvec_1$ and $\uvec_2$ on the unit sphere in $\R^3$.
+
+Here is a table summarizing the mean difference between Horizons, SkyField and my calculations:
+\begin{table}
+\begin{centering}
+\begin{tabular}{|c | c|}
+\hline
+Sources & Difference \\
+\hline
+SKY vs. JPL & 1.598 \\
+MSE vs. JPL & 1.604 \\
+MSE vs. SKY & 0.027 \\
+\hline
+\end{tabular}
+\caption{Mean differences between JPL, SkyField, and my calculations (MSE) in Arc Seconds\\
+My results are essentially identical to SkyField.  Both SkyField and I disagree with JPL by 1.6 arc seconds.}
+\end{centering}
+\end{table}
+My results are substantially identical to SkyField, to the miniscule tolerance of 0.027 arc seconds.
+Both SkyField and I differ a tiny bit from JPL, to the tune of 1.6 arc seconds.
+
+I did some further tests, this time comparing my predicted directions from Earth to the first 16 asteroids 
+with the results of applying my \tty{radec2dir} function to the RA/Dec quoted by JPL,
+with the directions I predicted using the integrated orbits.  In pseudocode, the test looks like this:
+\begin{align*}
+\uvec_{\mathrm{JPL}} &= \tty{radec2dir(RA\_JPL, DEC\_JPL)} \\
+\uvec_{\mathrm{MSE}} &= \tty{qv2dir(q\_ast\_MSE, v\_ast\_MSE, q\_earth\_MSE, 'palomar')}
+\end{align*}
+This test is exercising both the integration and the angle conversion.
+On 10 years of daily data for 16 asteroids, the root mean squared error is \textbf{\emph{0.873 arc seconds.}}
 

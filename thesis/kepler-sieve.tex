@@ -147,18 +147,19 @@
 \newcommand{\hamiltonian}{\mathcal{H}}
 \newcommand{\p}{\partial}
 \newcommand{\qvec}{\mathbf{q}}
-\newcommand{\qearth}{\mathbf{q}_{\mathrm{Earth}}}
-\newcommand{\qast}{\mathbf{q}_{\mathrm{Ast}}}
+\newcommand{\qearth}{\mathbf{q}_{\mathrm{earth}}}
+\newcommand{\qobs}{\mathbf{q}_{\mathrm{obs}}}
+\newcommand{\qast}{\mathbf{q}_{\mathrm{ast}}}
 \newcommand{\vvec}{\mathbf{v}}
 \newcommand{\uvec}{\mathbf{u}}
 \newcommand{\xvec}{\mathbf{x}}
 \newcommand{\Lvec}{\mathbf{L}}
 \newcommand{\hvec}{\mathbf{h}}
-
-\DeclarePairedDelimiter\norm{\lVert}{\rVert}
-
 % MSE command to mark TODO items
 \newcommand\todo[1]{\textbf{\textcolor{red}{#1}}}
+
+% Paired delimeters
+\DeclarePairedDelimiter\norm{\lVert}{\rVert}
 
 \begin{document}
 
@@ -208,15 +209,15 @@ All code for this project is publicly available on GitHub at \href{https://githu
 I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
 I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
 numerical integrators for solving solar system orbits.\\
-I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) for their advice on state of the art solar system integrators.\\
-Most importantly, I would like to thank my wife Christie and my children Victor and Ren\'ee for their love and support.
+I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
+for their advice on state of the art solar system integrators.\\
+Most importantly, I would like to thank my wife Christie for her love and support.
 The Covid-19 crisis struck just as my work on this thesis kicked into high gear.
-It would not have been possible to complete it without extraordinary understanding and support from them.
+It would not have been possible to complete it without extraordinary understanding and support from her.
 \end{acknowledgments}
-% \begin{dedication}
-%   To my parents
-% \end{dedication}
-
+\begin{dedication}
+To my my children Victor and Ren\'ee 
+\end{dedication}
 
 %%%%%%%%%%%%%%%% MAIN BODY %%%%%%%%%%%%%%%%
 \pagenumbering{arabic} % reset page numbering and switch to arabic
@@ -231,11 +232,14 @@ It would not have been possible to complete it without extraordinary understandi
 % \chapter{Integrating the Solar System}\label{ch:1}
 % \input{chapter1}
 
-\chapter{Predicting Directions from Positions}\label{ch:2}
-\input{chapter2}
+% \chapter{Predicting Directions from Positions}\label{ch:2}
+% \input{chapter2}
 
-% \chapter{Searching for Asteroids}\label{ch:3}
-% \input{chapter3}
+\chapter{Analysis of ZTF Asteroid Detections}\label{ch:3}
+\input{chapter3}
+
+% \chapter{Searching for Asteroids}\label{ch:4}
+% \input{chapter4}
 
 %%%%%%%%%%%%%%%% BACK MATTER %%%%%%%%%%%%%%%%
 
