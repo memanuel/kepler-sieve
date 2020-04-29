@@ -12,7 +12,7 @@ This is a surprisingly good approximation for the evolution of the solar system,
 
 The two body approximation is not, however, sufficiently accurate for a high precision model of the past and future positions of the known bodies in the solar system.
 While the mass of the sun is much larger than that of the heaviest planet, Jupiter, the planets are sufficiently massive
-(and often closer to each other and other bodies of interest) that gravity due to their mass must also be accounted for.
+(and often closer to each other and other bodies of interest) that gravity due to planets must also be accounted for.
 The modern approach to determining orbits in the solar system is to use numerical integrators of the differential equations of motion.
 
 \section{The \tty{REBOUND} Library for Gravitational Integration}
@@ -173,23 +173,23 @@ and the last two orient the ellipse in its plane and the phase of the body on it
 
 \begin{samepage}
 \begin{itemize}
-\item $a$, the semi-major axis; named \tty{a} in JPL and REBOUND
+\item $a$, the semi-major axis; named \tty{a} in JPL and \tty{REBOUND}
 \item $e$, the eccentricity; named \tty{e} in both systems
-\item $i$, the inclination; named \tty{i} in JPL and \tty{inc} in REBOUND
-\item $\Omega$, the longitude of the ascending node; named \tty{node} in JPL and \tty{Omega} in REBOUND
-\item $\omega$, the argument of perihelion; named \tty{peri} in JPL and \tty{omega} in REBOUND
-\item $f$, the true anomaly; named \tty{f} in REBOUND; not quoted directly by JPL
+\item $i$, the inclination; named \tty{i} in JPL and \tty{inc} in \tty{REBOUND}
+\item $\Omega$, the longitude of the ascending node; named \tty{node} in JPL and \tty{Omega} in \tty{REBOUND}
+\item $\omega$, the argument of perihelion; named \tty{peri} in JPL and \tty{omega} in \tty{REBOUND}
+\item $f$, the true anomaly; named \tty{f} in \tty{REBOUND}; not quoted directly by JPL
 \item $M$, the mean anomaly; named \tty{M} in both systems
-\item mjd, the epoch as a Modified Julian Date
+\item $t_0$, the epoch as a Modified Julian Date
 \end{itemize}
 \end{samepage}
-Distances are in A.U. in both JPL and REBOUND.  \\
-Angles are quoted in degrees in JPL and in radians in REBOUND.
+Distances are in A.U. in both JPL and \tty{REBOUND}.  \\
+Angles are quoted in degrees in JPL and in radians in \tty{REBOUND}.
 
 These orbital elements have stood the test of time because they are useful and intuitive.
 They are ideal for computations, both theoretical and numerical, because in the case of the two body problem five of the six orbital elements remain constant.
 The careful reader will note that there are 8 entries in the table above, but I've described elements as coming six at a time.
-The epoch is considered to be the ``seventh element'' because in the Kepler two body problem, we can describe one body at different times, but it will have the same orbit.
+The epoch $t_0$ is considered to be the ``seventh element'' because in the Kepler two body problem, we can describe one body at different times, but it will have the same orbit.
 This point of view extends to the N-body problem, which is fully reversible; the same system can be described at at different moments in time.
 In practice, the orbital elements are often used to describe the initial conditions of all the bodies for an integration.
 The problem is then integrated numerically, possibly both forwards and backwards.
@@ -201,7 +201,7 @@ In orbital elements, the first five are almost always $(a, e, i, \Omega, \omega)
 These five will remain constant for a body moving in the Kepler two body problem.
 
 There is some variation in the choice of the sixth element, because different representations have different pros and cons.
-The true anomaly $f$ is most convenient for transforming back and forth between orbital elements and Cartesian space.
+The true anomaly $f$ is most convenient for transforming from orbital elements and Cartesian space.
 The mean anomaly $M$ is most convenient for studying the time evolution of the system, because it changes linearly with time in the Kepler two body problem.
 The mean anomaly and true anomaly are related by the famous 
 \href{https://en.wikipedia.org/wiki/Kepler\%27s_equation}{Kepler's Equation}
@@ -247,27 +247,28 @@ It includes functions to build a simulation (\tty{make\_sim}).
 This will seek to load a saved simulation on disk if it is available, otherwise it will query Horizons for the required initial conditions.
 The function \tty{make\_archive} builds a \tty{REBOUND SimulationArchive}.
 As the name suggets, a \tty{SimulationArchive} is a collection of simulation snapshots that  have been integrated.
-This function also saves the integrated positions of the planets and test bodies as plain old \tty{Numpy} arrays for use in downstream computations.
+This function also saves the integrated positions of the planets and test bodies as plain old \tty{numpy} arrays for use in downstream computations.
 
 The module \tty{planets.py} performs the numerical integration of the planets.
-To be more precise, it will integrate different collections of massive bodies in the solar system
+To be more precise, it will integrate four different collections of massive bodies in the solar system
 \begin{itemize}
 \item \textbf{Planets}: The Sun; The Earth and Moon as separate bodies; and the barycenters of the other seven IAU planets 
 Mercury, Venus, Mars, Jupiter, Saturn, Uranus, and Neptune (10 objects)
 \item \textbf{Moons}: The 8 IAU planets, plus the following significant moons and Pluto (31 objects): \\
+Earth: Moon (Luna)\\
 Jupiter: Io, Europa, Ganymede, Callisto \\
 Saturn: Mimas, Enceladus, Tethus, Dione, Rhea, Titan, Iapetus, Phoebe \\
 Uranus: Ariel, Umbriel, Titania, Oberon, Miranda \\
 Neptune: Triton, Proteus \\
 Pluto: Charon 
 \item \textbf{Dwarfs}: All objects in the solar system with a mass at least $1E-10$ Solar masses (31 objects): \\
-Planets: Earth, Moon, and barycenters of other seven planets \\
+Planets: Earth, Moon, and barycenters of the other seven IAU planets \\
 Above 1E-9: Pluto Barycenter, Eris, Makemake, Haumea \\
 Above 1E-10: 2007 OR10, Quaoar, Hygiea, Ceres, Orcus, Salacia, Varuna, Varda, Vesta, Pallas
 \item \textbf{All}: All objects in the solar system with a mass at least $1E-10$ Solar masses (45 objects): \\
 All 8 planets (not barycenters) \\
 All the heavy moons above \\
-All the dwarf planets above
+All the dwarf planets and heavy asteroids above
 \end{itemize}
 
 Each configuration above was integrated for a 40 year period spanning 2000-01-01 to 2030-12-31 and a time step of 16 days.
@@ -304,6 +305,10 @@ While it might at first seem surprising that the results are worse for the more 
 it's important to realize that this problem is intrinsically more difficult.
 Simulating the evolution of the barycenter of e.g. the Jupiter system is significantly easier than keeping track of the heavy moons and integrating them separately.
 Overall these results are excellent; over a span of 20 years in either direction, integrations are accurate on the order of $10^{-6}$ AU.
+\footnote{For readers less familiar with astronomy, one AU (astonomical unit) is a unit of length that was defined to match the mean distance from the Earth to the Sun.
+It is official defined as equal to 1.495 878 707 E11 meters; see \href{https://en.wikipedia.org/wiki/Astronomical_unit}{Wikipedia - Astronomical Unit}.
+It is extremely convenient for solar system integrations since it leads to distances on the scale of around 1 to 10, 
+and for this reason it is the default distance unit in \tty{REBOUND}.}
 The angular precision on the order of $\sim 0.8$ arc seconds is also excellent for such a long time span and well within the tolerance of this application.
 
 After reviewing these results, I decided that the optimal strategy for the asteroid search problem was to treat the heavy bodies 
@@ -315,13 +320,21 @@ Speed is important in this application, so the smallest and fastest collection w
 
 The second test of the integration extends the bodies under consideration from the planets to include ten test asteroids.
 I selected as the test asteroids the first 10 IAU numbered asteroids: Ceres, Pallas, Juno, Vesta, Iris, Hygiea, Egeria, Eunomia, Psyche, Fortuna.
-This test does not yet exercise the part of the code that insantiates asteroid orbits based on the bulk orbital elements files; that comes later.
+This test does not yet exercise the part of the code that instantiates asteroid orbits based on the bulk orbital elements files; that comes later.
 The asteroids here are initialized the same way as the planets, by querying the Horizons API in \tty{REBOUND}.
-(This method would not scale up to integrating all the asteroids though, because it is far too slow at about 1 second per asteroid.)
+% (This method would not scale up to integrating all the asteroids though, because it is far too slow at about 1 second per asteroid.)
 The test protocol here was the same as for the planets.
-I compared the positions of these asteroids in the barycentric mean ecliptic frame predicted by my integartion at annual dates to the positions quoted by JPL.
+I compared the positions of these asteroids in the barycentric mean ecliptic frame predicted by my integration at annual dates to the positions quoted by JPL.
 I also compared the instananeous angle from Earth geocenter to the asteroid. \\
 Below are two charts summarizing the results.
+If we focus on a plausible window of $\pm 5$ years around 2020, we can see that the selected planets integration is extremely accurate.
+Angular errors 5 years out are on the order of $0.5$ arc seconds.\\
+The charts and numerical outputs can be obtained at the command line by running
+\begin{lstlisting}[style=CodeSnippet]
+(kepler) $ python planets.py --test
+\end{lstlisting}
+(\tty{kepler} is the name of the Anaconda environment with the necessary dependencies installed.
+An anaconda environment file \tty{kepler.yml} is included in the \tty{env} directory of the Git repository.)
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{sim_pos_error_comp.png}
@@ -331,15 +344,7 @@ My integration is compared to positions extracted from Horizons at 40 dates from
 Initial conditions of the planets and asteroids are taken from the Horizons API as of MJD 58600 (2019-04-27).}
 \end{center}
 \end{figure}
-If we focus on a plausible window of $\pm 5$ years around 2020, we can see that the selected planets integration is extremely accurate.
-Angular errors 5 years out are on the order of $0.5$ arc seconds.\\
-The charts and numerical outputs can be obtained at the command line by running
-\begin{lstlisting}[style=CodeSnippet]
-(kepler) $ python planets.py --test
-\end{lstlisting}
 \clearpage
-(\tty{kepler} is the name of the Anaconda environment with the necessary dependencies installed.
-An anaconda environment file \tty{kepler.yml} is included in the \tty{env} directory of the Git repository.)
 
 \section{Efficient Integration of All Known Asteroids}
 \label{section_integrate_known_asteroids}
@@ -376,7 +381,7 @@ Here is a brief comment abot the columns used
 \item \textbf{Node} is the longitude of the ascending node $\Omega$ in degrees
 \item \textbf{M} is the mean anomaly $M$ quoted in degrees
 \item \textbf{H} is the $H$ parameter (mean brightness) in the H-G model of asteroid magnitude 
-\footnote{https://www.britastro.org/asteroids/dymock4.pdf}{BAA H-G Magnitude System} 
+\footnote{\href{https://www.britastro.org/asteroids/dymock4.pdf}{BAA H-G Magnitude System} }
 \item \textbf{G} is the $G$ parameter (sensitivity of brightness to phase angle)
 \item \textbf{Ref} is the name of a JPL reference integration
 \end{itemize}
@@ -388,15 +393,15 @@ Fortunately \tty{REBOUND} allows you to instantiate an orbit with any legal comb
 so I build the orbits from $M$ and save a copy with $f$. \\
 The code to load the quoted orbital elements from JPL is in \tty{load\_ast\_elt} in \tty{asterod\_element.py}.
 The function \tty{load\_data\_impl} simply builds a Pandas DataFrame with all of the quoted elements.
-The function \tty{ast\_data\_add\_calc} adds the computed fields for the true anomaly $f$.
+The function \tty{ast\_data\_add\_calc} adds the computed true anomaly $f$.
 
 There is one critical point to understanding these elements which is not at all obvious, so I will spell it out here.
 When quoting orbital elements of a body, they are always in reference to a dominant central mass, called the ``primary''.
-While it is often obvious from the context what that mass is, it is not always clear.
+While it is often clear from the context what that mass is, it is not always.
 In particular, two sound choices for the orbital elements of an asteroid are
 \begin{samepage}
 \begin{itemize}
-\item The central mass is the sun
+\item The central mass is the Sun
 \item The central mass is the solar system barycenter
 \end{itemize}
 \end{samepage}
@@ -412,16 +417,16 @@ sim.add(m=0.0, a=a, e=e, inc=inc, Omega=Omega, omega=omega, M=M, primary=primary
 
 The code to integrate all the known asteroids is in \tty{asteroid\_integrate.py}.
 At the risk of stating the obvious, when integrating asteroids, they are treated as massless ``test particles.''
-That is, they move under the influence of gravity from the massive particles in the simulation (here, the Sun and Planets),
+That is, they move under the influence of gravity from the massive particles in the simulation (here, the Sun, Moon and Planets),
 but they are \textit{not} modeled as having their own gravity.
-This is an absolutely essential computational simplification.
+This is an essential computational simplification.
 $N$ massive bodies have ${N}\choose{2}$ gravitational interactions, so the cost of integrating them scales as $N^2 / 2$.
 If you add $K$ massless bodies to the system, there are an additional $N\cdot K$ interactions, so the cost scales as $N^2 / 2 + N \cdot K$.
 I broke the asteroids into chunks of $K=1000$, and used a collection of massive bodies with $N=10$ (Sun, 8 Planets, Moon)
 A naive integration that treated them all as objects with gravitation that ``just happened to be equal to zero'' would cost $509,545$ calculations per time step.
 The efficient treatment by \tty{REBOUND} of the asteroids as test particles reduces this cost to $10,045$, a savings of a factor of 488 (roughly $K/2$).
 
-\tty{make\_sim\_asteroids} build a \tty{REBOUND} simulation initialized with the elements of asteroids with numbers in a given range.
+\tty{make\_sim\_asteroids} builds a \tty{REBOUND} simulation initialized with the elements of asteroids with numbers in a given range.
 \tty{calc\_ast\_pos\_all} is the workhorse that integrates this simulation forwards and backwards in time over the requested date range.
 It saves a \tty{REBOUND} simulation archive that allows the simulation to be loaded as of any time between the start and end.
 It also saves plain old \tty{numpy} arrays with the position and velocity of all the particles in the integration.
@@ -441,11 +446,11 @@ I tested the accuracy of this integration using a similar approach to the integr
 I extracted the positions and velocities of 25 test asteroids from the Horizons API.
 The test asteroids were the first 25 numbered asteroids, starting with Ceres and ending with Phocaea.
 Comparisons were made at annual intervals in the 40 year period.
-Please note that while this test might look the same as the previous test of the asteroid integration, there is an important difference.
+I call this the ``soup to nuts'' test of the asteroid integration.
+While it test might look the same as the previous test of the asteroid integration, there is an important difference.
 The asteroids on the last test had their initial conditions determined by querying the same Horizons API.
 This time, only the initial conditions of the massive bodies were taken from Horizons.
 Initial conditions for the asteroids were based on the orbital elements in the two JPL files described above.
-I call thist the ``soup to nuts'' of the asteroid integration.
 It can be run from the command line by typing
 \begin{lstlisting}[style=CodeSnippet]
 (kepler) $ python asteroid_integrate --test
@@ -454,7 +459,7 @@ The real program is run from the command line with different arguments, e.g.
 \begin{lstlisting}[style=CodeSnippet]
 (kepler) $ python asteroid_integrate 10000 1000
 \end{lstlisting}
-would integrate a block of 1,000 asteroids starting at number 10000. 
+would integrate a block of 1,000 asteroids starting at number 10,000. 
 Here are two charts presenting the root mean square position error and angle error to Earth geocenter for the 25 test asteroids.
 \begin{figure}[hbt!]
 \begin{center}
@@ -479,7 +484,7 @@ On an earlier iteration, I foolishly did all calculations in the heliocentric ra
 I was confused because the orbital elements were quoted in the heliocentric frame.
 When I finally switched to doing the computations in the barycentric frame 
 (using the heliocentric elements only as a quotation mechanism for the initial conditions of the asteroids)
-I improved the accuracy by about 0.5 arc second.
+I improved the accuracy by about 0.6 arc second.
 
 To summarize this section: I have presented an efficient and high precision integration of almost all the known objects the solar system.
 The only dependency on Horizons in this calculation is the initial conditions of the Sun, Moon, and Planets.
@@ -488,6 +493,7 @@ I would like to take a step back here to comment on the progress that has been m
 that makes it possible for one person to perform such a large scale computation.
 When computations like this were first performed by NASA, they occurred on mainframes that were so expensive only the largest 
 and best capitalized organizations could afford to buy them.
+They cost millions to tens of millions of dollars in today's money.
 Software to run these simulations was laboriously written and debugged, typically in \tty{FORTRAN}, dating back to an era when programs ran on punch cards.
 As recently as the 1980s and 1990s, the task of integrating the orbits of 733,000 asteroids could realistically be undertaken by only a small
 handful of people with access to mainframe computers and extensive experience in both software engineering and mathematical physics.
@@ -504,19 +510,24 @@ I find that a truly remarkable achievement of the scientific community.
 \label{section_kepler_two_body_tensorflow}
 In the previous section we have seen how to efficently perform a numerical integration of the asteroids (or indeed any set of candidate elements).
 But for the search technique presented here to work, we require a much faster integration that is also differentiable.
-The integration algorithm used will be the semi-analytical solution to the Kepler two body problem.
+The integration algorithm used will be the analytical solution to the Kepler two body problem.
 An efficient high speed implementation of this algorithm on GPU, including derivatives, is done in TensorFlow.
 
 I will begin with a brief review of the analytical solution of the Kepler two body problem.
 This derivation loosely follows the treatment given at \href{https://en.wikipedia.org/wiki/Kepler_problem}{Wikiepedia - Kepler Problem},
-but I have added significant explanations and intermediate steps because I found the article too terse to fully explain the derivation.
+but I have added significant explanations and intermediate steps because I found the article too terse to fully follow it.
 The assumption that the orbiting body is inifitesimally light compared to the central mass is often translated to a model 
-that the body orbits under a central attractive field exerting a radial force $F(r)$ that always pulls towards the origin.
-Because this force is radial, it does not change the angular momentum $L = mv \times r$, which is a constant of the motion.
+where the body moves in a central attractive field exerting a radial force $F(r)$ that always pulls towards the origin.
+Because this force is radial, it does not change the angular momentum vector $\mathbf{L} = m\mathbf{v} \times \mathbf{r}$, 
+which is a constant of the motion.
 As we recall from high school physics, a body with angular velocity $\omega$ has tangential velocity $\omega r$
 and centripetal acceleration $\omega^2 r$.
-The angular momentum meanwhile in terms of $m$, $r$ and $\omega$ is $L = m \omega r^2$ 
-(put another way, the moment of interia is $mr^2$).
+\footnote{
+In this discussion, $\omega$ refers to an angular velocity $\omega = d\theta / dt$, not the orbital element with the argument of perhelion.
+There are only so many Greek letters available, and I follow the conventions of mathematical physics in this paper whenver possible,
+even at the cost of the occasional clash of letters.}
+The angular momentum magnitude meanwhile in terms of $m$, $r$ and $\omega$ is $L = m \omega r^2$ 
+(put another way, the moment of inertia is $mr^2$).
 The total acceleration of the orbiting body therefore has two terms: centripetal acceleration $\omega^2r$, pointing towards the origin,
 and the radial acceleration $d^2r / dt^2$ pointing away from the origin.
 The force of gravity is $-G M m / r^2$ where $G$ is the universal gravitational constant and $M$ is the mass of the central body.
@@ -525,10 +536,10 @@ $$ m \frac{d^2r}{dt^2} - m \omega^2 r = - \frac{G M m }{r^2}$$
 We can divide out the mass of the test particle $m$ to find
 $$ \frac{d^2r}{dt^2} - \omega^2 r = - \frac{G M }{r^2}$$
 Let $h = \omega^2 r$ be the specific angular momentum.
-Since this is a constant, we can substitue $\omega = h\cdot r^{-2}$.  
+Since this is a constant, we can substitute $\omega = h\cdot r^{-2}$.  
 The resulting equation with $\omega$ now eliminated as a variable is
 $$ \frac{d^2r}{dt^2} - h^2 r^{-3} = - G Mr^{-2}$$
-Since the angular momentum $L$ is constant, a corollary is that the motion in confined to a plane.
+Since the angular momentum vector $\mathbf{L}$ is constant, a corollary is that the motion in confined to a plane.
 Let $\theta$ be the angle of the body in this plane of rotation.
 By the definition of angular velocity, $d\theta / dt = \omega$.
 We can also replace the differntial operator $d / dt$ with a function of $d / d\theta$:
@@ -570,7 +581,7 @@ It was known in Kepler's time that this described an ellipse in the plane.
 The eccentricity $e$ and phase angle $\theta_0$ are determined by the initial conditions.
 The special case $e=0$ describes a circular orbit.
 
-The \tty{REBOUND} library includes formulas for determining Cartesian coordinates from orbital elements.
+The \tty{REBOUND} library includes formulas for determining Cartesian coordinates from orbital elements and vice versa.
 The formulas there were originally taken from Murray and Dermott's text on solar system dynamics \cite{SSD}.
 In the \tty{REBOUND} source code, the conversion formulas are in the file \tty{tools.c}.
 I present them here in mathematical notation:
@@ -590,7 +601,7 @@ q_z &= r \cdot \lbrace (\sin \omega \cdot \cos f + \cos \omega \cdot \sin f) \cd
 v_x &= v_0 \cdot \lbrace 
 (e + \cos f) 
 \cdot (-\cos i \cdot \cos \omega \cdot \sin \Omega - \cos \Omega \cdot \sin \omega) - 
-\sin f \cdot  (\cos \omega \cdot \cos \Omega - \cos i \cdot \sin \omega \cdot \sin \Omega) 
+\sin f \cdot  (\cos \omega \cdot \cos \Omega + \cos i \cdot \sin \omega \cdot \sin \Omega) 
 \rbrace \\
 v_y &= v_0 \cdot \lbrace 
 (e + \cos f) 
@@ -606,16 +617,16 @@ v_z &= v_0 \cdot \lbrace
 Here are the formulas used to go in the other direction, from Cartesian coordinates to orbital elements:
 \begin{align*}
 \mu &= G \cdot (M + m) \\
-r &= \sqrt{q_x^2 + q_y^2 + q_z^2} \\
+r^2 &= q_x^2 + q_y^2 + q_z^2 & r &= \sqrt{r^2} \\
 v^2 &= v_x^2 + v_y^2 + v_z^2 & v &= \sqrt{v^2} \\
 v^2_{\mathrm{circ}} &= \frac{\mu}{r} & v_{\mathrm{circ}} &= \sqrt{v^2_{\mathrm{circ}}} \\
-a &= \frac{-\mu}{v^2 - 2 v_{\mathrm{circ}}^2} \\
+a &= \frac{\mu}{2 v_{\mathrm{circ}}^2 - v^2} \\
 h_x &= (q_y v_z - q_z v_y) & h_y &= (q_z v_x - q_x v_z) \\
-h_z &= (q_x - v_y - q_y v_v) \\ h &= \sqrt{h_x^2 + h_y^2 + h_z^2 } \\
+h_z &= (q_x v_y - q_y v_x) & h &= \sqrt{h_x^2 + h_y^2 + h_z^2 } \\
 v^2_{\mathrm{diff}} &= v^2 - v^2_{\mathrm{circ}} \\
-r \cdot v_r &= (q_x v_x + q_y v_y + q_z v_z) & v_r &= (r \cdot v_r) / r \\
-e_x &= \mu^{-1} \cdot (v^2_{\mathrm{diff}} \cdot q_x - r \cdot v_r \cdot q_x) & e_y &= \mu^{-1} \cdot (v^2_{\mathrm{diff}} \cdot q_y - r \cdot v_r \cdot q_y) \\
-e_z &= \mu^{-1} \cdot (v^2_{\mathrm{diff}} \cdot q_z - r \cdot v_r \cdot q_z) & e &= \sqrt{ e_x^2 + e_y^2 + e_z^2} \\
+r \cdot v_r &= (q_x v_x + q_y v_y + q_z v_z) & r^2 \cdot v_r &= r \cdot (r \cdot v_r) \\
+e_x &= \mu^{-1} \cdot (v^2_{\mathrm{diff}} \cdot q_x - r^2 \cdot v_r \cdot v_x) & e_y &= \mu^{-1} \cdot (v^2_{\mathrm{diff}} \cdot q_y - r^2 \cdot v_r \cdot v_y) \\
+e_z &= \mu^{-1} \cdot (v^2_{\mathrm{diff}} \cdot q_z - r^2 \cdot v_r \cdot v_z) & e &= \sqrt{ e_x^2 + e_y^2 + e_z^2} \\
 % N &= \mathrm{sign}(a) \sqrt{\left|\frac{\mu}{a^3}\right| } \\
 % P &= \frac{2 \pi}{n} \\
 i &= \arccos \left( \frac{h_z}{h} \right) \\
@@ -648,14 +659,16 @@ $E$ is the eccentric anomaly, and the mean anomaly $M$ is determined from $E$ us
 The formulas presented here work in the non-degenerate case that the orbit is not in the $x-y$ plane.
 That case requires special handling, which \tty{REBOUND} provides.
 Such special handling is much more challenging to code on GPU in TensorFlow than on CPU.
+It turns out that simply ignoring this issue works adequately in practice for this application;
+mostly we are are converting from elements we identify to Cartesian coordinates, which is always numerically stable.
 
 For those new to machine learning in Python, TensorFlow is a back end for efficient GPU computation.
 Keras is a set of interfaces that can in principle be implemented with multiple back ends.
 TensorFlow includes a reference implementation of Keras.
-The module \tty{orbital\_elemnt.py} includes custom Keras layers \tty{ConfigToOrbitalElement} and \tty{OrbitalElementToConfig}.
+The module \tty{orbital\_element.py} includes custom Keras layers \tty{ConfigToOrbitalElement} and \tty{OrbitalElementToConfig}.
 They follow the recipes outlined above.  
 The code looks a bit turgid compared to a C program; 
-this style makes is sometimes required to make sure that the GPU computations are carried out exactly as desired.
+this style is sometimes required to make sure that the GPU computations are carried out exactly as desired.
 
 The custom layer \tty{MeanToEccentricAnomaly} computes the eccentric anomaly $E$ given a mean anomaly $M$.
 As mentioned earlier, this must be done through numerical methods since there is no analytical solution.
@@ -688,25 +701,25 @@ The module \tty{asteroid\_model.py} contains the main classes used for modeling 
 of a set of candidate orbital elements during the search process.
 This file includes a custom layer \tty{ElementToPosition} that computes both the position 
 and velocity of a set of orbital elements, again following the exact same logic above.
-The class \tty{AsteroidPosition} is a keras Model.
+The class \tty{AsteroidPosition} is a Keras Model.
 It is initialized with a vector of times, the MJDs as of which predicted positions are desired.
-\tty{AsteroidPosition} is specialized for the problem of predicting all the position and velocities of a batch or orbital elements.
+\tty{AsteroidPosition} is specialized for the problem of predicting all the positions and velocities of a batch or orbital elements.
 It is \textit{not} assumed that the observation times are shared in common across all the candidate elements in the batch.
 Internally, a list of the row lengths is maintained (i.e. the number of observation times for each of the canidate elements).
 Tensorflow has a notion of a ragged tensor which is sometimes useful, but many of the calculations have to be done using flat tensors.
 When the class is initialized, it assembles arrays with the position and velocity of the sun 
 in the barycentric mean ecliptic frame at all of the desired time points.  
 This is done by calling the function \tty{get\_sun\_pos\_vel} which is defined in \tty{asteroid\_data}.
-This function in terms loads a saved integration done at daily resolution from the disk, and performs a cubic spline interolation.
+This function loads a saved integration done at daily resolution from the disk, and performs a cubic spline interolation.
 Experience has shown that this admittedly naive interpolation strategy 
 is more than adequate to capture the position and velocity of the sun when the samples are daily.
-(The sun doesn't moves enough that if you disregard its motion, you can make errors on the order of 1E-3 AU, 
+(The sun moves enough in the BME that if you disregard its motion, you can make errors on the order of 1E-3 AU, 
 but it moves on small position and velocity scales.)
 
 The main interface for this model accepts as inputs a set six vectors of length \tty{batch\_size}, 
-representing the six orbital elements $(a, e, inc, \Omega, \omega, f)$.
+representing the six orbital elements $(a, e, i, \Omega, \omega, f)$.
 The wonderful feature of the Kepleriean orbital elements for two calculations in the two body problem now comes into play.
-Five of the six elements--all except the element describing the body's position on its orbital ellipse--remain constant through the motion.
+The first five orbital elements remain constant through the motion.
 These are copied using \tty{tf.repeat} to the desired shape.
 The mean anomaly $M$ meanwhile has a linear dependence in time.
 The slope is called the mean motion and customarily written with $N$.  The mean motion is given by 
@@ -719,16 +732,21 @@ $$M(t) = M_0 + N(t - t_0)$$
 where $M_0$ represents the mean anomaly at the epoch, $N$ the mean motion, and $t_0$ the MJD of the epoch.
 The mean anomaly $M$ is extracted from the initial true anomaly $f$ using the layer \tty{TrueToMeanAnomaly} defined in \tty{OrbitalElements}.
 
+The output shape of the predicted positions and velocities are both $[N_{\mathrm{obs}}, 3]$, where $N_{\mathrm{obs}}$ is the number of observations.
+These can be rearranged into ragged tensors of shape $[B, N_{k}, 3]$ where $B$ is the batch size and $N_{k}$ is the number of observations for 
+candidate element $k$ in the batch.
+The class makes available to its consumers the derivatives of these outputs with respect to the orbital elements.
+
 The \tty{AsteroidPosition} class also has a method called \tty{calibrate}.
 This method ensures that the predicted position and velocity at the set of calibrated orbital elements exactly match the output of the numerical integration.
 There are several ways this could have been done, including sophisticated approaches to compute 
 the difference between the orbital elements predicted by the Kepler two body solution and the numerical integration.
-I opted for the simplest possible approach of just adding correct vectors $dq$ and $dv$,
+I opted for the simplest possible approach of just adding offset vectors $dq$ and $dv$,
 because the goal of this piece of code is get approximately correct positions and velocities as fast as possible.
 During the search process, as the orbital elements evolve, the asteroid position model is periodically recalibrated.
 At the learning rates used, errors due to the Kepler approximation breaking down over the small perturbations to the orbital elements are not a problem.
 
-This class integrates approximate orbits and their derivatives to the orbital elements with remarkable speed.
+The \tty{AsteroidModel} class integrates approximate orbits and their derivatives to the orbital elements with remarkable speed.
 During training, a typical runtime per sample is around 350 microseconds.
 Samples here are an entire orbit with on the order of 5,000 distinct time points for each candidate element in the batch.
 That's fast! 

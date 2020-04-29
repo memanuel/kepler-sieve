@@ -167,23 +167,18 @@
 % An abstract should be less than 350 words.
 A novel method is presented to learn the orbits of asteroids from a large data set of telescopic observations.
 The problem is formulated as a search over the six dimensional space of Keplerian orbital elements.
-Candidate orbital elements are initialized by randomly choosing the six elements independently 
-at random, either by sampling from a known asteroid or from uniformly distributed angles.
-A statistical model describes the distribution of angular distances between the directions 
-of observed detections to the predicted direction from the observatory site to a body with these orbital elements.
-This model yields a log likelihood function, which attains large positive values when the candidate orbital elements are near 
-to the elements of a real asteroid viewed many times in the data.
+Candidate orbital elements are initialized randomly.
+An objective function is formulated based on log likelihood that rewards candidate elements for getting 
+very close to a fraction of the observed directions.
 The candidate elements and the parameters describing the mixture distribution are jointly optimized using gradient descent.
 Computations are performed quickly and efficiently on GPUs using the TensorFlow library.
 
 The methodology of predicting the directions of telescopic detections is validated by demonstrating 
 that out of approximately 5.69 million observations from the ZTF dataset,
 3.75 million (65.71\%) fall within 2.0 arc seconds of the predicted directions of known asteroids.
-The search process is validated in multiple stages.
-First, I demonstrate that given an initial guess equal to a perturbation applied to the elements of asteroids present in the data,
-the search process is able to successfully recover the true orbital elements to a high degree of precision.
-Next, I demonstrate that a random initialization is able to converge to elements matching some known asteroids to high precision.
-Finally, I use the search on observations that do not match any known asteroids.
+The search process is validated on known asteroids by demonstrating the successful recovery 
+of their orbital elements after initialization at perturbed values.
+A search is run on observations that do not match any known asteroids.
 I present orbital elements for [5] new, previously unknown asteroids.\\
 \todo{Exact number of new asteroids presented}\\
 All code for this project is publicly available on GitHub at \href{https://github.com/memanuel/kepler-sieve}{github.com/memanuel/kepler-sieve}.
