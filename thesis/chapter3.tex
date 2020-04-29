@@ -36,17 +36,107 @@ for practical purposes the dataset consists of 8 months of detections spanning J
 
 \begin{figure}[hbt!]
 \begin{center}
-\includegraphics[width=0.8\textwidth]{../figs/ztf/ztf_ast_per_month.png}
-\caption{The topographic coordinate system, courtesy of \href{https://en.wikipedia.org/wiki/Horizontal_coordinate_system}{Wikipedia}}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/ztf_ast_per_month.png}
+\caption{ZTF Asteroid Detections per month}
 \end{center}
 \end{figure}
 
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/ztf_dataframe.png}
+\caption{Preview of Pandas DataFrame of ZTF Detections}
+\end{center}
+\end{figure}
+
+The fields \tty{mjd}, \tty{ra}, \tty{dec}, and \tty{mag\_app} are part of the original dataset.
+I have populated the columns \tty{ux}, \tty{uy} and \tty{uz} by running \tty{radec2dir} on the quoted RA/Dec from ZTF.
+
+\section{The Angular Distance Bewteen two Directions $\vec{u}_1$ and $\vec{u}_2$}
+\label{section_ztf_angle_diff}
+A recurring task in this thesis to compute the angular distance bewteen two directions on the unit sphere.
+If $\uvec_1$ and $\uvec_2$ are on the unit sphere, we can compute their Cartesian distance $s$ in the usual way,
+$$ s = \norm{\uvec_2 - \uvec_1}$$
+$s$ will be in the interval $[0, 2]$.
+We would also like to know the angular distance $\theta$ of the shortest path 
+on the surface of the sphere (geodesic) connecting these two points.
+On Earth, this would be analogous to the length of the great circle route by airplane between two cities.
+Here is a simple picture demonstrating the derivation of the formula relating $s$ and $\theta$.
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=0.3\textwidth]{../figs/misc/angular_distance.png}
+\caption{The angular distance between two directions on the unit sphere.}
+\end{center}
+\end{figure}
+The two directions are shown as arrows pointing up.
+The distance between them $s$ is bisected by a line segment from the center of the sphere.
+This forms a right triangle with hypotenuse $1$ and side length $s/2$ opposite angle $\theta/2$.
+We thus obtain the formulas
+\begin{align*}
+\sin (\theta / 2) &= s / 2 \\ 
+\theta &= 2 \arcsin (s / 2) \\
+s &= 2 \sin \theta (\theta / 2)
+\end{align*}
+This function is implemented in \tty{astro\_utils} as \tty{deg2dist} and \tty{dist2deg} to convert between degrees and Cartesian distance in either direction.
 
 \section{Finding the Nearest Asteroid to Each ZTF Observation}
 \label{section_ztf_nearest_ast}
+We now have in principle all the tools required to find which asteroid was closest in angular distance to each ZTF observation.
+To recap the key steps, each ZTF observation is converted from a RA/Dec to a direction in the BME.
+The position of Earth and each of the 733,489 catalogued asteroids are integrated as of the objervation time, and the direction bewteen them is calculated.
+There are a few problems with the brute force approach implicitly suggested above.
+We have 5.7E6 detections and 7.3E5 catalogued asteroids for a total of 4.16E12 (4.16 billion) interactions.
+Even if we work in single precision with 4 bytes per float, we need 12 bytes for a 3D direction difference translating to about 50 GB to load the matrix in memory.
+The bigger problem is that a brute force integration of all the asteroids at the MJDs of the all 5.7 million observations would be brutally slow.
+
+Fortunately there are a few simple tricks we can use that together make this problem tractable.
+The ZTF detections come from a series of images taken through the same telescope, so they come in blocks made at the same time.
+The 5.7 million rows share ``only'' 97,111 distinct MJDs.
+We also don't need to re-integrate the asteroid orbits.
+We've already done a high precision numerical integration at a 1 day frequency and saved the results into \tty{numpy} arrays in blocks of 1,000 asteroids at a time.
+Our entire data span only 635 days.  
+Loading one block of 1,000 asteroids therefore has only 3.81 million numbers (635 days x 1,000 asteroids x 6 numbers per integration point).
+
+The code to load the basic ZTF data from ALeRCE is included in the module \tty{ztf\_data.py}.
+The main function used by consumers is \tty{load\_ztf\_det\_all}, which loads a cached copy of all the available detections from the local disk.
+The module \tty{ztf\_nearest\_ast.py} contains a Python program that peforms the calculation described above.
+The block size is a parameter that can be controlled from the commandline; I ended up leaving it at 1,000.
+Checking back from my handwritten notes when I ran the job, it took approximately 25 hours to complete on a powerful server with 40 Intel CPU cores.
+The job ended up being memory bound, maxxing out all 256 GB of available RAM on the server.
+The initial job described above writes only computes the nearest asteroid in a block of 1,000 asteroids.
+A second reduction operation is then carried out to find the nearest asteroid overall.
+To limit memory usage, this was done in two steps.
+First, I took 16 chunks of 1,000 at a time to find the nearest asteroid in a block of 16,000 to each detection.
+Then I combined all the blocks of 16,000 (about 46) to generate one file with the nearest asteroid.
+
+The work of splining the asteroid directions is done in the module \tty{asteroid\_dataframe.py}.
+It includes functions to load the asteroid data from disk; spline the positions and velocities to the requested dates;
+and compute the astrometric directions to these splined positions and velocities.
+The module \tty{ztf\_ast} does the work of comparing a block of ZTF observations to a block of splined asteroid directions and finding the nearest one.
+Once these calculations have been done once, you don't need to worry about them unless you are adding a new block of ZTF data.
+Consumers can load the assembled DataFrame including the nearest asteroid number and distance with 
+a single call to \tty{load\_ztf\_nearest\_ast} which is defined in \tty{asteroid\_dataframe}.
+For the motivated reader who would like a detailed an interactive review of all these calculations, please see the Jupyter notebook \tty{04\_asteroid\_dataframe.ipynb}.
+It includes tests comparing my splined outputs of daily data to Horizons data downloaded at a 3 hour interval.
+
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/ztf_nearest_ast_dataframe.png}
+\caption{Preview of Pandas DataFrame of ZTF Detections Including Nearest Asteroid}
+\end{center}
+\end{figure}
+
+I would like to take a step back and review what has been presented thus far.
+Over 4 billion interactions between a ZTF asteroid detection and the predicted position of a known asteroid in the sky have been generated.
+These have been filtered to associate each ZTF detection with the known asteroid it is nearest to.
+This is a powerful enrichment of the original ZTF dataset, and might open the door to some additional work in the future.
+For example, it could be used to create a bulk data set linking the original image files to the asteroids they belong to.
+This could in turn be used to refine the machine learning pipeline used to classify detections and guess when they belong to the same object.
 
 \section{Analyzing the Distribution of Distance to the Nearest Asteroid}
 \label{section_nearest_ast_distribution}
-\section{Setup}
+In this section I explore the statistical distribution of the Cartesian distance between observations and the nearest asteroid.
+I compare the observed distribution of this distance to the theoretical distribution we would obtain 
+if either our observed or predicted directions were distributed uniformly at random on the sphere.
+
 
 % \section{Conclusion}
