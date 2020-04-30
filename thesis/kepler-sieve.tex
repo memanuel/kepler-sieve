@@ -152,9 +152,16 @@
 \newcommand{\qast}{\mathbf{q}_{\mathrm{ast}}}
 \newcommand{\vvec}{\mathbf{v}}
 \newcommand{\uvec}{\mathbf{u}}
+\newcommand{\uobs}{\mathbf{u}_{\mathrm{obs}}}
+\newcommand{\upred}{\mathbf{u}_{\mathrm{pred}}}
 \newcommand{\xvec}{\mathbf{x}}
 \newcommand{\Lvec}{\mathbf{L}}
 \newcommand{\hvec}{\mathbf{h}}
+
+% Probability
+\newcommand{\Unif}{\textnormal{Unif}}
+\newcommand{\Expo}{\textnormal{Expo}}
+
 % MSE command to mark TODO items
 \newcommand\todo[1]{\textbf{\textcolor{red}{#1}}}
 
@@ -169,8 +176,9 @@
 
 % the following four pages are required in that order. The first two pages are
 % not allowed to have page numbers, this is taken care of in the class file.
-\thesistitlepage
-\copyrightpage
+% \thesistitlepage
+% \copyrightpage
+
 \begin{abstract}
 % An abstract should be less than 350 words.
 A novel method is presented to learn the orbits of asteroids from a large data set of telescopic observations.
@@ -199,25 +207,26 @@ All code for this project is publicly available on GitHub at \href{https://githu
 \renewcommand{\listtablename}{\protect\centering\protect\Large List of Tables}
 \renewcommand{\listfigurename}{\protect\centering\protect\Large List of Figures}
 
-\tableofcontents % Table of contents
+% \tableofcontents % Table of contents
 
 % The rest of the front matter: Lists of tables, figures, dedication and acknowledment is optional. 
 % Comment out whatever you don't like
 % \listoftables
 % \listoffigures
-\begin{acknowledgments}
-I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
-I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
-numerical integrators for solving solar system orbits.\\
-I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
-for their advice on state of the art solar system integrators.\\
-Most importantly, I would like to thank my wife Christie for her love and support.
-The Covid-19 crisis struck just as my work on this thesis kicked into high gear.
-It would not have been possible to complete it without extraordinary understanding and support from her.
-\end{acknowledgments}
-\begin{dedication}
-To my my children Victor and Ren\'ee 
-\end{dedication}
+
+% \begin{acknowledgments}
+% I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
+% I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
+% numerical integrators for solving solar system orbits.\\
+% I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
+% for their advice on state of the art solar system integrators.\\
+% Most importantly, I would like to thank my wife Christie for her love and support.
+% The Covid-19 crisis struck just as my work on this thesis kicked into high gear.
+% It would not have been possible to complete it without extraordinary understanding and support from her.
+% \end{acknowledgments}
+% \begin{dedication}
+% To my my children Victor and Ren\'ee 
+% \end{dedication}
 
 %%%%%%%%%%%%%%%% MAIN BODY %%%%%%%%%%%%%%%%
 \pagenumbering{arabic} % reset page numbering and switch to arabic

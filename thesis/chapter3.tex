@@ -138,5 +138,59 @@ In this section I explore the statistical distribution of the Cartesian distance
 I compare the observed distribution of this distance to the theoretical distribution we would obtain 
 if either our observed or predicted directions were distributed uniformly at random on the sphere.
 
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=0.36\textwidth]{../figs/misc/orange_slice.png}
+\caption{Distance between an observation at the north pole and an arbitrary point.\\
+The observed direction $\uobs$ is assumed w.l.o.g. to be at the north pole $(0, 0, 1)$.\\
+The predicted direction $(x,y,z)$ is rotated in the $xy$ plane to to $(r, 0, z)$ \\
+The Cartesian distance to from the observation to $(r,z)$ is $s$, the hypotenuse of a right triangle with sides $1-z$ and $r$.}
+\end{center}
+\end{figure}
+Suppose without loss of generality that the observed direction is at the north pole, i.e. $\uobs = (0, 0, 1)$.
+Suppose that the direction we predict is $(x, y, z)$.
+Observe that the problem is symmetric about the $z$ axis, so we can rotate the problem into 
+the plane containing the center, the north pole, and our guess.
+Let $r^2 = x^2 + y^2$ be the squared distance from the $z$ axis to our guess.
+This configuration is shown in the diagram above.
+We can can relate the Cartesian distance $s$ to the height $z$ of our guess with the following simple observations.\\
+$(x, y, z)$ lies on the surface of a sphere, so $x^2 + y^2 + z^2 = 1$.\\
+$r^2 = x^2 + y^2$ by definition, so $r^2 = 1 - z^2$.\\
+In our diagram, we can see that $s$ is the hypotenuse of a right triangle whose other two side have length $r$ and $1-z$.
+Applying the Pythagorean Theorem, we find $s^2 = (1-z)^2 + r^s$. \\
+This simplifies to
+\begin{align*}
+s^2 &= 2(1-z) \\
+z &= 1 - \frac{s^2}{2}
+\end{align*}
+It turns out that this is a very useful parameterization because there is an elegant parameterization 
+of the differential solid angle $d\Omega$ in terms of $dz$.
+When surface integrals of a sphere are taught in introductory multivariate calculus courses, 
+students are most likely to be exposed only to the surface element in spherical coordinates $(r, \theta, \phi)$ which is
+$d\Omega = \sin \theta d\theta d\phi$.
+See, e.g. \href{https://en.wikipedia.org/wiki/Spherical_coordinate_system}{Wikipedia - integration in spherical coordinates}.
+But the parameterization in terms of the height $z$ along the $z$ axis is especially clean and convenient on this problem.\\
+Observe that $z = \cos \theta$ so $dz = |- \sin \theta| d\theta = \sin \theta d\theta$.  
+We take absolute values because this is an application of the change of variables formula and measures are always positive. \\
+Substituting this expression for the surface element, we obtain
+$$ d\Omega = dz d\phi$$
+As a quick sanity check of this result, let's see if we can recover that the surface area of  the unit sphere is $4 \pi$:
+$$ A = \int_{z = -1}^{1} \int_{\phi=0}^{2 \pi} d \phi dz = 2 \pi \int_{z = -1}^{1} dz = 4 \pi$$
+We can now write the probability density function (PDF) for any function that can be expressed in terms of $z$.
+Think of $Z$ as a random variable now.  The above result shows that when $Z$ is uniformly distributed on the unit sphere,
+$$Z \sim \Unif(-1, 1)$$
+Previously we showed that $z = 1 - s^2 / 2$.
+This is a very useful result; it tells us that if we treat the squared distance as a random variable $S^2$, then it is uniformly distributed on $[0, 2]$.
+Even more usefully, the conditional distribution of $S^2$, conditioned on $S^2 \le \tau^2$, is also uniform:
+$$ S^2 | S^2 \le \tau^2 \sim \Unif(0, \tau^2)$$
+If we apply a threshold distance $\tau$ and only consider predicted directions that are within Cartesian distance $\tau$ of an observation,
+then the condtional distribution of the relative distance over the threshold squared is uniform on $[0, 1]$.
+In mathematical notation instead of words, \\ 
+Let $\upred$ be a random variable distributed uniformly on the unit sphere.\\
+Let $S = \norm{\upred - \uobs}$ be the Cartesian distance between $\upred$ and $\uobs$. \\
+Let $\tau$ be a threshold distance in [0, 2].\\
+Let $V = S^2 / \tau^2$ be the relative squared distance of on observation vs. the threshold.\\
+Then the conditional distribution of $V$, conditional on $S < \tau$ (equivalently $V < 1$) is
+$$V \sim \Unif(0, 1)$$
 
 % \section{Conclusion}
