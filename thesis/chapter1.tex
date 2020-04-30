@@ -385,6 +385,17 @@ Here is a brief comment abot the columns used
 \item \textbf{G} is the $G$ parameter (sensitivity of brightness to phase angle)
 \item \textbf{Ref} is the name of a JPL reference integration
 \end{itemize}
+
+Here are the asteroid orbital elements as a Pandas DataFrame:
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/elts/ast_elt_dataframe.png}
+\caption{Orbital Elements of 733,489 asteroids downloaded from Horizons.\\
+I have calculated the true anomaly $f$ in \tty{REBOUND}.}
+\end{center}
+\end{figure}
+\clearpage
+
 To use these elements in \tty{REBOUND} is straightforward.
 Converting angles from degrees to radians is trivial.
 Distances are already quoted in AU.

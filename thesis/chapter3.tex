@@ -289,8 +289,23 @@ The second chart shows the relative density of this over the baseline if the gue
 \end{figure}
 \clearpage
 
+How many asteroids in the catalogue have enough detections in the ZTF dataset that we would have 
+a sporting chance to recover their orbital elements from these observations alone?
+Suppose for the sake of discussion that the number is $n=20$.
+There are 63,746 asteroids with 20 or more hits at 2.0 arc seconds.
+If we required only $n=10$ hits to recover the orbital elements, we could do it for 100,508 asteroids.\\
+We can visualize this by plotting the cumulative frequency of close observations on the $y$ axis vs. hit count on the $x$ axis:
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_cum.png}
+\caption{Cumulative frequency of asteroids by number of close observations < 2.0 arc seconds. \\
+There are 63,746 asteroids with 20 or more close matches and 100,508 asteroids with 10 or more close matches. }
+\end{center}
+\end{figure}
+\clearpage
+
 \section{Conclusion}
-\label{section_conclusion}
+\label{section_ztf_conclusion}
 I have presented in this chapter an analysis of the asteroid detections in the ZTF astronomical data set.
 I have demonstrated a calculation of the nearest known asteroid to each ZTF detection 
 and the angular distance from that asteroid to the detection.
@@ -301,4 +316,7 @@ are within 2.0 arc seconds of the predicted direction of the nearest known aster
 By comparing this number of hits to the number we would expect with a random baseline,
 I have provided overwheliming evidence that this entire apparatus of data and calculations is accurate 
 to a tolerance on the order of 2.0 arc seconds or better.
-Finally, I have provided motivation that the approximate shape of the distribution of distances decays with an exponential tail.
+I have provided motivation that the approximate shape of the distribution of distances decays with an exponential tail.
+Finally, I have shown the fraction of the asteroid catalogue we might be able to recover as a function of the number of observations required to fit it.  
+If we require $n=10$ detections to verify or update the orbital elements of a known asteroid,
+then we can apply this procedure on 100,508 asteroids representing 13.70\% of the known asteroid catalogue.
