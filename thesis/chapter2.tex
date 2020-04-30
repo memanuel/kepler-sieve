@@ -290,3 +290,18 @@ with the directions I predicted using the integrated orbits.  In pseudocode, the
 This test is exercising both the integration and the angle conversion.
 On 10 years of daily data for 16 asteroids, the root mean squared error is \textbf{\emph{0.873 arc seconds.}}
 
+\section{Predicting the Apparent Magnitude of an Asteoid}
+\label{section_mag}
+\todo{FILL THIS IN}
+
+\section{Conclusion}
+\label{section_conclusion}
+I have presented in this chapter the calculations required to determine the astromentric direction 
+of an asteroid observed from earth given its orbital elements.
+This calculation takes into account the time for light to travel from the asteroid to the Earth
+and the position of the observatory on the Earth's surface.
+I have tested these calculations against two independent sources, NASA Horizons and the SkyField astronomy library.
+I have demonstrated that my results are within 1.0 arc second of NASA and substantially identical to SkyField to within 0.01 arc seconds.
+Finally, I have demonstrated a high speed TensorFlow implementation of these calculations in the \tty{AsteroidDirection} layer.
+The TensorFlow model can predict astrometric directions of a set of candidate orbital elements 
+along with the derivatives of these predicted directions with respect to the six orbital elements.

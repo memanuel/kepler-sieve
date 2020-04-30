@@ -752,3 +752,17 @@ Samples here are an entire orbit with on the order of 5,000 distinct time points
 That's fast! 
 Numerical integrations on a CPU to full double precision are the gold standard for the right answer, 
 but for the inner loop of a search process, they can't compete with an approximate GPU solution on speed.
+
+\section{Conclusion}
+\label{section_conclusion}
+I have presented in this chapter a high quality integration of the solar system.
+I have integrated a collection of heavy objects--the Sun, Moon, and 8 planets--
+sufficient to generate accurate predictions of the positions of an asteroid.
+I have integrated the orbits of all 733,489 known asteroids at a daily time step over 40 years.
+All of these results have validated against NASA using the Horizons API to extremely tight tolerances:
+positions are accurat on the order of $10^{-6}$ AU and angles between bodies to better than 1 arc second.
+
+Finally, I have demonstrated a high performance implementation of the Kepler two body orbit on TensorFlow in the \tty{AsteroidPosition} Keras layer.
+This can be calibrated to the numerically integrated orbit so it will be highly accurate for orbital elements near those it was calibrated against.
+This TensorFlow implementation runs extremely fast on the GPU 
+and is capable of integrating on the order of 5000 time steps on the order of 300 microseconds.

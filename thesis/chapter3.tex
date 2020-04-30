@@ -36,7 +36,7 @@ for practical purposes the dataset consists of 8 months of detections spanning J
 
 \begin{figure}[hbt!]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{../figs/ztf/ztf_ast_per_month.png}
+\includegraphics[width=0.85\textwidth]{../figs/ztf/ztf_ast_per_month.png}
 \caption{ZTF Asteroid Detections per month}
 \end{center}
 \end{figure}
@@ -50,6 +50,17 @@ for practical purposes the dataset consists of 8 months of detections spanning J
 
 The fields \tty{mjd}, \tty{ra}, \tty{dec}, and \tty{mag\_app} are part of the original dataset.
 I have populated the columns \tty{ux}, \tty{uy} and \tty{uz} by running \tty{radec2dir} on the quoted RA/Dec from ZTF.
+
+Here is a chart showing the distribution of apparent magnitudes in the ZTF detections.
+It's shown on a log scale because there are so many more detections around the peak 19.5
+than at the brightest (10) and and dimmest (22) magnitudes. 
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=0.85\textwidth]{../figs/ztf/apparent_mag.png}
+\caption{Apparent Magnitude of ZTF asteroid detections.}
+\end{center}
+\end{figure}
+\clearpage
 
 \section{The Angular Distance Bewteen two Directions $\vec{u}_1$ and $\vec{u}_2$}
 \label{section_ztf_angle_diff}
@@ -120,8 +131,28 @@ It includes tests comparing my splined outputs of daily data to Horizons data do
 
 \begin{figure}[hbt!]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{../figs/ztf/ztf_nearest_ast_dataframe.png}
+\includegraphics[width=0.9\textwidth]{../figs/ztf/ztf_nearest_ast_dataframe.png}
 \caption{Preview of Pandas DataFrame of ZTF Detections Including Nearest Asteroid}
+\end{center}
+\end{figure}
+% \clearpage
+
+One natural question is how the brightness of the nearest asteroid to a detection varies between hits and misses.
+The chart below plots two histograms of the absolute magnitude parameter H for the nearest asteroid to each ZTF detection.
+Hits are shown in blue, misses in reds.
+The distribution of both charts is similar, but there is a noticeable tilt 
+in favor brighter asteroids being hits and dimmer asteroids being misses.
+This is exactly what we would expect; 
+the nearest asteroids when the distance is over the hit threshold are close to a random sample of the asteroids.
+The blue series though is not a random sample, it's a sample conditional on the detection matching a real asteroid.
+The brightest asteroids are more likely to be successfully detected.
+
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_brightness.png}
+\caption{Magnitude H of Nearest Asteroid to Each Detection\\
+Hits are shown in blue, misses in red; a hit is a detection within 2.0 arc seconds of its expected direction.\\
+The hits are slightly but noticeably tilted in favor of brighter asteroids.}
 \end{center}
 \end{figure}
 
@@ -173,7 +204,10 @@ But the parameterization in terms of the height $z$ along the $z$ axis is especi
 Observe that $z = \cos \theta$ so $dz = |- \sin \theta| d\theta = \sin \theta d\theta$.  
 We take absolute values because this is an application of the change of variables formula and measures are always positive. \\
 Substituting this expression for the surface element, we obtain
-$$ d\Omega = dz d\phi$$
+$$ d\Omega = dz \cdot d\phi$$
+I call this result the ``orange slicing theorem.''
+It tells you that if you slice an orange into horizontal slices, the amount of rind on each slice will be equal to $2 \pi$ times the height of the slice.
+
 As a quick sanity check of this result, let's see if we can recover that the surface area of  the unit sphere is $4 \pi$:
 $$ A = \int_{z = -1}^{1} \int_{\phi=0}^{2 \pi} d \phi dz = 2 \pi \int_{z = -1}^{1} dz = 4 \pi$$
 We can now write the probability density function (PDF) for any function that can be expressed in terms of $z$.
@@ -191,6 +225,80 @@ Let $S = \norm{\upred - \uobs}$ be the Cartesian distance between $\upred$ and $
 Let $\tau$ be a threshold distance in [0, 2].\\
 Let $V = S^2 / \tau^2$ be the relative squared distance of on observation vs. the threshold.\\
 Then the conditional distribution of $V$, conditional on $S < \tau$ (equivalently $V < 1$) is
-$$V \sim \Unif(0, 1)$$
+% $$V \sim \Unif(0, 1)$$
 
-% \section{Conclusion}
+This describes the conditional distribution of distances we would see if we guessed one random direction in the sky.
+But in this experiment, we are picking $733,489$ directions in the sky, one for each of the catalogued asteroids.
+Then we are taking the minimum of these distances.
+Can we still write down the conditional distribution of our nearest guess 
+if they were indepedently and identically distributed (i.i.d.) at random as above?
+
+Yes - Statistics 110 to the rescue!
+Theorem 8.6.4: PDF of Order Statistics \cite{BH} states that if $X_1, \ldots X_n$ are i.i.d. continuous random variables
+with PDF $f$ and CDF $F$, then the PDF of the $j$th order statistic (the $j$th smallest item $X_{(j)}$) is
+$$f_{X_{j}})(x) = n \cdot {{n-1}\choose{j-1}} f(x) \cdot F(x)^{j-1} \cdot (1 - F(x))^{n-j}$$
+In the special case that the $X_j$ are uniforms, this simplifies further (Example 8.6.5: Order statistics of Uniforms) \cite{BH}:\\
+Let $U_1, \ldots U_n$ be i.i.d. $\Unif(0,1)$.
+Then the distribution of $U_{j}$ is the Beta distribution,
+$$U_{(j)} \sim \Beta(j, n-j+1)$$
+The minimum is the order statistic of $j=1$, so
+$$U_{(1)} \sim \Beta(1, n)$$ 
+
+Let us now apply this theoretical result to compare our distribution of distances to what we would have obtained if 
+we were randomly throwing darts into the sky so to speak.
+The module \tty{ztf\_data\_viz} includes these calculations as well as the generation of charts.
+\tty{cdf\_nearest\_dist} computes the theoretical CDF using the approach described above.
+In the charts below, I will demonstrate that 2.0 arc seconds is a good threshold for classifying detections as ``hits'' against known asteroids.
+For now, please treat it as a parameter I have chosen to demonstrate that these calculations work and are getting
+astronomically more hits (no pun intended) than would arise from random chance.
+
+Out of 5.69 million detections, 3.75 million (65.71\%) are within 2.0 arc seconds of the nearest catalogued asteroid.
+The theoretical beta distribution says that if the predicted directions were distributed uniformly at random,
+we would expect only 98 hits or 0.0017\% of the total be this close.
+The immediate conclusion is that this whole set of calculations is working with a tolerance no worse than 2.0 arc seconds.
+
+We can get a better intuition for what's happening by visualizing the histogram of distance to the nearest asteroid.
+I initially plotted these against the percentile of the theoretical distribution; 
+these plots would be a flat line with density 1 if the predicted directions were uniformly at random.
+I found however that a simple plot of frequency vs. distance in arc seconds is easier to interpret 
+once you've done the statistical analysis that the results are not due to chance.
+Here is a plot showing hits inside a threshold of 2.0 arc seconds:
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_hist_dist.png}
+\caption{Histogram of angular distance from each ZTF detection to the nearest asteroid in arc seconds.\\
+These account for 65.57\% of the total data set.\\
+The number of expected detections due to random chance is shown in red; it is visually indistinguishable from zero on the chart.}
+\end{center}
+\end{figure}
+
+Here are two additional plot to visualize the distribution of distances between ZTF detections and the nearest known asteroid.
+The first shows the absolute density in hits per square degree.
+The second show the relative density of hits per square degree over what would have been expected
+from the minimum of 733,489 guesses distributed uniformly at random on the sphere. \\
+These charts seemed to have a shape that could be roughly approximated in a one parameter distribution as exponential.
+They led me to propose a mixture model and log likelihood optimization objective function that I will describe in the next section
+\begin{figure}[hbt!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_hist_dens_abs.png}
+\includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_hist_dens_rel.png}
+\caption{Density of hits for distance between ZTF detections and the nearest known asteroid. \\
+The first chart shows the absolute density in hits per square degree.\\
+The second chart shows the relative density of this over the baseline if the guesses were distributed randomly.}
+\end{center}
+\end{figure}
+\clearpage
+
+\section{Conclusion}
+\label{section_conclusion}
+I have presented in this chapter an analysis of the asteroid detections in the ZTF astronomical data set.
+I have demonstrated a calculation of the nearest known asteroid to each ZTF detection 
+and the angular distance from that asteroid to the detection.
+I have also developed the statistical distribution of distances that would be observed 
+if the predicted directions were distributed uniformly at random on the sphere.
+I have shown that of 5.7 million total ZTF detections, 65.7\% of them (almost two thirds)
+are within 2.0 arc seconds of the predicted direction of the nearest known asteroid.
+By comparing this number of hits to the number we would expect with a random baseline,
+I have provided overwheliming evidence that this entire apparatus of data and calculations is accurate 
+to a tolerance on the order of 2.0 arc seconds or better.
+Finally, I have provided motivation that the approximate shape of the distribution of distances decays with an exponential tail.
