@@ -293,7 +293,20 @@ and the log likelihood becomes a sum of $\log(h) = 0$.
 In general, we can zero out the log likelihood function by evaluating it at a set of uninformative baseline values, 
 and subtracting this quantity $\mathcal{L}_0$ from the current optimized $\mathcal{L}$.
 
-This likelihood function applies to only one of the candidate orbital elements.
+There is an important intuition about the role of the mixture parameters that I would like to explain.
+The major challenge in tuning the resolution $R$ is for the gradients to encourage the model to adjust the orbital elements
+to get closer to detections that are likely to be hits, without getting deked 
+\footnote{\href{https://en.wikipedia.org/wiki/Deke_(ice_hockey)}{deke}: an ice hockey technique whereby a player draws an opposing player out of position.}
+by close-ish detections that belong to other asteroids.
+If the resolution is too low before convergence, the model will be too far away to pick up any gradient to the hits.
+It will achieve a negative log likelihood because $\log(1-h) < 0$ and it won't make it up from the putative hits.
+If the resolution is too high, the model will end up compromising and trying to fit a cloud of detections belonging to different asteroids.
+The whole game of getting the model to converge is to find the sweet spot of $h$ and $R$ where the model gradually tightens its focus,
+like letting your foot off the clutch when you put a manual transmission car into gear.
+In previous iterations, I attempted to write down objective functions to balance these objectives by hand and failed miserably.
+It was only when I used probability theory with a mixture model that plausibly describes the underlying facts that I had any success.
+
+The likelihood function above applies to only one of the candidate orbital elements.
 In the actual optimization of a batch of 64 elements, we need a single scalar valued objective function.
 Because all of the elements in a batch are being optimized independently and have no interaction with each other, we can simply take their sum.
 There is an important refinement to this idea though that I will discuss in the next section.
@@ -302,6 +315,162 @@ There is an important refinement to this idea though that I will discuss in the 
 
 \section{Performing the Asteroid Search}
 \label{section_asteroid_search}
+We have by now covered the main theoretical ideas that go into the asteroid search.
+We've seen how to generate a set of candidate orbital elements and a collection of ZTF observations within a threshold of these elements.
+And we've identified a log likelihood function that rewards orbital elements for getting close to detections likely to be real 
+while learning mixture parameters to describe the provenance of observations under consideration and how closely they have been fit.
+In this section I will explain some of the most important details that were required to get this model to actually learn orbital elements from data.
+
+The workhorse class that searches for asteroids is called \tty{AsteroidSearchModel}.  
+It's a Keras custom model defined in the module \tty{asteroid\_search\_model.py}.
+An AsteroidSearchModel is initialized with a candidate elements and the ZTF observations near these elements.
+It constructs two layers of type \tty{CandidateElements} and \tty{MixtureParameters} that maintain, respectively, 
+the candidate orbital elements and mixture parameters.
+These layers are defined in the module \tty{asteroid\_search\_layers}.
+The candidate orbital elements are the familiar seven Keplerian orbital elements.
+The six ``live'' ones $(a, e, i, \Omega, \omega, f)$ are trainable, variables, the epoch is locked at its initial value.
+The mixture parameters are \tty{num\_hits}, $R$ and $\tau$, all of which are trainable.
+
+The first important idea in training the model is that all variables are controlled internally 
+with TensorFlow variables that are scaled with a comparable range, almost always $[0, 1]$.
+For example, the orbital element $a$ in the candidate elements layer is controlled by a \tty{tf.Variable}
+named \tty{a\_} that is constrained to lie in the region $[0, 1]$.
+(If a gradient update tries to push it less than 0 or more than 1, it is clipped back in the allowed range.)
+The value of $a$ is computed on demand by
+$a = a_{\mathrm{min}} \cdot \exp( \tty{a\_} \cdot \tty{log\_a\_range})$ 
+where \tty{log\_a\_range} = $\log(a_{\mathrm{max}} / a_{\mathrm{min}})$.
+$a_{\mathrm{min}}$ and $a_{\mathrm{max}}$ are set by policy to 0.5 and 32.0, respectively.
+Other orbital elements are likewise controlled via mathematical transforms into the range $[0, 1]$.
+The eccentricity is left as is, though it is limited to at most $63 / 64 = 0.984375$ to avoid numerical instabilities that occur as $e$ approaches $1$.
+The inclination is controlled via $\sin(inc)$, which is constrained to lie in the interval $\pm 1 - 2^{-8}$.
+The other angle variables $\Omega$, $\omega$ and $f$ are uncstrained, but multiplied by $2 \pi$ 
+so the control variable $f\_$ for instance can cover its entire allowed range of values by moving 1.0.
+What is the point of these machinations?
+It might be obscure to readers with a background in astronomy or applied math, but machine learning practitioners should be less surprised.
+Scaling variables to have a common size is a basic technique that significantly aids gradient descent in practice.
+
+A second important technique for the optimization is gradient clipping.
+The objective function is optimized using the de facto default in TensorFlow, Adam (adaptive moments).
+Gradient clipping is not turned on by default, but I found it to be vital for this problem to work.
+The reason it's so important is that the optimization function (and its gradients) vary over a tremendous scale in this problem.
+At the start of training, there is little to no information; the likelihood function is near zero; and the gradients are relatively small.
+As the model reaches convergence if it is lucky enough, it can achieve significantly large likelihoods and huge gradients.
+All gradients are clipped by norm to a maximum norm of 1.
+A good intuition for gradient clipping by norm is that the direction of the gradient is not changed, but the magnitude is capped.
+My sense from training the model extensively is that the gradient is almost always ``saturated'' 
+(i.e. the original gradient has a norm larger than 1, which is reduced to 1 by the gradient clipping.)
+
+The combination of having all the control variables in a range $[0, 1]$ and gradients clipped at a norm of $1$
+gives us a useful intuition about how quickly the model can update its parameters.
+I perform training in ``joint mode'' (where both the orbital elements and mixture parameters are updated) with a learning rate of $2^{-15}$.  
+This is a factor of 32 smaller than the Adam default of 0.001, which I found to be far too high for this problem.
+Pretend for a moment that there were only 1 parameter.  
+Assuming the gradient is saturated, on each data sample encountered, it will either increase or decrease by the learning rate.
+So after encountering $2^{15}$ samples it would be able to move from one extreme of its values to anothers.
+Of course in practice with multiple parameters, a single parameter will almost never have a partial gradient equal to 1.0,
+but it's a good intuition for the ``speed limit'' of how fast any one parameter can change during training.
+
+Let's now sketch out the flow of information from the candidate elements and mixture parameters all the way to the objective function.
+When the model is initialized, it also constructs an \tty{AsteroidDirection} layer.
+We've discussed this before--it's the layer that computes a Kepler orbit from the current candidate orbital elements,
+including a calibration adjustment that is periodically updated by numerically integrating the current candidate elements.
+The important thing to remember is that the asteroid direction layer is predicting directions based on candidate orbital element tensors
+that are the output of the candidate\_elements layer.
+
+Now a new layer comes into play: the \tty{TrajectoryScore} layer.
+This layer is also defined in \tty{asteroid\_search\_layers}.
+When the model is initialized, this layer saves the directions of all the observations in the ZTF data frame as Keras backend constants.
+This was a deliberate design choice that is somewhat unorthodox.
+Keras models are largely designed around the assumption that during training you will feed in batches with even numbers of input and output samples.
+This problem has a quite different flavor.
+There are no ``outputs'' we can line up against a batch of 64 candidate orbital elements.
+We are just computing an objective function and trying to maximize it, using TensorFlow as a big computational back end with
+support for GPU computation, automatic differentiation, and gradient descent optimization.
+By putting all the observations into Keras constants, we write them to the GPU once when the model is initialized,
+and then there is no need to copy any data between CPU and GPU memory during training.
+Eventually I can imagine training this model on such a huge data set that it might be necessary to batch the observation data.
+But with modern GPUs having memory capacities on the order of 10 GB, I think this approach should scale very well and offers significant performance benefits.
+
+The trajectory score layer is passed a tensor with the predicted directions $\upred$ as well as the current mixture parameters.
+It computes the Cartesian difference $s$ between the predicted and observed directions, 
+then applies the current filter $\tau$ to assemble a new tensor $v$ of the relative distance squared in $[0,1]$.
+All of these tensors should be thought of as having a shape starting with the batch size;
+$s$ for instance is one long tensor that represents the distances for all 64 orbital elements, concatenated together.
+The trajectory score layer then goes through the calculation of the probability and log likelihood under the mixture model described above.
+It returns a tensor of log likelihoods, one log likelihood for each of the 64 candidate orbital elements.
+It also counts the number of hits, which are defined here as observations that are within 10.0 arc seconds of their predicted directions.
+
+During my early efforts to train this model, I struggled to find a learning rate that worked.
+I found that different elements converged at different times and had very different gradients.
+In my intuition, I want to pretend that the gradient has only six terms for the candidate elements and three terms for the mixture parameters.
+When the gradient is clipped to a size of 1 across a row, 
+it's helpfully giving us a direction that we should adjust the elements and mixture parameters for that candidate element.
+But what TensorFlow is really doing is squashing the whole gradient, all 64 candidate elements worth, to have a norm of 1.
+When one element has a large gradient, it will dominate at the expense of the others.
+
+In writing this out now, I realize that what I probably should have down was to write a custom gradient clipping class that works on one candidate element at a time.
+What I did instead was to reason that I wanted the ability to effectively tune the learning rate on all 64 of the candidate elements independently.
+Of course a model of this kind has only one scalar objective function and one learning rate.
+But we can achieve the same effect by weighting the contribution of each candidate element.
+If $\mathcal{L}_i$ is the log likelihood of the $i$th candidate element, and $w_i$ is the weight on the $i$th candidate element,  
+then the weighted objective function is 
+$$\mathcal{L} = \sum_{i=1}^{n} w_i \mathcal{L}_i$$
+The weights are initialized at $w_i=1$.  If we cut the weight $w_5$ to $0.5$, then all the gradients due to candidate element $5$ will also be cut in half.
+
+But how do we decide when to adjust the weights?
+One problem I ran into repeatedly was the model would make quite good progress, 
+then it would get to a region where the learning rate was too high and in just one epoch it would fall apart.
+I tried to alleviate this using the built in early stopping, but this doesn't work exactly the way I want it to.
+And even if it did, it only knows about the single, scalar valued loss function;
+it has no notion that out of 64 elements, 56 improved on the last epoch but 8 got worse and so should be rolled back.
+I ended up writing my own custom code to do exactly this.
+At the end of a series of epochs of training, which I refer to as one ``episode'' of adaptive training,
+I check which elements have regressed and have worse log likelihoods than before.
+Any element that has regressed has its candidate elements and mixture parameters rolled back to their prior (best) values.
+Those elements also have their weights adjusted by a factor of 0.5, i.e. they are cut in half.
+I call this procedure ``adaptive training'' because the learning rate is adaptive.
+I found that this simple idea significantly improved the performance of the training.
+Without it, I was forced to use glacially slow learning rates to avoid overshooting and collapse (I even tried $2^{-20}$ in one bleak moment of desperation).
+
+The first test I tried was to give the model a set of candidate orbital elements that exactly 
+matched the 64 asteroids with the most observations in the data set (around 160 each on average).
+I figured that this problem would be a piece of cake for the model.
+It would pick up close to zero gradients on the orbital elements, and a huge gradient by tightening the resolution,
+and focus in tighter until it converged, right?
+Wrong! The problem is that when the resolution and threshold distances are too large, 
+the model is attaching a lot of weight to observations that are far away.
+The early iterations polluted the good orbital elements and never managed to converge.
+
+I hit on the idea of freezing the candidate orbital elements and only training the mixture parameters.
+Of course, this feels a bit like cheating.  
+If you know the elements are right and just want to learn the mixture parameters, 
+of course you're going to do better if you freeze the elements and only train the mixture parameters.
+At first, this was only a testing technique.
+Later on, though, I realized that it helps the model to converge even when it's not cheating.
+My intuition is that it's much ``safer'' to train the model at a higher learning rate when you adjust 
+the mixture parameters than when you adjust the candidate elements as well.
+
+The model as it now stands alternates rounds of training in two modes: ``mixture'' and ``joint'' modes.
+In mixture mode, only the mixture parameters \tty{num\_hits}, $R$ and $\tau$ are trainable.
+The learning rate is higher by a factor of 8, $2^{-12}$ in mixture mode vs. $2^{-15}$ in joint mode.
+The most important difference though is that the objective function is adjusted.
+When I started out, I had only two trainable mixture parameters, \tty{num\_hits} and $R$.
+I noticed that the model wasn't converging all the way, and realized that I wanted it to reduce $\tau$ along with $R$ as it trained.
+This is quite intuitive.  
+
+You might start out with observations within 2.0 degrees and a resolution of 0.5 degrees.
+But if you've trained to the point of a resolution of 0.1 degrees, there's no reason to drag around observations that are 20x further away.
+They're just noise, and they're hampering your ability to fine tune.
+I noticed at this point that after I made $\tau$ trainable, the model never wanted to reduce it.
+In hindsight this made sense: the likelihood always looks better when you consider it against a larger threshold.
+If your parameters are within 50 arc seconds on 100 observations vs. a threshold of 2.0 degrees (7200 arc seconds), 
+you're going to pat yourself on the back and say ``that's pretty good, it's not too likely I could have achieved that by chance alone.''
+If you shrink the resolution from 2.0 to 1.0, your $v$ is going to quadruple and your log likelihood will plummet.
+
+This suggests that while log likelihood is an excellent objective function for separating ``more likely'' from ``less likely'', it's not exactly what we want here.
+Even if the log likelihood has a very strong local maximum at a fully converged solution,
+this experience was telling me that there was no smooth path of increasing gradients to get there.
+Instead, I wanted an optimization function that would encourage the model to converge.
 
 \section{Recovering the Elements of Known Asteroids}
 \label{section_results_known_ast}
