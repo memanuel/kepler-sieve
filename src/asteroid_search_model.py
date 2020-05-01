@@ -2060,7 +2060,9 @@ class AsteroidSearchModel(tf.keras.Model):
         error_tag = 'Covariance Error' if is_q_norm else 'Mean Position Error in AU'
         title_tag_log = 'Precision of Covariance' if is_q_norm else 'Mean Precision of Position in AU'
         title_tag = title_tag_log if is_log else error_tag
-        title = f'{title_tag} vs. Elements on {calc_method}'
+        title_cart = f'{title_tag} vs. Elements on {calc_method}'
+        title_cov = f'{title_tag} vs. Elements'
+        title = title_cov if is_q_norm else title_cart
 
         # Caption for y-axis
         ylabel_prefix = 'Inverse ' if is_log else ''
