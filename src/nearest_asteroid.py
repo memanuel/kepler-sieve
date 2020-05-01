@@ -380,6 +380,7 @@ def plot_elt_transform_pdf(ast_elt_xf: pd.DataFrame, elt_name: str):
     ax.set_xlim([-3.0, 3.0])
     ax.legend()
     ax.grid()
+    return fig, ax
 
 # ********************************************************************************************************************* 
 def plot_elt_transform_map(ast_elt_xf: pd.DataFrame, elt_name: str):
@@ -410,6 +411,7 @@ def plot_elt_transform_map(ast_elt_xf: pd.DataFrame, elt_name: str):
     ax.plot(x_plot, y_plot, label=elt_name, color='blue')
     ax.legend(loc='lower right')
     ax.grid()
+    return fig, ax
 
 # ********************************************************************************************************************* 
 def elts_to_X_cov(elts):
