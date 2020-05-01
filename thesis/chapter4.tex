@@ -331,6 +331,7 @@ The candidate orbital elements are the familiar seven Keplerian orbital elements
 The six ``live'' ones $(a, e, i, \Omega, \omega, f)$ are trainable, variables, the epoch is locked at its initial value.
 The mixture parameters are \tty{num\_hits}, $R$ and $\tau$, all of which are trainable.
 
+\subsection{Controlling Parameters on a Uniform Scale}
 The first important idea in training the model is that all variables are controlled internally 
 with TensorFlow variables that are scaled with a comparable range, almost always $[0, 1]$.
 For example, the orbital element $a$ in the candidate elements layer is controlled by a \tty{tf.Variable}
@@ -345,10 +346,18 @@ The eccentricity is left as is, though it is limited to at most $63 / 64 = 0.984
 The inclination is controlled via $\sin(inc)$, which is constrained to lie in the interval $\pm 1 - 2^{-8}$.
 The other angle variables $\Omega$, $\omega$ and $f$ are uncstrained, but multiplied by $2 \pi$ 
 so the control variable $f\_$ for instance can cover its entire allowed range of values by moving 1.0.
+
+The number of hits \tty{num\_hits} is allowed in a range of $6$ to $1024$ and controlled by its log.
+I set the minimum to $6$ because any smaller than that, there is no point to searching at all.
+The resolution is controlled on a log scale as well and allowed in a range of 1.0 to 3600 arc seconds.
+The threshold is controlled on a log scale and allowed in a range of 10.0 arc seconds 
+up to the original threshold used to assemble the data, which is 7200 arc seconds in my runs.
+
 What is the point of these machinations?
 It might be obscure to readers with a background in astronomy or applied math, but machine learning practitioners should be less surprised.
 Scaling variables to have a common size is a basic technique that significantly aids gradient descent in practice.
 
+\subsection{Gradient Clipping by Norm}
 A second important technique for the optimization is gradient clipping.
 The objective function is optimized using the de facto default in TensorFlow, Adam (adaptive moments).
 Gradient clipping is not turned on by default, but I found it to be vital for this problem to work.
@@ -362,14 +371,15 @@ My sense from training the model extensively is that the gradient is almost alwa
 
 The combination of having all the control variables in a range $[0, 1]$ and gradients clipped at a norm of $1$
 gives us a useful intuition about how quickly the model can update its parameters.
-I perform training in ``joint mode'' (where both the orbital elements and mixture parameters are updated) with a learning rate of $2^{-15}$.  
-This is a factor of 32 smaller than the Adam default of 0.001, which I found to be far too high for this problem.
+I perform training in ``joint mode'' (where both the orbital elements and mixture parameters are updated) with a learning rate of $2^{-16}$.  
+This is a factor of 64 smaller than the Adam default of 0.001, which I found to be far too high for this problem.
 Pretend for a moment that there were only 1 parameter.  
 Assuming the gradient is saturated, on each data sample encountered, it will either increase or decrease by the learning rate.
-So after encountering $2^{15}$ samples it would be able to move from one extreme of its values to anothers.
+So after encountering $2^{16} = 65,536$ samples it would be able to move from one extreme of its values to anothers.
 Of course in practice with multiple parameters, a single parameter will almost never have a partial gradient equal to 1.0,
 but it's a good intuition for the ``speed limit'' of how fast any one parameter can change during training.
 
+\subsection{Scoring Trajectories: Log Likelihood and Hits by Candidate Element}
 Let's now sketch out the flow of information from the candidate elements and mixture parameters all the way to the objective function.
 When the model is initialized, it also constructs an \tty{AsteroidDirection} layer.
 We've discussed this before--it's the layer that computes a Kepler orbit from the current candidate orbital elements,
@@ -400,6 +410,7 @@ The trajectory score layer then goes through the calculation of the probability 
 It returns a tensor of log likelihoods, one log likelihood for each of the 64 candidate orbital elements.
 It also counts the number of hits, which are defined here as observations that are within 10.0 arc seconds of their predicted directions.
 
+\subsection{Training Each Candidate Element Independently}
 During my early efforts to train this model, I struggled to find a learning rate that worked.
 I found that different elements converged at different times and had very different gradients.
 In my intuition, I want to pretend that the gradient has only six terms for the candidate elements and three terms for the mixture parameters.
@@ -432,6 +443,7 @@ I call this procedure ``adaptive training'' because the learning rate is adaptiv
 I found that this simple idea significantly improved the performance of the training.
 Without it, I was forced to use glacially slow learning rates to avoid overshooting and collapse (I even tried $2^{-20}$ in one bleak moment of desperation).
 
+\subsection{Training in ``Mixture'' and ``Joint'' Modes}
 The first test I tried was to give the model a set of candidate orbital elements that exactly 
 matched the 64 asteroids with the most observations in the data set (around 160 each on average).
 I figured that this problem would be a piece of cake for the model.
@@ -452,12 +464,13 @@ the mixture parameters than when you adjust the candidate elements as well.
 
 The model as it now stands alternates rounds of training in two modes: ``mixture'' and ``joint'' modes.
 In mixture mode, only the mixture parameters \tty{num\_hits}, $R$ and $\tau$ are trainable.
-The learning rate is higher by a factor of 8, $2^{-12}$ in mixture mode vs. $2^{-15}$ in joint mode.
+The learning rate is higher by a factor of 16, $2^{-12}$ in mixture mode vs. $2^{-16}$ in joint mode.
 The most important difference though is that the objective function is adjusted.
 When I started out, I had only two trainable mixture parameters, \tty{num\_hits} and $R$.
 I noticed that the model wasn't converging all the way, and realized that I wanted it to reduce $\tau$ along with $R$ as it trained.
 This is quite intuitive.  
 
+\subsection{Modifying the Objective Function to Encourage Convergence}
 You might start out with observations within 2.0 degrees and a resolution of 0.5 degrees.
 But if you've trained to the point of a resolution of 0.1 degrees, there's no reason to drag around observations that are 20x further away.
 They're just noise, and they're hampering your ability to fine tune.
@@ -471,6 +484,97 @@ This suggests that while log likelihood is an excellent objective function for s
 Even if the log likelihood has a very strong local maximum at a fully converged solution,
 this experience was telling me that there was no smooth path of increasing gradients to get there.
 Instead, I wanted an optimization function that would encourage the model to converge.
+I modified the objective function to take the more general form
+$$J = \sum_{i=1}^{n} w_i \frac{\mathcal{L_i}}{R_i^\alpha \tau_i^\beta}$$
+This is the same as before, but now there are powers of the resolution $R_i$ and threshold $\tau_i$ in the denominator.
+While the original objective function only sought to find the most likely configuration,
+this objective function is willing to trade a reduction in likelihood for a more concentrated (converged) prediction.
+It's effectively adjusting the scoring for the ``degree of difficulty'' like Olympic diving and gymnastics.
+It's harder to generate orbital elements and mixture parameters with a resolution of 10 arcseconds against a threshold of 40 arcseconds
+than to do it with the initial settings of 0.5 and 2.0 degrees respectively.
+
+I would also like to quickly state a theoretical motivation for this formulation, which originally motivated it.
+Going back to the idea that we have random variables $V_1, \ldots V_n \iid \Unif(0, 1)$,
+we saw that the quantity $T = n^{-3/2} \cdot \sum_{i=1}^{n} \sim \N(0,1)$ had the same distribution regardless of $n$.
+(We divide the sum by $n$ to get the sample mean and by $\sqrt{n}$ to give it variance 1).
+Of course, the number of detections $n$ within a threshold $\tau$ is a discrete number, 
+so it will have a derivative of zero except at points where it is not defined.
+But in the baseline case where we have a uniform density of detections on the sphere,
+the expected number of hits $\E[n] \propto \tau^2$.
+This provides a strong intuition that the log likelihood over $\tau^3$ is a meaningful quantity
+and that dividing by a power of $\tau$ is justified.
+In the actual event, I experimented with different configurations and settled on $\alpha=1$ and $\beta=1$.
+I wanted to guide the resolution and threshold to smaller values at the same rate.
+In practice it didn't make a large difference but these values seemed to work well.
+
+\subsection{Organizing Training: Batches, Epochs, Episodes, and Sieving Rounds}
+Training is organized hierarchically into batches, epochs, episodes, and sieving rounds.
+The training batch and epoch are already defined terms in machine learning.
+One batch consists of the 64 candidate orbital elements and all of the ZTF observations they are scored against.
+The number of batches in an epoch is a parameter I set to 64.
+Keras reports training on screen by the epoch, 
+and the early stopping will kick in to terminate training early if the loss function gets worse.
+The size of 64 was set by experimentation.
+Too low and there is excessive overhead from logging progess and so on.
+Too high and you lose too much progress from bad training before you cut it short.
+
+One episode is the term I use for a period of adaptive training.
+It is implemented with the methods \tty{search\_adaptive} and \tty{train\_one\_episode} in the \tty{AsteroidSearch} class.
+At the end of an episode, I save the weights and three quantities of interest for each candidate element:
+log likelihood, loss function, and number of hits at 10 arc seconds.
+If any of these figures of merit have gotten worse during the training round,
+I deem the training on those elements to have been a failure, revert the weights for those elements back, and cut the weight on these elements by half.
+This is equivalent to selectively reducing the learning rate on these elements by half.
+I also re-run the numerical calibration of the position model against the \tty{REBOUND} integrated orbit at the current orbital elements at the end of each episode.
+
+Weights and training progress are saved in the method \tty{save\_weights}.
+A separate method called \tty{save\_train\_hist} saves data frames as .h5 files with all information required to serialize the model to disk.
+The built in methods for serializing Keras models were not working on this custom model, 
+and in any case would have necessitated saving a huge amount of redundant data with all the observations as serialized Keras constans.
+These custom methods save only the data that changes (e.g. the candidate elements and mixture paramters) plus some calculations used for monitoring progress.
+The process of checking elements to see if they have made progress and reverting them if they regressed 
+is done in the method \tty{update\_weights}.
+
+I set the length of an episode to at most 4 epochs; an episode ends early if the Keras early stopping callback detects that the overall loss has gotten worse.
+I define the effective learning rate to be the average of the element weights $w_i$ multiplied by the global learning rate.
+A training episode is terminated early if the effective learning rate drops below a threshold, which 
+
+A sieving round is the highest level of training.
+It covers at most a set number of samples.
+I set the length of a sieving round to 512 batches for mixture and 2048 batches for joint mode.
+A sieving round can also end early if the effective learning rate drops below a threshold.
+This extra hierarchical level is added to support adjusting a few settings that change only rarely.
+These include manually tuning the maximum permitted resolution and threshold, and resetting the weights on all elements to 1 if desired.
+The reason one might choose to reset the weights to 1 is that the adaptive training only reduces the learning rate when training overshoots.
+Periodically tuning the $w_i$ back to 1 gives them a chance to rebound if the elements have reached a better spot where the faster
+learning rate is now feasible.
+The sieving round also provides a convenient interface for alternating between joint and mixture mode.
+Finally, the sieving round allows customization of the exponents $\alpha$ and $\beta$ applied to the resolution and threshold 
+in the denominator of the objective function.
+One sieving round is implemented by the method \tty{sieve\_round}.
+
+The method \tty{sieve} implements a preset schedule of sieving rounds.
+For maximum maximum thresholds of 7200, 5400, 3600 and 2400 arc seconds, 
+it runs first training in mixture mode for 512 batches at a learning rate of $2^{12}$, 
+then training in joint mode for 2048 batches at a learning rate of $2^{-16}$.
+Observe that one sieving round in mixture mode is encountering each data point $2^{9} \cdot 2^{6} = 2^{15}$ times.
+Multiplying this by a learning rate of $2^{-12}$, a parameter could theoretically cover its full range 8.0 times in one round.
+Similarly, a sieving round in joint mode encounters each data point $2^{11} \cdot 2^{6} = 2^{17}$ times.
+At a learning rate of $2^{-16}$ an orbital element could cover its full range of values 2.0 times in a single round.
+Remember though that there are 64 elements in the batch, and this learning rate is shared by all of them.
+If we use the rule of thumb that the norm of the gradient will scale with the square root of of the batch size,
+we should divide all of these quantities by $\sqrt{64} = 8$.
+This tells us that a mixture parameter on one typical candidate element, moving at maximum speed,
+might cover 1.0 times its full range of motion in a sieving round in mixture mode.
+An orbital element on a typical element in the batch might cover 0.25 times its range of values
+in a sieving round in joint mode.
+At the end of this initial phase, a final fine tuning training phase is run with larger powers of $\tau$ and $R$ in the denominator.
+This is intended to push the model to achieve full convergence on elements where it has discovered enough hits in the first phase.
+
+\subsection{Performing the Asteroid Search: Summary}
+There are many other details that go into the computer code that carries out the asteroid search.
+\tty{asteroid\_search\_model.py} has over 2400 lines of code, with an additional 770 in \tty{asteroid\_model} and 930 in \tty{asteroid\_search\_layers}.
+In the preceding sections, I have endeavored to present the highlight of the search process, with an emphasis on ideas and policy choices.
 
 \section{Recovering the Elements of Known Asteroids}
 \label{section_results_known_ast}

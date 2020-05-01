@@ -757,6 +757,11 @@ because the goal of this piece of code is get approximately correct positions an
 During the search process, as the orbital elements evolve, the asteroid position model is periodically recalibrated.
 At the learning rates used, errors due to the Kepler approximation breaking down over the small perturbations to the orbital elements are not a problem.
 
+Even before calibration, the position model is remarkably accurate.
+A test batch of 64 asteroids had a root mean square position adjustment $d \qvec$ of 9.85E-5 AU.
+The RMS velocity adjustment $d \vvec$ was 9.30E-7 AU / day.
+(This calculation is performed in the Jupter notebook \tty{10\_asteroid\_model.ipynb}.
+
 The \tty{AsteroidModel} class integrates approximate orbits and their derivatives to the orbital elements with remarkable speed.
 During training, a typical runtime per sample is around 350 microseconds.
 Samples here are an entire orbit with on the order of 5,000 distinct time points for each candidate element in the batch.
