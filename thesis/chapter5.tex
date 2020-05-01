@@ -342,7 +342,7 @@ The distance to the nearest asteroid is 4.0E-4 AU, which is still very close and
 \subsection{Large Perturbation}
 In our third test, we will again start with perturbed orbital elements.
 But this time, we will apply a much larger perturbation.
-This is much a much harder task.  
+This is a much harder task.  
 To continue with the baseball analogy, it might be like batting in a high school game.
 The perturbation size this time is 0.05 on $\log(a)$, $0.01$ on $\log(e)$, $0.25$ degrees on $i$, and $1.0$ degree on the other three angles.
 While this might not sound like much at first, they are large perturbations.
@@ -413,10 +413,46 @@ Starting from a poor initialization will reduce the probability of successful co
 \end{figure}
 \clearpage
 
-\section{Searching for Asteroids with Random Initializations}
+\section{Searching for Known Asteroids with Random Initializations}
 \label{section_results_known_ast_random}
+Our final test case before search for new asteroids is to attempt to recover asteroids in the known catalog, but without peeking at the answers.
+I will now transition from small tests on a single batch 64 candidate elements to analyisis of the results of a large scale computational job.
+The program \tty{asteroid\_search.py} can be run from the command line.
+It searches against one of two subsets of the ZTF data set.
+When run in ``known asteroids'' mode, the ZTF observations are filtered to include only the 3.69 m rows that are within 2.0 arc seconds of a known asteroid.
+When run in ``unknown asteroids'' mode, it searches in the complement, those ZTF detections that are at least 2.0 arc seconds from a known asteroid.
+The other arguments include the range of random seeds \tty{seed0} to \tty{seed1} and a stride to support parallelization.
 
-\section{Presenting [N] Previously Unknown Asteroids}
+This program was run on approximately 4096 random seeds against the known asteroids over the better part of a week.
+Once a ZTF observation was associated with a set of candidate elements, it was subtracted from the data set so it would not be included in subsequent fits.
+I filtered the results to those with at least 8 hits and a resolution of at most 20 arc seconds.
+The results are reviewed in the Jupyter notebook \tty{19\_search\_known.ipynb}.
+Since this was a search against known orbital elements, 
+we can gauge the quality by measuring the distance of the recovered orbits to the nearest known asteroid.
+Here are the summary statistics for the resulting fitted elements:
+\begin{itemize}
+\item 125 fitted orbital elements were found
+\item they had 17.83 hits on average
+\item the geometric mean resolution was 12.8 arc seconds
+\item the geometric mean distance to the nearest asteroid was 2.7E-3 AU
+\end{itemize}
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[width=0.70\textwidth]{../figs/search_known/random/hits.png}
+\includegraphics[width=0.70\textwidth]{../figs/search_known/random/resolution.png}
+\includegraphics[width=0.70\textwidth]{../figs/search_known/random/near_ast_dist.png}
+\caption{Recovered orbital elements of 125 known asteroids in the catalogue, starting from random initializations.}
+\end{center}
+\end{figure}
+\clearpage
+I thought these results were respectable but not great.
+I will need to significantly improve the initializations to get a higher yield.
+But I view this as a successful proof of concept that this technique can recover correct orbits of asteroids 
+in the catalogue without peeking at the correct orbital elements.
+I chart below the hits, resolution, and precision in AU vs. known orbital elements.
+
+\section{Presenting 9 Previously Unknown Asteroids}
 \label{section_results_unknown_ast}
 
 \section{Conclusion}
