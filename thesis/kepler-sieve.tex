@@ -76,7 +76,12 @@
 \usepackage{gensymb}
 
 % Inline Graphics
-\usepackage{graphicx,float,subfig, grffile}
+\usepackage{graphicx}
+\usepackage{float}
+% \usepackage{subfig}
+\usepackage{subcaption}
+\usepackage{grffile}
+
 \graphicspath{
 	{../figs/}
 	{../figs/web/}
@@ -205,8 +210,8 @@ that out of approximately 5.69 million observations from the ZTF dataset,
 The search process is validated on known asteroids by demonstrating the successful recovery 
 of their orbital elements after initialization at perturbed values.
 A search is run on observations that do not match any known asteroids.
-I present orbital elements for [5] new, previously unknown asteroids.\\
-\todo{Exact number of new asteroids presented}\\
+I present orbital elements for 12 new, previously unknown asteroids
+with at least 8 hits within 10 arc seconds on ZTF asteroid detections.\\
 All code for this project is publicly available on GitHub at \href{https://github.com/memanuel/kepler-sieve}{github.com/memanuel/kepler-sieve}.
 
 \end{abstract}
