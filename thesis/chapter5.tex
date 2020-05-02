@@ -112,7 +112,6 @@ when the search is initialized with correct orbital elements for asteroids that 
 but with ``neutral'' or uninformative mixture parameters.
 I liken this test to a kid learning to swing a bat by trying to ball sitting on a tee.
 This test is demonstrated in the Jupyter notebook \tty{14\_asteroid\_search\_unperturbed.ipynb}.
-It was developed before the automated sieving routine, so it includes lower level calls to the \tty{adaptive\_search} method.
 
 It's worthwhile to follow through the steps to assemble the data to get familiar with how everything fits together.
 These two lines of codes load the ZTF data observations associated with the nearest asteroid, and count hits by asteroid number:
@@ -133,7 +132,7 @@ ztf_elt = load_ztf_batch(elts=elts_ast, thresh_deg=2.0)
 \end{lstlisting}
 
 Reviewing the \tty{ztf\_elt} on screen we can see that there are 322,914 rows which include 10,333 hits:
-an averate of 161.5 hits per candidate element and 3.2\% of the total rows of data.
+an average of 161.5 hits per candidate element and 3.2\% of the total rows of data.
 A call to \tty{score\_by\_elt} computes the t-score described earlier based on the mean and standard deviation of $\log(v)$.
 This shows a mean t-score of +45.0, which is off the charts good.
 It's interesting to see that a set of observations with 3.2\% hits and 96.8\% noise achieves such a good score.
@@ -144,13 +143,12 @@ If we want a search process to detect asteroids with as few as 8 hits in the dat
 we will need a process selective enough to pick out just 0.16\% of the observations.
 
 To initiate the search, we also need to choose our initial mixture parameters.
-we set \tty{num\_hits} to $10$ and the resolution to $0.5$ degrees
+We set \tty{num\_hits} to $10$ and the resolution to $0.5$ degrees
 \begin{lstlisting}[style=CodeSnippet]
 elts_add_mixture_params(
 	elts=elts, num_hits=num_hits, 
 	R_deg=R_deg, thresh_deg=thresh_deg)
 \end{lstlisting}
-
 Now that we have the candidate elements and the ZTF data frame, we are ready to instantiate the asteroid search model:
 \begin{lstlisting}[style=CodeSnippet]
 model = AsteroidSearchModel(
@@ -159,30 +157,29 @@ model = AsteroidSearchModel(
 \end{lstlisting}
 Before we start training the model, we can get a plain text report or a visualization of the starting point.
 I will omit these here. 
-The report shows that at the start of training, 10 elements are ``good'' with 5 or more hits,
-and the overall mean log likelihood is 3.13 and the mean number of hits is 3.19.
-\footnote{
-As I write this, I realize that something is going wrong somewhere.
-The initial model should show the same number of hits, 10,333, as the ZTF data frame.
-There must be some slippage between the CPU / \tty{numpy} calculations and the TensorFlow GPU model
-on the order of 10 arc seconds or more to explain this.  I will investigate this later.}
-
+The report shows that at the start of training, all 64 elements are ``good'' with 5 or more hits,
+and the overall mean log likelihood is 3.13 and the mean number of hits is 162.7.\\
+Here is an excerpt from the plain text model report at the end of training:\\
 \begin{minipage}{\linewidth}
-Here is an excerpt from the plain text model report:
 \begin{lstlisting}[style=CodeSnippet]
 model.report()
-
 Good elements (hits >= 5):  64.00
          \  log_like :  hits  :    R_sec : thresh_sec
-Mean Good:  1057.30  : 136.75 :     7.05 :   347.11
+Mean Good:  1096.95  : 162.55 :     3.01 :   165.95
 Mean Bad :      nan  :    nan :      nan :      nan
-Min      :   848.14  :  15.00 :     1.97 :   112.80
-Max      :  1307.20  : 190.00 :    14.87 :   697.68
-Trained for 9536 batches over 149 epochs and 59 episodes (elapsed time 425 seconds). 
+Mean     :  1096.95  : 162.55 :     3.01 :   165.95
+Median   :  1086.03  : 161.00 :     2.26 :   140.88
+GeoMean  :  1092.15  : 162.03 :     2.79 :   157.15
+Min      :   890.84  : 146.00 :     1.87 :   109.56
+Max      :  1336.11  : 201.00 :     8.07 :   360.24
+Trained for 7808 batches over 122 epochs and 49 episodes (elapsed time 312 seconds).
 \end{lstlisting}
 \end{minipage}
 
-I've developed a number of visualizations to assess training progress.
+Figures ~\ref{fig:TrainUnperturbed} and ~\ref{fig:TrainUnperturbedRes} illustrate the training progress.
+We can see that the model is behaving as hoped.
+It is gradually ratcheting the resolution parameter and scoring a high log likelihood as it does so.
+It does this without getting deked and polluting the originally correct orbital elements.
 \newcommand{\subfigwidth}{0.5}
 \begin{figure}[h]
 \begin{subfigure}[t]{\subfigwidth\textwidth}
@@ -209,52 +206,57 @@ I've developed a number of visualizations to assess training progress.
 % \caption{}
 \end{subfigure}
 \caption{Training progress on 64 unperturbed orbital elements.}
+\label{fig:TrainUnperturbed}
 \end{figure}
 
 \begin{figure}[hbt!]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{../figs/search_known/unperturbed/learning_curve_log_R.png}
-\caption{The resolution $R$ decreases monotonically when training the unperturbed elements.}
+\includegraphics[width=0.7\textwidth]{../figs/search_known/unperturbed/learning_curve_log_R.png}
 \end{center}
+\caption{The resolution $R$ decreases monotonically when training the unperturbed elements.}
+\label{fig:TrainUnperturbedRes}
 \end{figure}
-
-We can see that the model is behaving as hoped.
-It is gradually ratcheting the resolution parameter and scoring a high log likelihood as it does so.
-It does this without getting deked and polluting the originally correct orbital elements.
+These are very happy diagnostics.  The log likelihood averages over 1,000 and the hits average 160.
+An earlier iteration of the training protocol that did not roll back training when hits were 
+lost in an episode did considerably less well.
 
 The diagnostics presented above work equally well for any set of candidate orbital elements,
 whether or not they are ostenisbly associated with a known asteroid.
 In this case, we can further validate the results by comparing our fitted elements to the nearest asteroid
 using the two metrics described in the previous section.
-
-Here is a data frame comparing the recovered elements with the nearest asteroid 
-\begin{figure}[h]
-\begin{center}
-\includegraphics[width=1.0\textwidth]{../figs/search_known/unperturbed/nearest_ast_dataframe.png}
-\caption{The nearest asteroid to the recovered elements initialized with unperturbed asteroid elements.}
-\end{center}
-\end{figure}
+% Figure ~\ref{fig:UnperturbedNearestAstDataframe} shows a data frame comparing the recovered elements with the nearest asteroid 
+% \begin{figure}[h]
+% \begin{center}
+% \includegraphics[width=0.7\textwidth]{../figs/search_known/unperturbed/nearest_ast_dataframe.png}
+% \end{center}
+% \caption{The nearest asteroid to the recovered elements initialized with unperturbed asteroid elements.}
+% \label{fig:UnperturbedNearestAstDataframe}
+% \end{figure}
 The simplest test is how many of 64 recovered elements have as their nearest asteroid the same asteroid used to initialize the elements.
 The answer is 64: the fitting process ``tried'' to converge back to the right asteroid every time.
 A more substantive question is how close did it come.  
-Here are the geometric mean differences of two metrics:
+Here are the summary statistics of two metrics:
 \begin{itemize}
-\item Distance in AU: 6.61E-6
-\item Covariance Norm of elements: 2.00E-3
+\item Mean distance in AU for 240 test points: 4.57E-8 (median over 64 elements)
+\item Covariance Norm of elements: 5.70E-6 (geometric mean)
 \end{itemize}
 This is an excellent level of agreement.
 The covariance norm is a good summary statistic, but may be hard to relate to astronomy.
-The mean absolute error in the recovered $a$ is 4.3E-4 and in the recovered $e$ is 1.6E-4.
+The mean absolute error in the recovered $a$ is 4.3E-5 and in the recovered $e$ is 1.0E-5.
+Thanks to the one way ratchet that prevents it from losing hits once they acquired, 
+the model can hit a tee ball out of the infield.
+In the next section we will see how it fares against a moving target.
 
-Here are two visualizations showing the distance in AU and covariance norm to the nearest (original) asteroid for all 64 candidate elements.
+Figure ~\ref{fig:UnperturbedNearAst} illustrates the distance in AU and covariance norm to the nearest (original) asteroid for all 64 candidate elements.
 \begin{figure}[h]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/search_known/unperturbed/near_ast_dist.png}
 \includegraphics[width=1.0\textwidth]{../figs/search_known/unperturbed/near_ast_cov.png}
+\end{center}
 \caption{Two metrics comparing the recovered orbital elements to the true elements of the asteroid in question.\\
 Both charts are plotted on a log scale with preicision (reciprocal of the error) on the $y$ axis.\\
 The geometric mean error is shown in red: 6.61E-6 AU and 2.00E-3 on the covariance norm.}
-\end{center}
+\label{fig:UnperturbedNearAst}
 \end{figure}
 \clearpage
 
@@ -270,7 +272,7 @@ The perturbation adds normally distributed random noise with the specified stand
 to $\log(a)$, $\log(e)$, and the four angles $i$, $\Omega$, $\omega$ and $f$.
 The small perturbation shifts $\log(a)$ by $0.01$, $\log(e)$ by $0.0025$, $i$ by $0.05$ degrees,
 and the the other angles by $0.25$ degrees.
-A random seed is used for reproducible results
+A random seed is used for reproducible results.
 The code to do this is
 \begin{lstlisting}[style=CodeSnippet]
 elts_pert= perturb_elts(elts_ast, sigma_a=0.01, sigma_e=0.0025, 
@@ -278,33 +280,33 @@ elts_pert= perturb_elts(elts_ast, sigma_a=0.01, sigma_e=0.0025,
 	sigma_Omega_deg=0.25, sigma_omega_deg=0.25,
 	random_seed=42)
 \end{lstlisting}
-Last time we the summary statistic based on $\log(v)$ showed a very positive $t$ score.
+Last time the pre-training summary statistic based on $\log(v)$ showed a very positive $t$ score.
 This time the $t$ score has dropped to $+3.71$, and the model has zero hits before it begins training.
 Even this small perturbation is enough that the model is going to have to work quite a bit to recover the elements.
 
 Here is the text report after sieving:
 \begin{lstlisting}[style=CodeSnippet]
-Good elements (hits >= 5):  32.00
+Good elements (hits >= 5):  42.00
          \  log_like :  hits  :    R_sec : thresh_sec
-Mean Good:   798.22  :  73.00 :    42.71 :  1013.88
-Mean Bad :   151.47  :   0.16 :   246.08 :  2130.53
-Min      :     1.33  :   0.00 :     3.53 :   233.61
-Max      :  1226.84  : 163.00 :  1168.61 :  2400.00
-Trained for 12096 batches over 189 epochs and 71 episodes (elapsed time 520 seconds).
+Mean Good:   798.24  : 117.50 :    36.06 :   779.79
+Mean Bad :    42.97  :   0.64 :   266.21 :  2374.53
+GeoMean  :   218.79  :  20.01 :    42.97 :   934.96
+Trained for 15552 batches over 243 epochs and 105 episodes (elapsed time 751 seconds
 \end{lstlisting}
 
 Here are summary statistics for the run on the small perturbation of real asteroid elements:
 \begin{itemize}
-\item Successfully converged for 32 out of 64 candidate elements
-\item Mean hits on converged elements: 73.00
-\item Resolution on converged elements: 42.7 arc seconds
-\item Distance in AU to nearest asteroid: 4.00E-4
-\item Covariance Norm to nearest asteroid: 1.69E-2
+\item Successfully converged for 42 out of 64 candidate elements (65.6\%)
+\item Mean hits on converged elements: 117.50
+\item Resolution on converged elements: 18.2 arc seconds
+\item Distance in AU to nearest asteroid: 2.58E-4
+\item Covariance Norm to nearest asteroid: 1.22E-2
 \end{itemize}
 These results are not as strong as on the unperturbed elements, but the method is still clearly working.
-It's coverged on half of the candidate orbital elements.
-The converged elements are fit well, average 73 hits at 43 arc seconds.
-The distance to the nearest asteroid is 4.0E-4 AU, which is still very close and an excellent description of the orbit.
+It's coverged on almost two thirds of the candidate orbital elements.
+The converged elements are fit well, averaging 117 hits at 18 arc seconds.
+The distance to the nearest asteroid is 2.58E-4 AU, which is still very close and an excellent description of the orbit.
+The nearest asteroid to the recovered elements matches the original asteroid on 48 out the 64 elements.
 
 \begin{figure}[h]
 \begin{subfigure}[t]{\subfigwidth\textwidth}
@@ -335,49 +337,48 @@ The distance to the nearest asteroid is 4.0E-4 AU, which is still very close and
 \includegraphics[width=1.0\textwidth]{../figs/search_known/perturbed_small/near_ast_dist.png}
 \end{subfigure}
 \caption{Training progress on 64 orbital elements initialized with small perturbations from real asteroids.\\
-32 of the 64 candidate elements converge, averaging 73 hits each.}
+42 of the 64 candidate elements converge, averaging 118 hits each.}
+\label{fig:TrainingPerturbedSmall}
 \end{figure}
 \clearpage
 
 \subsection{Large Perturbation}
 In our third test, we will again start with perturbed orbital elements.
-But this time, we will apply a much larger perturbation.
+But this time, we will apply a larger perturbation, about five times larger.
 This is a much harder task.  
-To continue with the baseball analogy, it might be like batting in a high school game.
+To continue with the baseball analogy, it might be likened to facing a high school pitcher.
 The perturbation size this time is 0.05 on $\log(a)$, $0.01$ on $\log(e)$, $0.25$ degrees on $i$, and $1.0$ degree on the other three angles.
 While this might not sound like much at first, they are large perturbations.
 In fact, they are so large they led me down a painful rabbit hole.
 I repeatedly failed to recover the orbital elements of the original asteroids 
 before I realized that the perturbations were large enough that in many cases, 
-the nearest asteroid to the perturbed element was no longer the original asteroid!
+the nearest asteroid to the perturbed elements was no longer the original asteroid!
 The results started to make much more sense when I compared each fitted element to the nearest real asteroid,
 regardless of whether this matched the original source of the elements before perturbation.
 
 Here is the text report after sieving:
 \begin{lstlisting}[style=CodeSnippet]
-Good elements (hits >= 5):   9.00
+Good elements (hits >= 5):  12.00
          \  log_like :  hits  :    R_sec : thresh_sec
-Mean Good:   950.21  :  87.33 :    26.00 :   801.43
-Mean Bad :    42.19  :   0.11 :   252.31 :  2347.92
-Min      :     8.83  :   0.00 :     2.92 :   341.62
-Max      :  1351.26  : 163.00 :   742.89 :  2400.00
-Trained for 13056 batches over 204 epochs and 76 episodes (elapsed time 547 seconds).
+Mean Good:   748.07  :  98.17 :    61.36 :  1178.94
+Mean Bad :    30.35  :   0.58 :   261.02 :  2296.18
+Trained for 13120 batches over 205 epochs and 72 episodes (elapsed time 533 seconds).
 \end{lstlisting}
 
 Here are summary statistics for the run on the small perturbation of real asteroid elements:
 \begin{itemize}
-\item Successfully converged for 9 out of 64 candidate elements
-\item Mean hits on converged elements: 87.00
-\item Resolution on converged elements: 26.0 arc seconds
-\item Distance in AU to nearest asteroid: 4.11E-4
-\item Covariance Norm to nearest asteroid: 3.18E-2
+\item Successfully converged for 12 out of 64 candidate elements (18.8\%)
+\item Mean hits on converged elements: 98.2
+\item Resolution on converged elements: 32.4 arc seconds
+\item Distance in AU to nearest asteroid: 4.45E-4
+\item Covariance Norm to nearest asteroid: 3.32E-2
 \end{itemize}
-This time we've only converged on 9 of the 64 orbital elements.
-But the encouraging news is that when we have converged, the fit is as good as it was before.
-The average hits are 87 and the resolution is 26.0 arc seconds.
-The distance to the nearest asteroid is comparable to the batch initialized with small perturbations, at 4.0E-4.
+This time we've only converged on 12 of the 64 orbital elements.
+But the encouraging news is that when we have converged, the fit is still adequately good.
+The average hits are 98 and the resolution is 32.0 arc seconds.
+The distance to the nearest asteroid is somewhat larger to the batch initialized with small perturbations, at 4.5E-4.
 This is telling us something important: 
-when the model starts from a good enough guess that it has a path in search space to the local maximum, it will converge to a good solution.
+when the model starts from a good enough guess that it has a path in search space to the local maximum, it will converge to an adequate solution.
 Starting from a poor initialization will reduce the probability of successful convergence, but it doesn't dilute the quality of the results.
 
 \begin{figure}[h]
@@ -454,6 +455,7 @@ I chart below the hits, resolution, and precision in AU vs. known orbital elemen
 
 \section{Presenting 9 Previously Unknown Asteroids}
 \label{section_results_unknown_ast}
+
 
 \section{Conclusion}
 \label{search_conclusion}
