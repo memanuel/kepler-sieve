@@ -89,7 +89,7 @@ s &= 2 \sin \theta (\theta / 2)
 \end{align*}
 This function is implemented in \tty{astro\_utils} as \tty{deg2dist} and \tty{dist2deg} to convert between degrees and Cartesian distance in either direction.
 
-\section{Finding the Nearest Asteroid to Each ZTF Observation}
+\section{Finding the Nearest Asteroid to Each ZTF Detection}
 \label{section_ztf_nearest_ast}
 We now have in principle all the tools required to find which asteroid was closest in angular distance to each ZTF observation.
 To recap the key steps, each ZTF observation is converted from a RA/Dec to a direction in the BME.
@@ -163,7 +163,7 @@ This is a powerful enrichment of the original ZTF dataset, and might open the do
 For example, it could be used to create a bulk data set linking the original image files to the asteroids they belong to.
 This could in turn be used to refine the machine learning pipeline used to classify detections and guess when they belong to the same object.
 
-\section{Analyzing the Distribution of Distance to the Nearest Asteroid}
+\section{Analyzing the Distribution of the Distance to the Nearest Asteroid}
 \label{section_nearest_ast_distribution}
 In this section I explore the statistical distribution of the Cartesian distance between observations and the nearest asteroid.
 I compare the observed distribution of this distance to the theoretical distribution we would obtain 

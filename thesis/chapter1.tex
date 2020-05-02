@@ -146,11 +146,7 @@ Figure ~\ref{fig:KeplerianOrbitalElements} illustrates the six orbital elements.
 \caption{
 Definition of the traditional Keplerian orbital elements, courtesy of 
 \href{https://en.wikipedia.org/wiki/Orbital_elements}{Wikipedia} and
-\href{https://www.planetary.org/blogs/emily-lakdawalla/2012/3380.html}{planetary.org}.\\
-% Two parameters define the shape and size of the ellipse;
-% two define the orientation of the orbital plane; 
-% and the last two orient the ellipse in its plane and the phase of the body on its ellipse.
-}
+\href{https://www.planetary.org/blogs/emily-lakdawalla/2012/3380.html}{planetary.org}.}
 \label{fig:KeplerianOrbitalElements}
 \end{figure}
 
@@ -290,7 +286,8 @@ All & 1.35E-5 & 0.81 \\
 \hline
 \end{tabular}
 \end{centering}
-\caption{Root Mean Square Error in Integration of Planets vs. Horizons\\
+\caption[Root Mean Square Error in Integration of Planets vs. Horizons]
+{Root Mean Square Error in Integration of Planets vs. Horizons\\
 Position Error: RMS error of 8 planets in AU.\\
 Angle Error: RMS error in direction from planet to Earth geocenter, in Arc Seconds}
 \label{fig:PlanetIntegrationError}
@@ -513,7 +510,7 @@ A single motivated individual with a strong undergraduate background in physics 
 but without specialized graduate level training, could plausibly have followed all the same steps shown here.
 I find that a truly remarkable achievement of the scientific community.
 
-\section{Integration of the Kepler Two Body Problem in Tensorflow}
+\section{Integration of the Kepler Two Body Problem in TensorFlow}
 \label{section_kepler_two_body_tensorflow}
 In the previous section we have seen how to efficently perform a numerical integration of the asteroids (or indeed any set of candidate elements).
 But for the search technique presented here to work, we require a much faster integration that is also differentiable.

@@ -691,7 +691,7 @@ Failing that, we could start with all Pan-STARRS data; remove bogus detections w
 and subtract out detections of stars and and galaxies by using the catalogue of their known positions in the sky.
 The code would need to be changed in some places, but the change would not be major.
 
-\subsection{Incorporate Magnitude}
+\subsection{Incorporating Magnitude}
 I developed code in the \tty{AsteroidSearcch} model to predict the magnitude of a detection using the H-G model.
 I also had a version of the log likelihood that incorporated a joint probability density on both direction and magnitude.
 The theoretical advantages of an estimation framework that incorporates magnitude are substantial.
@@ -702,7 +702,7 @@ Unfortunately I was not able to get the fitting process to converge well when I 
 As time drew short, I was forced to remove it from the model presented here and punt it to future work.
 I am highly optimistic that given enough time, this can be made to work and will sharpen the results.
 
-\subsection{Rebuild the Known Asteroid Catalogue}
+\subsection{Rebuilding the Known Asteroid Catalogue}
 If the three improvements above are made, I believe there is a good chance this model might be able to rebuild a large portion of the known asteroid catalogue.
 We saw that just seven months of ZTF data included over 100,000 asteroids with 20 or more hits.
 The random initialization was not remotely up to the task of recovering these elements, but with intelligent initialization alone we would be in the game.

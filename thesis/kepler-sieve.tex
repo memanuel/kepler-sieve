@@ -191,8 +191,8 @@
 
 % the following four pages are required in that order. 
 % The first two pages are not allowed to have page numbers, this is taken care of in the class file.
-% \thesistitlepage
-% \copyrightpage
+\thesistitlepage
+\copyrightpage
 
 \begin{abstract}
 % An abstract should be less than 350 words.
@@ -210,8 +210,7 @@ that out of approximately 5.69 million observations from the ZTF dataset,
 The search process is validated on known asteroids by demonstrating the successful recovery 
 of their orbital elements after initialization at perturbed values.
 A search is run on observations that do not match any known asteroids.
-I present orbital elements for 12 new, previously unknown asteroids
-with at least 8 hits within 10 arc seconds on ZTF asteroid detections.\\
+I present orbital elements for 9 new asteroid candidates with at least 8 hits within 10 arc seconds on ZTF asteroid detections.\\
 All code for this project is publicly available on GitHub at \href{https://github.com/memanuel/kepler-sieve}{github.com/memanuel/kepler-sieve}.
 
 \end{abstract}
@@ -223,28 +222,28 @@ All code for this project is publicly available on GitHub at \href{https://githu
 \renewcommand{\listfigurename}{\protect\centering\protect\Large List of Figures}
 
 % Table of contents
-% \tableofcontents 
+\tableofcontents 
 
 % The rest of the front matter: Lists of tables, figures, dedication and acknowledment is optional. 
-% \listoftables
-% \listoffigures
+\listoftables
+\listoffigures
 
 % Acknowledgements
-% \begin{acknowledgments}
-% I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
-% I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
-% numerical integrators for solving solar system orbits.\\
-% I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
-% for their advice on state of the art solar system integrators.\\
-% Most importantly, I would like to thank my wife Christie for her love and support.
-% The Covid-19 crisis struck just as my work on this thesis kicked into high gear.
-% It would not have been possible to complete it without extraordinary understanding and assistance from her.
-% \end{acknowledgments}
+\begin{acknowledgments}
+I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
+I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
+numerical integrators for solving solar system orbits.\\
+I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
+for their advice on state of the art solar system integrators.\\
+Most importantly, I would like to thank my wife Christie for her love and support.
+The Covid-19 crisis struck just as my work on this thesis kicked into high gear.
+It would not have been possible to complete it without extraordinary assistance from her.
+\end{acknowledgments}
 
 % Dedication
-% \begin{dedication}
-% To my my children Victor and Ren\'ee 
-% \end{dedication}
+\begin{dedication}
+To my two children, Victor and Ren\'ee 
+\end{dedication}
 
 %%%%%%%%%%%%%%%% MAIN BODY %%%%%%%%%%%%%%%%
 \pagenumbering{arabic} % reset page numbering and switch to arabic
@@ -252,9 +251,9 @@ All code for this project is publicly available on GitHub at \href{https://githu
 % Introductory chapter. Comment out if you don't have an intro chapter, but I think most committees expect you to have one.
 % Don't number the intro chapter, but add to to the table of contents
 
-% \addcontentsline{toc}{chapter}{Introduction}
-% \chapter*{Introduction}\label{ch:intro}
-% \input{intro}
+\addcontentsline{toc}{chapter}{Introduction}
+\chapter*{Introduction}\label{ch:intro}
+\input{intro}
 
 % \chapter{Integrating the Solar System}\label{ch:1}
 % \input{chapter1}
@@ -265,11 +264,11 @@ All code for this project is publicly available on GitHub at \href{https://githu
 % \chapter{Analysis of ZTF Asteroid Detections}\label{ch:3}
 % \input{chapter3}
 
-% \chapter{How to Search for Asteroids}\label{ch:4}
+% \chapter{Asteroid Search via Orbital Elements}\label{ch:4}
 % \input{chapter4}
 
-\chapter{Asteroid Search Results}\label{ch:5}
-\input{chapter5}
+% \chapter{Asteroid Search Results}\label{ch:5}
+% \input{chapter5}
 
 %%%%%%%%%%%%%%%% BACK MATTER %%%%%%%%%%%%%%%%
 

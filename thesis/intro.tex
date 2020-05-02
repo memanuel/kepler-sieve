@@ -29,13 +29,13 @@ rather than the simpler and more direct method currently used?
 The main reason is to avoid a combinatorial explosion.
 
 If you limit your search to candidate tracklets where you detect the same object multiple times in a short span of time,
-you are going to miss out any object that you detect only once or twice on a given night of observations.
+you are going to miss any object that you detect only once or twice on a given night of observations.
 But if this same object were seen on multiple nights, possibly separated over multiple days or longer, 
 it becomes very costly to propose enough candidate tracklets to pick them up.
-Indeed you will soon face a combinatorial explosion in the number of possible tracklets.
+Indeed, you will soon face a combinatorial explosion in the number of possible tracklets.
 A simplified model of the number of tracklets might be that we have a data set containing 
 observations with a uniform density $\rho$ per day per degree squared of sky,
-and we set a threshold $\tau$ in time and $d$ in angular distance for how close a second observation must be to mark it as a candidate tracklet.
+and we set a threshold $\tau$ in time and $\Delta$ in angular distance for how close a second observation must be to mark it as a candidate tracklet.
 
 Here is a simple model showing the quadratic cost of enumerating candidate tracklets. \\
 If you extend this further to tracks with 3 observations, the scaling gets even worse (cubic).\\
@@ -48,9 +48,9 @@ Let $A = 41,253$ be the number of square degrees in the sky.
 Let $N = T \cdot A \cdot \rho $ be the total number of detections in the data set.\\
 Let $\displaystyle{m = \tau \cdot \pi \Delta^2 \cdot \rho}$ be the average number of observations that will be close enough
 to each candidate starting point of a tracklet.\\
-Let $\displaystyle{NT_{2} = \frac{N \cdot m}{2!} = \frac{\tau}{T} \cdot \frac{\pi d^2}{A} \cdot \frac{\rho^{2}}{2!} }$ 
+Let $\displaystyle{NT_{2} = \frac{N \cdot m}{2!} = \frac{\tau}{T} \cdot \frac{\pi \Delta^2}{A} \cdot \frac{\rho^{2}}{2!} }$ 
 be the total number of candidate trackets of size $2$. \\
-Let $\displaystyle{NT_{k} = \frac{N \cdot m^{k-1}}{k!} = \left( \frac{\tau}{T} \cdot \frac{\pi d^2}{A} \right)^{k-1} \cdot \frac{\rho^{k}}{k!} }$ 
+Let $\displaystyle{NT_{k} = \frac{N \cdot m^{k-1}}{k!} = \left( \frac{\tau}{T} \cdot \frac{\pi \Delta^2}{A} \right)^{k-1} \cdot \frac{\rho^{k}}{k!} }$ 
 be the total number of candidate trackets of size $k$. \\
 We can see the bad news right away.
 The number of tracklets of size $k$, $NT_{k}$, scales as $\rho^{k}$.
@@ -58,24 +58,26 @@ And the factors in the denominator don't bail us out.
 The number of possible ways $m$ to extend a tracklet is going to be a large number well in excess of 1.
 
 This is the principal motivation for searching in the space of orbital elements.
-While it's a large 6 dimensional space, its size is fixed.
+While it's a large 6 dimensional space, its size is fixed in relation to the amount of data we have.
+To be more precise, the number of candidate orbital elements will scale with the number of \textbf{asteroids} $K$ we are trying to detect
+rather than the much larger number of \textbf{detections} $N$ in our data set.
 The cost of the search algorithm presented below scales linearly in the observation density $\rho$ for each candidate element analyzed.
-The cost of the entire algorithm is therefore on the order of $N^2$, with no explosion as you consider tracklets larger than 2.
+The cost of the entire algorithm is therefore on the order of $N \cdot K$, with no explosion as you consider tracklets larger than 2.
 The second major reason for searching in the space of orbital elements is that it permits the search algorithm to string together observations made far apart in time.
 This is a capability that eludes searches based on tracklets.
 
-I summarize now the key steps in the search algorithm.
+I summarize here the key steps in the search algorithm.
 The first step is to generate a set of candidate orbital elements.
-This is done with a very simple approach, one which can almost certainly be imporved on later: random initialization.
+This is done with a very simple approach, one which can almost certainly be improved on later: random initialization.
 For four of the orbital elements, $a$, $e$, $i$, and $\Omega$, one of the $733,489$ catalogued asteroids is selected at random.
 Its orbital elements are used to populate these four.
-It is worth emphasizing that each element is initialized with a \textit{different} random asteroid;
+It is worth emphasizing that each element is initialized with a \textit{independent} random asteroid;
 the four elements in this part will almost never match one of the known asteroids across all four elements.
 The remaining two orbital elements, $M$ (mean anomaly) and $\omega$ (argument of periapsis), 
-are modeled to be distributed uniformly at random on the circle $[0, 2 \pi)$.
-These are then converted to the representation using $(a, e, i, \Omega, \omega, f)$ using the rebound numerical integrator.
+are sampled uniformly at random on the circle $[0, 2 \pi)$.
+These are then converted to the representation using $(a, e, i, \Omega, \omega, f)$.
 
-Once the candidate elements have been initialized, they are integrated numerically using the \tty{rebound} library.
+Once the candidate elements have been initialized, they are integrated numerically using the \tty{REBOUND} library.
 This is considered to be the gold standard of their true orbits.
 This initial integration is then used to filter the data set of ZTF observations to a subset that are relevant for searching for orbits.
 A routine computes the direction $\uvec_{\mathrm{pred}}$ in the barycentric mean ecliptic (BME) reference frame
@@ -89,8 +91,8 @@ A threshold (2.0 degrees) is applied, and all ZTF observations falling within th
 During the main body of the search process, the elements will be adjusted by a small amount in each training round.
 These perturbed elements will have their orbits evaluated using the Kepler two body model.
 An implementation is performed on the GPU using TensorFlow that is fast and differentiable.
-The ground truth orbit is used to provide an adjustment term so that the predicted orbits will match the true orbits exactly
-when the perturbation is zero.
+The ``ground truth'' numerically integrated orbit is used to provide an adjustment term 
+so that the predicted orbits will match the true orbits exactly when the perturbation is zero.
 The predicted orbit can therefore be considered to be a linearization of the true orbits based on the Kepler model.
 
 The objective of the optimization function is based on the log likelihood of a statistical model for the 
@@ -100,7 +102,7 @@ threshold distance would be uniformly distributed on the interval $[0, 1]$.
 A mixture model is formulated, where the distance between every predicted and observed direction is modeled as a mixture of hits and misses.
 The misses are distributed uniformly on $[0, 1]$.
 The hits are distributed as a truncated exponential distribution.
-The decay parameter $\lambda$ of this exponential process is associated with a resolution paramater $R$.
+The decay parameter $\lambda$ of this exponential process is associated with a resolution parameter $R$.
 This model is equivalent to assuming that some fraction $h$ (for hits) of the detections are due to 
 a real body with the candidate elements, and that the results of the detection will be normally distributed 
 with a precision parameter equal to the resolution.
@@ -108,14 +110,14 @@ During the search process, the threshold parameter is also updated.
 This dynamic threshold should not be confused with the original threshold of 2.0 degrees used to build the filtered training data.
 
 The optimization process jointly optimizes the candidate orbital elements and three parameters in the mixture model:
-the assumed number of hits, the resolution $R$, and the threshold. 
+the assumed number of hits $N_{h}$, the resolution $R$, and the threshold $\tau$. 
 Intuitively, we want the model to gradually tighten its focus, and adjust the orbital elements so they hit as many observations as closely as possible.
 But we \textit{don't} want the model to get ``faked out'' by trying to get the elements closer to observations that belong to \textit{other} asteroids.
 The model needs some way to update probabilities that each observation is a hit or a miss, which it does using the mixture model.
-Early on, the optimization will tries to get close to the central tendency of the data set.
+Early on, the optimization will try to get close to the central tendency of the data set.
 If the initialization was good, it will gradually tighten in the resolution and threshold parameters.
 The gradients will encourage the model to adjust the candidate orbital elements so that some of the observations,
-the ones it sees as highly probable hits, will be very close what is predicted by the candidate elements.
+the ones it sees as highly probable hits, will be very close to what is predicted by the candidate elements.
 The observations modeled as highly probable misses will hardly contribute to the gradients of the candidate elements.
 
 In practice, the optimization is carried out in alternating stages.
@@ -127,17 +129,17 @@ These will be discussed at greater length below.
 
 As much as possible, I have sought to validate individual components of these calculations in isolation.
 My numerical integration of the planets is validated against results from NASA JPL (Jet Propulsion Library)
-using the superb Horizons system
+using the superb Horizons system.
 \footnote{
 \href{https://ssd.jpl.nasa.gov/horizons.cgi}{NASA Horizons} \\
 I cannot say enough good things about Horizons.
 If you want an external ``gold standard'' of where an object in the solar system was or will be 
 and a friendly user interface, Horizons is an excelent resource.}
-I separately validated the numerical integration of the first 16 asteroids against positions and velocities obtained from Horizons. \\
+I separately validated the numerical integration of the first 16 asteroids against positions and velocities obtained from Horizons.
 
-The notion of a direction in space from an observer on earth is typically reported in telescopic data using a right ascension and declination.
+The notion of a direction in space from an observer on Earth is typically reported in telescopic data using a right ascension and declination.
 While these are convenient and standard for reporting observed data, they are not well suited to the approach taken here.
-All directions are represented internally in this project as a unit vector $\uvec = (u_x, u_y, u_z)$ in the Barycentric Eliptic Plane.
+All directions are represented internally in this project as a unit vector $\uvec = (u_x, u_y, u_z)$ in the Barycentric Mean Ecliptic (BME) frame.
 These calculations were validated in isolation by querying the Horizons system for both the positions of and directions to known asteroids.
 It is vital that this calculation takes into account the finite speed of light.
 Treating light travel as instantaneous leads to errors that are catastrophically large in this context, on scales in the arc minutes rather than arc seconds.
@@ -156,49 +158,50 @@ precision with which a modern telescope can determine direection of an observati
 If you were to use an approximation that observations were made at Earth's geocenter 
 (i.e. you did not account for location of the observatorory on Earth's surface) 
 you would already be making errors on the order of 3 arc seconds.
-If you were to perform your calculations using the sun's location as your coordinate origin rather than the solar system barycenter,
+If you were to perform your calculations using the Sun's location as your coordinate origin rather than the solar system barycenter,
 you would make errors larger than 1.0 arc second.
 I know because I made both of these errors in earlier iterations before squeezing them out!
 
 I tested the capabilities of the search process with an increasingly demanding set of search tasks.
 The first three search tasks involved recovering the elements of known asteroids.
 I took a batch of 64 asteroids that appeared most frequently in the ZTF data set.
-These asteroids were represented between 160 and 200 times in the data, 
+These asteroids were represented between 148 and 194 times in the data, 
 where hits here are counted at a threshold of 2.0 arc seconds as before.
 Here is a summary of the tests I ran:
 \begin{itemize}
 \item Initialize search with correct orbital elements, but resolution $R = 0.5 \degree$ and threshold $\tau = 2.0 \degree$.
-All 64 elements were recovered to \todo{???}
+All 64 elements were recovered to a resolution of 3.0 arc seconds and 4.6E-6 AU, matching on 162 hits.
 \item Initialize search with small perturbation applied to orbital elements; $a$ by $1.0\%$, $e$ by $0.25\%$, $i$ by $0.05 \degree$,
 remaining angles $f$, $\Omega$ and $\omega$ by $0.25 \degree$.
-37 of 64 elements were recovered to \todo{???}.
+42 of 64 elements were recovered to 18 arc seconds and 2.6E-4 AU, matching on 118 hits
 \item Initialize search with large perturbation applied to orbital elements; $a$ by $5.0\%$, $e$ by $1.0\%$, $i$ by $0.25 \degree$,
 remaining angles $f$, $\Omega$ and $\omega$ by $1.0 \degree$.
-11 of 64 elements were recoverd to \todo{???}.
+12 of 64 elements were recoverd to 32 arc seconds and 4.5E-4 AU, matching on 98 hits.
 In some cases, a different (but correct) set of orbital elements was obtained;
 the perturbation was so large the search found a different asteroid.
 \item Initialize a search with \textbf{randomly initialized} orbital elements.
 Search against the subset of ZTF observations within $2.0$ arc seconds of a known asteroid.
-This search converged on one set of orbital elements matching a real asteroid.
+This search converged on one set of orbital elements matching a real asteroid on the first batch of 64 random candidates.
 \end{itemize}
 The last last test was significantly more demanding in that it did not rely on known orbital elements.
 
-The work encombpassed in the first three tests above can be seen as a way to indpendently validate a subset of the known asteroid catalogue.
+The work encompassed in the first three tests above can be seen as a way to indpendently validate a subset of the known asteroid catalogue.
 It can efficiently associate a large number of telescope observations with known asteroids,
 which could in turn be used to further investigate those asteroids.
 Analysis might include refining their estimated orbital elements, 
 fitting the $H-G$ model of brightness (magnitude), or identifying some of them for further investigation if they meet criteria of interest,
 e.g. orbits that will approach near to Earth in the future.
 
-The main thrust of this work, however, is not on refining the existing asteroid catalog, it is finding new asteroids.
+The main thrust of this work, however, is not on refining the existing asteroid catalogue, it is finding new asteroids.
 The final search I ran was against the subset of ZTF observations that did not match any of the known asteroids.
 Random initializations for orbital elements were tried.
 Most of these initializations fail to converge on elements with enough hits to match real asteroids in the data,
 but a small number do successfully converge.
-I have identified 12 asteroids with 8 or more hits.
-I have verified that none of the orbital elements modeled for these asteroids appear in the catalogue of known asteroids I obtained from JPL.
+I have identified 9 candidate elements for potentially new asteroids with 8 or more hits.
+I have verified that none of the orbital elements modeled for these asteroids 
+are obvious matches in the known asteroid catalogue, though some are arguably close.
 I have also done an ad-hoc review of the ZTF records to ensure that they are plausibly belonging to the same object.
-I believe that these represent new and unkown asteroids, and plan to submit them to the 
+I believe that at least some of these candidate elements may represent new and unkown asteroids, and plan to submit them to the 
 \href{https://www.minorplanetcenter.net/iau/mpc.html}{Minor Planet Center} for possible classification.
 
 The ultimate goal of this project is not to simply perform a one time search of a dataset to identify some new asteroids.
