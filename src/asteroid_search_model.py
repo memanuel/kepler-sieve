@@ -397,9 +397,6 @@ class AsteroidSearchModel(tf.keras.Model):
         self.log_like: tf.Tensor
         self.hits: tf.Tensor
         self.row_lengths_close: tf.Tensor
-        # self.log_like, self.hits, self.row_lengths_close = \
-        #     self.score(self.u_pred, mag_pred=self.mag_pred, 
-        #                num_hits=self.num_hits, R=self.R, sigma_mag=self.sigma_mag)
         self.log_like, self.hits, self.row_lengths_close = \
             self.score(self.u_pred, num_hits=self.num_hits, R=self.R)
         
@@ -1134,7 +1131,7 @@ class AsteroidSearchModel(tf.keras.Model):
 
         # Accumulate different ways an update can be worse than the preceding one
         is_worse: tf.Tensor = tf.math.logical_or(is_less_likely, has_fewer_hits)
-        is_worse: tf.Tensor = tf.math.logical_or(is_less_likely, is_higher_loss)
+        is_worse: tf.Tensor = tf.math.logical_or(is_worse, is_higher_loss)
         is_worse: tf.Tensor = tf.math.logical_or(is_worse, is_nan)        
 
         # If none of the elements have gotten worse, terminate early
