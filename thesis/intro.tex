@@ -81,7 +81,7 @@ Once the candidate elements have been initialized, they are integrated numerical
 This is considered to be the gold standard of their true orbits.
 This initial integration is then used to filter the data set of ZTF observations to a subset that are relevant for searching for orbits.
 A routine computes the direction $\uvec_{\mathrm{pred}}$ in the barycentric mean ecliptic (BME) reference frame
-that an observer at a given observatory site on earth would have seen light leaving an object with the candidate elements at a given observation time (MJD).
+that an observer at a given observatory site on Earth would have seen light leaving an object with the candidate elements at a given observation time (MJD).
 This quantity is computed at each unique observation time in the ZTF data set.
 A separate computation is performed once on all of the ZTF observations converting the observed triplets $(MJD, RA, DEC)$
 into vectors $\uvec_{\mathrm{obs}}$, the direction of the observation in the BME frame.
@@ -139,7 +139,7 @@ I separately validated the numerical integration of the first 16 asteroids again
 
 The notion of a direction in space from an observer on Earth is typically reported in telescopic data using a right ascension and declination.
 While these are convenient and standard for reporting observed data, they are not well suited to the approach taken here.
-All directions are represented internally in this project as a unit vector $\uvec = (u_x, u_y, u_z)$ in the Barycentric Mean Ecliptic (BME) frame.
+All directions are represented internally in this project as a unit vector $\uvec = (u_x, u_y, u_z)$ in the barycentric mean ecliptic (BME) frame.
 These calculations were validated in isolation by querying the Horizons system for both the positions of and directions to known asteroids.
 It is vital that this calculation takes into account the finite speed of light.
 Treating light travel as instantaneous leads to errors that are catastrophically large in this context, on scales in the arc minutes rather than arc seconds.
@@ -158,7 +158,7 @@ precision with which a modern telescope can determine direection of an observati
 If you were to use an approximation that observations were made at Earth's geocenter 
 (i.e. you did not account for location of the observatorory on Earth's surface) 
 you would already be making errors on the order of 3 arc seconds.
-If you were to perform your calculations using the Sun's location as your coordinate origin rather than the solar system barycenter,
+If you were to perform your calculations using the Sun's location as your coordinate origin rather than the Solar System barycenter,
 you would make errors larger than 1.0 arc second.
 I know because I made both of these errors in earlier iterations before squeezing them out!
 

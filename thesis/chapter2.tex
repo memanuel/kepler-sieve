@@ -9,7 +9,7 @@ We will explore the ZTF dataset of telescopic observation from the Palomar obser
 We will compute the direction $\uvec$ from which an observer at Palomar would have seen an object at a given observation time
 as a function of its predicted position $\qvec$ and velocity $\vvec$ at that observation time.
 This calculation will account for the time required for light to reach the observatory (``light time'')
-and for the location of the observatory on the surface of the earth as distinct from geocenter (``topos adjustment'').
+and for the location of the observatory on the surface of the Earth as distinct from geocenter (``topos adjustment'').
 We will run this calculation on all the known asteroids, computing the direction they would have appeared in the sky if they had been visible at Palomar.
 We will use this calculation to associate each ZTF obervation with the nearest asteroid to it in the sky.
 
@@ -29,7 +29,7 @@ The simplest and most intuitive coordinate system is the \href{https://en.wikipe
 which uses the local horizon of an observer on the surface of the Earth as the fundamental plane.
 In this coordinate system, an object in the sky is described in terms of an altitude (sometimes called an elevation) and an azimuth.
 The altitude is how many degrees the object is above the visible horizon, so it will be between $0 \degree$ and $90 \degree$.
-The topocentric coordinate system is intuitive and easy to use for an observer standing on the surface of the earth and looking at the sky.
+The topocentric coordinate system is intuitive and easy to use for an observer standing on the surface of the Earth and looking at the sky.
 If I wanted to do some amateur astronomy with my kids and know where to point an inexpensive telescope, these are the coordinates I would want.
 \begin{figure}[hbt!]
 \begin{center}
@@ -41,7 +41,7 @@ If I wanted to do some amateur astronomy with my kids and know where to point an
 But the topcentric coordinate system is poorly suited to sharing observational data between astronomers.
 It is a different reference frame depending on where you are located on the Earth and the time in the evening.
 For this reason, astronomers dating back to ancient times developed the \href{https://en.wikipedia.org/wiki/Equatorial_coordinate_system}{equatorial coordinate system}.
-This coordinate system draws an imaginary sphere around the earth.
+This coordinate system draws an imaginary sphere around the Earth.
 The $x$ axis of this coordinate frame points from the Sun to the center of the Earth at the Vernal Equinox of a specific date 
 (typically \href{https://en.wikipedia.org/wiki/Epoch_(astronomy)}{J2000.0} these days).
 The $y$ axis is 90 degrees to the East and the $z$ axis points to the North pole.
@@ -76,12 +76,12 @@ The vernal equinox is the moment when the Earth's orbit crosses the ecliptic.
 This definition of a celestial coordinate system has in turn been superseded by a still more accurate system:
 the Interational Celestial Reference System, \href{https://en.wikipedia.org/wiki/International_Celestial_Reference_System}{ICRS}.
 The ICRS is based on an elegant idea.
-The goal of a celestial reference frame is to provide directions that are as near to fixed as possible in the reference frame of the solar system.
+The goal of a celestial reference frame is to provide directions that are as near to fixed as possible in the reference frame of the Solar System.
 Astronomers realized that since objects that are very far away from the Milky Way have orientations that are effectively fixed,
 the most precise way to define directions was based on large quantities of astronomical observations of these objects.
 In particular, radioastronomy (observations of stars in the radio wave frequency) is used.
 This is the basis of the ICRS and the frame of reference it defines: the International Celestial Refrence Frame (ICRF).
-The ICRF is a 3 dimensional coordinate system whose origin is the solar system barycenter (center of mass).
+The ICRF is a 3 dimensional coordinate system whose origin is the Solar System barycenter (center of mass).
 The $X$, $Y$ and $Z$ axes are set by convention to line up very closely to the traditional definition of the J2000.0 frame.
 The orientation of the coordinate axes is based on the measured positions of 212 extragalactic objects, mainly quasars.
 These objects are so far away from Earth and the Milky Way galaxy that they are considered ``fixed points'' in space.
@@ -109,7 +109,7 @@ In the previous section we have explored the ICRS, which provides the definition
 In this section, I review the definition of the barycentric mean ecliptic frame that is used for all calculations in this thesis.
 Then I explain the functions that are used to perform the conversions between RA/Dec and directions in the ecliptic frame.
 
-The barycentric ecliptic frame is the natural choice for computations done in relation to integrations of the solar system.
+The barycentric ecliptic frame is the natural choice for computations done in relation to integrations of the Solar System.
 It defines the $xy$ plane to containing the mean ecliptic (ellipse of the Earth's orbit around the Sun).
 We take the mean ecliptic because the ecliptic varies slowly over time; 
 the rotation of the Earth around the Sun in any given year would not be contained \textit{exactly} in a plane,
@@ -130,7 +130,7 @@ This definition has the advantages of being more precisely measurable and changi
 \begin{center}
 \includegraphics[width=0.8\textwidth]{heliocentric_ecliptic.png}
 \caption{The Heliocentric Ecliptic Frame, courtesy of \href{https://en.wikipedia.org/wiki/Ecliptic_coordinate_system}{Wikipedia}\\
-The Barycentric Ecliptic Frame is analogous, but the origin is the solar system barycenter rather than the Sun.}
+The Barycentric Ecliptic Frame is analogous, but the origin is the Solar System barycenter rather than the Sun.}
 \end{center}
 \end{figure}
 
@@ -185,7 +185,7 @@ or compute the relative velocity of the asteroid to the Earth.
 Why is this?
 We are performing all of our calculations in the barycentric mean ecliptic frame.
 This is very nearly an inertial frame of reference, so physics behaves ``nicely'' and everything works as expected.
-The only small departures from this frame being inertial are due to the orbit of the solar system around the Milky Way
+The only small departures from this frame being inertial are due to the orbit of the Solar System around the Milky Way
 and the acceleration of the Milky Way in the entire universe.
 If we used a different reference frame, e.g. the heliocentric frame, we would make errors due to the acceleration of this frame 
 unless we accounted for them, which would be equivalent to the calculations shown here.
@@ -215,8 +215,8 @@ if the asteroid were moving perpendicular to its displacement to Earth.
 While that's close enough to aim an amateur's optical telescope, it's a catastrophic error here.
 
 There is one more correction we need to account for: the position of the observatory on the surface of the Earth, or ``topos''.
-Our integration of the solar system gives us $\qearth$, the position of the Earth's center of mass in the BME as a function of time.
-But our observatory of course sits on the surface of the earth, not at the center.
+Our integration of the Solar System gives us $\qearth$, the position of the Earth's center of mass in the BME as a function of time.
+But our observatory of course sits on the surface of the Earth, not at the center.
 It would be too hot in the center, plus you couldn't see anything from there.
 Fortunately this is another well studied problem that is handled well by mature software libraries.
 I spent a lot of time trying to get a solution working based on the implementation in \tty{astropy},  but I simply could not get it to work.
@@ -235,7 +235,7 @@ dq_topos = topos.at(obstime_sf).ecliptic_position().au.T * au
 
 The function \tty{qv2dir} combines the capabilities of \tty{astrometric\_dir} and \tty{calc\_topos}.
 It takes as inputs \tty{q\_body}, \tty{v\_body}, \tty{q\_earth}, \tty{obstime\_mjd} and \tty{site\_name}.
-It returns the astrometric direction from an observer at the named site on earth, 
+It returns the astrometric direction from an observer at the named site on Earth, 
 to a body with the victor position and velocity vectors aligned with the observation times.
 
 The functions described above are based on \tty{numpy} arrays and run normally on the CPU.
@@ -297,7 +297,7 @@ On 10 years of daily data for 16 asteroids, the root mean squared error is \text
 \section{Conclusion}
 \label{section_conclusion}
 I have presented in this chapter the calculations required to determine the astromentric direction 
-of an asteroid observed from earth given its orbital elements.
+of an asteroid observed from Earth given its orbital elements.
 This calculation takes into account the time for light to travel from the asteroid to the Earth
 and the position of the observatory on the Earth's surface.
 I have tested these calculations against two independent sources, NASA Horizons and the SkyField astronomy library.

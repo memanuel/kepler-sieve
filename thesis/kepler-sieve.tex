@@ -82,13 +82,14 @@
 \usepackage{subcaption}
 \usepackage{grffile}
 
-\graphicspath{
-	{../figs/}
-	{../figs/web/}
-	{../figs/integration_test/planets/}
-	{../figs/integration_test/asteroids/}
-	{../figs/misc/}
-}
+% Don't set graphics path; write out full path to all figures
+% \graphicspath{
+% 	{../figs/}
+% 	{../figs/web/}
+% 	{../figs/integration_test/planets/}
+% 	{../figs/integration_test/asteroids/}
+% 	{../figs/misc/}
+% }
 
 %%%%%%%%%%%%%%%% MSE Typesetting%%%%%%%%%%%%%%%%
 % Captions
@@ -232,9 +233,9 @@ All code for this project is publicly available on GitHub at \href{https://githu
 \begin{acknowledgments}
 I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
 I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
-numerical integrators for solving solar system orbits.\\
+numerical integrators for solving Solar System orbits.\\
 I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
-for their advice on state of the art solar system integrators.\\
+for their advice on state of the art Solar System integrators.\\
 Most importantly, I would like to thank my wife Christie for her love and support.
 The Covid-19 crisis struck just as my work on this thesis kicked into high gear.
 It would not have been possible to complete it without extraordinary assistance from her.
@@ -252,11 +253,11 @@ To my two children, Victor and Ren\'ee
 % Don't number the intro chapter, but add to to the table of contents
 
 \addcontentsline{toc}{chapter}{Introduction}
-\chapter*{Introduction}\label{ch:intro}
-\input{intro}
+% \chapter*{Introduction}\label{ch:intro}
+% \input{intro}
 
-% \chapter{Integrating the Solar System}\label{ch:1}
-% \input{chapter1}
+\chapter{Integrating the Solar System}\label{ch:1}
+\input{chapter1}
 
 % \chapter{Predicting Directions from Positions}\label{ch:2}
 % \input{chapter2}
