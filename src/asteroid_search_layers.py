@@ -805,15 +805,23 @@ class TrajectoryScore(keras.layers.Layer):
         # Quality hits are close enough with high enough posterior probability
         # is_quality_hit: tf.Tensor = tf.math.logical_and(is_near_hit, is_high_prob_hit, name='is_quality_hit')
         is_quality_hit = is_near_hit
+
         # Count the effective number of quality hits
-        p_hit: tf.Tensor = tf.where(condition=is_quality_hit, x=p_hit_post, y=0.0, name='p_hit_quality')
+        # p_hit: tf.Tensor = tf.where(condition=is_quality_hit, x=p_hit_post, y=0.0, name='p_hit_quality')
 
         # Rearrange to ragged tensors
-        p_hit_r = tf.RaggedTensor.from_row_lengths(
-            values=p_hit, row_lengths=self.row_lengths_close, name='p_hit_quality_r')
+        # p_hit_r = tf.RaggedTensor.from_row_lengths(
+        #    values=p_hit, row_lengths=self.row_lengths_close, name='p_hit_quality_r')
+
+        # Count the number of quality hits
+        count_hit: tf.Tensor = tf.where(condition=is_quality_hit, x=1.0, y=0.0, name='count_hit')
+
+        # Rearrange to ragged tensors
+        count_hit_r = tf.RaggedTensor.from_row_lengths(
+            values=count_hit, row_lengths=self.row_lengths_close, name='count_hit_r')
 
         # Compute totals by element
-        hits: tf.Tensor = tf.reduce_sum(p_hit_r, axis=1, name='hits')
+        hits: tf.Tensor = tf.reduce_sum(count_hit_r, axis=1, name='hits')
 
         return hits
 
