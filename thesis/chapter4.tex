@@ -32,13 +32,16 @@ In particular, the five tasks presented are
 \item ``rediscover'' the elements of known asteroids starting with randomly initialized elements
 \item discover the elements of unkown asteroids starting with randomly initialized elements
 \end{itemize}
-The search process presented passes the first three test with varying degrees of success, recovering 64, 37 and 11 elements respectively out of the 64 candidates.
-The search for known asteroids from random initializations has 1 success on the first batch of 64 and is eventually run on a large scale.
-The search for previously unknown asteroids yields \todo{N} orbital elements that I claim belong to real but uncatalogued asteroids.
+The search process presented passes the first three test with varying degrees of success, 
+recovering 64, 42 and 12 elements, respectively, out of the 64 candidates.
+The search for known asteroids from random initializations has 1 success on the first batch of 64 and is eventually run on a large scale,
+where it plausibly recovers elements of 125 known asteroids.
+The search for previously unknown asteroids yields 9 candidate orbital elements that I claim 
+might plausibly belong to real but uncatalogued asteroids.
 
 I tested the quality of the results by comparing the fitted orbital elements to the known orbital elements on two metrics.
 The most important indicator is to compare the orbits on a set of representative dates and compute the mean squared difference in the position in AU.
-A secondary metric is to compare the orbital elements.  
+A secondary metric is to compare the orbital elements themselves.  
 This is done with a metric that standardizes each element and assigns it an importance score.
 Both of these metrics show excellent agreement of the recovered orbital elements with the existing elements in the asteroid catalogue.
 
@@ -52,7 +55,7 @@ that might or might not be reachable depending on the initialization,
 the number of local maxima in the objective function here will be at least the number of real asteroids adequately represented in the data.
 Based on the last chapter, that means there are over 100,000 local maxima in the objective function.
 
-In this work I use a simple strategy of random initializations.
+In this work, I use a simple strategy of random initializations.
 Improving on this initiailization strategy is the most important item of future work.
 I had originally planned to upgrade this to a more intelligent initialization but unfortunately ran out of time.
 Random initialization would be nearly hopeless if we had no information about the probability distribution of orbital elements.
@@ -68,16 +71,19 @@ so we have a solid theoretical argument for sampling it uniformly.
 Once $M$ is determined, it is converted to $f$ using \tty{REBOUND}.
 I will show empirically that the argument of perhelion $\omega$ appears to be distributed very close to uniformly as well.
 
-Here are charts for selected mathematical transformations of orbital elements.
+Figures ~\ref{fig:elt_dist_a}, ~\ref{fig:elt_dist_e_i}, and ~\ref{fig:elt_dist_Omega_f} plot PDFs 
+for selected mathematical transformations of orbital elements.
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_a_pdf.png}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_a_cdf.png}
-\caption{PDF and CDF for $\log(a)$, log of the semi-major axis.\\
+\end{center}
+\caption[PDF and CDF for $\log(a)$, Log of the Semi-Major Axis.]
+{PDF and CDF for $\log(a)$, Log of the Semi-Major Axis.\\
 We can clearly see the famous Kirkwood gaps in the PDF. \\
 The CDF shows that on a macroscopic scale, a log-normal model isn't bad.\\
 $\log(a)$ is sampled empirically from the CDF.}
-\end{center}
+\label{fig:elt_dist_a}
 \end{figure}
 \clearpage
 
@@ -85,10 +91,12 @@ $\log(a)$ is sampled empirically from the CDF.}
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_e.png}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_i.png}
-\caption{PDF for eccentricity $e$ and $\sin(i)$ (sine of the inclination).\\
-Both $e$ and $\sin(i)$ are bounded in $[0, 1]$ and can be decently approximated by a Beta distribution.\\
-Boith $e$ and $i$ are sampled empirically from the CDF; Beta sampling could have also worked well.}
 \end{center}
+\caption[PDF for Eccentricity $e$ and $\sin(i)$ (Sine of the Inclination).]
+{PDF for Eccentricity $e$ and $\sin(i)$ (Sine of the Inclination).\\
+Both $e$ and $\sin(i)$ are bounded in $[0, 1]$ and can be decently approximated by a Beta distribution.\\
+Both $e$ and $i$ are sampled empirically from the CDF; Beta sampling could have also worked well.}
+\label{fig:elt_dist_e_i}
 \end{figure}
 \clearpage
 
@@ -96,11 +104,13 @@ Boith $e$ and $i$ are sampled empirically from the CDF; Beta sampling could have
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_Omega_node.png}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_f.png}
-\caption{PDF for longitude of ascending node $\Omega$ and true anomaly $f$.\\ 
+\end{center}
+\caption[PDF for Longitude of Ascending Node $\Omega$ and True Anomaly $f$]
+{PDF for Longitude of Ascending Node $\Omega$ and True Anomaly $f$.\\ 
 The PDF for $\Omega$ is somewhat close to uniform, but with a noticeable departure.\\
 The PDF for $f$ has an odd shape that I would have been hard pressed to predict ahead of time.\\
 $\Omega$ is sampled empirically from the CDF; $f$ is computed by sampling $M$ uniformly.}
-\end{center}
+\label{fig:elt_dist_Omega_f}
 \end{figure}
 \clearpage
 
@@ -108,17 +118,18 @@ $\Omega$ is sampled empirically from the CDF; $f$ is computed by sampling $M$ un
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_omega_peri.png}
 \includegraphics[width=1.0\textwidth]{../figs/elts/elt_hist_M.png}
-\caption{PDF for argument of perihelion $\omega$ and mean anomaly $M$.\\ 
-As promised, these are empirically very close the uniform distribution we would expect.\\
-Both of these elements are sampled uniformly at random..}
 \end{center}
+\caption[PDF for Argument of Perihelion $\omega$ and Mean Anomaly $M$]
+{PDF for Argument of Perihelion $\omega$ and Mean Anomaly $M$.\\ 
+As promised, these are empirically very close the uniform distribution we would expect.\\
+Both of these elements are sampled uniformly at random.}
 \end{figure}
 \clearpage
 
-If a continuous rather than discrete sampling strategy were desired, $e$ and $\sin(inc)$ could be well approximated by 
+If a continuous rather than discrete sampling strategy were desired, $e$ and $\sin(i)$ could be well approximated by 
 a fitted Beta distribution as shown in the preceding charts.
 Drawing $\log(a)$ from a distribution could be a bit messy.  
-To my eye the best solution there would be a mixture of normals with perhaps $6$ to $10$ components.
+To my eye, the best solution there would be a mixture of normals with perhaps $6$ to $10$ components.
 I see little argument in favor of drawing $a$ or $\omega$ other than empirically.
 Random elements are generated in the module \tty{candidate\_elements.py} with the function \tty{random\_elts}.
 A random seed is used for reproducible results.
@@ -140,21 +151,22 @@ It returns a data frame of ZTF elements that is keyed by \tty{(element\_id, ztf\
 where \tty{element\_id} is an identifier for one candidate element (intended to be unique across different batches)
 and \tty{ztf\_id} is the identifier assigned to each ZTF detection.
 
-The work of integrating the candidate elements on a daily schedule is carried out by \tty{calc\_ast\_data} In module \tty{asteroid\_dataframe}.
+The work of integrating the candidate elements on a daily schedule is carried out by \tty{calc\_ast\_data} in module \tty{asteroid\_dataframe}.
 The work of splining the daily integrated asteroid positions and velocities at the distinct observation times is done in \tty{make\_ztf\_near\_elt}.
 Because this computation is fairly expensive (it takes about 25 seconds to integrate a batch of 64 candidate elements),
 a hash of the inputs is taken and the results are saved to disk using the hashed ID.
 If a subsequent call for the ZTF elements is made with the same elements, it is loaded from the cache on disk.
 
 Those readers who would like an interactive demonstration can find one in the Jupyter notebook \tty{06\_ztf\_element.ipynb}.
-Here is a preview of the output dataframe \tty{ztf\_elt}:
+Figure ~\ref{fig:ztf_elt_dataframe} shows a preview of the output dataframe \tty{ztf\_elt}:
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/elts/ztf_elt_dataframe.png}
-\caption{ZTF detections within a 1.0 degree threshold of a batch of 64 orbital elements.}
 \end{center}
+\caption[ZTF Detections Within a 1.0 Degree Threshold of a Batch of 64 Orbital Elements]
+{ZTF Detections Within a 1.0 Degree Threshold of a Batch of 64 Orbital Elements.}
+\label{fig:ztf_elt_dataframe}
 \end{figure}
-
 In Chapter 3, we showed that the quantity $v = (s/\tau)^2$ is would be distributed $\sim \Unif[0,1]$
 if predicted distributions were distributed uniformly at random.
 The function \tty{plot\_v} in module \tty{element\_eda} generates such a plot.
@@ -165,7 +177,8 @@ Then I generated ZTF dataframes for three collections of orbital elements:
 \item perturbed orbital elements of these 64 asteroids
 \item random orbital elements
 \end{itemize}
-As a test of the theory and to build intuition, I plot the distribution of $v$ against the original threshold of 1.0 degree.
+As a test of the theory and to build intuition, Figure ~\ref{fig:candidate_elt_v} plots the distribution of $v$ 
+against a threshold of 1.0 degree for these three sets of candidate elements.
 The results are exactly as predicted.
 The random distribution is approximately uniform as expected.
 The unperturbed distribution is a mixture of uniform and a spike in the first bucket.
@@ -175,18 +188,20 @@ The perturbed distribution is in between, with the hits leaking out over the fir
 \includegraphics[width=0.70\textwidth]{../figs/elts/v_hist_unperturbed.png}
 \includegraphics[width=0.70\textwidth]{../figs/elts/v_hist_perturbed.png}
 \includegraphics[width=0.70\textwidth]{../figs/elts/v_hist_random.png}
-\caption{Histogram of $v = (s/\tau)^2$ for three sets of candidate orbital elements.}
 \end{center}
+\caption[Histogram of $v = (s/\tau)^2$ for Three Sets of Candidate Orbital Elements]
+{Histogram of $v = (s/\tau)^2$ for Three Sets of Candidate Orbital Elements.}
+\label{fig:candidate_elt_v}
 \end{figure}
 \clearpage
 
 \section{Filtering the Best Random Elements}
 \label{section_best_random_elements}
 One idea is to perform a preliminary screening of the candidate orbital elements 
-before investing a large amount of computational resources into running an aseteroid search on them.
+before investing a large amount of computational resources into running an asteroid search on them.
 In the next section we will show how to generate the ZTF detections within a threshold $\tau$ of the candidate elements.
 We've already seen that the random variable $V = (S/ \tau)^2$ is distributed $V \sim \Unif(0, 1)$.
-One idea is to assess candidate elements by taking the sample mean of $\log(v)$;
+We can assess candidate elements by taking the sample mean of $\log(v)$;
 we want to explore elements that have a disproportionate share of hits where $v$ is small.
 Here is a quick demonstration that for $V \sim \Unif(0,1)$, $\log(V)$ has expectation $-1$ and variance $1$.
 \begin{align*}
@@ -203,7 +218,7 @@ It provides a computationally efficient way to screen candidate orbital elements
 This screening is performed in the module \tty{random\_elements}.
 The function \\
 \tty{calc\_best\_random\_elts} generates a large batch of random elements (the default size is 1024).
-It then builds the ZTF observations close to them and extract the t-score as described above.
+It then builds the ZTF observations close to them and extracts the t-score as described above.
 The input batch size is used to select that many of the candidates that have the best score.
 The whole process of building the ZTF data frames, searching for the best elements,
 and saving the best elements and assembled ZTF data frames to disk is carried out by a Python program that can be run from the command line as
@@ -213,7 +228,7 @@ and saving the best elements and assembled ZTF data frames to disk is carried ou
 \end{lstlisting}
 The example call above runs the program on 256 batches of random elements, with random seeds $[0, 4, \ldots, 1020]$.
 The stride argument is to facilitate parallel processing.
-The two batch size arguments request that $1024$ initial elements be winnowed down to $64$ with the highst t-scores.
+The two batch size arguments request that $1024$ initial elements be winnowed down to $64$ with the highest t-scores.
 The flag \tty{-known\_ast} at the end asks that only the subset of ZTF detections within 2.0 arc seconds of a known asteroid be used 
 to generate the ZTF dataframe and score the initial elements.
 I call this searching against known asteroids.
@@ -243,8 +258,8 @@ Conditional on an observation being in this category (a hit), the distribution o
 Conditional on an observation being a miss, $V$ is distributed uniformly on $[0,1]$.
 In the formalism of conditional probability,
 \begin{align*}
-V | Hit &\sim \Expo(\lambda) \\
-V | Miss &\sim \Unif(0,1)
+V | \textrm{Hit} &\sim \Expo(\lambda) \\
+V | \textrm{Miss} &\sim \Unif(0,1)
 \end{align*}
 We can relate the parameter $\lambda$ to a resolution parameter $R$ by observing that $v=(s/\tau)^2$ and
 $$f(v) \propto e^{-\lambda v} = e^{-\lambda s^2 / \tau^2}$$
@@ -258,7 +273,7 @@ It is convenient to use $\lambda$ for calculations, both mathematical and in the
 For understanding what is going on, I find it more intuitive to use the resolution, since it's on the same scale as the threshold $\tau$.
 The PDF of an exponential distribution is given by \cite{BH}
 $$ f(v; \lambda) =\lambda e^{-\lambda v}$$
-In this case, we need to modify this PDF slightly to account for the fact that $v \in [0,1]$ 
+In this case, we need to modify this PDF to account for the fact that $v \in [0,1]$ 
 while the support the exponential distribution is $[0, \infty)$.
 What we want instead is the truncated exponential distribution, which is normalized to have probability $1$ on the interval $[0,1]$, namely
 $$ f(v| \mathrm{Hit}, \lambda) = \frac{\lambda v}{1 - e^{-\lambda}}$$
@@ -267,7 +282,7 @@ $$ f(v | \mathrm{Miss}) = 1$$
 Now we can write the PDF of the mixture model using the Law of Total Probability:
 \begin{align*}
 f(v| h, \lambda) &= f(v|\mathrm{Hit}, \lambda) \cdot P(\mathrm{Hit}) + f(v|\mathrm{Miss}) \cdot P(\mathrm{Miss}) \\
-&= h \cdot \frac{\lambda v}{1 - e^{-\lambda}} + 1 - h
+&= h \cdot \frac{\lambda v}{1 - e^{-\lambda}} + (1 - h)
 \end{align*}
 
 The optimization objective function will be the log likelihood of the PDF:
@@ -276,11 +291,11 @@ Please note that I've omitted the parameter $\tau$ from these expressions to lig
 During the training of the model, the $\tau$ parameter is also updated.
 The three mixture parameters that are manipulated during training are 
 \begin{itemize}
-\item \tty{num\_hits}: the number of hits for this candidate element
+\item $N_h$: the number of hits for this candidate element
 \item $R$: the resolution of this candidate element as a Cartesian distance
 \item $\tau$: the threshold of this candidate element as a Cartesian distance
 \end{itemize}
-The hit rate $h$ is computed from \tty{num\_hits} by dividing by the number of rows that are within the threshold distance.
+The hit rate $h$ is computed from $N_h$ by dividing by the number of rows that are within the threshold distance.
 The dimensionless error term $v$ is computed by taking $v = (s/\tau)^2$.
 The exponential decay parameter $\lambda$ is calculated as $\lambda = \tau^2 / 2R^2$.
 
@@ -296,13 +311,15 @@ and subtracting this quantity $\mathcal{L}_0$ from the current optimized $\mathc
 There is an important intuition about the role of the mixture parameters that I would like to explain.
 The major challenge in tuning the resolution $R$ is for the gradients to encourage the model to adjust the orbital elements
 to get closer to detections that are likely to be hits, without getting deked 
-\footnote{\href{https://en.wikipedia.org/wiki/Deke_(ice_hockey)}{deke}: an ice hockey technique whereby a player draws an opposing player out of position.}
+\footnote{\href{https://en.wikipedia.org/wiki/Deke_(ice_hockey)}{deke}: an ice hockey technique whereby a player draws an opposing player out of position.
+It is a Canadian contraction of the workd ``decoyed'.'}
 by close-ish detections that belong to other asteroids.
-If the resolution is too low before convergence, the model will be too far away to pick up any gradient to the hits.
+If the resolution parameter $R$ is too small (sharp focus) before convergence, the model will be too far away to pick up any gradient to the hits.
 It will achieve a negative log likelihood because $\log(1-h) < 0$ and it won't make it up from the putative hits.
-If the resolution is too high, the model will end up compromising and trying to fit a cloud of detections belonging to different asteroids.
+If $R$ is too high (fuzzy), the model will end up compromising and trying to fit a cloud of detections belonging to different asteroids.
 The whole game of getting the model to converge is to find the sweet spot of $h$ and $R$ where the model gradually tightens its focus,
-like letting your foot off the clutch when you put a manual transmission car into gear.
+like letting your foot off the clutch when you put a car with a manual transmission \footnote{Otherwise known as a \textit{real} car} into gear. 
+
 In previous iterations, I attempted to write down objective functions to balance these objectives by hand and failed miserably.
 It was only when I used probability theory with a mixture model that plausibly describes the underlying facts that I had any success.
 
@@ -311,7 +328,25 @@ In the actual optimization of a batch of 64 elements, we need a single scalar va
 Because all of the elements in a batch are being optimized independently and have no interaction with each other, we can simply take their sum.
 There is an important refinement to this idea though that I will discuss in the next section.
 
-\todo{Add magnitude}
+\subsection{Adding the Magnitude to the Joint Likelihood Function}
+The likelihood function written above depends only on the probability distribution of the relative distance $v = (s/\tau)^2$.
+A more sophisticated model will also predict the magnitude.
+We can write down a simple probability density for the magnitude as well by assuming that it is normally distributed.
+We can treat $H$ and $\sigma_{H}$ as learnable parameters, analagous to a learned ``orbital element'' for the the absolute magnitude $H$
+and a learned ``resolution'' for apparent magnitude.
+A strong argument can be made that the magnitude errors are independent of the direction errors, 
+so the joint PDF $f(v, h) = f_{v}(v) \cdot f_h(h)$.
+The PDF $f_h(m)$ will be $\varphi( (m - H) / \sigma_H) / \sigma_h$ where $\varphi(z)$ is the standard normal PDF.
+
+This time, we will need to specify the alternate, uninformed baseline, because it isn't just 1 as is the case for the uniform distribution on $[0,1]$.
+This can be done by taking the sample mean and variance of all the observations within the current threshold $\tau$;
+this calculation yields the term $\mathcal{L}_0$ discussed above.
+
+I tried all of this, and got it working somewhat, enough that the model could function.
+But I found that my predictions of the magnitude were too finicky, enough so that the model performed better when 
+I set the objective function as the simple log likelihood depending only on the angular distance.
+The code is present in \tty{AsteroidSearch} and \tty{TrajectoryScore} to incorporate the magnitude 
+into the likelihood in the future if the prediction can be tightened up enough to work.
 
 \section{Performing the Asteroid Search}
 \label{section_asteroid_search}
@@ -326,10 +361,10 @@ It's a Keras custom model defined in the module \tty{asteroid\_search\_model.py}
 An AsteroidSearchModel is initialized with a candidate elements and the ZTF observations near these elements.
 It constructs two layers of type \tty{CandidateElements} and \tty{MixtureParameters} that maintain, respectively, 
 the candidate orbital elements and mixture parameters.
-These layers are defined in the module \tty{asteroid\_search\_layers}.
+These layers are defined in the module \tty{asteroid\_search\_layers.py}.
 The candidate orbital elements are the familiar seven Keplerian orbital elements.
-The six ``live'' ones $(a, e, i, \Omega, \omega, f)$ are trainable, variables, the epoch is locked at its initial value.
-The mixture parameters are \tty{num\_hits}, $R$ and $\tau$, all of which are trainable.
+The six ``live'' ones $(a, e, i, \Omega, \omega, f)$ are trainable variables, the epoch is locked at its initial value.
+The mixture parameters are $N_h$, $R$ and $\tau$, all of which are trainable.
 
 \subsection{Controlling Parameters on a Uniform Scale}
 The first important idea in training the model is that all variables are controlled internally 
@@ -339,12 +374,12 @@ named \tty{a\_} that is constrained to lie in the region $[0, 1]$.
 (If a gradient update tries to push it less than 0 or more than 1, it is clipped back in the allowed range.)
 The value of $a$ is computed on demand by
 $a = a_{\mathrm{min}} \cdot \exp( \tty{a\_} \cdot \tty{log\_a\_range})$ 
-where \tty{log\_a\_range} = $\log(a_{\mathrm{max}} / a_{\mathrm{min}})$.
+where \tty{log\_a\_range} = $\log(a_{\mathrm{max}} / a_{\mathrm{min}})$.\\
 $a_{\mathrm{min}}$ and $a_{\mathrm{max}}$ are set by policy to 0.5 and 32.0, respectively.
 Other orbital elements are likewise controlled via mathematical transforms into the range $[0, 1]$.
 The eccentricity is left as is, though it is limited to at most $63 / 64 = 0.984375$ to avoid numerical instabilities that occur as $e$ approaches $1$.
-The inclination is controlled via $\sin(inc)$, which is constrained to lie in the interval $\pm 1 - 2^{-8}$.
-The other angle variables $\Omega$, $\omega$ and $f$ are uncstrained, but multiplied by $2 \pi$ 
+The inclination is controlled via $\sin(i)$, which is constrained to lie in the interval $\pm 1 - 2^{-8}$.
+The other angle variables $\Omega$, $\omega$ and $f$ are unconstrained, but multiplied by $2 \pi$ 
 so the control variable $f\_$ for instance can cover its entire allowed range of values by moving 1.0.
 
 The number of hits \tty{num\_hits} is allowed in a range of $6$ to $1024$ and controlled by its log.
@@ -375,7 +410,7 @@ I perform training in ``joint mode'' (where both the orbital elements and mixtur
 This is a factor of 64 smaller than the Adam default of 0.001, which I found to be far too high for this problem.
 Pretend for a moment that there were only 1 parameter.  
 Assuming the gradient is saturated, on each data sample encountered, it will either increase or decrease by the learning rate.
-So after encountering $2^{16} = 65,536$ samples it would be able to move from one extreme of its values to anothers.
+So after encountering $2^{16} = 65,536$ samples it would be able to move from one extreme of its values to another.
 Of course in practice with multiple parameters, a single parameter will almost never have a partial gradient equal to 1.0,
 but it's a good intuition for the ``speed limit'' of how fast any one parameter can change during training.
 
@@ -391,9 +426,12 @@ Now a new layer comes into play: the \tty{TrajectoryScore} layer.
 This layer is also defined in \tty{asteroid\_search\_layers}.
 When the model is initialized, this layer saves the directions of all the observations in the ZTF data frame as Keras backend constants.
 This was a deliberate design choice that is somewhat unorthodox.
-Keras models are largely designed around the assumption that during training you will feed in batches with even numbers of input and output samples.
+Keras models are largely designed around the assumption that during training you will feed in batches with equal numbers of input and output samples.
 This problem has a quite different flavor.
 There are no ``outputs'' we can line up against a batch of 64 candidate orbital elements.
+And the only ``inputs'' are the initial candidate orbital elements, which are trainable variables.
+Eventually I needed to pass a dummy input that had \tty{batch\_size} ones in it to placate Keras.
+
 We are just computing an objective function and trying to maximize it, using TensorFlow as a big computational back end with
 support for GPU computation, automatic differentiation, and gradient descent optimization.
 By putting all the observations into Keras constants, we write them to the GPU once when the model is initialized,
@@ -419,14 +457,14 @@ it's helpfully giving us a direction that we should adjust the elements and mixt
 But what TensorFlow is really doing is squashing the whole gradient, all 64 candidate elements worth, to have a norm of 1.
 When one element has a large gradient, it will dominate at the expense of the others.
 
-In writing this out now, I realize that what I probably should have down was to write a custom gradient clipping class that works on one candidate element at a time.
+In writing this out now, I realize that what I probably should have done was to write a custom gradient clipping class that works on one candidate element at a time.
 What I did instead was to reason that I wanted the ability to effectively tune the learning rate on all 64 of the candidate elements independently.
 Of course a model of this kind has only one scalar objective function and one learning rate.
 But we can achieve the same effect by weighting the contribution of each candidate element.
 If $\mathcal{L}_i$ is the log likelihood of the $i$th candidate element, and $w_i$ is the weight on the $i$th candidate element,  
 then the weighted objective function is 
 $$\mathcal{L} = \sum_{i=1}^{n} w_i \mathcal{L}_i$$
-The weights are initialized at $w_i=1$.  If we cut the weight $w_5$ to $0.5$, then all the gradients due to candidate element $5$ will also be cut in half.
+The weights are initialized at $w_i=1$.  If we cut the weight $w_2$ to $0.5$, then all the gradients due to candidate element $2$ will also be cut in half.
 
 But how do we decide when to adjust the weights?
 One problem I ran into repeatedly was the model would make quite good progress, 
@@ -451,7 +489,7 @@ It would pick up close to zero gradients on the orbital elements, and a huge gra
 and focus in tighter until it converged, right?
 Wrong! The problem is that when the resolution and threshold distances are too large, 
 the model is attaching a lot of weight to observations that are far away.
-The early iterations polluted the good orbital elements and never managed to converge.
+The early iterations polluted the good orbital elements and it never managed to converge.
 
 I hit on the idea of freezing the candidate orbital elements and only training the mixture parameters.
 Of course, this feels a bit like cheating.  
@@ -459,14 +497,14 @@ If you know the elements are right and just want to learn the mixture parameters
 of course you're going to do better if you freeze the elements and only train the mixture parameters.
 At first, this was only a testing technique.
 Later on, though, I realized that it helps the model to converge even when it's not cheating.
-My intuition is that it's much ``safer'' to train the model at a higher learning rate when you adjust 
+My intuition is that it's ``safer'' to train the model at a higher learning rate when you adjust 
 the mixture parameters than when you adjust the candidate elements as well.
 
 The model as it now stands alternates rounds of training in two modes: ``mixture'' and ``joint'' modes.
-In mixture mode, only the mixture parameters \tty{num\_hits}, $R$ and $\tau$ are trainable.
+In mixture mode, only the mixture parameters $N_h$, $R$ and $\tau$ are trainable.
 The learning rate is higher by a factor of 16, $2^{-12}$ in mixture mode vs. $2^{-16}$ in joint mode.
-The most important difference though is that the objective function is adjusted.
-When I started out, I had only two trainable mixture parameters, \tty{num\_hits} and $R$.
+The most important difference, though, is that the objective function is adjusted.
+When I started out, I had only two trainable mixture parameters, $N_h$ and $R$.
 I noticed that the model wasn't converging all the way, and realized that I wanted it to reduce $\tau$ along with $R$ as it trained.
 This is quite intuitive.  
 
@@ -485,7 +523,7 @@ Even if the log likelihood has a very strong local maximum at a fully converged 
 this experience was telling me that there was no smooth path of increasing gradients to get there.
 Instead, I wanted an optimization function that would encourage the model to converge.
 I modified the objective function to take the more general form
-$$J = \sum_{i=1}^{n} w_i \frac{\mathcal{L_i}}{R_i^\alpha \tau_i^\beta}$$
+$$J = \sum_{i=1}^{n} w_i \frac{\mathcal{L}_i}{R_i^\alpha \cdot \tau_i^\beta}$$
 This is the same as before, but now there are powers of the resolution $R_i$ and threshold $\tau_i$ in the denominator.
 While the original objective function only sought to find the most likely configuration,
 this objective function is willing to trade a reduction in likelihood for a more concentrated (converged) prediction.
@@ -495,7 +533,7 @@ than to do it with the initial settings of 0.5 and 2.0 degrees respectively.
 
 I would also like to quickly state a theoretical motivation for this formulation, which originally motivated it.
 Going back to the idea that we have random variables $V_1, \ldots V_n \iid \Unif(0, 1)$,
-we saw that the quantity $T = n^{-3/2} \cdot \sum_{i=1}^{n} \sim \N(0,1)$ had the same distribution regardless of $n$.
+we saw that the quantity $T = n^{-3/2} \cdot \sum_{i=1}^{n} \sim \mathcal{N}(0,1)$ had the same distribution regardless of $n$.
 (We divide the sum by $n$ to get the sample mean and by $\sqrt{n}$ to give it variance 1).
 Of course, the number of detections $n$ within a threshold $\tau$ is a discrete number, 
 so it will have a derivative of zero except at points where it is not defined.
@@ -505,7 +543,7 @@ This provides a strong intuition that the log likelihood over $\tau^3$ is a mean
 and that dividing by a power of $\tau$ is justified.
 In the actual event, I experimented with different configurations and settled on $\alpha=1$ and $\beta=1$.
 I wanted to guide the resolution and threshold to smaller values at the same rate.
-In practice it didn't make a large difference but these values seemed to work well.
+In practice it didn't make a large difference, but these values seemed to work well.
 
 \subsection{Organizing Training: Batches, Epochs, Episodes, and Sieving Rounds}
 Training is organized hierarchically into batches, epochs, episodes, and sieving rounds.
@@ -537,7 +575,7 @@ is done in the method \tty{update\_weights}.
 
 I set the length of an episode to at most 4 epochs; an episode ends early if the Keras early stopping callback detects that the overall loss has gotten worse.
 I define the effective learning rate to be the average of the element weights $w_i$ multiplied by the global learning rate.
-A training episode is terminated early if the effective learning rate drops below a threshold, which 
+A training episode is terminated early if the effective learning rate drops below a threshold, which defaults to $1/64$ of the original learning rate.
 
 A sieving round is the highest level of training.
 It covers at most a set number of samples.
@@ -555,13 +593,13 @@ One sieving round is implemented by the method \tty{sieve\_round}.
 
 The method \tty{sieve} implements a preset schedule of sieving rounds.
 For maximum maximum thresholds of 7200, 5400, 3600 and 2400 arc seconds, 
-it runs first training in mixture mode for 512 batches at a learning rate of $2^{12}$, 
+it runs first training in mixture mode for 512 batches at a learning rate of $2^{-12}$, 
 then training in joint mode for 2048 batches at a learning rate of $2^{-16}$.
 Observe that one sieving round in mixture mode is encountering each data point $2^{9} \cdot 2^{6} = 2^{15}$ times.
 Multiplying this by a learning rate of $2^{-12}$, a parameter could theoretically cover its full range 8.0 times in one round.
 Similarly, a sieving round in joint mode encounters each data point $2^{11} \cdot 2^{6} = 2^{17}$ times.
 At a learning rate of $2^{-16}$ an orbital element could cover its full range of values 2.0 times in a single round.
-Remember though that there are 64 elements in the batch, and this learning rate is shared by all of them.
+Remember, though, that there are 64 elements in the batch, and this learning rate is shared by all of them.
 If we use the rule of thumb that the norm of the gradient will scale with the square root of of the batch size,
 we should divide all of these quantities by $\sqrt{64} = 8$.
 This tells us that a mixture parameter on one typical candidate element, moving at maximum speed,
