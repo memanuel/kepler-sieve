@@ -3,7 +3,7 @@ Before we review the results of our asteroid search experiments, it will be help
 In particular, we will test below whether or not we successfully recovered orbital elements when we started with them as an initial guess.
 Answering this question requires that we have a useful metric on the space of orbital elements.
 
-I spent a fair amoutn of time trying to develop such a metric.
+I spent a fair amount of time trying to develop such a metric.
 While orbital elements are convenient for intuition and calculating orbits, there isn't an obvious distance metric we can put on them that makes a lot of sense.
 Eventually I decided that the canonical way to compare two orbits by comparing the predicted vector of positions on a set of representative dates.
 Logically this is hard to argue with, but it is somewhat computationally expensive compared to a computation that can be run directly on the elements.
@@ -19,7 +19,7 @@ In one important optimization, the tensor of known asteroid positions in loaded 
 once as a TensorFlow constant to avoid recomputing it every time the function is called.
 
 I also sought to develop a sensible metric of the distance between a pair of arbitrary orbital elements.
-This is implemenented in the same module with the function \tty{elt\_q\_norm} and \tty{nearest\_ast\_elt\_cov}.
+This is implemented in the same module with the function \tty{elt\_q\_norm} and \tty{nearest\_ast\_elt\_cov}.
 The idea is to transform the elements to a Cartesian representation where they have a well behaved covariance matrix.
 In particular, the goal is to find a deterministic transform of the elements that is distributed approximately as a multivariate normal.
 Then the \href{https://en.wikipedia.org/wiki/Mahalanobis_distance}{Mahalanobis distance} is a natural metric on the transformed elements.
@@ -27,13 +27,14 @@ This process can be reviewed in the Jupyter notebook \tty{11\_nearest\_asteroid.
 I initially tried working with the full empirical distribution to convert every orbital element to a percentile and then to a normally distributed $z$ score,
 but the results didn't make any sense, so I dropped that approach.
 
-Instead, I switched to a simpler approach and standardized variables so they would have mean zero and variance 1.
+Instead, I switched to a simpler approach and standardized variables so they would have mean 0 and variance 1.
 I attempt to make them close to normal if possible, but without overfitting against the empirical distribution.
 I standardized the log of the semimajor axis $a$ and directly standardized the eccentricity $e$.
 (Even though this admits mappings from $z$ to eccentirities outside $[0,1]$, the mapping is only used in the direction
 from a reported eccentricity $e$ to a transformed $e_z$ that is approximately normal).
-The quantity $\sin(inc)$ was also also standardized.
-Here is a summary of the mathematical transformations to create approximately normal variables from $a$, $e$ and $i$:
+The quantity $\sin(i)$ was also also standardized.
+Here is a summary of the mathematical transformations to create standardized 
+(and hopefully approximately normal) variables from $a$, $e$ and $i$:
 \begin{align*}
 a_z &= \frac{\log(a) - \E[\log(a)]}{\sqrt{\Var[\log(a)]}} \\
 e_z &= \frac{e - \E[e]}{\sqrt{\Var[e]}} \\
@@ -41,19 +42,22 @@ i_z &= \frac{\sin(i) - \E[\sin(i)]}{\sqrt{\Var[\sin(i)]}}
 \end{align*}
 The expectation and variance here are estimated using the sample mean and sample variance respectively.
 
-Here are visualizations of comparing the hypothetical and empirical distributions of $a$ and $e$:
+Figure ~\ref{fig:ast_elt_standardize_a_e} shows visualizations comparing the hypothetical and empirical distributions of $a$ and $e$:
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=0.8\textwidth]{../figs/elts_cov/log_a_z.png}
 \includegraphics[width=0.8\textwidth]{../figs/elts_cov/e_z.png}
-\caption{Transformations of $a$ and $e$ to standardized (and ``approximately'' normal) variables $a_z$ and $e_z$.}
 \end{center}
+\caption[Transformations of $a$ and $e$ to Standardized Variables $a_z$ and $e_z$]
+{Transformations of $a$ and $e$ to Standardized (and ``Approximately'' Normal?) Variables $a_z$ and $e_z$.}
+\label{fig:ast_elt_standardize_a_e}
 \end{figure}
 \clearpage
 
-The other three angular orbital elements $\Omega$, $\omega$ and $f$ are handled identically.
-We can inject $i$ into Cartesian space with only its sine because it is constrained to $[-\pi, \pi]$.
-But the other three angles are unconstrained.  I will take $\Omega$ as an example.
+We can inject $i$ into Cartesian space with only its sine because it is constrained to $[-\pi/2, \pi/2]$.
+But the other three angles are unconstrained.  
+They are handled identically.
+I will take $\Omega$ as an example.
 I transform $\Omega$ into \textit{two} variables, named \tty{cos\_Omega\_z} and \tty{sin\_Omega\_z}.
 These are not transformed empirically, but using a theoretical distribution.
 Let $x$ be the sine or cosine of one of $\Omega$, $\omega$ or $f$.
@@ -63,27 +67,30 @@ u &= \frac{1/2 + \arcsin(x)}{\pi} \\
 z &= \Phi^{-1}(u)
 \end{align*}
 where $\Phi$ is normal CDF.
+The simple idea is that if the angle $x$ distirubuted uniformly on the circle $[0, 2 \pi]$, 
+then $u$ as defined here is uniform on $[0,1]$ and $z$ is standard normal.
 
-Below are visualizations of comparing the hypothetical and empirical distributions of $\sin(i)$ and $\sin(\Omega)$:
+Figure ~\ref{elt_standardize_inc_omega} shows plots comparing the hypothetical and empirical distributions of $\sin(i)$ and $\sin(\Omega)$.
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=0.8\textwidth]{../figs/elts_cov/sin_inc_z.png}
 \includegraphics[width=0.8\textwidth]{../figs/elts_cov/sin_Omega_z.png}
-\caption{Transformations of $a$ and $e$ to standardized (and ``approximately'' normal) variables $a_z$ and $e_z$.}
 \end{center}
+\caption[Transformations of $\sin(i)$ and $\sin(\Omega)$ to Standardized Variables.]
+{Transformations of $\sin(i)$ and $\sin(\Omega)$ to Standardized (and approximately normal) Variables.}
+\label{fig:elt_standardize_inc_omega}
 \end{figure}
-
-Better results for $e$ and $i$ could be obtained by using the Beta distributions noted above, for this purpose the simple standardization is adequate.
+Better results for $e$ and $i$ could be obtained by using the Beta distributions noted above, but for this purpose the simple standardization is adequate.
 The plot shown for the tranform of $\sin(\Omega)$ shows that it is very close to the theoretical distribution.
 I generated analogous plots for the $\sin$ and $\cos$ of $\Omega$, $\omega$ and $f$ which are in the Jupyter notebook.
 They are qualitatively similar to this one and all show excellent fits.
 
-I have now given a recipe with which six orbital elements can be injected into $R^{9}$.
-Let $X$ be the $N x 9$ matrix of transformed elements ($N$ = 733,489 is the number of asteroids).
+I have now given a recipe by which six orbital elements can be injected into $\R^{9}$.
+Let $X$ be the $N \times 9$ matrix of transformed elements ($N$ = 733,489 is the number of asteroids).
 The orbital elements are only very lightly correlated with each other, 
 and so are the $X_j$ except for the tightly correlated pairs with the $\sin$ and $\cos$ of the same angle.
-Next, using the Spectral Theorem, I find a $9x9$ matrix $\beta$ such that the covariance matrix of $X \beta$  
-(which also has shape $N x 9$) is the $9x9$ identity matrix.
+Next, using the Spectral Theorem, I find a $9 \times 9$ matrix $\beta$ such that the covariance matrix of $X \beta$  
+(which also has shape $N \times 9$) is the $9 \times 9$ identity matrix.
 The only wrinkle is that I assign importance weights to the 9 columns before building $X$ and computing $\beta$.
 The importance weights are:
 \begin{itemize}
@@ -94,11 +101,12 @@ The importance weights are:
 These are admittedly qualitiative judgments on my part. 
 I initially only compensated for the double counting of $\Omega$, $\omega$ and $f$, 
 but I noticed that relatively small differences in e.g. $\omega$ on a near circular orbit that hardly effected the shape of an orbit
-were having a disproportionately large influence of covariance score.
+were having a disproportionately large influence on the covariance score.
 
 The covariance metric between two sets of orbital elements is $\epsilon_1$ and $\epsilon_2$ is defined by
 $$ \norm{\epsilon_2 - \epsilon_1}_{\mathrm{cov}} = \norm{\epsilon_2 \beta - \epsilon_1 \beta} $$
-The importance weights are rescaled so the diagonal of the covariance matrix sums to $1$ and a random pair of elements should have distance 1.
+The importance weights are rescaled so the diagonal of the covariance matrix sums to $1$ and a random pair of elements would have distance 1.
+In practice I've observed that many pairs have norms far above $1$.
 These calculations are also in \tty{nearest\_asteroid.py} and done by the 
 functions \tty{elts\_to\_X\_cov}, \tty{calc\_beta}, \tty{elt\_q\_norm} and \tty{nearest\_ast\_elt\_cov}.
 Now that we know what it means for two orbital elements to be ``close,'' 
@@ -137,8 +145,8 @@ A call to \tty{score\_by\_elt} computes the t-score described earlier based on t
 This shows a mean t-score of +45.0, which is off the charts good.
 It's interesting to see that a set of observations with 3.2\% hits and 96.8\% noise achieves such a good score.
 This also puts into context the challenge of the search problem: 
-we have an average of 5045 detections within 2.0 degrees of each set of candidate elements,
-of which 160 are hits and the remaining 4885 are random detections belonging to other asteroids.
+we have an average of 5,045 detections within 2.0 degrees of each set of candidate elements,
+of which 162 are hits and the remaining 4,883 are random detections belonging to other asteroids.
 If we want a search process to detect asteroids with as few as 8 hits in the data, 
 we will need a process selective enough to pick out just 0.16\% of the observations.
 
@@ -146,8 +154,7 @@ To initiate the search, we also need to choose our initial mixture parameters.
 We set \tty{num\_hits} to $10$ and the resolution to $0.5$ degrees
 \begin{lstlisting}[style=CodeSnippet]
 elts_add_mixture_params(
-	elts=elts, num_hits=num_hits, 
-	R_deg=R_deg, thresh_deg=thresh_deg)
+	elts=elts_ast, num_hits=10, R_deg=0.5, thresh_deg=2.0)
 \end{lstlisting}
 Now that we have the candidate elements and the ZTF data frame, we are ready to instantiate the asteroid search model:
 \begin{lstlisting}[style=CodeSnippet]
@@ -158,20 +165,15 @@ model = AsteroidSearchModel(
 Before we start training the model, we can get a plain text report or a visualization of the starting point.
 I will omit these here. 
 The report shows that at the start of training, all 64 elements are ``good'' with 5 or more hits,
-and the overall mean log likelihood is 3.13 and the mean number of hits is 162.7.\\
+and the overall mean log likelihood is 3.13 and the mean number of hits is 162.7.
 Here is an excerpt from the plain text model report at the end of training:\\
 \begin{minipage}{\linewidth}
 \begin{lstlisting}[style=CodeSnippet]
 model.report()
 Good elements (hits >= 5):  64.00
+
          \  log_like :  hits  :    R_sec : thresh_sec
 Mean Good:  1096.95  : 162.55 :     3.01 :   165.95
-Mean Bad :      nan  :    nan :      nan :      nan
-Mean     :  1096.95  : 162.55 :     3.01 :   165.95
-Median   :  1086.03  : 161.00 :     2.26 :   140.88
-GeoMean  :  1092.15  : 162.03 :     2.79 :   157.15
-Min      :   890.84  : 146.00 :     1.87 :   109.56
-Max      :  1336.11  : 201.00 :     8.07 :   360.24
 Trained for 7808 batches over 122 epochs and 49 episodes (elapsed time 312 seconds).
 \end{lstlisting}
 \end{minipage}
@@ -205,15 +207,16 @@ It does this without getting deked and polluting the originally correct orbital 
 \includegraphics[width=\linewidth]{../figs/search_known/unperturbed/learning_curve_hits.png}
 % \caption{}
 \end{subfigure}
-\caption{Training progress on 64 unperturbed orbital elements.}
+\caption[Training progress on 64 unperturbed orbital elements]
+{Training progress on 64 unperturbed orbital elements.}
 \label{fig:TrainUnperturbed}
 \end{figure}
-
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=0.7\textwidth]{../figs/search_known/unperturbed/learning_curve_log_R.png}
 \end{center}
-\caption{The resolution $R$ decreases monotonically when training the unperturbed elements.}
+\caption[The resolution $R$ decreases monotonically when training the unperturbed elements]
+{The resolution $R$ decreases monotonically when training the unperturbed elements.}
 \label{fig:TrainUnperturbedRes}
 \end{figure}
 These are very happy diagnostics.  The log likelihood averages over 1,000 and the hits average 160.
@@ -221,17 +224,9 @@ An earlier iteration of the training protocol that did not roll back training wh
 lost in an episode did considerably less well.
 
 The diagnostics presented above work equally well for any set of candidate orbital elements,
-whether or not they are ostenisbly associated with a known asteroid.
+whether or not they are ostensibly associated with a known asteroid.
 In this case, we can further validate the results by comparing our fitted elements to the nearest asteroid
 using the two metrics described in the previous section.
-% Figure ~\ref{fig:UnperturbedNearestAstDataframe} shows a data frame comparing the recovered elements with the nearest asteroid 
-% \begin{figure}[h]
-% \begin{center}
-% \includegraphics[width=0.7\textwidth]{../figs/search_known/unperturbed/nearest_ast_dataframe.png}
-% \end{center}
-% \caption{The nearest asteroid to the recovered elements initialized with unperturbed asteroid elements.}
-% \label{fig:UnperturbedNearestAstDataframe}
-% \end{figure}
 The simplest test is how many of 64 recovered elements have as their nearest asteroid the same asteroid used to initialize the elements.
 The answer is 64: the fitting process ``tried'' to converge back to the right asteroid every time.
 A more substantive question is how close did it come.  
@@ -243,22 +238,22 @@ Here are the summary statistics of two metrics:
 This is an excellent level of agreement.
 The covariance norm is a good summary statistic, but may be hard to relate to astronomy.
 The mean absolute error in the recovered $a$ is 4.3E-5 and in the recovered $e$ is 1.0E-5.
-Thanks to the one way ratchet that prevents it from losing hits once they acquired, 
-the model can hit a tee ball out of the infield.
-In the next section we will see how it fares against a moving target.
-
 Figure ~\ref{fig:UnperturbedNearAst} illustrates the distance in AU and covariance norm to the nearest (original) asteroid for all 64 candidate elements.
 \begin{figure}[h]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/search_known/unperturbed/near_ast_dist.png}
 \includegraphics[width=1.0\textwidth]{../figs/search_known/unperturbed/near_ast_cov.png}
 \end{center}
-\caption{Two metrics comparing the recovered orbital elements to the true elements of the asteroid in question.\\
+\caption[Two Metrics Comparing the Recovered Orbital Elements to True Elements]
+{Two Metrics Comparing the Recovered Orbital Elements to the True Elements of the Asteroid in Question.\\
 Both charts are plotted on a log scale with preicision (reciprocal of the error) on the $y$ axis.\\
 The geometric mean error is shown in red: 6.61E-6 AU and 2.00E-3 on the covariance norm.}
 \label{fig:UnperturbedNearAst}
 \end{figure}
-\clearpage
+Thanks to the one way ratchet that prevents it from losing hits once they acquired, 
+the model can hit a tee ball out of the infield.
+In the next section we will see how it fares against a moving target.
+% \clearpage
 
 \section{Recovering the Perturbed Elements of Known Asteroids}
 \label{section_results_known_ast_perturbed}
@@ -283,7 +278,6 @@ elts_pert= perturb_elts(elts_ast, sigma_a=0.01, sigma_e=0.0025,
 Last time the pre-training summary statistic based on $\log(v)$ showed a very positive $t$ score.
 This time the $t$ score has dropped to $+3.71$, and the model has zero hits before it begins training.
 Even this small perturbation is enough that the model is going to have to work quite a bit to recover the elements.
-
 Here is the text report after sieving:
 \begin{lstlisting}[style=CodeSnippet]
 Good elements (hits >= 5):  42.00
@@ -336,7 +330,8 @@ The nearest asteroid to the recovered elements matches the original asteroid on 
 \begin{subfigure}[t]{\textwidth}
 \includegraphics[width=1.0\textwidth]{../figs/search_known/perturbed_small/near_ast_dist.png}
 \end{subfigure}
-\caption{Training progress on 64 orbital elements initialized with small perturbations from real asteroids.\\
+\caption[Training Progress on 64 Orbital Elements Initialized with Small Perturbations]
+{Training Progress on 64 Orbital Elements Initialized with Small Perturbations from Real Asteroids.\\
 42 of the 64 candidate elements converge, averaging 118 hits each.}
 \label{fig:TrainingPerturbedSmall}
 \end{figure}
@@ -365,7 +360,7 @@ Mean Bad :    30.35  :   0.58 :   261.02 :  2296.18
 Trained for 13120 batches over 205 epochs and 72 episodes (elapsed time 533 seconds).
 \end{lstlisting}
 
-Here are summary statistics for the run on the small perturbation of real asteroid elements:
+Here are summary statistics for the run on the large perturbation of real asteroid elements:
 \begin{itemize}
 \item Successfully converged for 12 out of 64 candidate elements (18.8\%)
 \item Mean hits on converged elements: 98.2
@@ -374,43 +369,39 @@ Here are summary statistics for the run on the small perturbation of real astero
 \item Covariance Norm to nearest asteroid: 3.32E-2
 \end{itemize}
 This time we've only converged on 12 of the 64 orbital elements.
-But the encouraging news is that when we have converged, the fit is still adequately good.
+But the encouraging news is that when we have converged, the fit is still adequate.
 The average hits are 98 and the resolution is 32.0 arc seconds.
 The distance to the nearest asteroid is somewhat larger to the batch initialized with small perturbations, at 4.5E-4.
 This is telling us something important: 
-when the model starts from a good enough guess that it has a path in search space to the local maximum, it will converge to an adequate solution.
+when the model starts from a good enough guess that it has a path in search space to a local maximum, it will converge to an adequate solution.
 Starting from a poor initialization will reduce the probability of successful convergence, but it doesn't dilute the quality of the results.
-
 \begin{figure}[h]
 \begin{subfigure}[t]{\subfigwidth\textwidth}
 \centering
 \includegraphics[width=\linewidth]{../figs/search_known/perturbed_large/log_like.png}
-% \caption{}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{\subfigwidth\textwidth}
 \centering
 \includegraphics[width=\linewidth]{../figs/search_known/perturbed_large/hits.png}
-% \caption{}
 \end{subfigure}
 \medskip
 \begin{subfigure}[t]{\subfigwidth\textwidth}
 \centering
 \includegraphics[width=\linewidth]{../figs/search_known/perturbed_large/learning_curve_log_like.png}
-% \caption{}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{\subfigwidth\textwidth}
 \centering
 \includegraphics[width=\linewidth]{../figs/search_known/perturbed_large/learning_curve_hits.png}
-% \caption{}
 \end{subfigure}
 \medskip
 \begin{subfigure}[t]{\textwidth}
 \includegraphics[width=1.0\textwidth]{../figs/search_known/perturbed_large/near_ast_dist.png}
 \end{subfigure}
-\caption{Training progress on 64 orbital elements initialized with large perturbations from real asteroids.\\
-9 of the 64 elements converge, averaging 87 hits.}
+\caption[[Training Progress on 64 Orbital Elements Initialized with Large Perturbations]]
+{Training Progress on 64 Orbital Elements Initialized with Large Perturbations from Real Asteroids.\\
+12 of the 64 elements converge, averaging 98 hits.}
 \end{figure}
 \clearpage
 
@@ -418,10 +409,13 @@ Starting from a poor initialization will reduce the probability of successful co
 \label{section_results_known_ast_random}
 Our final test case before search for new asteroids is to attempt to recover asteroids in the known catalog, but without peeking at the answers.
 I will now transition from small tests on a single batch 64 candidate elements to analyisis of the results of a large scale computational job.
+We've entered the major leagues.
+\footnote{Sadly, trying to fit asteroids with random initializations is a bit like facing Roger Clemens,
+hoping to get hit by the pitch so you can get on base cheaply.}
 The program \tty{asteroid\_search.py} can be run from the command line.
 It searches against one of two subsets of the ZTF data set.
-When run in ``known asteroids'' mode, the ZTF observations are filtered to include only the 3.69 m rows that are within 2.0 arc seconds of a known asteroid.
-When run in ``unknown asteroids'' mode, it searches in the complement, those ZTF detections that are at least 2.0 arc seconds from a known asteroid.
+When run in ``known asteroids'' mode, the ZTF observations are filtered to include only the 3.75 million rows that are within 2.0 arc seconds of a known asteroid.
+When run in ``unknown asteroids'' mode, it searches in the complement, the 1.95 million ZTF detections that are at least 2.0 arc seconds from a known asteroid.
 The other arguments include the range of random seeds \tty{seed0} to \tty{seed1} and a stride to support parallelization.
 
 This program was run on approximately 4096 random seeds against the known asteroids over the better part of a week.
@@ -438,25 +432,6 @@ Here are the summary statistics for the resulting fitted elements:
 \item the geometric mean distance to the nearest asteroid was 2.66E-3 AU
 \item the geometric mean covariance norm to the nearest asteroid as 0.73
 \end{itemize}
-
-% \begin{figure}[h]
-% \begin{center}
-% \includegraphics[width=1.0\textwidth]{../figs/search_known/random/hits.png}
-% \includegraphics[width=1.0\textwidth]{../figs/search_known/random/log_like.png}
-% \end{center}
-% \caption{Recovered orbital elements of 125 known asteroids in the catalogue, starting from random initializations.}
-% \label{fig:TrainRandomKnown}
-% \end{figure}
-% \clearpage
-% \begin{figure}[h]
-% \begin{center}
-% \includegraphics[width=1.0\textwidth]{../figs/search_known/random/near_ast_dist.png}
-% \includegraphics[width=1.0\textwidth]{../figs/search_known/random/near_ast_cov.png}
-% \end{center}
-% \caption{Distance to the nearest asteroid for 125 orbital elements trained on known asteroids.}
-% \label{fig:RandomKnownNearAst}
-% \end{figure}
-% \clearpage
 
 \begin{figure}[h]
 \begin{subfigure}[t]{\subfigwidth\textwidth}
@@ -478,30 +453,29 @@ Here are the summary statistics for the resulting fitted elements:
 \centering
 \includegraphics[width=1.0\textwidth]{../figs/search_known/random/near_ast_cov.png}
 \end{subfigure}
-\caption{125 orbital elements fitted to observations of known asteroids.\\
+\caption[125 Orbital Elements Fitted to Observations of Known Asteroids]
+{125 Orbital Elements Fitted to Observations of Known Asteroids.\\
 The first row shows internal estimates of training quality: number of hits and log likelihood.\\
 The second row shows distance to the nearest known asteroid in mean distance of orbit and covariance metric.}
 \label{fig:TrainRandomKnown}
 \end{figure}
 
-% Figure ~\ref{fig:TrainRandomKnown} shows the training results for the fitted elements: number of hits and log likliehood.
-% Figure ~\ref{fig:RandomKnownNearAst} shows the distance to the nearest asteroid in both metrics (mean distance in AU and covariance).
-Figure ~\ref{fig:RandomRandomKnownNear} shows training results for the fitted elements.
+Figure ~\ref{fig:TrainRandomKnown} shows training results for the fitted elements.
 The first row has the internal metrics number of hits and log likelihood.
 The second row has the comparison to the known asteroids.
 I thought these results were respectable but not great.
 I will need to significantly improve the initializations to get a higher yield.
 The plots with the precision to the nearest asteroid are uneven.  
 Some of these elements have clearly achieved excellent agreement with known asteroids, 
-with positions accurate to 1E-3 AU or better and covariance norms bettern than 0.1 (this is very close in orbital element space).
+with positions accurate to 1E-3 AU or better and covariance norms better than 0.1 (this is very close in orbital element space).
 While there is room for improvement, I view this as a successful proof of concept that this technique can recover correct orbits of asteroids 
 in the catalogue without peeking at the correct orbital elements.
 
 \section{Presenting 9 New Asteroid Candidates}
 \label{section_results_unknown_ast}
 The search for new undiscovered asteroids is very similar to the search discussed in the previous section.
-The only difference is that this time we limit the search to the subset of ZTF observations more than 2.0
-arc seconds away from any known asteroid.
+The only difference is that this time we limit the search to the subset of 
+1.95 million ZTF observations more than 2.0 arc seconds away from any known asteroid.
 A search was carried out starting from 4,096 random seeds, taking about 5 days running on 4 GPUs in parallel.
 This search identified 9 candidate orbital elements that achieved at least 8 hits within 10 arc seconds
 and a converged resolution less than 20 arc seconds.
@@ -514,7 +488,6 @@ These are the same criteria used to select the ostensibly high quality recovered
 \caption{Orbital elements of 9 candidate asteroids.}
 \label{fig:CandidateOrbitalElements}
 \end{figure}
-
 Figure ~\ref{fig:CandidateOrbitalElements} shows the candidate orbital elements.
 Here are the summary statistics for the new asteroid candidates:
 \begin{itemize}
@@ -524,25 +497,6 @@ Here are the summary statistics for the new asteroid candidates:
 \item the geometric mean distance to the nearest asteroid was 4.10E-3 AU
 \item the geometric mean covariance norm to the nearest asteroid as 1.10
 \end{itemize}
-
-% \begin{figure}[h]
-% \begin{center}
-% \includegraphics[width=1.0\textwidth]{../figs/search_unknown/hits.png}
-% \includegraphics[width=1.0\textwidth]{../figs/search_unknown/log_like.png}
-% \end{center}
-% \caption{Training quality for fitted orbital elements for 9 new asteroid candidates.}
-% \label{fig:TrainRandomUnknown}
-% \end{figure}
-% \clearpage
-
-% \begin{figure}[h]
-% \begin{center}
-% \includegraphics[width=1.0\textwidth]{../figs/search_unknown/near_ast_dist.png}
-% \includegraphics[width=1.0\textwidth]{../figs/search_unknown/near_ast_cov.png}
-% \end{center}
-% \caption{Distance to the nearest asteroid for 9 new asteroid candidates.}
-% \label{fig:RandomUnknownNearAst}
-% \end{figure}
 
 \begin{figure}[h]
 \begin{subfigure}[t]{\subfigwidth\textwidth}
@@ -564,24 +518,24 @@ Here are the summary statistics for the new asteroid candidates:
 \centering
 \includegraphics[width=1.0\textwidth]{../figs/search_unknown/near_ast_cov.png}
 \end{subfigure}
-\caption{9 orbital elements fitted to observations of unknown asteroids.\\
+\caption[9 Orbital Elements Fitted to Observations of Unknown Asteroids]
+{9 Orbital Elements Fitted to Observations of Unknown Asteroids.\\
 The first row shows internal estimates of training quality: number of hits and log likelihood.\\
 The second row shows distance to the nearest known asteroid in mean distance of orbit and covariance metric.}
 \label{fig:TrainUnknown}
 \end{figure}
 
-% Figures ~\ref{fig:TrainRandomUnknown} and ~\ref{fig:TrainRandomUnkownNearAst}
 Figure ~\ref{fig:TrainUnknown} shows the fit quality and distance to the nearest asteroid, as with the known asteroid search.
 These results are encouraging but not quite as definitive as I had hoped.
 The convergence with 9.1 hits to a resolution of 5.3 arc seconds strikes me as excellent.
-A RA/Dec observation has 2 degrees of freedom, so a collection of 6 parameters
+A RA/Dec observation has 2 degrees of freedom, so a collection of 6 free parameters (the orbital elements)
 is matching 18 degrees of freedom of data at a composite tolerance of about 5 arc seconds.
 Log likelihood scores in the range of 40-60 lead me to believe to me that this process 
 has successfully identified collections of observations that are highly likely to belong to the same or perhaps related objects,
 and that it has fitted orbital elements to the observations to a good tolerance.
 
 The news is not quite as a good when I look at the distance to the nearest asteroid in the catalogue.
-I had hoped to present compelling evidence that the recovered elements trained against
+I had hoped to present compelling evidence that the recovered elements trained against the
 known asteroid subset of the ZTF detections were much closer to the nearest known asteroid than these elements.
 While it is true that the these elements are further away by a factor of 1.54 in mean distance,
 and 1.51 on the covariance norm, that is not a big margin.
@@ -592,25 +546,24 @@ I thought it was unlikely that it would converge to a known asteroid, and I stil
 There is a possibility that these candidates might be better interpreted as proposed revisions to the
 orbital elements of nearby asteroids than as new, undiscovered objects.
 
-Figure ~\ref{ZTF_hits} shows the ZTF hits the search process has associated with each set of candidate elements.
+Figure ~\ref{fig:ZtfHits} shows the ZTF hits the search process has associated with each set of candidate elements.
 We can gain understanding by paying close attention to the ObjectID column.
 These are provisional assignments by ZTF indicating that multiple detections are likely to belong to the same object.
 Take four example candidate elements in turn.  \\
-Element \tty{178421} is stringing together four detections of object ZTF18aboluox and 4 detections of object ZTF18acewaex.
-They are seen 433 days apart.  
+Element \tty{178421} is stringing together four detections of object \tty{ZTF18aboluox} and 4 detections of object \tty{ZTF18acewaex}.
+They were seen 433 days apart.  
 The magnitudes are very different, so this is probably a spurious connection between two different objects with compatible orbits.\\
-Element \tty{3308} is piecing together 6 detections of ZTFV18abtpdzg and 2 detections of ZTF18abskzw.
+Element \tty{3308} is piecing together 6 detections of \tty{ZTFV18abtpdzg} and 2 detections of \tty{ZTF18abspkzw}.
 These detections were made 193 days apart.
 The magnitudes of these are compatible, making it far more plausible that this is a legitimate connection between 
 two sets of detections that may not have been made previously. \\
-Element 191915 is again stringing together 6 + 2 detections of different objects (ZTF18abtxgd and ZTF19abtsqmn)
+Element 191915 is again stringing together 6 + 2 detections of different objects (\tty{ZTF18abtxgd} and \tty{ZTF19abtsqmn})
 made 469 days apart.  The magnitudes are all compatible.  
 This too seems likely to be a legimate and novel connection between different sets of detections. \\
 Element \tty{170789} is an example of a fit made by stringing together just one set of detections
-made at similar times.  All of the detections are of the same ZTF object ZTF17aaqwwg made on the same date,
+made at similar times.  All of the detections are of the same ZTF object \tty{ZTF17aaqwwg} made on the same date,
 indeed made in a time span of only 55 minutes.
-The model has indepndently matched the conclusion of the ZTF classifier that all 8 detections belonged to the same object.
-
+The model has independently matched the conclusion of the ZTF classifier that all 8 detections belonged to the same object.
 \begin{figure}[h]
 \begin{subfigure}[t]{0.45\textwidth}
 \centering
@@ -631,10 +584,10 @@ The model has indepndently matched the conclusion of the ZTF classifier that all
 \centering
 \includegraphics[width=\linewidth]{../figs/search_unknown/ztf_hits_170789.png}
 \end{subfigure}
-\caption{ZTF hits associated with 4 of the new asteroid candidate elements.}
-\label{fig:ZTF_Hits}
+\caption[ZTF Hits Associated with 4 of the New Asteroid Candidate Elements]
+{ZTF Hits Associated with 4 of the New Asteroid Candidate Elements.}
+\label{fig:ZtfHits}
 \end{figure}
-
 While I would like to marshall further evidence that these candidate elements belong to new objects,
 I find the detailed analysis of the claimed series of ZTF hits to be persuasive and encouraging.
 This search process is clearlying identifying plausible connections between related detections 
@@ -658,7 +611,7 @@ I have provided anecdotal evidence that the search is identifying detections tha
 \subsection{Intelligent Initialization of Candidate Elements}
 \label{subsection_intelligent_initialization}
 When I first conceived this project, I intended to devote substantial time to formulating intelligent initializations of the candidate orbital elements.
-The random orbital elements were intended as a quick and dirty placeholder to prove if the system works.
+The random orbital elements were intended as a quick and dirty placeholder to get the system up and running.
 Due to the looming deadline I have had to defer that to future work.
 The results presented for perturbed orbital elements were very encouraging, showing excellent convergence.
 If we can identify a set of candidate orbital elements that are close to real ones, this process should efficiently grab
@@ -681,14 +634,14 @@ Each detection has 2 degrees of freedom, and an orbital element has 6.
 So a single tracklet allows us to sample a 2D space of candidate element consistent with it,
 while three or more detections should in theory give us a uniquely determined initialization point.
 
-\subsection{Incorporating Additonal Data}
+\subsection{Incorporating Additional Data}
 The method presented doesn't use anything special about the ZTF data set besides for the filtering of likely asteroid detections.
-While the ZTF data set is excellent, it only dates back effectively to the start of 2019.
+While the ZTF data set is excellent, it only dates back effectively to the middle of 2019.
 An obvious step to improve these results would be to bring in a second major data source.
 I would probably start with Pan-STARRS.
-Ideally I would like to identify a subset that has already been classified as likely to be near Earth objects.
+Ideally I would like to identify a subset of detections that have already been classified as likely to be near Earth objects.
 Failing that, we could start with all Pan-STARRS data; remove bogus detections with a real-bogus classifier;
-and subtract out detections of stars and and galaxies by using the catalogue of their known positions in the sky.
+and subtract out detections of stars and galaxies by using the catalogue of their known positions in the sky.
 The code would need to be changed in some places, but the change would not be major.
 
 \subsection{Incorporating Magnitude}
@@ -698,15 +651,15 @@ The theoretical advantages of an estimation framework that incorporates magnitud
 The model will be much less likely to make spurious connections of detections with compatible orbits
 that can't be the same object because they have different brightnesses.
 An added benefit is that the fitting procedure would give estimates for $H$ and $G$.
-Unfortunately I was not able to get the fitting process to converge well when I included the magnitude in the joint probability.
+Unfortunately, I was not able to get the fitting process to converge well when I included the magnitude in the joint probability.
 As time drew short, I was forced to remove it from the model presented here and punt it to future work.
 I am highly optimistic that given enough time, this can be made to work and will sharpen the results.
 
 \subsection{Rebuilding the Known Asteroid Catalogue}
 If the three improvements above are made, I believe there is a good chance this model might be able to rebuild a large portion of the known asteroid catalogue.
-We saw that just seven months of ZTF data included over 100,000 asteroids with 20 or more hits.
-The random initialization was not remotely up to the task of recovering these elements, but with intelligent initialization alone we would be in the game.
-I think it would be a very powerful proof of concept if we could run a program that would crunch through tens or hundreds of millions of detections and
+We saw that just seven months of ZTF data included over 100,000 asteroids with 10 or more hits, encompassing 13.6\% of the known catalogue.
+The random initialization is not remotely up to the task of recovering all these elements, but with intelligent initialization alone we would be in the game.
+I think it would be a powerful proof of concept if we could run a program that would crunch through tens or hundreds of millions of detections and
 generate an output with large overlap against the known asteroids.
 At a minimum, it would validate a single automated procedure that could also detect new objects.
 It might also allow us to gradually improve the quality of the data in the known asteroid catalog.

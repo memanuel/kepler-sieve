@@ -83,13 +83,7 @@
 \usepackage{grffile}
 
 % Don't set graphics path; write out full path to all figures
-% \graphicspath{
-% 	{../figs/}
-% 	{../figs/web/}
-% 	{../figs/integration_test/planets/}
-% 	{../figs/integration_test/asteroids/}
-% 	{../figs/misc/}
-% }
+% \graphicspath{{../figs/}}
 
 %%%%%%%%%%%%%%%% MSE Typesetting%%%%%%%%%%%%%%%%
 % Captions
@@ -253,23 +247,23 @@ To my two children, Victor and Ren\'ee
 % Don't number the intro chapter, but add to to the table of contents
 
 \addcontentsline{toc}{chapter}{Introduction}
-% \chapter*{Introduction}\label{ch:intro}
-% \input{intro}
+\chapter*{Introduction}\label{ch:intro}
+\input{intro}
 
-% \chapter{Integrating the Solar System}\label{ch:1}
-% \input{chapter1}
+\chapter{Integrating the Solar System}\label{ch:1}
+\input{chapter1}
 
-% \chapter{Predicting Directions from Positions}\label{ch:2}
-% \input{chapter2}
+\chapter{Predicting Directions from Positions}\label{ch:2}
+\input{chapter2}
 
-% \chapter{Analysis of ZTF Asteroid Detections}\label{ch:3}
-% \input{chapter3}
+\chapter{Analysis of ZTF Asteroid Detections}\label{ch:3}
+\input{chapter3}
 
 \chapter{Asteroid Search Using Orbital Elements}\label{ch:4}
 \input{chapter4}
 
-% \chapter{Asteroid Search Results}\label{ch:5}
-% \input{chapter5}
+\chapter{Asteroid Search Results}\label{ch:5}
+\input{chapter5}
 
 %%%%%%%%%%%%%%%% BACK MATTER %%%%%%%%%%%%%%%%
 
@@ -280,7 +274,7 @@ To my two children, Victor and Ren\'ee
 \begin{singlespacing}
 \renewcommand{\bibname}{References}
 
-% Any bibliohgraphy style that leaves space between entries is fine
+% Any bibliography style that leaves space between entries is fine
 % \bibliographystyle{acm}
 % \bibliography{references}
 \input{references}
