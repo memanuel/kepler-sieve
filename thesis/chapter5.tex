@@ -120,7 +120,7 @@ but I noticed that relatively small differences in e.g. $\omega$ on a near circu
 were having a disproportionately large influence on the covariance score.
 
 The covariance metric between two sets of orbital elements is $\epsilon_1$ and $\epsilon_2$ is defined by
-$$ \norm{\epsilon_2 - \epsilon_1}_{\mathrm{cov}} = \norm{\epsilon_2 \beta - \epsilon_1 \beta} $$
+$$ \norm{\epsilon_2 - \epsilon_1}_{\mathrm{cov}} = \norm{X_2 \beta - X_1 \beta} $$
 The importance weights are rescaled so the diagonal of the covariance matrix sums to $1$ and a random pair of elements would have distance 1.
 In practice I've observed that many pairs have norms far above $1$.
 These calculations are also in \tty{nearest\_asteroid.py} and done by the 
