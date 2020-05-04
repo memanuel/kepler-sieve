@@ -200,11 +200,11 @@ M &= E - e \sin(E) & \textrm{Kepler's Equation} \\
 \label{fig:OrbitalAnomalies}
 \end{figure}
  
-The linear evoluation of the mean anomaly, along with Kepler's equation, allows us to efficiently compute orbits for the Kepler two body problem.
+The linear evolution of the mean anomaly, along with Kepler's equation, allows us to efficiently compute orbits for the Kepler two body problem.
 The relationship between the eccentric anomaly $E$ and true anomaly $f$ is a one to one function that can be evaluated fast on a computer.
 The mapping from eccentric anomaly $E$ to mean anomaly $M$ is also fast.
 The inverse mapping from $M$ to $E$ does not have a known analytical form.
-But it can be evaluated raplidly using Newton's Method with a reasonable initial guess.
+But it can be evaluated rapidly using Newton's Method with a reasonable initial guess.
 This is the method that I use to compute the orbits under the Kepler approximation. 
 
 \section{Numerical Integration of the Planets in \tty{REBOUND}}
