@@ -10,7 +10,7 @@ an object at a given observation time as a function of its predicted position $\
 This calculation will account for the time required for light to reach the observatory (``light time'')
 and for the location of the observatory on the surface of the Earth as distinct from geocenter (``topos adjustment'').
 We will run this calculation on all the known asteroids, computing the direction they would have appeared in the sky if they had been visible at Palomar.
-We will use this calculation to associate each ZTF obervation with the nearest asteroid to it in the sky.
+We will use this calculation to associate each ZTF observation with the nearest asteroid to it in the sky.
 
 Finally, we will study the statistical distribution of angular distance between the ZTF observations and the nearest asteroid.
 We will show that 65.71\% of these observations fall within 2.0 arc seconds of the direction predicted for one of the 733,489 catalogued asteroids.
@@ -38,7 +38,7 @@ If I wanted to do some amateur astronomy with my kids and know where to point an
 \end{center}
 \end{figure}
 
-But the topcentric coordinate system is poorly suited to sharing observational data between astronomers.
+But the topocentric coordinate system is poorly suited to sharing observational data between astronomers.
 It is a different reference frame depending on where you are located on the Earth and the time in the evening.
 For this reason, astronomers dating back to ancient times developed the \href{https://en.wikipedia.org/wiki/Equatorial_coordinate_system}{equatorial coordinate system}.
 This coordinate system draws an imaginary sphere around the Earth.
@@ -59,29 +59,29 @@ This is not a good definition, though, for the purposes of modern astronomy,
 because the Earth's rotational axis is not a fixed direction in the barycentric mean ecliptic frame.
 The Earth's rotational axis changes over time due to two separate effects: 
 \href{https://en.wikipedia.org/wiki/Axial_precession}{precession} and \href{https://en.wikipedia.org/wiki/Astronomical_nutation}{nutation}.
-Precession is a low frequency, predictable effect that in analagous to wobbling movement of a top's rotational axis.
+Precession is a low frequency, predictable effect that in analogous to wobbling movement of a top's rotational axis.
 It is typically covered in a first semester undergraduate physics course on mechanics.
 The precession of the Earth's axis is caused mainly by the gravitational influence of the Sun and Moon, and has a period of approximately 25,772 years.
-Nutation is a high frequency effect, also caused mainly by the gravitational foreces of the Sun and Moon.
-In fact, the only difference bewteen the two effects is in the way we model and understand them.
+Nutation is a high frequency effect, also caused mainly by the gravitational forces of the Sun and Moon.
+In fact, the only difference between the two effects is in the way we model and understand them.
 Precession isolates the mean perturbation over time; it's a slow, steady drift that is easy to predict.
 Nutation describes the much smaller, high frequency wobbles (on the order of tens of arc seconds) that are the residual after precession is accounted for.
 
-Because of the instability of the Earth's rotational axis, the definition of the directions were updated to refer to the mean ecliptic as of a date,
+Because of the instability of the Earth's rotational axis, the definition of the directions were updated to refer to the mean equator as of a date,
 rather than Earth's rotational axis when the measurement is taken.
 Detailed calculations of the precession and nutation can then be used to adjust measurements taken on different dates.
 Indeed, the \tty{astropy} astronomy package has the capability to perform these calculations.
-The diagram of the equataorial coordinate system clarifies this more modern definition.  
+The diagram of the equatorial coordinate system clarifies this more modern definition.  
 The vernal equinox is the moment when the Earth's orbit crosses the ecliptic.
 
 This definition of a celestial coordinate system has in turn been superseded by a still more accurate system:
-the Interational Celestial Reference System, \href{https://en.wikipedia.org/wiki/International_Celestial_Reference_System}{ICRS}.
+the International Celestial Reference System, \href{https://en.wikipedia.org/wiki/International_Celestial_Reference_System}{ICRS}.
 The ICRS is based on an elegant idea.
 The goal of a celestial reference frame is to provide directions that are as near to fixed as possible in the reference frame of the Solar System.
 Astronomers realized that since objects that are very far away from the Milky Way have orientations that are effectively fixed,
 the most precise way to define directions was based on large quantities of astronomical observations of these objects.
 In particular, radioastronomy (observations of stars in the radio wave frequency) is used.
-This is the basis of the ICRS and the frame of reference it defines: the International Celestial Refrence Frame (ICRF).
+This is the basis of the ICRS and the frame of reference it defines: the International Celestial Reference Frame (ICRF).
 The ICRF is a 3 dimensional coordinate system whose origin is the Solar System barycenter (center of mass).
 The $X$, $Y$ and $Z$ axes are set by convention to line up very closely to the traditional definition of the J2000.0 frame.
 The orientation of the coordinate axes is based on the measured positions of 212 extragalactic objects, mainly quasars.
@@ -99,8 +99,7 @@ Modern telescopes can achieve extremely accurate RA/Dec measurements by calibrat
 
 The main conclusion of this short section is that even an apparently simple idea, the direction from an observer on Earth to an object seen in the sky,
 is quite subtle if you want to take reproducible measurements that are accurate on the order of arc seconds.
-The ICRS is accurate on the order of a handful of milliarcseconds, 
-meaning that uncertainty in the coordinate frame is not a meaningful contributor to errors for any calculations in this thesis.
+The ICRS is accurate on the order of a handful of milliarcseconds, an impressive achievement of modern astronomy.
 Fortunately, this is a mature and well studied problem in astronomy, and it is addressed well by the \tty{astropy} package.
 Rather than trying to reinvent the wheel, I use \tty{astropy} as much as possible in the next section
 to relate RA/Dec measurements to directions $\uvec$ in the barycentric mean ecliptic frame.
@@ -112,12 +111,12 @@ In this section, I review the definition of the barycentric mean ecliptic frame 
 Then I explain the functions that are used to perform the conversions between RA/Dec and directions in the ecliptic frame.
 
 The barycentric ecliptic frame is the natural choice for computations done in relation to integrations of the Solar System.
-It defines the $xy$ plane to containing the mean ecliptic (ellipse of the Earth's orbit around the Sun).
+It defines the $x-y$ plane to containing the mean ecliptic (ellipse of the Earth's orbit around the Sun).
 We take the mean ecliptic because the ecliptic varies slowly over time; 
 the rotation of the Earth around the Sun in any given year would not be contained \textit{exactly} in a plane,
 but there is a mean plane that comes closest in the least square sense to hitting all the points.
 The $z$ axis is the unique direction that is orthogonal to this plane.
-Within the $xy$ plane, the $x$ axis is oriented from the Sun to Earth geocenter at the vernal equinox.
+Within the $x-y$ plane, the $x$ axis is oriented from the Sun to Earth geocenter at the vernal equinox.
 In particular, the $x$ axis is the direction from the Earth to the Sun at the vernal equinox as of the epoch, 
 which is currently J2000.0 (JD 2451545.0, approximately January 1, 2000 12:00 UTC on the Gregorian calendar).
 
@@ -162,7 +161,7 @@ In the next section, I wil explain this calculation and demonstrate that my resu
 \section{Computing a Direction $\vec{u}$ from Position $\vec{q}$ and Velocity $\vec{v}$}
 \label{section_pos_vel_to_dir}
 Suppose we have computed the position $\qearth$ and $\qast$ where we believe the Earth and an asteroid are at the same time $t$.
-Can we compute the direction $\uvec$ from the Earth to the asteroid by simply subtracting the poitions and normalizing them, i.e. by
+Can we compute the direction $\uvec$ from the Earth to the asteroid by simply subtracting the positions and normalizing them, i.e. by
 $$ \uvec \stackrel{?}{=} \frac{\qast - \qearth}{\norm{\qast - \qearth}}$$
 The answer is no! This fails to account for the finite speed of light.
 The photons arriving at the observatory at the observation time $t_1$ were not emitted at $t_1$; they were emitted in the past, at time $t_0$.
@@ -198,6 +197,10 @@ In the BME frame, we have determined the positions of both the Earth and the ast
 photons landed on the detector of the observatory.
 To calculate the direction from which these photons arrived in the BME frame, we need only know where the asteroid was at the moment
 $t_0$ when photons emitted from it would have arrived at $t_1$.
+\footnote{Readers familiar with astronomy may wonder here why I have disregarded the 
+\href{https://en.wikipedia.org/wiki/Aberration_(astronomy)}{stellar aberration}.
+When I included it, the results got materially worse.
+I concluded that the astrometric RA/Dec reported by ZTF has already accounted for the stellar aberration.}
 This calculation of an astrometric direction is implemented in the function \tty{astrometric\_dir}, also in \tty{ra\_dec.py}.
 It takes as inputs \tty{q\_body}, \tty{v\_body} and \tty{q\_obs}, and returns the astrometric direction $\uvec$
 from the observer to the body accounting for light time.
@@ -212,7 +215,7 @@ This is short enough time interval that approximating the motion of an asteroid 
 
 We can also use this approach to approach to make a back of the envelope estimate of the errors we might make if 
 we disregarded the light time adjustment.
-Suppose an asteroid has $a=3$, so by Kepler's thrid law this body would have an orbital period of $3^{3/2} \approx 5.2$ years.
+Suppose an asteroid has $a=3.0$, so by Kepler's third law this body would have an orbital period of $3.0^{3/2} \approx 5.2$ years.
 At a time when this asteroid is 3.0 AU from Earth, the light time would be 25 minutes, which works out to 2.20E-4 of its orbital period.
 Converting this into degrees is a multiplication by 360, and into arc seconds a further multiplication by 3600.
 I estimate that ignoring light time could lead in this case to errors on the order of 285 arc seconds 
@@ -227,7 +230,7 @@ Fortunately this is another well studied problem that is handled well by mature 
 I spent a lot of time trying to get a solution working based on the implementation in \tty{astropy},  but I simply could not get it to work.
 Eventually I gave up and decided to use \tty{SkyField} instead.
 The function \tty{calc\_topos} in \tty{ra\_dec.py} computes the topos adjustment at a named observatory site as of a vector of times.
-Currently the only observatory site required is Palomar mountain in California.
+Currently the only observatory site required is Palomar Mountain in California.
 The topos correction is a pair of corrections $\Delta \qvec_{\mathrm{topos}}$ and $\Delta \vvec_{\mathrm{topos}}$ such that
 $$\qobs = \qearth + \Delta \qvec_{\mathrm{topos}}$$
 The spline is generated with the following code snippet (slightly edited for brevity)
@@ -263,7 +266,7 @@ It uses a downloaded JPL ephemeris file, but is otherwise a self contained calcu
 
 I compared my calculations to two sources: JPL and SkyField, as well as comparing SkyField to JPL.
 The angular distance between two directions on the unit circle can be calculated with a simple formula that I will review later.  
-For very small distances, the angular difference in radians is equal to the Cartesian difference between the two direction
+For very small distances, the angular difference in radians is nearly equal to the Cartesian difference between the two direction
 vectors $\uvec_1$ and $\uvec_2$ on the unit sphere in $\R^3$.
 
 Table ~\ref{tbl:DirectionComparison} summarizes the mean difference between Horizons, SkyField and my calculations.
@@ -278,13 +281,14 @@ MSE vs. JPL & 1.604 \\
 MSE vs. SKY & 0.027 \\
 \hline
 \end{tabular}
-\caption[Mean differences between JPL, SkyField, and my calculations of astrometric direction]
-{Mean differences between JPL, SkyField, and my calculations (MSE) of astrometric direction in Arc Seconds\\
+\caption[Mean difference between JPL, SkyField, and my calculations of astrometric direction]
+{Mean difference between JPL, SkyField, and my calculations (MSE) \\
+of astrometric direction in Arc Seconds.\\
 My results are essentially identical to SkyField.  Both SkyField and I disagree with JPL by 1.6 arc seconds.}
 \label{tbl:DirectionComparison}
 \end{centering}
 \end{table}
-My results are substantially identical to SkyField, to the miniscule tolerance of 0.027 arc seconds.
+My results are substantially identical to SkyField, to the minuscule tolerance of 0.027 arc seconds.
 Both SkyField and I differ a tiny bit from JPL, to the tune of 1.6 arc seconds.
 
 I did some further tests, this time comparing my predicted directions from Earth to the first 16 asteroids 
@@ -301,7 +305,7 @@ On 10 years of daily data for 16 asteroids, the root mean squared error is \text
 \label{section_mag}
 The H-G model of asteroid magnitude fits the apparent magnitude of an asteroid based on its 
 position in the Solar System and two parameters.
-$H$ is a measure of its absolute brightness, and $G$ is how sensitive its aparent magnitude will be as
+$H$ is a measure of its absolute brightness, and $G$ is how sensitive its apparent magnitude will be as
  a function of the ``phase angle'' between the Sun, Earth, and the asteroid.
 The principal term in the estimate is that the apparent magnitude of an object is proportional
 to its absolute magnitude (a function of its surface area and albedo); 
@@ -313,13 +317,13 @@ There is also a correction term involving the phase angle $\alpha$.
 I developed a prototype calculation and implemented this in TensorFlow as well.
 Unfortunately, when I incorporated the predicted magnitude into the log likelihood function
 used in the optimization process as explained below, the results got worse.
-I was forced to disregard the predicted magnitude durring the fitting process.
+I was forced to disregard the predicted magnitude during the fitting process.
 A first pass of the code is already present in the \tty{AsteroidModel} class, though,
 and I have identified this as an item of future work.
 
 \section{Conclusion}
 \label{section_conclusion}
-I have presented in this chapter the calculations required to determine the astromentric direction 
+I have presented in this chapter the calculations required to determine the astrometric direction 
 of an asteroid observed from Earth given its orbital elements.
 This calculation takes into account the time for light to travel from the asteroid to the Earth
 and the position of the observatory on the Earth's surface.

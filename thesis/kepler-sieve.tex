@@ -195,8 +195,8 @@ A novel method is presented to learn the orbits of asteroids from a large data s
 The problem is formulated as a search over the six dimensional space of Keplerian orbital elements.
 Candidate orbital elements are initialized randomly.
 An objective function is formulated based on log likelihood that rewards candidate elements for getting 
-very close to a fraction of the observed directions.
-The candidate elements and the parameters describing the mixture distribution are jointly optimized using gradient descent.
+very close to some of the observed directions.
+The candidate elements and the parameters describing a mixture probability distribution are jointly optimized using gradient descent.
 Computations are performed quickly and efficiently on GPUs using the TensorFlow library.
 
 The methodology of predicting the directions of telescopic detections is validated by demonstrating 
@@ -226,9 +226,9 @@ All code for this project is publicly available on GitHub at \href{https://githu
 % Acknowledgements
 \begin{acknowledgments}
 I would like to thank my advisor, Pavlos Protopapas, for suggesting this topic and for his consistent support, advice and encouragement. \\
-I would like to thank Chris Rycroft, my secondary advisor, for guiding me through a paper in Applied Math 225 in which I explored
+I would like to thank my secondary advisor, Chris Rycroft, for guiding me through a paper in Applied Math 225 in which I explored
 numerical integrators for solving Solar System orbits.\\
-I would like to thank Matt Holman and Matt Payne from the Center for Astrophics (CFA) 
+I would like to thank Matt Holman and Matt Payne from the Center for Astrophysics (CFA) 
 for their advice on state of the art Solar System integrators.\\
 Most importantly, I would like to thank my wife Christie for her love and support.
 The Covid-19 crisis struck just as my work on this thesis kicked into high gear.

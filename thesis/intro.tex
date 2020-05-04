@@ -37,7 +37,7 @@ A simplified model of the number of tracklets might be that we have a data set c
 observations with a uniform density $\rho$ per day per degree squared of sky,
 and we set a threshold $\tau$ in time and $\Delta$ in angular distance for how close a second observation must be to mark it as a candidate tracklet.
 
-Here is a simple model showing the quadratic cost of enumerating candidate tracklets. \\
+Here is a simple calculation showing the quadratic cost of enumerating candidate tracklets. \\
 If you extend this further to tracks with 3 observations, the scaling gets even worse (cubic).\\
 Let $\rho$ be the average density of detections per day per degree of sky.\\
 Let $T$ be the number of days of observations in our data set.\\
@@ -48,14 +48,13 @@ Let $A = 41,253$ be the number of square degrees in the sky.
 Let $N = T \cdot A \cdot \rho $ be the total number of detections in the data set.\\
 Let $\displaystyle{m = \tau \cdot \pi \Delta^2 \cdot \rho}$ be the average number of observations that will be close enough
 to each candidate starting point of a tracklet.\\
-Let $\displaystyle{NT_{2} = \frac{N \cdot m}{2!} = \frac{\tau}{T} \cdot \frac{\pi \Delta^2}{A} \cdot \frac{\rho^{2}}{2!} }$ 
-be the total number of candidate trackets of size $2$. \\
-Let $\displaystyle{NT_{k} = \frac{N \cdot m^{k-1}}{k!} = \left( \frac{\tau}{T} \cdot \frac{\pi \Delta^2}{A} \right)^{k-1} \cdot \frac{\rho^{k}}{k!} }$ 
-be the total number of candidate trackets of size $k$. \\
+Let $\displaystyle{NT_{2} = \frac{N \cdot m}{2!} = (T \cdot A) \cdot (\tau \cdot \pi \Delta^2) \cdot \frac{\rho^{2}}{2!} }$ 
+be the number of candidate trackets of size $2$. \\
+Let $\displaystyle{NT_{k} = \frac{N \cdot m^{k-1}}{k!} = (T \cdot A) \cdot (\tau \cdot \pi \Delta^2)^{k-1} \cdot \frac{\rho^{k}}{k!} }$ 
+be the number of candidate trackets of size $k$. \\
 We can see the bad news right away.
-The number of tracklets of size $k$, $NT_{k}$, scales as $\rho^{k}$.
-And the factors in the denominator don't bail us out.  
-The number of possible ways $m$ to extend a tracklet is going to be a large number well in excess of 1.
+The number of tracklets of size $k$, $NT_{k}$, scales as $\rho^{k}$, $\tau^{k-1}$ and $\Delta^{2(k-1)}$.
+Increasing the breadth of our tracklet search rapidly becomes prohibitively costly.
 
 This is the principal motivation for searching in the space of orbital elements.
 While it's a large 6 dimensional space, its size is fixed in relation to the amount of data we have.
@@ -71,7 +70,7 @@ The first step is to generate a set of candidate orbital elements.
 This is done with a very simple approach, one which can almost certainly be improved on later: random initialization.
 For four of the orbital elements, $a$, $e$, $i$, and $\Omega$, one of the $733,489$ catalogued asteroids is selected at random.
 Its orbital elements are used to populate these four.
-It is worth emphasizing that each element is initialized with a \textit{independent} random asteroid;
+It is worth emphasizing that each element is initialized with an \textit{independent} random asteroid;
 the four elements in this part will almost never match one of the known asteroids across all four elements.
 The remaining two orbital elements, $M$ (mean anomaly) and $\omega$ (argument of periapsis), 
 are sampled uniformly at random on the circle $[0, 2 \pi)$.
@@ -82,7 +81,7 @@ This is considered to be the gold standard of their true orbits.
 This initial integration is then used to filter the data set of ZTF observations to a subset that are relevant for searching for orbits.
 A routine computes the direction $\uvec_{\mathrm{pred}}$ in the barycentric mean ecliptic (BME) reference frame
 that an observer at a given observatory site on Earth would have seen light leaving an object with the candidate elements at a given observation time (MJD).
-This quantity is computed at each unique observation time in the ZTF data set.
+This direction is computed at each unique observation time in the ZTF data set.
 A separate computation is performed once on all of the ZTF observations converting the observed triplets $(MJD, RA, DEC)$
 into vectors $\uvec_{\mathrm{obs}}$, the direction of the observation in the BME frame.
 The angular distance between the predicted and observed direction is computed.
@@ -144,7 +143,7 @@ These calculations were validated in isolation by querying the Horizons system f
 It is vital that this calculation takes into account the finite speed of light.
 Treating light travel as instantaneous leads to errors that are catastrophically large in this context, on scales in the arc minutes rather than arc seconds.
 
-The end to end calculation of a direction from orbital elements was verified indirectly as follows.
+The end to end calculation of a direction from orbital elements was verified as follows.
 I integrated the trajectories of all the known asteroids using a collection of orbital elements downloaded from JPL.
 I then computed the nearest asteroid number to each ZTF asteroid, and the distance between the predicted direction and observed direction.
 I reviewed the statistical distribution of these distances.
@@ -159,7 +158,7 @@ If you were to use an approximation that observations were made at Earth's geoce
 (i.e. you did not account for location of the observatorory on Earth's surface) 
 you would already be making errors on the order of 3 arc seconds.
 If you were to perform your calculations using the Sun's location as your coordinate origin rather than the Solar System barycenter,
-you would make errors larger than 1.0 arc second.
+you would make errors around 0.6 arc seconds.
 I know because I made both of these errors in earlier iterations before squeezing them out!
 
 I tested the capabilities of the search process with an increasingly demanding set of search tasks.
@@ -185,7 +184,7 @@ This search converged on one set of orbital elements matching a real asteroid on
 \end{itemize}
 The last last test was significantly more demanding in that it did not rely on known orbital elements.
 
-The work encompassed in the first three tests above can be seen as a way to indpendently validate a subset of the known asteroid catalogue.
+The work encompassed in the first three tests above can be seen as a way to independently validate a subset of the known asteroid catalogue.
 It can efficiently associate a large number of telescope observations with known asteroids,
 which could in turn be used to further investigate those asteroids.
 Analysis might include refining their estimated orbital elements, 

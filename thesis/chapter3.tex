@@ -1,7 +1,7 @@
 \section{Introduction}
 \label{section_ztf_intro}
 The Zwicky Transient Facility (\href{https://www.ztf.caltech.edu/}{ZTF}) is a time-domain survey of the northern sky
-that had first light at Palomar Observatory in 2017.  It is run by CalTech.
+that had first light at Palomar Observatory in 2017.  It is run by Cal Tech.
 My advisor Pavlos suggested it as a data source for this project.
 The ZTF dataset has two major advantages for searching for asteroids:
 \begin{itemize}
@@ -11,12 +11,12 @@ The ZTF dataset has two major advantages for searching for asteroids:
 The data set I analyze here consists of all ZTF detections that were classified as asteroids.
 Data on each detection include:
 \begin{itemize}
-\item \textbf{ObjectID} an identifier of the likely object associated with this detection; multiple detections often share the same ObjectID
-\item \textbf{CandidateID} a unique integer identifier of each detection
-\item \textbf{MJD} The time of the detection as an MJD
-\item \textbf{RA} The right ascension of the detection
-\item \textbf{Dec} The declination of the detection
-\item \textbf{mag} The apparent magnitude of the detection
+\item \textbf{ObjectID:} an identifier of the likely object associated with this detection; multiple detections often share the same ObjectID
+\item \textbf{CandidateID:} a unique integer identifier of each detection
+\item \textbf{MJD:} The time of the detection as an MJD
+\item \textbf{RA:} The right ascension of the detection
+\item \textbf{Dec:} The declination of the detection
+\item \textbf{mag:} The apparent magnitude of the detection
 \end{itemize}
 Available data also includes a number of additional fields that were not used in the analysis.
 
@@ -37,14 +37,16 @@ for practical purposes the dataset consists of 8 months of detections spanning J
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=0.85\textwidth]{../figs/ztf/ztf_ast_per_month.png}
-\caption{ZTF Asteroid Detections per month}
+\caption[ZTF Asteroid Detections per Month]
+{ZTF Asteroid Detections per Month}
 \end{center}
 \end{figure}
 
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/ztf/ztf_dataframe.png}
-\caption{Preview of Pandas DataFrame of ZTF Detections}
+\caption[Pandas DataFrame of ZTF Detections]
+{Pandas DataFrame of ZTF Detections}
 \end{center}
 \end{figure}
 
@@ -64,9 +66,9 @@ than at the brightest (10) and and dimmest (22) magnitudes.
 \end{figure}
 \clearpage
 
-\section{The Angular Distance Bewteen two Directions $\vec{u}_1$ and $\vec{u}_2$}
+\section{The Angular Distance Between two Directions $\vec{u}_1$ and $\vec{u}_2$}
 \label{section_ztf_angle_diff}
-A recurring task in this thesis to compute the angular distance bewteen two directions on the unit sphere.
+A recurring task in this thesis to compute the angular distance between two directions on the unit sphere.
 If $\uvec_1$ and $\uvec_2$ are on the unit sphere, we can compute their Cartesian distance $s$ in the usual way,
 $$ s = \norm{\uvec_2 - \uvec_1}$$
 $s$ will be in the interval $[0, 2]$.
@@ -95,13 +97,18 @@ This relationship is implemented in \tty{astro\_utils} as \tty{deg2dist} and \tt
 
 \section{Finding the Nearest Asteroid to Each ZTF Detection}
 \label{section_ztf_nearest_ast}
-We now have in principle all the tools required to find which asteroid was closest in angular distance to each ZTF observation.
+We now have in principle all the tools required to find which asteroid was closest in direction to each ZTF observation.
 To recap the key steps, each ZTF observation is converted from a RA/Dec to a direction in the BME.
-The position of Earth and each of the 733,489 catalogued asteroids are integrated as of the observation time, and the direction bewteen them is calculated.
-There are a few problems with the brute force approach implicitly suggested above.
-We have 5.7E6 detections and 7.3E5 catalogued asteroids for a total of 4.16E12 (4.16 billion) interactions.
-Even if we work in single precision with 4 bytes per float, we need 12 bytes for a 3D direction difference translating to about 50 GB to load the matrix in memory.
-The bigger problem is that a brute force integration of all the asteroids at the MJDs of the all 5.7 million observations would be brutally slow.
+The position of Earth and each of the 733,489 catalogued asteroids are integrated as of the observation time, 
+and the direction of each asteroid from Palomar is calculated.
+Then the angular distance between each ZTF observation and each predicted asteroid direction is calculated.
+
+There are a few problems with the brute force approach suggested above.
+We have 5.7E6 detections and 7.3E5 catalogued asteroids for a total of 4.2E12 (4.12 trillion) interactions.
+Even if we work in single precision with 4 bytes per float, we need 4 bytes for an angular distance
+translating to about 12.5 terabytes if we foolishly tried so save the whole $N_{\mathrm{obs}} \times N_{\mathrm{ast}}$ 
+matrix of direction differences in memory.
+A second problem is that a brute force integration of all the asteroids at the MJDs of the all 5.7 million observations would be brutally slow.
 
 Fortunately there are a few simple tricks we can use that together make this problem tractable.
 The ZTF detections come from a series of images taken through the same telescope, so they come in blocks made at the same time.
@@ -136,8 +143,8 @@ It includes tests comparing my splined outputs of daily data to Horizons data do
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=0.9\textwidth]{../figs/ztf/ztf_nearest_ast_dataframe.png}
-\caption[Preview of Pandas DataFrame of ZTF Detections Including Nearest Asteroid]
-{Preview of Pandas DataFrame of ZTF Detections Including Nearest Asteroid}
+\caption[Pandas DataFrame of ZTF Detections Including Nearest Asteroid]
+{Pandas DataFrame of ZTF Detections Including Nearest Asteroid}
 \end{center}
 \end{figure}
 % \clearpage
@@ -151,7 +158,7 @@ This is exactly what we would expect;
 the nearest asteroids when the distance is over the hit threshold are close to a random sample of the asteroids.
 The blue series though is not a random sample, it's a sample conditional on the detection matching a real asteroid.
 The brightest asteroids are more likely to be successfully detected.
-Dimmer detections are more likely to be either misclassifications or unkown objects.
+Dimmer detections are more likely to be either misclassifications or unknown objects.
 
 \begin{figure}[hbt!]
 \begin{center}
@@ -164,7 +171,7 @@ The hits are slightly but noticeably tilted in favor of brighter asteroids.}
 \end{figure}
 
 I would like to take a step back and review what has been presented thus far.
-Over 4 billion interactions between a ZTF asteroid detection and the predicted position of a known asteroid in the sky have been generated.
+Over 4 trillion interactions between a ZTF asteroid detection and the predicted position of a known asteroid in the sky have been generated.
 These have been filtered to associate each ZTF detection with the known asteroid it is nearest to.
 This is a powerful enrichment of the original ZTF dataset, and might open the door to some additional work in the future.
 For example, it could be used to create a bulk data set linking the original image files to the asteroids they belong to.
@@ -184,10 +191,10 @@ if either our observed or predicted directions were distributed uniformly at ran
 {Distance Between an Observation at the North Pole and an Arbitrary Point.\\
 The observed direction $\uobs$ is assumed w.l.o.g. to be at the north pole $(0, 0, 1)$.\\
 The predicted direction $(x,y,z)$ is rotated in the $xy$ plane to to $(r, 0, z)$ \\
-The Cartesian distance from the observation to $(r,z)$ is $s$, the hypotenuse of a right triangle with sides $1-z$ and $r$.}
+The Cartesian distance $s$ from the observation to $(r,z)$ is the hypotenuse of a right triangle with sides $1-z$ and $r$.}
 \label{fig:OrangeSlice}
 \end{figure}
-Suppose without loss of generality that the observed direction is at the north pole, i.e. $\uobs = (0, 0, 1)$.
+Suppose without loss of generality that the observed direction is at the north pole of the BME, i.e. $\uobs = (0, 0, 1)$.
 Suppose that the direction we predict is $(x, y, z)$.
 Observe that the problem is symmetric about the $z$ axis, so we can rotate the problem into 
 the plane containing the center, the north pole, and our guess.
@@ -197,7 +204,7 @@ We can can relate the Cartesian distance $s$ to the height $z$ of our guess with
 $(x, y, z)$ lies on the surface of a sphere, so $x^2 + y^2 + z^2 = 1$.\\
 $r^2 = x^2 + y^2$ by definition, so $r^2 = 1 - z^2$.\\
 In our diagram, we can see that $s$ is the hypotenuse of a right triangle whose other two side have length $r$ and $1-z$.
-Applying the Pythagorean Theorem, we find $s^2 = (1-z)^2 + r^s$.\\
+Applying the Pythagorean Theorem, we find $s^2 = (1-z)^2 + r^2$.\\
 This simplifies to
 \begin{align*}
 s^2 &= 2(1-z) \\
@@ -211,9 +218,9 @@ This is yet another clash of Greek letters.}
 When surface integrals of a sphere are taught in introductory multivariate calculus courses, 
 students are most likely to be exposed only to the surface element in spherical coordinates $(r, \theta, \phi)$ which is
 $d\Omega = \sin \theta \cdot d\theta \cdot d\phi$.
-See, e.g. \href{https://en.wikipedia.org/wiki/Spherical_coordinate_system}{Wikipedia - integration in spherical coordinates}.
+\footnote{See, e.g. \href{https://en.wikipedia.org/wiki/Spherical_coordinate_system}{Wikipedia - integration in spherical coordinates}}.
 But the parameterization in terms of the height $z$ along the $z$ axis is especially clean and convenient on this problem.\\
-Observe that $z = \cos \theta$ so $dz = |- \sin \theta| d\theta = \sin \cdot \theta d\theta$.  
+Observe that $z = \cos \theta$ so $dz = |- \sin \theta| \cdot d\theta = \sin \theta \cdot d\theta$.  
 We take absolute values because this is an application of the change of variables formula and measures are always positive. 
 $\sin(\theta) \ge 0 $ here because $0 \le \theta \le \pi$.\\
 Substituting this expression for the surface element, we obtain
@@ -227,11 +234,12 @@ We can now write the probability density function (PDF) for any function that ca
 Think of $Z$ as a random variable now.  The above result shows that when $Z$ is uniformly distributed on the unit sphere,
 $$Z \sim \Unif(-1, 1)$$
 Previously we showed that $z = 1 - s^2 / 2$.
-This is a very useful result; it tells us that if we treat the squared distance as a random variable $S^2$, then it is uniformly distributed on $[0, 2]$.
+This is a very useful result; it tells us that if we treat the squared distance as a random variable $S^2$, then it is uniformly distributed on $[0, 4]$.
 Even more usefully, the conditional distribution of $S^2$, conditioned on $S^2 \le \tau^2$, is also uniform:
 $$ S^2 | S^2 \le \tau^2 \sim \Unif(0, \tau^2)$$
 If we apply a threshold distance $\tau$ and only consider predicted directions that are within Cartesian distance $\tau$ of an observation,
-then the condtional distribution of the relative distance over the threshold squared is uniform on $[0, 1]$.
+and we think of the ratio $s / \tau$ as a relative distance,
+then the conditional distribution of the relative distance squared is uniform on $[0, 1]$.
 In mathematical notation instead of words, \\ 
 Let $\upred$ be a random variable distributed uniformly on the unit sphere.\\
 Let $S = \norm{\upred - \uobs}$ be the Cartesian distance between $\upred$ and $\uobs$. \\
@@ -244,12 +252,12 @@ This describes the conditional distribution of distances we would see if we gues
 But in this experiment, we are picking $733,489$ directions in the sky, one for each of the catalogued asteroids.
 Then we are taking the minimum of these distances.
 Can we still write down the conditional distribution of our nearest guess 
-if they were indepedently and identically distributed (i.i.d.) at random as above?
+if they were independently and identically distributed (i.i.d.) at random as above?
 
 Yes - Statistics 110 to the rescue!
 Theorem 8.6.4: PDF of Order Statistics \cite{BH} states that if $X_1, \ldots X_n$ are i.i.d. continuous random variables
 with PDF $f$ and CDF $F$, then the PDF of the $j$th order statistic (the $j$th smallest item $X_{(j)}$) is
-$$f_{X_{j}})(x) = n \cdot {{n-1}\choose{j-1}} \cdot f(x) \cdot F(x)^{j-1} \cdot (1 - F(x))^{n-j}$$
+$$f_{X_{j}}(x) = n \cdot {{n-1}\choose{j-1}} \cdot f(x) \cdot F(x)^{j-1} \cdot (1 - F(x))^{n-j}$$
 In the special case that the $X_j$ are uniforms, this simplifies further (Example 8.6.5: Order statistics of Uniforms) \cite{BH}:\\
 Let $U_1, \ldots U_n$ be i.i.d. $\Unif(0,1)$.
 Then the distribution of $U_{j}$ is the Beta distribution,
@@ -280,13 +288,13 @@ Figure ~\ref{fig:hist_ztf_near_ast_dist} shows a histogram of hits inside a thre
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_hist_dist.png}
 \end{center}
-\caption[Histogram of Angular Distance from Each ZTF Detection to the Nearest Asteroid]
+\caption[Histogram of Angular Distance from ZTF Detections to the Nearest Asteroid]
 {Histogram of Angular Distance from Each ZTF Detection to the Nearest Asteroid in arc seconds.\\
 These account for 65.57\% of the total data set.\\
 The number of expected detections due to random chance is shown in red; it is visually indistinguishable from zero on the chart.}
 \label{fig:hist_ztf_near_ast_dist}
 \end{figure}
-Figure ~\ref{fig:ztf_hit_density} shows two additional plot to visualize the distribution of distances between ZTF detections and the nearest known asteroid.
+Figure ~\ref{fig:ztf_hit_density} shows two additional plots to visualize the distribution of distances between ZTF detections and the nearest known asteroid.
 The first shows the absolute density in hits per square degree.
 The second shows the relative density of hits per square degree over what would have been expected
 from the minimum of 733,489 guesses distributed uniformly at random on the sphere. \\
@@ -309,13 +317,13 @@ How many asteroids in the catalogue have enough detections in the ZTF dataset th
 a sporting chance to recover their orbital elements from these observations alone?
 Suppose for the sake of discussion that the number is $n=20$.
 There are 63,746 asteroids with 20 or more hits at 2.0 arc seconds.
-If we required only $n=10$ hits to recover the orbital elements, we could do it for 100,508 asteroids.\\
-We can visualize this in Figure ~\ref{fig:ztf_cum_hit_freq} by plotting the cumulative frequency of close observations on the $y$ axis vs. hit count on the $x$ axis:
+If we required only $n=10$ hits to recover the orbital elements, we could do it for 100,508 asteroids.
+We visualize this in Figure ~\ref{fig:ztf_cum_hit_freq} by plotting the cumulative frequency of close observations on the $y$ axis vs. hit count on the $x$ axis:
 \begin{figure}[hbt!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{../figs/ztf/nearest_ast_cum.png}
 \end{center}
-\caption[Cumulative Frequency of Asteroids by Number of Close Observations < 2.0 arc seconds]
+\caption[Cumulative Frequency of Asteroids by Number of Hits < 2.0 arc seconds]
 {Cumulative Frequency of Asteroids by Number of Close Observations < 2.0 arc seconds. \\
 There are 63,746 asteroids with 20 or more close matches and 100,508 asteroids with 10 or more close matches. }
 \label{fig:ztf_cum_hit_freq}
