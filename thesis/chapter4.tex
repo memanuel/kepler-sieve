@@ -287,7 +287,7 @@ f(v| h, \lambda) &= f(v|\mathrm{Hit}, \lambda) \cdot P(\mathrm{Hit}) + f(v|\math
 \end{align*}
 
 The optimization objective function will be the log likelihood of the PDF:
-$$ \mathcal{L}(\vvec, h, \lambda) = \sum_{j=1}^{n} \log \left( h \cdot \frac{\lambda v_j}{1 - e^{-\lambda}} + 1 - h \right)$$
+$$ \mathcal{L}(\vvec, h, \lambda) = \sum_{j=1}^{n} \log \left( h_j \cdot \frac{\lambda v_j}{1 - e^{-\lambda_j}} + 1 - h_j \right)$$
 Please note that I've omitted the parameter $\tau$ from these expressions to lighten the notation.
 During the training of the model, the $\tau$ parameter is also updated.
 The three mixture parameters that are manipulated during training are 
