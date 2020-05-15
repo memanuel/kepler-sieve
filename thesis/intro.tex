@@ -7,7 +7,7 @@ numerical methods, such as a least squares fitting procedure that seeks elements
 the sum of squares error to all of the observations.
 
 State of the art techniques for solving this problem are remarkably similar in spirit to the classical method.
-Indeed, the first interstellar object, `Oumuamua, was discovered when astronomer Robert Weryk
+Indeed, the first interstellar object found in the Solar System, `Oumuamua, was discovered when astronomer Robert Weryk
 saw it in images captured by the Pan-STARRS1 telescope on Maui.
 \footnote{\href{https://en.wikipedia.org/wiki/\%CA\%BBOumuamua}{Wikipedia - Oumuamua}}
 \footnote{\href{https://www.nytimes.com/2017/10/27/science/interstellar-object-solar-system.html}{NY Times - Astronomers Race to Study a Mystery Object from Outside the Solar System}}
@@ -15,29 +15,37 @@ More automated methods also exist.
 Still, these methods are based on a search in the space of the observable data attributes: the time of observation (MJD), the right ascension (RA) and declination (DEC).
 The apparent magnitude or brightness (MAG) is the third important observed quantity available for telescopic detections.
 Two observations made close together in time at two points in the sky very near to each other have a relatively high probability of belonging to the same object.
-Such a pair of observations is called a ``tracklet.''
-Today's most automated approaches to identifying new asteroids from telescopic data are based on performing a greedy search of the observed data to extend tracklets.
-Once a tracklet is identified, the algorithm attempts to extrapolate the path where future detections of this object might be.
-After enough detections are strung together, a fitting procedure is tried to determine the orbital elements.
+Such a pair of observations is called a ``tracklet.''  The definition of a tracklet extends to a sequence of observations made in an approximately linear sequence over a short viewing interval.
 
-This is a solid technique and I do not mean to cast aspersion on it.
+Today's most automated approaches to identifying new asteroids from telescopic data are based on performing 
+a greedy search of the observed data to find tracklets and combine them into tracks.
+Once a candidate track is identified, a fitting procedure is run to make an initial orbit determination.
+The Pan-STARRS Moving Object Processing System (MOPS) \cite{MOPS} is an example 
+of a state of the art automated detection system built on this paradigm.
+MOPS relies on an efficient search using K-D trees \cite{MOPS-KD-Tree} for finding both tracklets and tracks.  
+This is dramatically more efficient than a brute force search, but still subject to poor scaling in the density of detections.
+
+The combinatorial search over tracklets has been used successfully along with the Pan-STARRS data to discover many objects in the Solar System.
 In this paper, however, I propose a new method which I believe has some significant advantages.
 Rather than searching in the space of the data, i.e. (MJD, RA, REC, MAG), I propose to instead search over the six dimensional space of 
 Keplerian orbital elements $(a, e, i, \Omega, \omega, f)$.
 Why should we complicate things by searching implicitly, as it were, on the space of possible orbits,
 rather than the simpler and more direct method currently used?
-The main reason is to avoid a combinatorial explosion.
-
+The main reason is to avoid a combinatorial explosion.  As summarized by Denneau et al. in \cite{MOPS},
+\begin{quote}
+The number of candidate tracks increases exponentially with the number of detections as shown in Table 3 in Kubica et al. (2007)--
+while 98.4\% of the correct tracks are properly identified, only 0.3\% of the tracks that pass all the cuts are real.
+\end{quote}
 If you limit your search to candidate tracklets where you detect the same object multiple times in a short span of time,
 you are going to miss any object that you detect only once or twice on a given night of observations.
 But if this same object were seen on multiple nights, possibly separated over multiple days or longer, 
 it becomes very costly to propose enough candidate tracklets to pick them up.
 Indeed, you will soon face a combinatorial explosion in the number of possible tracklets.
+
 A simplified model of the number of tracklets might be that we have a data set containing 
 observations with a uniform density $\rho$ per day per degree squared of sky,
 and we set a threshold $\tau$ in time and $\Delta$ in angular distance for how close a second observation must be to mark it as a candidate tracklet.
-
-Here is a simple calculation showing the quadratic cost of enumerating candidate tracklets. \\
+Here is a simple calculation showing the quadratic cost of enumerating candidate tracklets. 
 If you extend this further to tracks with 3 observations, the scaling gets even worse (cubic).\\
 Let $\rho$ be the average density of detections per day per degree of sky.\\
 Let $T$ be the number of days of observations in our data set.\\
@@ -51,13 +59,27 @@ to each candidate starting point of a tracklet.\\
 Let $\displaystyle{NT_{2} = \frac{N \cdot m}{2!} = (T \cdot A) \cdot (\tau \cdot \pi \Delta^2) \cdot \frac{\rho^{2}}{2!} }$ 
 be the number of candidate trackets of size $2$. \\
 Let $\displaystyle{NT_{k} = \frac{N \cdot m^{k-1}}{k!} = (T \cdot A) \cdot (\tau \cdot \pi \Delta^2)^{k-1} \cdot \frac{\rho^{k}}{k!} }$ 
-be the number of candidate trackets of size $k$. \\
+be the number of candidate trackets of size $k$.
+
 We can see the bad news right away.
-The number of tracklets of size $k$, $NT_{k}$, scales as $\rho^{k}$, $\tau^{k-1}$ and $\Delta^{2(k-1)}$.
+The number of tracklets of size $k$, $NT_{k}$, scales as $\rho^{k}$, $\tau^{k-1}$, and $\Delta^{2(k-1)}$.
 Increasing the breadth of our tracklet search rapidly becomes prohibitively costly.
+The clever spatial indexing in the K-D tree puts favorable constants in front of this cost,
+but it remains true that if you double the detection density $\rho$, you will quadruple the number of tracklets of size 2
+and increase the number of candidate tracklets of size 3 by a factor of 8.
+You will pay another round of expensive scaling when it comes time to link the tracklets into tracks.
+If you are willing to impose assumptions that the tracks are within a tolerance of being linear or quadratic, 
+you can improve the scaling to $\rho \log \rho$, 
+but you are still left with an algorithm that produces a huge number of candidate tracks,
+only a small fraction of which could be compatible with an orbit.
 
 This is the principal motivation for searching in the space of orbital elements.
-While it's a large 6 dimensional space, its size is fixed in relation to the amount of data we have.
+A secondary motivation is that searching over orbital elements largely eliminates the need for separate stages of linking tracklets
+into tracks; determining initial orbits; and ``precovery.''
+\footnote{In ``precovery'', older tracklets that were previously not associated with any derived object are 
+associated with an orbit solved by analyzing recent tracklets linked into a track.}
+When you search over orbital elements, the output is a calibrated orbit and \textit{all} the detections in the data set consistent with it.
+While the space of orbital elements is a large 6 dimensional space, its size is fixed in relation to the amount of data we have.
 To be more precise, the number of candidate orbital elements will scale with the number of \textbf{asteroids} $K$ we are trying to detect
 rather than the much larger number of \textbf{detections} $N$ in our data set.
 The cost of the search algorithm presented below scales linearly in the observation density $\rho$ for each candidate element analyzed.
@@ -75,26 +97,27 @@ the four elements in this part will almost never match one of the known asteroid
 The remaining two orbital elements, $M$ (mean anomaly) and $\omega$ (argument of periapsis), 
 are sampled uniformly at random on the circle $[0, 2 \pi)$.
 These are then converted to the representation using $(a, e, i, \Omega, \omega, f)$.
+\footnote{$M$ is the Mean Anomaly, $f$ is the True Anomaly; this will be covered in Section \ref{section_orbital_elements}.}
 
-Once the candidate elements have been initialized, they are integrated numerically using the \tty{REBOUND} library.
+Once the candidate elements have been initialized, they are integrated numerically using the \tty{REBOUND} library \cite{RL-Rebound}.
 This is considered to be the gold standard of their true orbits.
 This initial integration is then used to filter the data set of ZTF observations to a subset that are relevant for searching for orbits.
 A routine computes the direction $\uvec_{\mathrm{pred}}$ in the barycentric mean ecliptic (BME) reference frame
 that an observer at a given observatory site on Earth would have seen light leaving an object with the candidate elements at a given observation time (MJD).
 This direction is computed at each unique observation time in the ZTF data set.
-A separate computation is performed once on all of the ZTF observations converting the observed triplets $(MJD, RA, DEC)$
+A separate computation is performed once on all of the ZTF observations converting the observed triplets (MJD, RA, DEC)
 into vectors $\uvec_{\mathrm{obs}}$, the direction of the observation in the BME frame.
 The angular distance between the predicted and observed direction is computed.
 A threshold (2.0 degrees) is applied, and all ZTF observations falling within this threshold are cached in memory of the search class.
 
 During the main body of the search process, the elements will be adjusted by a small amount in each training round.
-These perturbed elements will have their orbits evaluated using the Kepler two body model.
+These perturbed elements will have their orbits evaluated using the Kepler two-body model.
 An implementation is performed on the GPU using TensorFlow that is fast and differentiable.
 The ``ground truth'' numerically integrated orbit is used to provide an adjustment term 
 so that the predicted orbits will match the true orbits exactly when the perturbation is zero.
 The predicted orbit can therefore be considered to be a linearization of the true orbits based on the Kepler model.
 
-The objective of the optimization function is based on the log likelihood of a statistical model for the 
+The objective of the optimization function is based on the log-likelihood of a statistical model for the 
 distribution of distances between predicted and observed directions.
 A lemma will demonstrate that for directions uniformly distributed on the sphere, the squared distance over the 
 threshold distance would be uniformly distributed on the interval $[0, 1]$.
@@ -142,7 +165,10 @@ All directions are represented internally in this project as a unit vector $\uve
 These calculations were validated in isolation by querying the Horizons system for both the positions of and directions to known asteroids.
 It is vital that this calculation takes into account the finite speed of light.
 Treating light travel as instantaneous leads to errors that are catastrophically large in this context, on scales in the arc minutes rather than arc seconds.
-
+\footnote{The \href{https://en.wikipedia.org/wiki/Minute_and_second_of_arc}{arc second}
+is an angular unit dating back to ancient Babylonian astronomers.
+It is part of the sexagesimal system that includes the more familiar degree.
+One arc second is defined as $1 / 3600$ of one degree or equivalently as $\pi / 648000$ radians.}
 The end to end calculation of a direction from orbital elements was verified as follows.
 I integrated the trajectories of all the known asteroids using a collection of orbital elements downloaded from JPL.
 I then computed the nearest asteroid number to each ZTF asteroid, and the distance between the predicted direction and observed direction.
@@ -169,20 +195,20 @@ where hits here are counted at a threshold of 2.0 arc seconds as before.
 Here is a summary of the tests I ran:
 \begin{itemize}
 \item Initialize search with correct orbital elements, but resolution $R = 0.5 \degree$ and threshold $\tau = 2.0 \degree$.
-All 64 elements were recovered to a resolution of 3.0 arc seconds and 4.6E-6 AU, matching on 162 hits.
+All 64 elements were recovered to a resolution of 3.0 arc seconds and $4.6\times 10^{-8}$ AU, matching on 162 hits.
 \item Initialize search with small perturbation applied to orbital elements; $a$ by $1.0\%$, $e$ by $0.25\%$, $i$ by $0.05 \degree$,
 remaining angles $f$, $\Omega$ and $\omega$ by $0.25 \degree$.
-42 of 64 elements were recovered to 18 arc seconds and 2.6E-4 AU, matching on 118 hits
+42 of 64 elements were recovered to 18 arc seconds and $2.6 \times 10^{-4}$ AU, matching on 118 hits.
 \item Initialize search with large perturbation applied to orbital elements; $a$ by $5.0\%$, $e$ by $1.0\%$, $i$ by $0.25 \degree$,
 remaining angles $f$, $\Omega$ and $\omega$ by $1.0 \degree$.
-12 of 64 elements were recoverd to 32 arc seconds and 4.5E-4 AU, matching on 98 hits.
+12 of 64 elements were recoverd to 32 arc seconds and $4.5 \times10^{-4}$ AU, matching on 98 hits.
 In some cases, a different (but correct) set of orbital elements was obtained;
 the perturbation was so large the search found a different asteroid.
 \item Initialize a search with \textbf{randomly initialized} orbital elements.
 Search against the subset of ZTF observations within $2.0$ arc seconds of a known asteroid.
 This search converged on one set of orbital elements matching a real asteroid on the first batch of 64 random candidates.
 \end{itemize}
-The last last test was significantly more demanding in that it did not rely on known orbital elements.
+The last test was significantly more demanding in that it did not rely on known orbital elements.
 
 The work encompassed in the first three tests above can be seen as a way to independently validate a subset of the known asteroid catalogue.
 It can efficiently associate a large number of telescope observations with known asteroids,
@@ -199,7 +225,7 @@ but a small number do successfully converge.
 I have identified 9 candidate elements for potentially new asteroids with 8 or more hits.
 I have verified that none of the orbital elements modeled for these asteroids 
 are obvious matches in the known asteroid catalogue, though some are arguably close.
-I have also done an ad-hoc review of the ZTF records to ensure that they are plausibly belonging to the same object.
+I have also done an ad hoc review of the ZTF records to ensure that they are plausibly belonging to the same object.
 I believe that at least some of these candidate elements may represent new and unkown asteroids, and plan to submit them to the 
 \href{https://www.minorplanetcenter.net/iau/mpc.html}{Minor Planet Center} for possible classification.
 

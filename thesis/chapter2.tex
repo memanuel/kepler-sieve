@@ -3,7 +3,7 @@
 In this chapter we will relate the integrated path of an asteroid to its appearance to an observer on Earth.
 We will review the equatorial coordinate system, which describes the location of an object in the sky 
 with the parameters right ascension (RA) and declination (DEC).
-We will develop the calculations to transform between a direction from earth represented as a pair (RA, DEC)
+We will develop the calculations to transform between a direction from Earth represented as a pair (RA, DEC)
 to a direction represented as a unit vector $\uvec = (u_x, u_y, y_z)$ in the barycentric mean ecliptic frame.
 We will compute the direction $\uvec$ from which an observer at the Palomar observatory would have seen 
 an object at a given observation time as a function of its predicted position $\qvec$ and velocity $\vvec$ at that observation time.
@@ -50,7 +50,7 @@ This is much easier to understand with a picture than with words:
 \begin{center}
 \includegraphics[width=0.8\textwidth]{../figs/web/celestial_sphere.png}
 \caption[The Celestial Sphere]
-{The Celestial Sphere, courtesy of \href{http://coolcosmos.ipac.caltech.edu/cosmic_classroom/cosmic_reference/coordsys.html}{cool cosmos}.}
+{The Celestial Sphere, courtesy of \href{http://coolcosmos.ipac.caltech.edu/cosmic_classroom/cosmic_reference/coordsys.html}{Cool Cosmos}.}
 \end{center}
 \end{figure}
 
@@ -59,10 +59,10 @@ This is not a good definition, though, for the purposes of modern astronomy,
 because the Earth's rotational axis is not a fixed direction in the barycentric mean ecliptic frame.
 The Earth's rotational axis changes over time due to two separate effects: 
 \href{https://en.wikipedia.org/wiki/Axial_precession}{precession} and \href{https://en.wikipedia.org/wiki/Astronomical_nutation}{nutation}.
-Precession is a low frequency, predictable effect that in analogous to wobbling movement of a top's rotational axis.
+Precession is a low-frequency, predictable effect that in analogous to wobbling movement of a top's rotational axis.
 It is typically covered in a first semester undergraduate physics course on mechanics.
 The precession of the Earth's axis is caused mainly by the gravitational influence of the Sun and Moon, and has a period of approximately 25,772 years.
-Nutation is a high frequency effect, also caused mainly by the gravitational forces of the Sun and Moon.
+Nutation is a high-frequency effect, also caused mainly by the gravitational forces of the Sun and Moon.
 In fact, the only difference between the two effects is in the way we model and understand them.
 Precession isolates the mean perturbation over time; it's a slow, steady drift that is easy to predict.
 Nutation describes the much smaller, high frequency wobbles (on the order of tens of arc seconds) that are the residual after precession is accounted for.
@@ -137,7 +137,7 @@ The Barycentric Ecliptic Frame is analogous, but the origin is the Solar System 
 \end{figure}
 
 The module \tty{ra\_dec.py} handles conversions between RA/Dec and the direction $\uvec$ in the barycentric mean ecliptic (BME) frame.
-The two workhorse functions are named \tty{radedc2dir} and \tty{dir2radec}.
+The two workhorse functions are named \tty{radec2dir} and \tty{dir2radec}.
 The hard work in getting all of this to work comes in understanding the ideas of the coordinate systems and developing tests.
 Once you know what everything means and how to test that the implementation is right, it amounts to just a few lines of code.
 The \tty{astropy SkyCoordinate} class is aware of both the ICRF and the BME frames.
@@ -162,7 +162,7 @@ In the next section, I wil explain this calculation and demonstrate that my resu
 \label{section_pos_vel_to_dir}
 Suppose we have computed the position $\qearth$ and $\qast$ where we believe the Earth and an asteroid are at the same time $t$.
 Can we compute the direction $\uvec$ from the Earth to the asteroid by simply subtracting the positions and normalizing them, i.e. by
-$$ \uvec \stackrel{?}{=} \frac{\qast - \qearth}{\norm{\qast - \qearth}}$$
+$$ \uvec \stackrel{?}{=} \frac{\qast - \qearth}{\norm{\qast - \qearth}} \; ?$$
 The answer is no! This fails to account for the finite speed of light.
 The photons arriving at the observatory at the observation time $t_1$ were not emitted at $t_1$; they were emitted in the past, at time $t_0$.
 \begin{figure}[hbt!]
@@ -216,7 +216,7 @@ This is short enough time interval that approximating the motion of an asteroid 
 We can also use this approach to approach to make a back of the envelope estimate of the errors we might make if 
 we disregarded the light time adjustment.
 Suppose an asteroid has $a=3.0$, so by Kepler's third law this body would have an orbital period of $3.0^{3/2} \approx 5.2$ years.
-At a time when this asteroid is 3.0 AU from Earth, the light time would be 25 minutes, which works out to 2.20E-4 of its orbital period.
+At a time when this asteroid is 3.0 AU from Earth, the light time would be 25 minutes, which works out to $2.20 \time 10^{-4}$ of its orbital period.
 Converting this into degrees is a multiplication by 360, and into arc seconds a further multiplication by 3600.
 I estimate that ignoring light time could lead in this case to errors on the order of 285 arc seconds 
 if the asteroid were moving perpendicular to its displacement to Earth.
@@ -269,7 +269,7 @@ The angular distance between two directions on the unit circle can be calculated
 For very small distances, the angular difference in radians is nearly equal to the Cartesian difference between the two direction
 vectors $\uvec_1$ and $\uvec_2$ on the unit sphere in $\R^3$.
 
-Table ~\ref{tbl:DirectionComparison} summarizes the mean difference between Horizons, SkyField and my calculations.
+Table \ref{tbl:DirectionComparison} summarizes the mean difference between Horizons, SkyField and my calculations.
 \begin{table}
 \begin{centering}
 \begin{tabular}{|c | c|}
@@ -315,7 +315,7 @@ and light reflecting from the asteroid to the Earth scales as $\Delta^{-2}$.
 There is also a correction term involving the phase angle $\alpha$.
 
 I developed a prototype calculation and implemented this in TensorFlow as well.
-Unfortunately, when I incorporated the predicted magnitude into the log likelihood function
+Unfortunately, when I incorporated the predicted magnitude into the log-likelihood function
 used in the optimization process as explained below, the results got worse.
 I was forced to disregard the predicted magnitude during the fitting process.
 A first pass of the code is already present in the \tty{AsteroidModel} class, though,
