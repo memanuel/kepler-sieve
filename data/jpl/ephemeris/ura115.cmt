@@ -1,0 +1,58 @@
+                      Satellite Ephemeris File Release
+
+
+Satellite Ephemeris: URA115
+
+Location: ssd.jpl.nasa.gov/pub/eph/satellites/nio/LINUX_PC/se_ura115.ext.nio
+
+Enter SATEPHGEN/23 12-Sep-2019 09:42:30.050 linked 04-Jan-2019 17:21:18
+Ephemeris fit to all data
+URA091
+Ephemeris Version Number: 23
+Timespan from JED  2444239.500(01-JAN-1980) to JED  2473459.500(01-JAN-2060)
+File Epoch Julian Date: 2454710.50
+Master Interval: 2.0000 Days
+Equinox Reference Julian Date: 2451545.00
+Planetary Ephemeris Number: DE-0438/LE-0438
+
+Bodies on the File:
+
+   Name        Number            GM             NDIV   NDEG   Model
+   Cordelia      706    0.000000000000000E+00     20     15   ROCKS
+   Ophelia       707    0.000000000000000E+00     20     15   ROCKS
+   Bianca        708    0.000000000000000E+00     20     15   ROCKS
+   Cressida      709    0.000000000000000E+00     20     15   ROCKS
+   Desdemona     710    0.000000000000000E+00     20     15   ROCKS
+   Juliet        711    0.000000000000000E+00     20     15   ROCKS
+   Portia        712    0.000000000000000E+00     20     15   ROCKS
+   Rosalind      713    0.000000000000000E+00     20     15   ROCKS
+   Belinda       714    0.000000000000000E+00     20     15   ROCKS
+   Puck          715    0.000000000000000E+00     20     15   ROCKS
+   Perdita       725    0.000000000000000E+00     20     15   ROCKS
+   Mab           726    0.000000000000000E+00     20     15   ROCKS
+   Cupid         727    0.000000000000000E+00     20     15   ROCKS
+   Uranus        799    5.793951322279009E+06      1     10   CHEBY
+   System               5.794556465751799E+06
+
+Additional Constants on the File:
+
+  AU       1.495978707000000E+08   701GM    8.346344431770477E+01
+  702GM    8.509338094489388E+01   703GM    2.269437003741248E+02
+  704GM    2.053234302535623E+02   705GM    4.319516899232100E+00
+  RADIUS   2.555900000000000E+04   J702     3.510685384697763E-03
+  J704    -3.416639735448987E-05   POLTIM   2.451545000000000E+06
+  ZACPL7   7.730990252631723E+01   ZDEPL7   1.517245819840212E+01
+  DACPL7   1.734056155021870E-04   DDEPL7   1.903682577001328E-05
+  WPL7     3.361900292123400E+02   WDP7     5.011600928000000E+02
+  GM5      1.267127641000000E+08   GM6      3.794058500000000E+07
+  GM8      6.836527100580000E+06   GM10     1.327132332639000E+11
+
+
+Chebyshev interpolation error: meters meters
+
+Release to: ssd, horizons, naif                Time: 12-Sep-2019 09:46:31
+
+Preparer: M. Brozovic
+
+Comments:
+Fit to Voyager 2, ground-based, and HST astrometry 1985-2013
