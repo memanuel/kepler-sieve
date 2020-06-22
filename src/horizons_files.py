@@ -79,8 +79,8 @@ def hrzn_txt2csv(fname_txt):
     # Convert these to MSE column names
     name_map = {
         'JDTDB': 'JD',
-        'Calendar Date (TDB)': 'CalendarDate',
-        'delta-T': 'delta-T',
+        'Calendar Date (TDB)': 'CalendarDateTime',
+        'delta-T': 'delta_T',
         'X': 'qx',
         'Y': 'qy',
         'Z': 'qz',
@@ -115,8 +115,8 @@ def hrzn_csv2df(fname_csv):
         'BodyName': str,
         'IntegrationSource': str,
         'JD': np.float64,
-        # 'CalendarDate': pd.to_datetime,
-        'delta-T': np.float64,
+        # 'CalendarDateTime': pd.to_datetime,
+        'delta_T': np.float64,
         'qx': np.float64,
         'qy': np.float64,
         'qz': np.float64,
@@ -126,6 +126,6 @@ def hrzn_csv2df(fname_csv):
     }
 
     # Read the CSV
-    df = pd.read_csv(fname_csv, sep=',', header=0, dtype=dtype, parse_dates=['CalendarDate'])
+    df = pd.read_csv(fname_csv, sep=',', header=0, dtype=dtype, parse_dates=['CalendarDateTime'])
 
     return df
