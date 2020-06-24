@@ -20,7 +20,7 @@ def hrzn_target_body(lines):
             target_body = line[18:]
             break
     # regex search pattern
-    p = re.compile('(^[\w]+) \(([\d]+)\)[\s]+\{source: ([\w]+)\}\n$')
+    p = re.compile('(^.+) \(([\d]+)\)[\s]+\{source: ([\w]+)\}\n$')
     # extract name, number, and source from the target body string
     srch = p.search(target_body)
     body_name = srch.group(1)
@@ -44,11 +44,29 @@ def hrzn_find_end(lines):
             return n-i-1
 
 # ********************************************************************************************************************
+month_tbl = {
+    '-Jan-': '-01-',
+    '-Feb-': '-02-',
+    '-Mar-': '-03-',
+    '-Apr-': '-04-',
+    '-May-': '-05-',
+    '-Jun-': '-06-',
+    '-Jul-': '-07-',
+    '-Aug-': '-08-',
+    '-Sep-': '-09-',
+    '-Oct-': '-10-',
+    '-Nov-': '-11-',
+    '-Dec-': '-12-',
+}
+
 def write_data_line(fh, line, prefix):
     """Write out one line of data from the text file to the CSV"""
     entries_raw = line.split(',')
     entries = [x.lstrip() for x in entries_raw[0:-1]]
-    entries[1] = entries[1].replace('A.D. ', '')
+    date_time_str = entries[1].replace('A.D. ', '')
+    month_mmm = date_time_str[4:9]
+    month_nn = month_tbl[month_mmm]
+    entries[1] = date_time_str.replace(month_mmm, month_nn)
     line_out = f'{prefix},' + ','.join(entries) + '\n'
     fh.write(line_out)
 

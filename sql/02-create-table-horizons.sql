@@ -11,7 +11,7 @@ create or replace table HorizonsImport(
 		comment 'JPL description of the integration used to calculate this ephemeris',
 	JD double not null
 		comment 'The Julian Date in the TDB (barycentric dynamical time) frame',
-	CalendarDateTime datetime not null
+	CalendarDateTime datetime(6) not null
 		comment 'The date and time on the Gregorian calendar in the TDB frame',
 	delta_T double not null
 		comment 'The difference between the TDB and terrestial atomic time frames',
