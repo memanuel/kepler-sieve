@@ -28,3 +28,4 @@ create or replace table HorizonsImport(
 	vz double not null
 		comment 'Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame'
 )
+	comment 'Staging table to import data from files downloaded from Horizons API.'
