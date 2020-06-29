@@ -125,6 +125,8 @@ body_type_tbl: Dict[str, str] = {
 }
 for planet in planets:
     body_type_tbl[f'{planet} Barycenter'] = 'PS'
+# The name of Earth-Moon Barycenter doesn't follow the usual pattern
+body_type_tbl['Earth-Moon Barycenter'] = 'PS'
 for planet in planets:
     body_type_tbl[f'{planet}'] = 'PB'
 
@@ -153,10 +155,12 @@ def hrzn_txt2csv(fname_txt: str):
         # Look up this body name on the table
         # The planet barycenters and bodies are enumerated; anything left that isn't an asteroid will be a moon.
         body_type: str = body_type_tbl.get(body_name, 'M')           
-        # Mercury is a special case; there is only one planet in the system
-        # and JPL describes Mercury Barcenter with ID 1 instead of 199
+        # Mercury and Venus are special cases; there is only one planet in these systems
+        # and JPL describes e.g. Mercury Barcenter with ID 1 instead of 199
         if body_name == 'Mercury Barycenter':
             body_number = 1
+        if body_name == 'Venus Barycenter':
+            body_number = 2
     # We already determined this body is an asteroid from its file name
     else:
         body_type = 'A'
