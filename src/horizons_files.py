@@ -13,69 +13,84 @@ import numpy as np
 import pandas as pd
 
 # Utility
-import os
+# import os
+from pathlib import Path
 import glob
 import re
 from tqdm.auto import tqdm
 
 # Database
-from sqlalchemy import create_engine
+import sqlalchemy
 
-# MSE
+# MSE Imports
 import db_config
 
+# Typing
+from typing import List, Tuple, Dict, TextIO
+
 # Create database engine - once for the whole module
-db_url = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}/JPL'
-engine = create_engine(db_url)
+db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}/JPL'
+engine: sqlalchemy.engine = sqlalchemy.create_engine(db_url)
 
 # ********************************************************************************************************************
-def hrzn_target_body(lines, is_ast: bool):
+def hrzn_target_body(lines: List[str], is_ast: bool) -> Tuple[str, int, str,]:
     """Search Horizons download file for name of target body"""
 
-    # find line in the file header describing the target body
+    # Find line in the file header describing the target body
+    line: str
     for line in lines:
         if line[0:18] == 'Target body name: ':
-            target_body = line[18:]
+            target_body: str = line[18:]
             break
 
     # Format of the name varies for major bodies and small bodies
+    body_name: str
+    body_number_str: str
+    integration_source: str
     if not is_ast:
         # regex search pattern
         p = re.compile('(^.+) \(([\d]+)\)[\s]+\{source: (.+)\}\n$')
         # extract name, number, and source from the target body string
         srch = p.search(target_body)
         body_name = srch.group(1)
-        body_number = srch.group(2)
+        body_number_str = srch.group(2)
         integration_source = srch.group(3)
     else:
         # regex search pattern
         p = re.compile('(^[0-9]+) (.+) \(.*\)[\s]+\{source: (.+)\}\n$')
-        # extract name, number, and source from the target body string
+        # Extract name, number, and source from the target body string
         srch = p.search(target_body)
-        body_number = srch.group(1)
+        body_number_str = srch.group(1)
         body_name = srch.group(2)
         integration_source = srch.group(3)
+
+    # Convert body number to an integer
+    body_number: int = int(body_number_str)
 
     # Return tuple with the name, number, and integration source
     return (body_name, body_number, integration_source)
 
 # ********************************************************************************************************************
-def hrzn_find_start(lines):
+def hrzn_find_start(lines: List[str]) -> int:
     """Search Horizons download file for first line of data"""
+    i: int
+    line: str
     for i, line in enumerate(lines):
         if line == '$$SOE\n':
             return i+1
 
 # ********************************************************************************************************************
-def hrzn_find_end(lines):
+def hrzn_find_end(lines: List[str]) -> int:
     """Search Horizons download file for last line of data"""
-    n = len(lines)
+    n: int = len(lines)
+    i: int
+    line: str
     for i, line in enumerate(lines[::-1]):
         if line == '$$EOE\n':
             return n-i-1
 
 # ********************************************************************************************************************
-month_tbl = {
+month_tbl: Dict[str, str] = {
     '-Jan-': '-01-',
     '-Feb-': '-02-',
     '-Mar-': '-03-',
@@ -90,47 +105,74 @@ month_tbl = {
     '-Dec-': '-12-',
 }
 
-def write_data_line(fh, line, prefix):
+def write_data_line(fh: TextIO, line: str, prefix: str):
     """Write out one line of data from the text file to the CSV"""
-    entries_raw = line.split(',')
-    entries = [x.lstrip() for x in entries_raw[0:-1]]
-    date_time_str = entries[1].replace('A.D. ', '')
-    month_mmm = date_time_str[4:9]
-    month_nn = month_tbl[month_mmm]
-    entries[1] = date_time_str.replace(month_mmm, month_nn)
-    line_out = f'{prefix},' + ','.join(entries) + '\n'
+    entries_raw: List[str] = line.split(',')
+    entries: List[str] = [x.lstrip() for x in entries_raw[0:-1]]
+    date_time_str: str = entries[1].replace('A.D. ', '')
+    month_mmm: str = date_time_str[4:9]
+    month_nn: str = month_tbl[month_mmm]
+    entries[1]: str = date_time_str.replace(month_mmm, month_nn)
+    line_out: str = f'{prefix},' + ','.join(entries) + '\n'
     fh.write(line_out)
 
 # ********************************************************************************************************************
-def hrzn_txt2csv(fname_txt):
+def hrzn_txt2csv(fname_txt: str):
     """Convert a Horizons text file as downloaded into a CSV ready to be imported to Pandas or a database"""
 
     # Determine if this is an asteroid file from the file name
-    fname_base = os.path.basename(fname_txt)
-    is_ast = fname_base[0:4] == 'ast_'
+    # fname_base: str = os.path.basename(fname_txt).replace('.txt', '')
+    path_txt = Path(fname_txt)
+    fname_base: str = path_txt.stem
+    is_ast: bool = fname_base[0:4] == 'ast_'
 
     # Read the file
     with open(fname_txt) as fh:
-        lines = fh.readlines()
+        lines: List[str] = fh.readlines()
 
     # Get body name, body number, and source of the integration
+    body_name: str
+    body_number: int
+    integration_source: str
     body_name, body_number, integration_source = hrzn_target_body(lines, is_ast)
+
+    # The type of this body: one of 'S' (star), 'P' (planet), 'M' (moon), 'A' (asteroid)
+    body_type: str    
+    if not is_ast:
+        # Is this body a planet?
+        # The planet barycenters are numbered 1, 2, ... 9
+        is_planet_bary: bool = (0 < body_number) and (body_number < 10)
+        # The planets themselves are numbered 199, 299, ... 999
+        is_planet_body: bool = body_number in (199, 299, 399, 499, 599, 699, 799, 899, 999)
+        # A body is considered a planet if it is either the barycenter or the planet itself
+        is_planet: bool = is_planet_bary or is_planet_body
+        # Classify all non-asteroids into one of 'S', 'P', 'M'
+        if body_name == 'Sun':
+            body_type = 'S'
+        elif is_planet:
+            body_type = 'P'
+        else:
+            body_type = 'M'  
+    # We already determined this body is an asteroid from its file name
+    else:
+        body_type = 'A'
+
     # Prefix for each row of output
-    prefix = f'{body_number},{body_name},{integration_source}'
+    prefix = f'{body_type},{body_number},{body_name},{integration_source}'
 
     # Get the start and end line for data in the file
-    i0 = hrzn_find_start(lines)
-    i1 = hrzn_find_end(lines)
+    i0: int = hrzn_find_start(lines)
+    i1: int = hrzn_find_end(lines)
 
     # The header row is always 3 before the first data line
-    header_row = i0 - 3
+    header_row: int = i0 - 3
 
     # The column names in this file
-    col_names_txt = lines[header_row]
-    col_names_file = [x.strip() for x in col_names_txt.split(',')][0:-1]
+    col_names_txt: str = lines[header_row]
+    col_names_file: List[str] = [x.strip() for x in col_names_txt.split(',')][0:-1]
 
     # Convert these to MSE column names
-    name_map = {
+    name_map: Dict[str, str] = {
         'JDTDB': 'JD',
         'Calendar Date (TDB)': 'CalendarDateTime',
         'delta-T': 'delta_T',
@@ -143,13 +185,17 @@ def hrzn_txt2csv(fname_txt):
     }
 
     # The header for the output CSV file; includes BodyNumber and BodyName
-    col_names = ['BodyNumber', 'BodyName','IntegrationSource'] + [name_map[x] for x in col_names_file]
-    header = ','.join(col_names) + '\n'
+    col_names: List[str] = ['BodyTypeCD','BodyNumber', 'BodyName','IntegrationSource'] + \
+                            [name_map[x] for x in col_names_file]
+    header: str = ','.join(col_names) + '\n'
 
     # Name of the CSV output file
-    fname_csv = fname_txt.replace('.txt', '.csv')
+    # fname_csv: str = fname_txt.replace('.txt', '.csv')
+    path_csv = Path(db_config.directory_csv, 'jpl', fname_base).with_suffix('.csv')
+    fname_csv: str = path_csv.as_posix()
 
     # Write out the CSV file
+    fh: TextIO
     with open(fname_csv, 'w') as fh:
         fh.write(header)
         for line in lines[i0:i1]:
@@ -159,11 +205,12 @@ def hrzn_txt2csv(fname_txt):
     return fname_csv
 
 # ********************************************************************************************************************
-def hrzn_csv2df(fname_csv):
+def hrzn_csv2df(fname_csv: str):
     """Convert a Horizons CSV file to a Pandas DataFrame"""
 
     # Column names and their data types
-    dtype = {
+    dtype: Dict[str, dtype] = {
+        'BodyTypeCD': str,
         'BodyNumber': np.int32,
         'BodyName': str,
         'IntegrationSource': str,
@@ -179,43 +226,64 @@ def hrzn_csv2df(fname_csv):
     }
 
     # Read the CSV
-    df = pd.read_csv(fname_csv, sep=',', header=0, dtype=dtype, parse_dates=['CalendarDateTime'])
+    df: pd.DataFrame = pd.read_csv(fname_csv, sep=',', header=0, dtype=dtype, parse_dates=['CalendarDateTime'])
 
     return df
 
 # ********************************************************************************************************************
-def hrzn_df2db(df):
-    """Load a Pandas DataFrame into DB table JPL.HorizonsImport"""
-    with engine.connect() as con:
-        df.to_sql(name='HorizonsImport', con=con, if_exists='append', index=False)
+def hrzn_csv2db(fname_csv: str, conn: sqlalchemy.engine.Connection):
+    """Load a CSV file into DB table JPL.HorizonsImport"""
+    # Build the sql string to load the CSV data file
+    sql = \
+    f"""
+    load data infile '{fname_csv}'
+    into table JPL.HorizonsImport 
+    fields terminated by ','
+    lines terminated by '\n'
+    ignore 1 lines
+    (BodyTypeCD, BodyNumber, BodyName, IntegrationSource, JD, CalendarDateTime, delta_T, qx, qy, qz, vx, vy, vz)
+    set HorizonsImportID = NULL;
+    """
+    
+    # Execute the load data infile command
+    # This requires that the kepler user has privileges on both the JPL database AND the global FILE privilege
+    # Correct user settings can be configured as follows:
+    # $ mysql -u root -p
+    # mysql> create user 'kepler'@'%' identified by 'kepler';
+    # mysql> grant all privileges on JPL.* to 'kepler'@'%';
+    # mysql> grant file on *.* to 'kepler'@'%';
+    conn.execute(sql)
 
 # ********************************************************************************************************************
-def hrzn_txt2db(fname_txt):
-    """Load a Horizons TXT file into DB table JPL.HorizonsImport via a DataFrame"""
+def hrzn_df2db(df: pd.DataFrame, conn: sqlalchemy.engine.Connection):
+    """Load a Pandas DataFrame into DB table JPL.HorizonsImport"""
+    df.to_sql(name='HorizonsImport', con=conn, if_exists='append', index=False)
+
+# ********************************************************************************************************************
+def hrzn_txt2db(fname_txt: str, conn: sqlalchemy.engine.Connection):
+    """Load a Horizons TXT file into DB table JPL.HorizonsImport via a CSV file"""
     
     # Convert text file to a CSV file
-    fname_csv = hrzn_txt2csv(fname_txt)
-
-    # Load CSV file to a DataFrame
-    df = hrzn_csv2df(fname_csv)
+    fname_csv: str = hrzn_txt2csv(fname_txt)
 
     # Load the DataFrame into the DB Table
-    hrzn_df2db(df)
+    hrzn_csv2db(fname_csv, conn)
 
 # ********************************************************************************************************************
 def hrzn_load():
     """Load all the Horizons TXT files into DB table JPL.HorizonsImport"""
-    # Truncate the JPL.HorizonsImport table
-    sql = "truncate table JPL.HorizonsImport"
-    with engine.connect() as conn:
-        conn.execute(sql)
-
     # Get a list of all the TXT files with Horizons data to be loaded
     runs = ['planets', 'moons', 'asteroids']
     files = []
     for run in runs:
         files += sorted(glob.glob(f'../data/jpl/horizons/{run}/*.txt'))
 
-    # Iterate through all the text files in order; load each one
-    for fname_txt in tqdm(files):
-        hrzn_txt2db(fname_txt)
+    # Do all the database operations using just one DB connection
+    with engine.connect() as conn:
+        # Truncate the JPL.HorizonsImport table
+        sql = "truncate table JPL.HorizonsImport;"
+        conn.execute(sql)
+
+        # Iterate through all the text files in order; load each one
+        for fname_txt in tqdm(files):
+            hrzn_txt2db(fname_txt, conn)
