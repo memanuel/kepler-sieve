@@ -117,6 +117,18 @@ def write_data_line(fh: TextIO, line: str, prefix: str):
     fh.write(line_out)
 
 # ********************************************************************************************************************
+# Table with the type of each body given its name
+# Typer are 'S' (star), 'PS' (planetary system barycenter), 'PB' (planet body), M' (moon), 'A' (asteroid)
+planets = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
+body_type_tbl: Dict[str, str] = {
+    'Sun': 'S',
+}
+for planet in planets:
+    body_type_tbl[f'{planet} Barycenter'] = 'PS'
+for planet in planets:
+    body_type_tbl[f'{planet}'] = 'PB'
+
+# ********************************************************************************************************************
 def hrzn_txt2csv(fname_txt: str):
     """Convert a Horizons text file as downloaded into a CSV ready to be imported to Pandas or a database"""
 
@@ -136,23 +148,15 @@ def hrzn_txt2csv(fname_txt: str):
     integration_source: str
     body_name, body_number, integration_source = hrzn_target_body(lines, is_ast)
 
-    # The type of this body: one of 'S' (star), 'P' (planet), 'M' (moon), 'A' (asteroid)
-    body_type: str    
+    # The type of this body: one of 'S' (star), 'P' (planet), 'M' (moon), 'A' (asteroid)    
     if not is_ast:
-        # Is this body a planet?
-        # The planet barycenters are numbered 1, 2, ... 9
-        is_planet_bary: bool = (0 < body_number) and (body_number < 10)
-        # The planets themselves are numbered 199, 299, ... 999
-        is_planet_body: bool = body_number in (199, 299, 399, 499, 599, 699, 799, 899, 999)
-        # A body is considered a planet if it is either the barycenter or the planet itself
-        is_planet: bool = is_planet_bary or is_planet_body
-        # Classify all non-asteroids into one of 'S', 'P', 'M'
-        if body_name == 'Sun':
-            body_type = 'S'
-        elif is_planet:
-            body_type = 'P'
-        else:
-            body_type = 'M'  
+        # Look up this body name on the table
+        # The planet barycenters and bodies are enumerated; anything left that isn't an asteroid will be a moon.
+        body_type: str = body_type_tbl.get(body_name, 'M')           
+        # Mercury is a special case; there is only one planet in the system
+        # and JPL describes Mercury Barcenter with ID 1 instead of 199
+        if body_name == 'Mercury Barycenter':
+            body_number = 1
     # We already determined this body is an asteroid from its file name
     else:
         body_type = 'A'
@@ -247,11 +251,7 @@ def hrzn_csv2db(fname_csv: str, conn: sqlalchemy.engine.Connection):
     
     # Execute the load data infile command
     # This requires that the kepler user has privileges on both the JPL database AND the global FILE privilege
-    # Correct user settings can be configured as follows:
-    # $ mysql -u root -p
-    # mysql> create user 'kepler'@'%' identified by 'kepler';
-    # mysql> grant all privileges on JPL.* to 'kepler'@'%';
-    # mysql> grant file on *.* to 'kepler'@'%';
+    # See sql folder in project for user configuration.
     conn.execute(sql)
 
 # ********************************************************************************************************************
