@@ -10,3 +10,5 @@ GRANT FILE ON *.* TO 'kepler';
 -- Grant the user Kepler on databases of the Kepler Sieve application
 GRANT ALL PRIVILEGES ON KeplerDB.* TO kepler;
 GRANT ALL PRIVILEGES ON JPL.* TO kepler;
+GRANT DROP ON KeplerDB.* to kepler;
+GRANT DROP ON JPL.* to kepler;
