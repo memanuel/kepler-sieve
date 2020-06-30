@@ -19,10 +19,10 @@ from datetime import datetime
 from typing import List, Tuple, Dict, Optional
 
 # ********************************************************************************************************************* 
-def load_data_impl_main() -> pd.DataFrame:
-    """Load the asteroid data into a Pandas DataFrame"""
+def load_data_numbered() -> pd.DataFrame:
+    """Load the asteroid data for numbered asteroids into a Pandas DataFrame"""
     # The source for this file is at https://ssd.jpl.nasa.gov/?sb_elem
-    fname: str = '../data/jpl/orb_elements_asteroid.txt'
+    fname: str = '../data/jpl/orbital_elements_asteroid_numbered.txt'
 
     # The field names in the JPL file and their column positions
     names: List[str] = ['Num', 'Name', 'Epoch', 'a', 'e', 'i', 'w', 'Node', 'M', 'H', 'G', 'Ref']
@@ -67,10 +67,10 @@ def load_data_impl_main() -> pd.DataFrame:
     return df
 
 # ********************************************************************************************************************* 
-def load_data_impl_aux() -> pd.DataFrame:
-    """Load the auxiliary asteroid data into a Pandas DataFrame"""
+def load_data_unnumbered() -> pd.DataFrame:
+    """Load the asteroid data for unnumbered asteroids into a Pandas DataFrame"""
 
-    fname: str = '../data/jpl/orb_elements_asteroid2.txt'
+    fname: str = '../data/jpl/orbital_elements_asteroid_unnumbered.txt'
 
     # The field names in the JPL file and their column positions
     names: List[str] = ['Name', 'Epoch', 'a', 'e', 'i', 'w', 'Node', 'M', 'H', 'G', 'Ref']
@@ -120,9 +120,9 @@ def load_data_impl_aux() -> pd.DataFrame:
 def load_data_impl() -> pd.DataFrame:
     """Load the combined asteroid data into a Pandas DataFrame"""
     # Load main data file
-    df1 = load_data_impl_main()
+    df1 = load_data_numbered()
     # Load auxiliary data file
-    df2 = load_data_impl_aux()
+    df2 = load_data_unnumbered()
     # Return combined DataFrame
     df = pd.concat([df1, df2])
     return df
