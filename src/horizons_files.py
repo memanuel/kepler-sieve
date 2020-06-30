@@ -29,7 +29,8 @@ import db_config
 from typing import List, Tuple, Dict, TextIO
 
 # Create database engine - once for the whole module
-db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}/JPL'
+# db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}/JPL'
+db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}'
 engine: sqlalchemy.engine = sqlalchemy.create_engine(db_url)
 
 # ********************************************************************************************************************
@@ -261,12 +262,11 @@ def hrzn_csv2db(fname_csv: str, conn: sqlalchemy.engine.Connection):
 # ********************************************************************************************************************
 def hrzn_df2db(df: pd.DataFrame, conn: sqlalchemy.engine.Connection):
     """Load a Pandas DataFrame into DB table JPL.HorizonsImport"""
-    df.to_sql(name='HorizonsImport', con=conn, if_exists='append', index=False)
+    df.to_sql(name='HorizonsImport', con=conn, schema='JPL', if_exists='append', index=False)
 
 # ********************************************************************************************************************
 def hrzn_txt2db(fname_txt: str, conn: sqlalchemy.engine.Connection):
-    """Load a Horizons TXT file into DB table JPL.HorizonsImport via a CSV file"""
-    
+    """Load a Horizons TXT file into DB table JPL.HorizonsImport via a CSV file"""   
     # Convert text file to a CSV file
     fname_csv: str = hrzn_txt2csv(fname_txt)
 
@@ -277,7 +277,7 @@ def hrzn_txt2db(fname_txt: str, conn: sqlalchemy.engine.Connection):
 def hrzn_load():
     """Load all the Horizons TXT files into DB table JPL.HorizonsImport"""
     # Get a list of all the TXT files with Horizons data to be loaded
-    runs = ['planets', 'moons', 'asteroids']
+    runs = ['planets/daily', 'moons/daily', 'moons/weekly', 'asteroids/weekly']
     files = []
     for run in runs:
         files += sorted(glob.glob(f'../data/jpl/horizons/{run}/*.txt'))

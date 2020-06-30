@@ -22,7 +22,7 @@ from typing import List, Tuple, Dict, Optional
 def load_data_numbered() -> pd.DataFrame:
     """Load the asteroid data for numbered asteroids into a Pandas DataFrame"""
     # The source for this file is at https://ssd.jpl.nasa.gov/?sb_elem
-    fname: str = '../data/jpl/orbital_elements_asteroid_numbered.txt'
+    fname: str = '../data/jpl/orbital_elements/asteroid_numbered.txt'
 
     # The field names in the JPL file and their column positions
     names: List[str] = ['Num', 'Name', 'Epoch', 'a', 'e', 'i', 'w', 'Node', 'M', 'H', 'G', 'Ref']
@@ -70,7 +70,7 @@ def load_data_numbered() -> pd.DataFrame:
 def load_data_unnumbered() -> pd.DataFrame:
     """Load the asteroid data for unnumbered asteroids into a Pandas DataFrame"""
 
-    fname: str = '../data/jpl/orbital_elements_asteroid_unnumbered.txt'
+    fname: str = '../data/jpl/orbital_elements/asteroid_unnumbered.txt'
 
     # The field names in the JPL file and their column positions
     names: List[str] = ['Name', 'Epoch', 'a', 'e', 'i', 'w', 'Node', 'M', 'H', 'G', 'Ref']
