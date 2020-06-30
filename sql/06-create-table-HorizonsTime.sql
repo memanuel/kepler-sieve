@@ -1,6 +1,7 @@
 CREATE OR REPLACE TABLE JPL.HorizonsTime(
-	HorizonTimeID INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	MinuteID INT NOT NULL UNIQUE,
+	HorizonsTimeID INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	MinuteID INT NOT NULL UNIQUE
+		COMMENT "MJD as integer number of minutes, e.g. floor(MJD*24*60)",
 	MJD DOUBLE NOT NULL UNIQUE
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame",
 	JD DOUBLE NOT NULL UNIQUE

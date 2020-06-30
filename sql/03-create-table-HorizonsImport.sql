@@ -3,7 +3,7 @@ CREATE OR REPLACE TABLE JPL.HorizonsImport(
 	HorizonsImportID INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	BodyTypeCD VARCHAR(2) NOT NULL
 		COMMENT "The type of this body.  One of 'S' (star), 'PS' (planet system barycenter), 'PB', (planet single body) 'M' (moon), 'A' (asteroid)",
-	BodyNumber INT unsigned NOT NULL
+	BodyNumber INT NOT NULL
 		COMMENT "JPL number of this body; separate series for small and large bodies",
 	BodyName VARCHAR(32) NOT NULL
 		COMMENT "JPL name of this body",
@@ -27,7 +27,7 @@ CREATE OR REPLACE TABLE JPL.HorizonsImport(
 		COMMENT "Velocity of body (y coordinate) in AU/day in the barcycentric mean ecliptic frame",
 	vz DOUBLE NOT NULL
 		COMMENT "Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame",
-	UNIQUE KEY BodyTypeCD_BodyNumber (BodyTypeCD, BodyNumber, JD)
-		COMMENT "JPL body number should be unique within each body type; don't permit same body to be loaded twice."
+	KEY BodyTypeCD_BodyNumber (BodyTypeCD, BodyNumber, JD)
+		COMMENT "Don't enforce uniqueness here to allow loading e.g. daily and weekly data files without a collision."
 )
 	COMMENT "Staging table to import data from files downloaded from Horizons API."

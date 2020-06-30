@@ -1,4 +1,4 @@
-CREATE OR REPLACE DATABASE KeplerDB
+CREATE OR REPLACE DATABASE KS
 	CHARACTER SET = 'latin1'
 	COLLATE = 'latin1_general_cs'
 	COMMENT = "Main database for Kepler Sieve application.";

@@ -1,9 +1,9 @@
 -- Drop tables to clear dependencies
 DROP TABLE IF EXISTS JPL.LargeBody;
 DROP TABLE IF EXISTS JPL.SmallBody;
-DROP TABLE IF EXISTS KeplerDB.Body;
+DROP TABLE IF EXISTS KS.Body;
 
-CREATE OR REPLACE TABLE KeplerDB.BodyType(
+CREATE OR REPLACE TABLE KS.BodyType(
 	BodyTypeID TINYINT NOT NULL PRIMARY KEY,
 	BodyTypeCD VARCHAR(2) NOT NULL UNIQUE
 		COMMENT "Short code",
@@ -15,7 +15,7 @@ CREATE OR REPLACE TABLE KeplerDB.BodyType(
 )
 	COMMENT "Types of Solar System bodies.";
 
-INSERT INTO KeplerDB.BodyType
+INSERT INTO KS.BodyType
 (BodyTypeID, BodyTypeCD, BodyTypeName, IsLargeBody_JPL, SortOrder)
 VALUES
 (1, 'S', 'Star', True, 1),
