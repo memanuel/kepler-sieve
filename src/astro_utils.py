@@ -32,6 +32,9 @@ modified_julian_base_datetime: datetime = datetime(1858, 11, 17, 0, 0, 0)
 day2sec: float = 24.0 * 3600.0
 sec2day: float = 1.0 / day2sec
 
+# Radians in a circle
+tau = 2.0 * np.pi
+
 # *************************************************************************************************
 def date_to_jd(t: date) -> int:
    """Convert a Python date to a Julian day"""
@@ -177,7 +180,7 @@ def anomaly_M2E_impl(M: np.ndarray, e: np.ndarray, E0: Optional[np.ndarray] = No
         e: The eccentricity
         E0: Initial guess
     OUTPUTS:
-        E: The Eccenctric anomaly
+        E: The Eccentric anomaly
 
     Kepler's Equation gives us
         M = E - e sin(E)
@@ -188,7 +191,6 @@ def anomaly_M2E_impl(M: np.ndarray, e: np.ndarray, E0: Optional[np.ndarray] = No
     """
 
     # Put M in the interval [0, 2*pi)
-    tau = 2.0 * np.pi
     M %= tau   
     
     # Use the initial guess E0 if provided; otherwise use M
@@ -217,6 +219,29 @@ def anomaly_M2E_impl(M: np.ndarray, e: np.ndarray, E0: Optional[np.ndarray] = No
     # Return the converged eccentric anomaly E
     return E
 
+# *************************************************************************************************
+def anomaly_E2f(E: np.ndarray, e: np.ndarray) -> np.ndarray:
+    """
+    Convert the eccentric anomaly E to the true anomaly f
+    INPUTS:
+        E: The Eccenctric anomaly
+        e: The eccentricity
+    OUTPUTS:
+        f: The true anomaly    
+    """
+    # See https://en.wikipedia.org/wiki/Eccentric_anomaly
+    # Use formula f = 2 arg(sqrt(1-e) cos(E/2), sqrt(1+e) sin(E/2))
+    
+    # Apply formula
+    half_E = E * 0.5
+    x = np.sqrt(1.0 - e) * np.cos(half_E)
+    y = np.sqrt(1.0 + e) * np.sin(half_E)    
+    f = 2.0 * np.arctan2(y, x)
+    # Shift angle returned to the interval [0, 2 pi)
+    return f % tau
+    
+# *************************************************************************************************
+# Testing
 # *************************************************************************************************
 def test_julian_day():
     """Test Julian Day conversions"""

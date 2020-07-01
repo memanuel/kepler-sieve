@@ -16,11 +16,11 @@ import rebound
 from datetime import datetime
 from tqdm import tqdm as tqdm_console
 
-# MSE Imports
-# from asteroid_integrate import ast_data_add_calc_elements
-
 # Types
 from typing import List, Tuple, Dict, Optional
+
+# Radians in a circle
+tau = 2.0 * np.pi
 
 # ********************************************************************************************************************* 
 def load_data_numbered() -> pd.DataFrame:
@@ -129,7 +129,9 @@ def load_data_impl() -> pd.DataFrame:
     df2 = load_data_unnumbered()
     # Return combined DataFrame
     df = pd.concat([df1, df2])
-    return df
+    # Filter to remove invalid entries with eccentricity outside of [0, 1)
+    mask = (0 <= df.e) & (df.e < 1.0)
+    return df[mask]
 
 # ********************************************************************************************************************* 
 def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFrame:
@@ -151,14 +153,15 @@ def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFra
     df = pd.DataFrame(data=df_in.Num[mask])
 
     # Add fields one at a time
+    tau = 2.0 * np.pi
     df['Name'] = df_in.Name[mask]
     df['epoch'] = df_in.Epoch[mask]
     df['a'] = df_in.a[mask]
     df['e'] = df_in.e[mask]
-    df['inc'] = np.radians(df_in.i[mask])
-    df['Omega'] = np.radians(df_in.Node[mask])
-    df['omega'] = np.radians(df_in.w[mask])
-    df['M'] = np.radians(df_in.M[mask])
+    df['inc'] = np.radians(df_in.i[mask]) % tau
+    df['Omega'] = np.radians(df_in.Node[mask]) % tau
+    df['omega'] = np.radians(df_in.w[mask]) % tau
+    df['M'] = np.radians(df_in.M[mask]) % tau
     df['H'] = df_in.H[mask]
     df['G'] = df_in.G[mask]
     df['Ref'] = df_in.Ref[mask]
@@ -232,12 +235,12 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
         T_peri[i] = orb.T
 
     # Save computed orbital elements to the DataFrame
-    ast_elt['f'] = f
+    ast_elt['f'] = f % tau
     ast_elt['P'] = P
     ast_elt['n'] = mean_motion
-    ast_elt['long'] = long
-    ast_elt['theta'] = theta
-    ast_elt['pomega'] = pomega
+    ast_elt['long'] = long % tau
+    ast_elt['theta'] = theta % tau
+    ast_elt['pomega'] = pomega % tau
     ast_elt['T_peri'] = T_peri
 
     # Return the updated DataFrame 
@@ -247,7 +250,7 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
 def load_ast_elt() -> pd.DataFrame:
     """Load the asteroid orbital elements data into a Pandas Dataframe"""
     # The name for the saved DataFrame
-    fname: str = '../data/jpl/orb_elements_asteroid.h5'
+    fname: str = '../data/jpl/orbital_elements/orb_elements_asteroid.h5'
     
     # Try to load from disk if available
     ast_elt: pd.DataFrame
