@@ -14,6 +14,10 @@ import rebound
 
 # Utility
 from datetime import datetime
+from tqdm import tqdm as tqdm_console
+
+# MSE Imports
+# from asteroid_integrate import ast_data_add_calc_elements
 
 # Types
 from typing import List, Tuple, Dict, Optional
@@ -134,14 +138,14 @@ def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFra
     INPUTS:
         df_in: DataFrame with orbital elements in JPL format
         epoch: Optional epoch as an MJD; used to filter for only matching epochs.
-               Defaults to the mode, e.g. 58600.0
+               If not specified, take the whole DataFrame, which will have different epochs
     """
     # Apply the default value of epoch if it was not input
-    if epoch is None:
-        epoch = pd.Series.mode(df_in.Epoch)[0]
+    # if epoch is None:
+    #    epoch = pd.Series.mode(df_in.Epoch)[0]
 
-    # Create a mask with only the matching rows
-    mask = (df_in.Epoch == epoch)
+    # Create a mask with only the matching rows if epoch was specified
+    mask = (df_in.Epoch == epoch) if epoch is not None else np.ones_like(df_in.Epoch, dtype=bool)
     
     # Initialize Dataframe with asteroid numbers
     df = pd.DataFrame(data=df_in.Num[mask])
@@ -164,6 +168,80 @@ def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFra
 
     # Return the newly assembled DataFrame
     return df
+
+# ********************************************************************************************************************* 
+def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
+    """Add the true anomaly and other calculated orbital elements to the asteroid DataFrame"""   
+    # Number of asteroids
+    N: int = len(ast_elt)
+
+    # Initialize empty arrays for computed orbital elements
+    f = np.zeros(N)
+    P = np.zeros(N)
+    mean_motion = np.zeros(N)
+    long = np.zeros(N)
+    theta = np.zeros(N)
+    pomega = np.zeros(N)
+    T_peri = np.zeros(N)
+
+    # Base Rebound simulation with just the Sun
+    # We are NOT integrating this simulation, only using it to convert orbital elements
+    # Therefore we don't need the planets, or the initial configuration of the sun; just its mass.
+    sim = rebound.Simulation()
+    sim.units = ('day', 'AU', 'Msun')
+    sim.add(m=1.0)
+    sim.N_active = 1
+        
+    # All the available asteroid numbers; wrap as a tqdm iterator for progress bar
+    # nums = ast_elt.index
+    nums = ast_elt.Num.values
+    iters = tqdm_console(nums)
+
+    # Make a gigantic simulation with all these asteroids
+    print(f'Making big simulation with all {N} asteroids...')
+    for num in iters:
+        # Unpack the orbital elements
+        a = ast_elt.a[num]
+        e = ast_elt.e[num]
+        inc = ast_elt.inc[num]
+        Omega = ast_elt.Omega[num]
+        omega = ast_elt.omega[num]
+        M = ast_elt.M[num]
+        # Set the primary to the sun (NOT the solar system barycenter!)
+        primary = sim.particles[0]
+        # Add the asteroid to the simulation as a massless test particle.  Just want the elements!
+        sim.add(m=0.0, a=a, e=e, inc=inc, Omega=Omega, omega=omega, M=M, primary=primary)
+       
+    # Calculate orbital elements for all particles; must specify primary = Sun!!!
+    print(f'Computing orbital elements...')
+    orbits = sim.calculate_orbits(primary=sim.particles[0])
+    
+    # Iterate over all the asteroids in the simulation
+    print(f'Copying additional orbital elements to DataFrame...')
+    iters = list(enumerate(nums))
+    for i, num in tqdm_console(iters):
+        # Look up the orbit of asteroid i
+        orb = orbits[i]
+        # Unpack the additional (calculated) orbital elements
+        f[i] = orb.f
+        P[i] = orb.P
+        mean_motion[i] = orb.n
+        long[i] = orb.l
+        theta[i] = orb.theta
+        pomega[i] = orb.pomega
+        T_peri[i] = orb.T
+
+    # Save computed orbital elements to the DataFrame
+    ast_elt['f'] = f
+    ast_elt['P'] = P
+    ast_elt['n'] = mean_motion
+    ast_elt['long'] = long
+    ast_elt['theta'] = theta
+    ast_elt['pomega'] = pomega
+    ast_elt['T_peri'] = T_peri
+
+    # Return the updated DataFrame 
+    return ast_elt
 
 # ********************************************************************************************************************* 
 def load_ast_elt() -> pd.DataFrame:

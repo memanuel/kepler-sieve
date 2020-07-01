@@ -11,7 +11,7 @@ import astropy
 from astropy.units import deg, au, km, meter, day, minute, second
 from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic
 from datetime import date, datetime, timedelta
-from typing import Tuple
+from typing import Tuple, Optional
 
 # Constant with the base date for julian day conversions
 julian_base_date: date = date(1899,12,31)
@@ -127,7 +127,6 @@ def dist2sec(dist):
     return np.rad2deg(x_rad) * 3600.0
 
 # *************************************************************************************************
-# DEPRECATED
 def xyz_to_sph(x: np.array, y: np.array, z: np.array):
     """
     Convert a Cartesian coordinates x, y, z of a displacement vector to 
@@ -150,8 +149,7 @@ def xyz_to_sph(x: np.array, y: np.array, z: np.array):
 # *************************************************************************************************
 def cart_to_sph(q: np.array):
     """
-    Convert a Cartesian coordinates q with shape (N,3)o f a displacement vector to 
-    spherical coordinates r, alt, az"""
+    Convert a Cartesian coordinates q with shape (N,3) to spherical coordinates r, alt, az"""
     # Unpack x, y, z
     x = q[:, 0]
     y = q[:, 1]
@@ -167,6 +165,57 @@ def reverse_velocity(sim):
         p.vx = -vx
         p.vy = -vy
         p.vz = -vz
+
+# *************************************************************************************************
+def anomaly_M2E_impl(M: np.ndarray, e: np.ndarray, E0: Optional[np.ndarray] = None) -> np.ndarray:
+    """
+    Compute the eccentric anomaly E from the mean anomaly M and eccentricity e using and Newton's Method.
+    This is the implementation that does not depend on a table of initial guesses
+    See: https://en.wikipedia.org/wiki/Eccentric_anomaly
+    INPUTS:
+        M: The mean anomaly
+        e: The eccentricity
+        E0: Initial guess
+    OUTPUTS:
+        E: The Eccenctric anomaly
+
+    Kepler's Equation gives us
+        M = E - e sin(E)
+    which implies that E - e sin(E) - M = 0
+    Think of this as a function f(E) = E - e sin(E) - M
+    with derivative f'(E) = 1 - e cos(E)
+    we solve for f(E) = 0 using Newton's Method
+    """
+
+    # Put M in the interval [0, 2*pi)
+    tau = 2.0 * np.pi
+    M %= tau   
+    
+    # Use the initial guess E0 if provided; otherwise use M
+    E = E0 if E0 is not None else M.copy()
+
+    # Maximum number of iterations for Newton-Raphson
+    max_iter: int = 20
+
+    # Tolerance for maximum error
+    err_tol: np.float64 = 2.0**-50
+
+    # Perform at most max_iter iterations of Newton's method; quit early if tolerance achieved
+    for i in range(max_iter):
+        # The current function value f(E)
+        f = E - e * np.sin(E) - M
+        # Is the max error below the tolerance? If so, quit early
+        max_err = np.max(np.abs(f))
+        if max_err < err_tol:
+            # print(f'Converged with error {max_err:5.2e} after {i+1} iterations.')
+            break
+        # The derivative f'(E)
+        fp = 1.0 - e * np.cos(E)
+        # Update E using Newton's method
+        E -= f / fp
+
+    # Return the converged eccentric anomaly E
+    return E
 
 # *************************************************************************************************
 def test_julian_day():

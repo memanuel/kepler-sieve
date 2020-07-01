@@ -326,69 +326,6 @@ def make_sim_asteroids_horizons(asteroid_names: List[str], epoch_dt: datetime) -
     return sim
 
 # ********************************************************************************************************************* 
-def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
-    """Add the true anomaly and other calculated orbital elements to the asteroid DataFrame"""
-    
-    # Number of asteroids
-    N: int = len(ast_elt)
-
-    # Initialize empty arrays for computed orbital elements
-    f = np.zeros(N)
-    P = np.zeros(N)
-    mean_motion = np.zeros(N)
-    long = np.zeros(N)
-    theta = np.zeros(N)
-    pomega = np.zeros(N)
-    T_peri = np.zeros(N)
-
-    # Get the epoch from the DataFrame
-    epoch: float = ast_elt.epoch[1]
-    epoch_dt: datetime = mjd_to_datetime(epoch)
-    
-    # Rebound simulation of the planets and moons on this date
-    sim_base = make_sim_planets(epoch_dt=epoch_dt)
-        
-    # Make a gigantic simulation with all these asteroids
-    n0: int = np.min(ast_elt.Num)
-    n1 = np.max(ast_elt.Num) + 1
-    print(f'Making big simulation with all {N} asteroids...')
-    sim_ast, asteroid_names = make_sim_asteroids(sim_base=sim_base, ast_elt=ast_elt, n0=n0, n1=n1, progbar=True)
-    
-    # Calculate orbital elements for all particles; must specify primary = Sun!!!
-    print(f'Computing orbital elements...')
-    orbits = sim_ast.calculate_orbits(primary=sim_ast.particles[0])
-    # Slice orbits so it skips the planets and only includes the asteroids
-    orbits = orbits[sim_base.N-1:]
-    
-    # Iterate over all the asteroids in the simulation
-    print(f'Copying additional orbital elements to DataFrame...')
-    mask = (n0 <= ast_elt.Num) & (ast_elt.Num < n1)
-    iters = list(enumerate(ast_elt.Num[mask]))
-    for i, num in tqdm_console(iters):
-        # Look up the orbit of asteroid i
-        orb = orbits[i]
-        # Unpack the additional (calculated) orbital elements
-        f[i] = orb.f
-        P[i] = orb.P
-        mean_motion[i] = orb.n
-        long[i] = orb.l
-        theta[i] = orb.theta
-        pomega[i] = orb.pomega
-        T_peri[i] = orb.T
-
-    # Save computed orbital elements to the DataFrame
-    ast_elt['f'] = f
-    ast_elt['P'] = P
-    ast_elt['n'] = mean_motion
-    ast_elt['long'] = long
-    ast_elt['theta'] = theta
-    ast_elt['pomega'] = pomega
-    ast_elt['T_peri'] = T_peri
-
-    # Return the updated DataFrame 
-    return ast_elt
-
-# ********************************************************************************************************************* 
 def test_element_recovery(verbose: bool = False) -> bool:
     """Test recovery of initial orbital elements for selected asteroids"""
     # List of asteroids to test: first 25
