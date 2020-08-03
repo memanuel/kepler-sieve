@@ -24,6 +24,7 @@ import sqlalchemy
 
 # MSE Imports
 import db_config
+from asteroid_element import load_ast_elt
 
 # Typing
 from typing import List, Tuple, Dict, TextIO
@@ -274,7 +275,7 @@ def hrzn_txt2db(fname_txt: str, conn: sqlalchemy.engine.Connection):
     hrzn_csv2db(fname_csv, conn)
 
 # ********************************************************************************************************************
-def hrzn_load():
+def hrzn_load_db():
     """Load all the Horizons TXT files into DB table JPL.HorizonsImport"""
     # Get a list of all the TXT files with Horizons data to be loaded
     runs = ['planets/daily', 'moons/daily', 'moons/weekly', 'asteroids/weekly']
@@ -291,3 +292,26 @@ def hrzn_load():
         # Iterate through all the text files in order; load each one
         for fname_txt in tqdm(files):
             hrzn_txt2db(fname_txt, conn)
+
+# ********************************************************************************************************************
+def ast_elt_load_db():
+    """Load JPL files with orbital elements of numbered and unnumbered asteroids into DB table JPL.AsteroidElement"""
+
+    # Load the orbital elements as a DataFrame
+    ast_elt = load_ast_elt()
+
+    # Change column names to match database conventions.
+    # These are different because MariaDB has case insensitive column names, 
+    # causing a clash between Omega and omega. ugh!
+    mapper = {
+        'Omega' : 'Omega_node',
+        'omega': 'omega_peri',
+    }
+    ast_elt.rename(columns=mapper, inplace=True)
+
+    with engine.connect() as conn:
+        # Truncate the JPL.AsteroidElement database table
+        sql = "truncate table JPL.AsteroidElement;"
+        # Insert the data from the DataFrame to the database
+        conn.execute(sql)
+        ast_elt.to_sql(name='AsteroidElement', con=conn, schema='JPL', if_exists='append', index=False)

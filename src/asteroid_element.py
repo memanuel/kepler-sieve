@@ -139,6 +139,14 @@ def load_data_impl() -> pd.DataFrame:
     df2 = load_data_unnumbered()
     # Return combined DataFrame
     df = pd.concat([df1, df2])
+    # Field indicating whether asteroid is IAU numbered or not
+    df['IsNumberedAsteroid'] = (df.Num <= 1000000)
+    # Rename columns for asteroid number and name to MSE spec
+    mapper = {
+        'Num': 'AsteroidNumber',
+        'Name': 'AsteroidName',
+    }
+    df.rename(columns=mapper, inplace=True)
     # Filter to remove invalid entries with eccentricity outside of [0, 1)
     mask = (0 <= df.e) & (df.e < 1.0)
     return df[mask]
@@ -152,19 +160,14 @@ def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFra
         epoch: Optional epoch as an MJD; used to filter for only matching epochs.
                If not specified, take the whole DataFrame, which will have different epochs
     """
-    # Apply the default value of epoch if it was not input
-    # if epoch is None:
-    #    epoch = pd.Series.mode(df_in.Epoch)[0]
-
     # Create a mask with only the matching rows if epoch was specified
     mask = (df_in.Epoch == epoch) if epoch is not None else np.ones_like(df_in.Epoch, dtype=bool)
     
-    # Initialize Dataframe with asteroid numbers
-    df = pd.DataFrame(data=df_in.Num[mask])
+    # Initialize Dataframe with asteroid numbers, names, and IsNumberedAsteroid flag
+    columns = ['AsteroidNumber', 'AsteroidName', 'IsNumberedAsteroid']
+    df = pd.DataFrame(data=df_in[mask][columns])
 
     # Add fields one at a time
-    tau = 2.0 * np.pi
-    df['Name'] = df_in.Name[mask]
     df['epoch'] = df_in.Epoch[mask]
     df['a'] = df_in.a[mask]
     df['e'] = df_in.e[mask]
@@ -175,9 +178,9 @@ def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFra
     df['H'] = df_in.H[mask]
     df['G'] = df_in.G[mask]
     df['Ref'] = df_in.Ref[mask]
-    
+
     # Set the asteroid number field to be the index
-    df.set_index(keys=['Num'], drop=False, inplace=True)
+    df.set_index(keys=['AsteroidNumber'], drop=False, inplace=True)
 
     # Return the newly assembled DataFrame
     return df
@@ -294,10 +297,10 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
     # pomega = 0.0
 
     # Save computed orbital elements to the DataFrame
-    ast_elt['E'] = E
+    ast_elt['eccentric_anomaly'] = E
     ast_elt['f'] = f
-    ast_elt['P'] = P
-    ast_elt['n'] = mean_motion
+    ast_elt['period'] = P
+    ast_elt['mean_motion'] = mean_motion
     ast_elt['long'] = long % tau
     ast_elt['theta'] = theta % tau
 
@@ -323,7 +326,13 @@ def load_ast_elt() -> pd.DataFrame:
         ast_elt = ast_data_add_calc_elements(ast_elt)
         # Add the row number field
         ast_elt['row_num'] = np.arange(ast_elt.shape[0], dtype=np.int32)
-        # Save it to h5
+        # Intuitive column order
+        cols = ['AsteroidNumber', 'AsteroidName', 'IsNumberedAsteroid', 
+        'epoch', 'a', 'e', 'inc', 'Omega', 'omega', 
+        'f', 'M', 'eccentric_anomaly', 'period', 'mean_motion',
+        'H', 'G', 'Ref', 'row_num']
+        ast_elt = ast_elt[cols]
+        # Save orbital elements dataframe to h5
         ast_elt.to_hdf(fname, key='ast_elt', mode='w')
     
     return ast_elt
