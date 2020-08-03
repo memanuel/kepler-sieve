@@ -16,11 +16,21 @@ import rebound
 from datetime import datetime
 from tqdm import tqdm as tqdm_console
 
+# MSE
+from astro_utils import anomaly_M2E, anomaly_E2f
+
 # Types
 from typing import List, Tuple, Dict, Optional
 
 # Radians in a circle
 tau = 2.0 * np.pi
+
+# Gravitational constant in units of day, AU, Msun
+# sim = rebound.Simulation()
+# sim.units = ('day', 'AU', 'Msun')
+# G_ = sim.G
+G_ = 0.00029591220828559104
+mu = G_
 
 # ********************************************************************************************************************* 
 def load_data_numbered() -> pd.DataFrame:
@@ -173,8 +183,11 @@ def convert_data(df_in: pd.DataFrame, epoch: Optional[float]=None) -> pd.DataFra
     return df
 
 # ********************************************************************************************************************* 
-def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
-    """Add the true anomaly and other calculated orbital elements to the asteroid DataFrame"""   
+def ast_data_add_calc_elements_reb(ast_elt) -> pd.DataFrame:
+    """
+    Add the true anomaly and other calculated orbital elements to the asteroid DataFrame
+    Older version - delegates all computations to Rebound.
+    """   
     # Number of asteroids
     N: int = len(ast_elt)
 
@@ -247,6 +260,51 @@ def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
     return ast_elt
 
 # ********************************************************************************************************************* 
+def ast_data_add_calc_elements(ast_elt) -> pd.DataFrame:
+    """
+    Add the true anomaly and other calculated orbital elements to the asteroid DataFrame
+    New version.  Uses fast, mathematical calculations only; no dependence on Rebound library.
+    """   
+    # Extract input orbital elements: mean anomaly eccentricity, semi-major axis, 
+    M = ast_elt.M.values
+    e = ast_elt.e.values
+    a = ast_elt.a.values
+    Omega = ast_elt.Omega.values
+    omega = ast_elt.omega.values    
+
+    # Compute eccentric anomaly E from mean anomaly M
+    E = anomaly_M2E(M=M, e=e)
+
+    # Compute true anomaly f from eccentric anomaly E
+    f = anomaly_E2f(E=E, e=e)
+
+    # Compute the orbital period P in days
+    P = tau * np.sqrt(a**3 / mu)
+
+    # Mean motion in radians per day
+    mean_motion = tau / P
+
+    # Mean longitude
+    long = Omega + omega + M
+
+    # True longitude 
+    theta = Omega + omega + f
+
+    # Longitude of pericenter
+    # pomega = 0.0
+
+    # Save computed orbital elements to the DataFrame
+    ast_elt['E'] = E
+    ast_elt['f'] = f
+    ast_elt['P'] = P
+    ast_elt['n'] = mean_motion
+    ast_elt['long'] = long % tau
+    ast_elt['theta'] = theta % tau
+
+    # Return the updated DataFrame 
+    return ast_elt
+
+# ********************************************************************************************************************* 
 def load_ast_elt() -> pd.DataFrame:
     """Load the asteroid orbital elements data into a Pandas Dataframe"""
     # The name for the saved DataFrame
@@ -269,4 +327,3 @@ def load_ast_elt() -> pd.DataFrame:
         ast_elt.to_hdf(fname, key='ast_elt', mode='w')
     
     return ast_elt
-``

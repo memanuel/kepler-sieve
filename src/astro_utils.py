@@ -216,7 +216,7 @@ def anomaly_M2E_impl(M: np.ndarray, e: np.ndarray, E0: Optional[np.ndarray] = No
         # Is the max error below the tolerance? If so, quit early
         max_err = np.max(np.abs(f))
         if max_err < err_tol:
-            print(f'Converged with error {max_err:5.2e} after {i+1} iterations.')
+            # print(f'Converged with error {max_err:5.2e} after {i+1} iterations.')
             break
         # The derivative f'(E)
         fp = 1.0 - e * np.cos(E)
