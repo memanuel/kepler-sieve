@@ -315,3 +315,56 @@ def ast_elt_load_db():
         # Insert the data from the DataFrame to the database
         conn.execute(sql)
         ast_elt.to_sql(name='AsteroidElement', con=conn, schema='JPL', if_exists='append', index=False)
+
+# ********************************************************************************************************************
+def massive_body_load_db():
+    """Load JPL files with masses of bodies into DB table JPL.MassiveBodyImport"""
+    
+    # Load file with masses into DataFrame
+    fname = '../data/jpl/objects/masses.csv'
+    df = pd.read_csv(fname)
+
+    # Rename column from GM_AU3_per_Day2 to GM
+    df.rename(columns = {'GM_AU3_per_Day2':'GM'}, inplace=True)
+
+    # Get mass of sun and populate column M
+    sun_idx = df.loc[df.ParameterName == 'GMS'].index[0]
+    gm_sun = df.GM.loc[sun_idx]
+    df['M'] = df['GM'] / gm_sun
+
+    # Map parameter name to large body names
+    param_to_body_name = {
+        'GM1' : 'LB.Mercury Barycenter',
+        'GM2' : 'LB.Venus Barycenter',
+        'GM3' : 'LB.Earth',
+        'GM4' : 'LB.Mars Barycenter',
+        'GM5' : 'LB.Jupiter Barycenter',
+        'GM6' : 'LB.Saturn Barycenter',
+        'GM7' : 'LB.Uranus Barycenter',
+        'GM8' : 'LB.Neptune Barycenter',
+        'GM9' : 'LB.Pluto Barycenter',
+        'GMS' : 'LB.Sun',
+        'GMB' : 'LB.Earth Barycenter',
+        'GMM' : 'LB.Moon',   
+    }
+    # Apply the map
+    df['HorizonsBodyName'] = df.ParameterName.map(param_to_body_name)
+
+    # Get rows corresponding to asteroids
+    mask = df.HorizonsBodyName.isna()
+
+    # Extract asteroid number and save it to DataFrame
+    def param_name_to_ast_num(p):
+        """Map parameter name to asteroid number"""
+        return int(p[2:6])
+
+    asteroid_num = df[mask].ParameterName.apply(param_name_to_ast_num)
+    df['AsteroidNumber'] = asteroid_num
+
+    # Populate DB table JPL.MassiveBodyImport
+    with engine.connect() as conn:
+        # Truncate the JPL.MassiveBodyImport database table
+        sql = "truncate table JPL.MassiveBodyImport;"
+        # Insert the data from the DataFrame to the database
+        conn.execute(sql)
+        df.to_sql(name='MassiveBodyImport', con=conn, schema='JPL', if_exists='append', index=False)
