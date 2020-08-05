@@ -2,7 +2,7 @@ DELIMITER $$
 
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE JPL.MakeTable_MassiveBoyd()
+PROCEDURE JPL.MakeTable_MassiveBody()
 COMMENT "Populate the MassiveBody table from MassiveBodyImport"
 BEGIN 
 
@@ -13,7 +13,10 @@ UPDATE
 SET
 	mbi.HorizonsBodyName = hb.HorizonsBodyName;
 
-INSERT IGNORE INTO JPL.MassiveBody 
+-- Empty JPL.MassiveBody and populate it from the MassiveBodyImport table
+TRUNCATE TABLE JPL.MassiveBody;
+
+INSERT INTO JPL.MassiveBody 
 (HorizonsBodyID, M, GM)
 SELECT
 	hb.HorizonsBodyID,

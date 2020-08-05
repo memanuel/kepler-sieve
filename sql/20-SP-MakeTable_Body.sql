@@ -20,7 +20,7 @@ INSERT INTO KS.Body
 (BodyID, BodyName, BodyTypeID)
 SELECT 
 	hi.BodyNumber AS BodyID, 
-	hi.BodyName,
+	CONCAT('LB.', hi.BodyName) as BodyName,
 	bt.BodyTypeID
 FROM 
 	JPL.HorizonsImport AS hi 
@@ -35,7 +35,7 @@ INSERT INTO KS.Body
 (BodyID, BodyName, BodyTypeID)
 SELECT 
 	hi.BodyNumber + 1000000 AS BodyID, 
-	hi.BodyName,
+	CONCAT('SB.', hi.BodyName) as BodyName,
 	bt.BodyTypeID
 FROM 
 	JPL.HorizonsImport AS hi 
