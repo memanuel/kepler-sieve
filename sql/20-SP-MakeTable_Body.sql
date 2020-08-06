@@ -20,7 +20,8 @@ INSERT INTO KS.Body
 (BodyID, BodyName, BodyTypeID)
 SELECT 
 	hi.BodyNumber AS BodyID, 
-	CONCAT('LB.', hi.BodyName) as BodyName,
+	-- CONCAT('LB.', hi.BodyName) as BodyName,
+    hi.BodyName,
 	bt.BodyTypeID
 FROM 
 	JPL.HorizonsImport AS hi 
@@ -45,6 +46,21 @@ GROUP BY hi.BodyTypeCD, hi.BodyNumber
 ORDER BY bt.BodyTypeID, hi.BodyNumber
 ON DUPLICATE KEY UPDATE BodyID=BodyID;
 
+-- Set SortOrder field on Body table
+CREATE OR REPLACE TEMPORARY TABLE KS.BodySort
+SELECT
+b.BodyID,
+b.BodyName,
+row_number() OVER (ORDER BY b.BodyTypeID, b.BodyID) AS SortOrder
+FROM KS.Body AS b;
+
+UPDATE
+KS.Body AS b
+INNER JOIN KS.BodySort AS bs ON
+	bs.BodyID = b.BodyID
+SET b.SortOrder = bs.SortOrder;
+
+DROP TEMPORARY TABLE IF EXISTS KS.BodySort
 
 -- Restore foreign keys	
 SET FOREIGN_KEY_CHECKS=1;
