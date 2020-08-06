@@ -23,16 +23,16 @@ from tqdm.auto import tqdm
 import sqlalchemy
 
 # MSE Imports
-import db_config
 from asteroid_element import load_ast_elt
+import db_config
+from db_config import db_engine
 
 # Typing
 from typing import List, Tuple, Dict, TextIO
 
 # Create database engine - once for the whole module
-# db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}/JPL'
-db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}'
-engine: sqlalchemy.engine = sqlalchemy.create_engine(db_url)
+# db_url: str = f'mysql+pymysql://{db_config.username}:{db_config.password}@{db_config.hostname}'
+# db_engine: sqlalchemy.engine = sqlalchemy.create_engine(db_url)
 
 # ********************************************************************************************************************
 def hrzn_target_body(lines: List[str], is_ast: bool) -> Tuple[str, int, str,]:
@@ -284,7 +284,7 @@ def hrzn_load_db():
         files += sorted(glob.glob(f'../data/jpl/horizons/{run}/*.txt'))
 
     # Do all the database operations using just one DB connection
-    with engine.connect() as conn:
+    with db_engine.connect() as conn:
         # Truncate the JPL.HorizonsImport table
         sql = "truncate table JPL.HorizonsImport;"
         conn.execute(sql)
@@ -309,7 +309,7 @@ def ast_elt_load_db():
     }
     ast_elt.rename(columns=mapper, inplace=True)
 
-    with engine.connect() as conn:
+    with db_engine.connect() as conn:
         # Truncate the JPL.AsteroidElement database table
         sql = "truncate table JPL.AsteroidElement;"
         # Insert the data from the DataFrame to the database
@@ -362,7 +362,7 @@ def massive_body_load_db():
     df['AsteroidNumber'] = asteroid_num
 
     # Populate DB table JPL.MassiveBodyImport
-    with engine.connect() as conn:
+    with db_engine.connect() as conn:
         # Truncate the JPL.MassiveBodyImport database table
         sql = "truncate table JPL.MassiveBodyImport;"
         # Insert the data from the DataFrame to the database

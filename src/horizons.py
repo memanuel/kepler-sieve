@@ -1,198 +1,117 @@
 """
 Harvard IACS Masters Thesis
-Utilities for NASA Horizons system
+Utilities for building Rebound simulations using NASA JPL Horizons data
 
 Michael S. Emanuel
-Fri Aug 23 16:13:28 2019
+06-Aug-2020
 """
 
 # Library imports
+import pandas as pd
 import rebound
 from datetime import datetime
 import collections
-import pickle
 from typing import List, Dict, Set
 
 # Local imports
 from astro_utils import mjd_to_jd
-from solar_system_objects import name_to_id, mass_tbl
-
-# *************************************************************************************************
-def datetime_to_horizons(t: datetime):
-    """Convert a Python datetime to a datetime string understood by NASA Horizons"""
-    return t.strftime('%Y-%m-%d %H:%M')
-
-# *************************************************************************************************
-def jd_to_horizons(jd: float):
-    """Convert a Julian Day to a string understood by NASA Horizons"""
-    return f'JD{jd:.8f}'
-
-# *************************************************************************************************
-def mjd_to_horizons(mjd: float):
-    """Convert a Modified Julian Day to a string understood by NASA Horizons"""
-    jd = mjd_to_jd(mjd)
-    return jd_to_horizons(jd)
+from db_config import db_engine
 
 # ********************************************************************************************************************* 
-# Convert from user friendly object names to Horizons names
-# See https://ssd.jpl.nasa.gov/horizons.cgi#top for looking up IDs
-
-# Initialize every name to map to itself
-object_to_horizon_name = {name: name for name in name_to_id}
-
-# Overrides to handle planet vs. barycenter naming ambiguity
-overrides = {
-    'Mercury Barycenter': '1',
-    'Mercury': '199',
-    'Venus Barycenter': '2',
-    'Venus': '299',
-    'Earth Barycenter': '3',
-    'Earth': '399',
-    'Moon': '301',
-    'Mars Barycenter': '4',
-    'Mars': '499',
-    'Jupiter Barycenter': '5',
-    'Jupiter': '599',
-    'Saturn Barycenter': '6',
-    'Saturn': '699',
-    'Uranus Barycenter': '7',
-    'Uranus': '799',
-    'Neptune Barycenter': '8',
-    'Neptune': '899',
-    'Pluto Barycenter': '9',
-    'Pluto': '999',
-    # Asteroids with ambiguous names
-    '52 Europa': 'NAME=Europa',
-    # 'Juno': 'NAME=Juno',
-    # 'Hebe': 'NAME=Hebe',
-    # 'Iris': 'NAME=Iris',    
-    'Sila': '79360',
-    }
-
-# Overrides for asteroids
-for object_name, object_id in name_to_id.items():
-    if (2000000 < object_id) and (object_id < 3000000) and object_name not in overrides:
-        overrides[object_name] = f'NAME={object_name}'
-
-# Apply the overrides
-for object_name, horizon_name in overrides.items():
-    object_to_horizon_name[object_name] = horizon_name
+horizon_entry = collections.namedtuple('horizon_entry', 
+    ['BodyID', 'BodyName', 'm', 'x', 'y', 'z', 'vx', 'vy', 'vz',])    
 
 # ********************************************************************************************************************* 
-horizon_entry = collections.namedtuple('horizon_entry', ['m', 'x', 'y', 'z', 'vx', 'vy', 'vz', 
-                                       'object_name', 'object_id', 'horizon_name'])    
+def quote(s):
+    """Wrap a string s in single quotes"""
+    return f"\'{s}\'"
 
 # ********************************************************************************************************************* 
-def save_horizons_cache(hrzn):
-    """Save the Horizons cache"""
-    fname_cache = '../data/jpl/horizon_cache.pickle'    
-    with open(fname_cache, 'wb') as fh:
-        pickle.dump(hrzn, fh)
+def get_hrzn_state_coll(body_collection: str, epoch: int) -> pd.DataFrame:
+    """
+    Get state vectors from Horizons for all bodies in the named collection as of the given epoch.
+    INPUTS:
+        body_collection: String name of a collection of bodies on DB table KS.BodyCollection, e.g.
+                         'Planets', 'DE-435', 'DE-435-Top-16'
+        epoch:           MJD as of which state vectors are taken.
+                         Must be an INTEGER in the supported date range 40400 (1969-06-28) to 77600 (2071-05-04)
+    RETURNS:
+        states:          Pandas DataFrame including columns BodyID, BodyName, m, qx, qy, qz, vx, vy, vz
+    """
+    # Assemble SQL to call the stored procedure JPL.GetHorizonsStateCollection
+    body_collection = quote(body_collection)
+    sql = f"CALL JPL.GetHorizonsStateCollection({body_collection}, {epoch});"
+
+    # Run the SP and wrap results as a DataFrame
+    with db_engine.connect() as conn:
+        states = pd.read_sql(sql, con=conn)
+
+    return states
 
 # ********************************************************************************************************************* 
-def load_horizons_cache():
-    """Load the Horizons cache"""
-    fname_cache = '../data/jpl/horizon_cache.pickle'    
-    with open(fname_cache, 'rb') as fh:
-        hrzn = pickle.load(fh)
-    return hrzn
+def add_hrzn_bodies(sim: rebound.Simulation, states: pd.DataFrame):
+    """
+    Add all the bodies in a collection of state vectors to a Rebound simulation.
+    INPUTS:
+        sim: Rebound simulation these particles will be added to
+        states: DataFrame including columns BodyName, m, qx, qy, qz, vx, vy, vz
+                Units are day, AU, Msun
+    """
 
-# ********************************************************************************************************************* 
-def purge_horizons_cache(object_name: str, epoch_dt: datetime = None):
-    """Purge all entries of the named object from the Horizons cache"""
-    # Load the cache
-    hrzn = load_horizons_cache()
+    # Number of bodies in the collection
+    n = states.shape[0]
     
-    # The object_id of the object to purge
-    object_id_purged = name_to_id[object_name]
-    
-    # The epochs to purge
-    epoch_purged = epoch_dt
-    purge_all_epochs = epoch_purged is None
-    
-    # Iterate through entries to find which keys will be purged
-    keys_to_purge = []
-    for (epoch_dt, object_id) in hrzn:
-        if (object_id == object_id_purged) and (epoch_dt == epoch_purged or purge_all_epochs):
-            keys_to_purge.append((epoch_dt, object_id))
+    # Iterate over each body in the collection
+    for i in range(n):
+        # Get the ith body's state vector
+        s = states.iloc[i]
 
-    # Delete selected keys
-    for key in keys_to_purge:
-        del hrzn[key]
+        # Particle name and rebound hash of that name
+        body_name = s.BodyName
+        hash_id = rebound.hash(body_name)
 
-    # Save the revised cache and report
-    save_horizons_cache(hrzn)
-    num_deleted: int = len(keys_to_purge)
-    print(f'Deleted {num_deleted} entries from horizons cache for {object_name}, epoch_dt={epoch_purged}')
+        # Add this particle with the given state vector
+        sim.add(m=s.m, x=s.qx, y=s.qy, z=s.qz, vx=s.vx, vy=s.vy, vz=s.vz, hash=hash_id)
 
 # ********************************************************************************************************************* 
-def add_one_object_hrzn(sim: rebound.Simulation, object_name: str, epoch_dt: datetime, hrzn: Dict):
-    """Add one object to a simulation with data fromm horizons (cache or API)."""
-    # Identifiers for this object
-    object_id = name_to_id[object_name]
-    key = (epoch_dt, object_id)
-
-    try:
-        # Try to look up the object on the horizons cache
-        p: horizon_entry = hrzn[key]
-        sim.add(m=p.m, x=p.x, y=p.y, z=p.z, vx=p.vx, vy=p.vy, vz=p.vz, hash=rebound.hash(object_name))
-    except KeyError:
-        # Search string for the horizon API
-        horizon_name = object_to_horizon_name[object_name]
-        # Convert epoch_dt to a horizon date string
-        horizon_date: str = datetime_to_horizons(epoch_dt)
-        print(f'Searching Horizons as of {horizon_date}')
-        # Add the particle
-        sim.add(horizon_name, date=horizon_date)
-        # Set the mass and hash of this particle
-        p: rebound.Particle = sim.particles[-1]
-        # p.m = mass_tbl[object_name]
-        p.m = mass_tbl.get(object_name, 0.0)
-        p.hash = rebound.hash(object_name)
-        # Create an entry for this particle on the cache
-        entry: horizon_entry = horizon_entry(m=p.m, x=p.x, y=p.y, z=p.z, vx=p.vx, vy=p.vy, vz=p.vz, 
-                                             object_name=object_name, object_id=object_id, horizon_name=horizon_name)
-        hrzn[key] = entry
-        
-        # Save the revised cache
-        save_horizons_cache(hrzn)
-
-# ********************************************************************************************************************* 
-def make_sim_horizons(object_names: List[str], epoch_dt: datetime) -> rebound.Simulation:
-    """Create a new rebound simulation with initial data from the NASA Horizons system"""
-    # Create a simulation
+def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
+    """
+    Create a new rebound simulation with initial data from the NASA Horizons system
+    INPUTS:
+        body_collection: String name of a collection of bodies on DB table KS.BodyCollection, e.g.
+                         'Planets', 'DE-435', 'DE-435-Top-16'
+        epoch:           MJD as of which state vectors are taken.
+                         Must be an INTEGER in the supported date range 40400 (1969-06-28) to 77600 (2071-05-04)
+    RETURNS:
+        sim:             Rebound simulation initialized with these state vectors
+    """
+    # Create an empty simulation
     sim = rebound.Simulation()
     
     # Set units
     sim.units = ('day', 'AU', 'Msun')
     
-    # Add objects one at a time
-    for object_name in object_names:
-        add_one_object_hrzn(sim=sim, object_name=object_name, epoch_dt=epoch_dt, hrzn=hrzn)
-        
+    # Get state vectors
+    states = get_hrzn_state_coll(body_collection=body_collection, epoch=epoch)
+
+    # Add bodies in this collection to the empty simulation
+    add_hrzn_bodies(sim, states)
+
     # Move to center of mass
     sim.move_to_com()
     
     return sim
 
 # ********************************************************************************************************************* 
-def extend_sim_horizons(sim: rebound.Simulation, object_names: List[str], epoch_dt: datetime) -> None:
-    """Extend a rebound simulation with initial data from the NASA Horizons system"""
-    # Generate list of missing object names
-    hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
-    objects_missing: List[str] = [nm for nm in object_names if rebound.hash(nm).value not in hashes_present]
+# def extend_sim_horizons(sim: rebound.Simulation, body_names: List[str], epoch: int) -> None:
+#     """Extend a rebound simulation with initial data from the NASA Horizons system"""
+#     # Generate list of missing object names
+#     hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
+#     bodies_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
     
-    # Add missing objects one at a time if not already present
-    for object_name in objects_missing:
-        add_one_object_hrzn(sim=sim, object_name=object_name, epoch_dt=epoch_dt, hrzn=hrzn)
+#     # Add missing objects one at a time if not already present
+#     for body_name in bodies_missing:
+#         add_one_object_hrzn(sim=sim, object_name=object_name, epoch_dt=epoch_dt, hrzn=hrzn)
     
-    # Move to center of mass
-    sim.move_to_com()
-
-# ********************************************************************************************************************* 
-try:
-    hrzn = load_horizons_cache()
-    # print(f'Loaded Horizons cache with {len(hrzn)} entries.')
-except:
-    hrzn = dict()
-    # print(f'Initialized empty Horizons cache.')
+#     # Move to center of mass
+#     sim.move_to_com()
