@@ -57,7 +57,7 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
@@ -71,9 +71,10 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
+	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435'
 ;
 
@@ -83,9 +84,10 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
+	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-16'
 WHERE mr.MassRank <= 16;
 
@@ -95,9 +97,10 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
+	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-32'
 WHERE mr.MassRank <= 32;
 
@@ -107,9 +110,10 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
+	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-64'
 WHERE mr.MassRank <= 64;
 
@@ -119,9 +123,10 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
+	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-128'
 WHERE mr.MassRank <= 128;
 
@@ -131,9 +136,10 @@ INSERT INTO KS.BodyCollectionEntry
 SELECT
 	bc.BodyCollectionID,
 	mr.BodyID,
-	row_number() OVER (ORDER BY mr.BodyID) AS BodyNumber
+	row_number() OVER (ORDER BY b.SortOrder) AS BodyNumber
 FROM 
 	JPL.MassRank AS mr
+	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-256'
 WHERE mr.MassRank <= 256;
 
