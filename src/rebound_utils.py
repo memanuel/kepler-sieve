@@ -8,6 +8,7 @@ Fri Aug 23 16:13:28 2019
 
 # Core
 import numpy as np
+import pandas as pd
 
 # Astronomy
 import rebound
@@ -20,7 +21,8 @@ from itertools import chain
 
 # UI
 import matplotlib.pyplot as plt
-from tqdm import tqdm as tqdm_console
+# from tqdm import tqdm as tqdm_console
+from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
 from astro_utils import datetime_to_mjd, mjd_to_datetime, cart_to_sph
@@ -33,6 +35,10 @@ from typing import List, Tuple, Dict, Set, Optional
 # ********************************************************************************************************************* 
 # Named tuple data type for orbital elements
 OrbitalElement = namedtuple('OrbitalElement', 'a e inc Omega omega f')
+
+# Directories for single simulations and archives
+dir_sim: str = '../data/rebound/sim'
+dir_archive: str = '../data/rebound/archive'
 
 # ********************************************************************************************************************* 
 def extend_sim(sim: rebound.Simulation, 
@@ -68,39 +74,35 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
     INPUTS:
         body_collection:    Collection of massive objects used to initialize simulation
         body_names_add:     Additional bodies added to the starting body collection
-        add_as_test:        Flag indicating whether bodies added as massless test particles or not
+        add_as_test:        Flag indicating whether additional bodies are massless test particlesnot
         epoch:              MJD as of which state vectors are taken; INTEGER in range 40400 - 77600
-        integrator:         String identifier for the Rebound integrator, e.g. 'IAS15'
+        integrator:         String identifier for the Rebound integrator, e.g. 'ias15'
         steps_per_day:      Number of integration steps per day
         save_file:          Flag - whether to save the simulation to disk
 
     """
     # Filename for archive
     epoch_dt = mjd_to_datetime(epoch)
-    file_date: str = epoch_dt.strftime('%Y-%m-%d_%H-%M')
-    fname_archive: str = f'../data/planets/{body_collection}_{file_date}.bin'
+    file_date: str = epoch_dt.strftime('%Y%m%d')
+    # fname_archive: str = f'../data/rebound/sim/{body_collection}_{file_date}.bin'
+    fname_sim: str = os.path.join(dir_sim, f'{body_collection}_{file_date}.bin')
+    fname_npz: str = os.path.join(dir_sim, f'{body_collection}_{file_date}_bodies.npz')
 
     # If this file already exists, load it and check for both extra and missing bodies
     sim: rebound.Simulation
     try:
-        # Attempt to load the named file
-        sim = rebound.Simulation(fname_archive)
-        # print(f'Loaded {fname_archive}')
+        # Attempt to load the archive file
+        sim = rebound.Simulation(fname_sim)
+        # print(f'Loaded {fname_sim}')
+
+        # Add epoch, body_ids, body_names to sim
         sim.epoch = epoch
-
-        # Generate list of missing object names
-        bodies_missing: List[str] = [nm for nm in body_names_add if nm not in sim.particles]
-        objects_missing: bool = (len(bodies_missing) > 0)
-
-        # Extend the simulation and save it with the augmented bodies
-        if objects_missing:
-            # print(f'Found missing objects in {fname_archive}:')
-            # print(objects_missing)
-            extend_sim_horizons(sim=sim, body_names=bodies_missing, epoch=epoch)
-
+        with np.load(fname_npz, allow_pickle=True) as npz:
+            sim.body_ids = npz['body_ids']
+            sim.body_names = npz['body_names']
     except:           
         # Initialize simulation
-        print(f'Unable to load {fname_archive}, building from Horizons data...')
+        print(f'Unable to load {fname_sim}, building from Horizons data...')
         sim = make_sim_horizons(body_collection=body_collection, epoch=epoch)
         extend_sim_horizons(sim=sim, body_names=body_names_add, add_as_test=add_as_test)
 
@@ -117,7 +119,8 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
 
     # Save a snapshot to the archive file if requested
     if save_file:
-        sim.simulationarchive_snapshot(filename=fname_archive, deletefile=True)
+        sim.simulationarchive_snapshot(filename=fname_sim, deletefile=True)
+        np.savez(fname_npz, epoch=sim.epoch, body_ids=sim.body_ids, body_names=sim.body_names)
 
     # Return the simulation
     return sim
@@ -141,7 +144,12 @@ def make_archive_impl(fname_archive: str,
         save_step:      the interval for saving snapshots to the simulation archive
         save_elements:  flag indiciting whether to save orbital elements
         progbar:        flag - whether to display a progress bar
+    OUTPUTS:
+        None.  saves the assembled simulation archive to disk.
     """
+
+    # Path of archive file
+    fname_archive = os.path.join(dir_archive, fname_archive)
 
     # Look up the epoch from the base simulation
     epoch: int = sim_epoch.epoch
@@ -152,32 +160,27 @@ def make_archive_impl(fname_archive: str,
 
     # Convert epoch, start and end times relative to a base date of the simulation start
     # This way, time is indexed from t0=0 to t1 = (dt1-dt0)
-    # epoch_t: float = datetime_to_mjd(epoch_dt, dt0)
-    # t0: float = datetime_to_mjd(dt0, dt0)
-    # t1: float = datetime_to_mjd(dt1, dt0)
-   
-    # Convert epoch, start and end times relative to a base date of the simulation start
-    # This way, time is indexed from t0=0 to t1 = (dt1-dt0)
-    epoch_t: float = float(epoch) - mjd0
     t0: float = 0.0
     t1: float = mjd1 - mjd0
+    t_epoch: float = float(epoch) - mjd0
     
     # Create copies of the simulation to integrate forward and backward
     sim_fwd: rebound.Simulation = sim_epoch.copy()
     sim_back: rebound.Simulation = sim_epoch.copy()
 
     # Set the time counter on both simulation copies to the epoch time
-    sim_fwd.t = epoch_t
-    sim_back.t = epoch_t
+    sim_fwd.t = t_epoch
+    sim_back.t = t_epoch
 
     # Set the times for snapshots in both directions;
     ts: np.array = np.arange(t0, t1+time_step, time_step)
-    idx: int = np.searchsorted(ts, epoch_t, side='left')
+    idx: int = np.searchsorted(ts, t_epoch, side='left')
     ts_fwd: np.array = ts[idx:]
     ts_back: np.array = ts[:idx][::-1]
 
     # The epochs corresponding to the times in ts; as MJD and as datetime
-    epochs: np.array = ts + epoch_t
+    epochs: np.array = ts + (epoch - t_epoch)
+    dt0: datetime = mjd_to_datetime(mjd0)
     epochs_dt: np.array = np.array([dt0 + timedelta(t) for t in ts])
 
     # File names for forward and backward integrations
@@ -216,8 +219,7 @@ def make_archive_impl(fname_archive: str,
         elts = OrbitalElement()
 
     # Subfunction: process one row of the loop    
-    def process_row(sim: rebound.Simulation, fname: str, 
-                    t: float, row: int):
+    def process_row(sim: rebound.Simulation, fname: str, t: float, row: int):
         # Integrate to the current time step with an exact finish time
         sim.integrate(t, exact_finish_time=1)
         
@@ -250,7 +252,7 @@ def make_archive_impl(fname_archive: str,
     # Integrate the simulation forward in time
     idx_fwd: List[Tuple[int, float]] = list(enumerate(ts_fwd))
     if progbar:
-        idx_fwd = tqdm_console(idx_fwd)
+        idx_fwd = tqdm_auto(idx_fwd)
     for i, t in idx_fwd:
         # Row index for position data
         row: int = M_back + i
@@ -260,7 +262,7 @@ def make_archive_impl(fname_archive: str,
     # Integrate the simulation backward in time
     idx_back: List[Tuple[int, float]] = list(enumerate(ts_back))
     if progbar:
-        idx_back = tqdm_console(idx_back)
+        idx_back = tqdm_auto(idx_back)
     for i, t in idx_back:
         # Row index for position data
         row: int = M_back - (i+1)
@@ -288,7 +290,7 @@ def make_archive_impl(fname_archive: str,
     # Save the numpy arrays with the object hashes, position and velocity
     np.savez(fname_np, 
              q=q, v=v, elts=elts,
-             ts=ts, epochs=epochs,
+             ts=ts, epochs=epochs, epochs_dt=epochs_dt,
              hashes=hashes, body_ids=body_ids, body_names=body_names)
     
     # Delete the forward and backward archives
@@ -298,66 +300,73 @@ def make_archive_impl(fname_archive: str,
 # ********************************************************************************************************************* 
 def make_archive(fname_archive: str, 
                  sim_epoch: rebound.Simulation, 
-                 object_names: List[str],
-                 epoch_dt: datetime, dt0: datetime, dt1: datetime, 
-                 time_step: int, save_step: int = 1,
-                 save_elements: bool = False,
-                 progbar: bool = False) -> rebound.SimulationArchive:
+                 mjd0: float, mjd1: float, 
+                 time_step: int, save_step: int,
+                 save_elements: bool,
+                 progbar: bool) -> rebound.SimulationArchive:
     """
     Load a rebound archive if available; otherwise generate it and save it to disk.
     INPUTS:
-        fname_archive: the file name to save the archive to
-        sim_epoch: rebound simulation object as of the epoch time; to be integrated in both directions
-        object_names: the user names of all the objects in the simulation
-        epoch_dt: a datetime corresponding to sim_epoch
-        dt0: the earliest datetime to simulate back to
-        dt1: the latest datetime to simulate forward to
-        time_step: the time step in days for the simulation
-        save_step: the interval for saving snapshots to the simulation archive
-        progbar: flag - whether to display a progress bar
+        fname_archive:  the file name to save the archive to
+        sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
+        object_names:   the user names of all the objects in the simulation
+        mjd0:           the earliest MJD to simulate back to
+        mjd1:           the latest MJD to simulate forward to
+        time_step:      the time step in days for the simulation
+        save_step:      the interval for saving snapshots to the simulation archive
+        save_elements:  flag indiciting whether to save orbital elements
+        progbar:        flag - whether to display a progress bar
+    OUTPUTS:
+        SimulationArchive: Rebound SimulationArchive object loaded from disk
     """
+    # Path of archive
+    path_archive = os.path.join(dir_archive, fname_archive)
     try:
         # First try to load the named archive
-        sa = rebound.SimulationArchive(filename=fname_archive)
+        sa = rebound.SimulationArchive(filename=path_archive)
     except:
         # If the archive is not on disk, save it to disk
         print(f'Generating archive {fname_archive}\n'
-              f'from {dt0} to {dt1}, time_step={time_step}, save_step={save_step}...')
-        make_archive_impl(fname_archive=fname_archive, sim_epoch=sim_epoch, object_names=object_names,
-                          epoch_dt=epoch_dt, dt0=dt0, dt1=dt1, 
-                          time_step=time_step, save_step=save_step, 
+              f'from mjd {mjd0} to {mjd1}, time_step={time_step}, save_step={save_step}...')
+        make_archive_impl(fname_archive=fname_archive, sim_epoch=sim_epoch, 
+                          mjd0=mjd0, mjd1=mjd1, time_step=time_step, save_step=save_step, 
                           save_elements=save_elements, progbar=progbar)
         # Load the new archive into memory
-        sa = rebound.SimulationArchive(filename=fname_archive)
+        sa = rebound.SimulationArchive(filename=path_archive)
     return sa
     
 # ********************************************************************************************************************* 
-def load_sim_np(fname_np: str) ->Tuple[np.array, np.array, Dict[str, np.array]]:
+def load_sim_np(fname_np: str) -> Tuple[np.array, np.array, Dict[str, np.array]]:
     """Load numpy arrays for position, velocity, and catalog data from the named file"""
+    # Path of numpy data file
+    path_np= os.path.join(dir_archive, fname_np)
     # Load the numpy data file
-    with np.load(fname_np, allow_pickle=True) as npz:
+    with np.load(path_np, allow_pickle=True) as npz:
         # Extract position, velocity and hashes
         q = npz['q']
         v = npz['v']
-        elts = npz['elts']
+        elts_np = npz['elts']
         ts = npz['ts']
-        epochs_np = npz['epochs_np']
-        epochs_dt: List[datetime.datetime] = [dt for dt in epochs_np]
+        epochs = npz['epochs']
+        epochs_dt = npz['epochs_dt']
         hashes = npz['hashes']
-        object_names_np = npz['object_names_np']
-        object_names: List[str] = [nm for nm in object_names_np]
+        body_ids = npz['body_ids']
+        body_names = npz['body_names']
+        # body_names_list: List[str] = [nm for nm in body_names]
 
     # Wrap the catalog into a dictionary
     catalog = {
         'ts': ts,
+        'epochs': epochs,
         'epochs_dt': epochs_dt,
         'hashes': hashes,
-        'object_names': object_names
+        'body_ids': body_ids,
+        'body_names': body_names,
         }
 
     # For some reason, np.save() squishes a namedtuple into an ND array.  Restore it to a named tuple
-    elts = OrbitalElement(a=elts[0], e=elts[1], inc=elts[2], 
-                          Omega=elts[3], omega=elts[4], f=elts[5])
+    elts = OrbitalElement(a=elts_np[0], e=elts_np[1], inc=elts_np[2], 
+                          Omega=elts_np[3], omega=elts_np[4], f=elts_np[5])
 
     # Return the position, velocity, and catalog        
     return q, v, elts, catalog
