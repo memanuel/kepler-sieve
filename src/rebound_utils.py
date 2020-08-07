@@ -6,47 +6,79 @@ Michael S. Emanuel
 Fri Aug 23 16:13:28 2019
 """
 
-# Library imports
+# Core
 import numpy as np
+
+# Astronomy
 import rebound
+
+# Utilities
 from datetime import datetime, timedelta
 from collections import namedtuple
 import os
 from itertools import chain
+
+# UI
 import matplotlib.pyplot as plt
 from tqdm import tqdm as tqdm_console
-from typing import List, Tuple, Dict, Set, Optional
 
-# Local imports
-from astro_utils import datetime_to_mjd, cart_to_sph
+# MSE imports
+from astro_utils import datetime_to_mjd, mjd_to_datetime, cart_to_sph
 from horizons import make_sim_horizons, extend_sim_horizons
 from utils import rms
 
+# Typing
+from typing import List, Tuple, Dict, Set, Optional
+
+# ********************************************************************************************************************* 
 # Named tuple data type for orbital elements
 OrbitalElement = namedtuple('OrbitalElement', 'a e inc Omega omega f')
 
 # ********************************************************************************************************************* 
 def extend_sim(sim: rebound.Simulation, 
-               object_names_new: List[str], 
-               epoch_dt: datetime):
-    """Extend an existing simulation"""
+               body_names: List[str], 
+               add_as_test: bool):
+    """
+    Extend an existing simulation to include a list of named bodies
+    INPUTS:
+        sim:         A rebound simulation object
+        body_names:  List of string body names; references DB table KS.Body, field name BodyName
+                     The state vectors of these bodies will be added to the simulation, sim.
+        add_as_test: Flag indicating whether bodies added as massless test particles or not
+    RETURNS:
+        None:        Modifies sim in place
+    """
     # Generate list of missing object names
-    hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
-    objects_missing: List[str] = [nm for nm in object_names_new if rebound.hash(nm).value not in hashes_present]
+    # hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
+    # body_names_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
+    body_names_present: Set[str] = set(sim.body_names)
+    body_names_missing: List[str] = [nm for nm in body_names if nm not in body_names_present]
 
     # Extend the simulation and save it with the augmented bodies
     if objects_missing:
-        extend_sim_horizons(sim, object_names=objects_missing, epoch_dt=epoch_dt)
+        extend_sim_horizons(sim, body_names=body_names_missing, add_as_test=add_as_test)
 
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim(sim_name: str, object_names: List[str], epoch_dt: datetime, 
+def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as_test: bool,
              integrator: str, steps_per_day: int, save_file: bool) -> rebound.Simulation:
-    """Create or load simulation with the specified objects at the specified time"""
+    """
+    Create or load simulation with the specified objects at the specified time
+    INPUTS:
+        body_collection:    Collection of massive objects used to initialize simulation
+        body_names_add:     Additional bodies added to the starting body collection
+        add_as_test:        Flag indicating whether bodies added as massless test particles or not
+        epoch:              MJD as of which state vectors are taken; INTEGER in range 40400 - 77600
+        integrator:         String identifier for the Rebound integrator, e.g. 'IAS15'
+        steps_per_day:      Number of integration steps per day
+        save_file:          Flag - whether to save the simulation to disk
+
+    """
     # Filename for archive
+    epoch_dt = mjd_to_datetime(epoch)
     file_date: str = epoch_dt.strftime('%Y-%m-%d_%H-%M')
-    fname_archive: str = f'../data/planets/{sim_name}_{file_date}.bin'
+    fname_archive: str = f'../data/planets/{body_collection}_{file_date}.bin'
 
     # If this file already exists, load it and check for both extra and missing bodies
     sim: rebound.Simulation
@@ -54,28 +86,23 @@ def make_sim(sim_name: str, object_names: List[str], epoch_dt: datetime,
         # Attempt to load the named file
         sim = rebound.Simulation(fname_archive)
         # print(f'Loaded {fname_archive}')
+        sim.epoch = epoch
 
         # Generate list of missing object names
-        objects_missing: List[str] = [nm for nm in object_names if nm not in sim.particles]
+        bodies_missing: List[str] = [nm for nm in body_names_add if nm not in sim.particles]
+        objects_missing: bool = (len(bodies_missing) > 0)
 
         # Extend the simulation and save it with the augmented bodies
         if objects_missing:
-            print(f'Found missing objects in {fname_archive}:')
-            print(objects_missing)
-            extend_sim_horizons(sim, object_names = objects_missing, epoch_dt=epoch_dt)
-
-        # Sets of named and input object hashes
-        hashes_sim: Set[int] = set(p.hash.value for p in sim.particles)
-        hashes_input: Set[str] = set(rebound.hash(nm).value for nm in object_names)
-
-        # Filter the simulation so only the named objects are included
-        hashes_remove: List[str] = [h for h in hashes_sim if h not in hashes_input]        
-        for h in hashes_remove:
-            sim.remove(hash=h)
+            # print(f'Found missing objects in {fname_archive}:')
+            # print(objects_missing)
+            extend_sim_horizons(sim=sim, body_names=bodies_missing, epoch=epoch)
 
     except:           
         # Initialize simulation
-        sim = make_sim_horizons(object_names=object_names, epoch_dt=epoch_dt)
+        print(f'Unable to load {fname_archive}, building from Horizons data...')
+        sim = make_sim_horizons(body_collection=body_collection, epoch=epoch)
+        extend_sim_horizons(sim=sim, body_names=body_names_add, add_as_test=add_as_test)
 
     # Move to center of momentum
     sim.move_to_com()
@@ -98,31 +125,42 @@ def make_sim(sim_name: str, object_names: List[str], epoch_dt: datetime,
 # ********************************************************************************************************************* 
 def make_archive_impl(fname_archive: str, 
                       sim_epoch: rebound.Simulation, 
-                      object_names: List[str],
-                      epoch_dt: datetime, dt0: datetime, dt1: datetime, 
+                      mjd0: float, mjd1: float, 
                       time_step: int, save_step: int,
                       save_elements: bool,
                       progbar: bool) -> None:
     """
     Create a rebound simulation archive and save it to disk.
     INPUTS:
-        fname_archive: the file name to save the archive to
-        sim_epoch: rebound simulation object as of the epoch time; to be integrated in both directions
-        object_names: the user names of all the objects in the simulation
-        epoch_dt: a datetime corresponding to sim_epoch
-        dt0: the earliest datetime to simulate back to
-        dt1: the latest datetime to simulate forward to
-        time_step: the time step in days for the simulation
-        save_step: the interval for saving snapshots to the simulation archive
-        save_elements: flag indiciting whether to save orbital elements
-        progbar: flag - whether to display a progress bar
+        fname_archive:  the file name to save the archive to
+        sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
+        object_names:   the user names of all the objects in the simulation
+        mjd0:           the earliest MJD to simulate back to
+        mjd1:           the latest MJD to simulate forward to
+        time_step:      the time step in days for the simulation
+        save_step:      the interval for saving snapshots to the simulation archive
+        save_elements:  flag indiciting whether to save orbital elements
+        progbar:        flag - whether to display a progress bar
     """
-    
+
+    # Look up the epoch from the base simulation
+    epoch: int = sim_epoch.epoch
+
+    # Look up body IDs and names
+    body_ids: np.ndarray = sim_epoch.body_ids
+    body_names: np.ndarray = sim_epoch.body_names
+
     # Convert epoch, start and end times relative to a base date of the simulation start
     # This way, time is indexed from t0=0 to t1 = (dt1-dt0)
-    epoch_t: float = datetime_to_mjd(epoch_dt, dt0)
-    t0: float = datetime_to_mjd(dt0, dt0)
-    t1: float = datetime_to_mjd(dt1, dt0)
+    # epoch_t: float = datetime_to_mjd(epoch_dt, dt0)
+    # t0: float = datetime_to_mjd(dt0, dt0)
+    # t1: float = datetime_to_mjd(dt1, dt0)
+   
+    # Convert epoch, start and end times relative to a base date of the simulation start
+    # This way, time is indexed from t0=0 to t1 = (dt1-dt0)
+    epoch_t: float = float(epoch) - mjd0
+    t0: float = 0.0
+    t1: float = mjd1 - mjd0
     
     # Create copies of the simulation to integrate forward and backward
     sim_fwd: rebound.Simulation = sim_epoch.copy()
@@ -137,8 +175,10 @@ def make_archive_impl(fname_archive: str,
     idx: int = np.searchsorted(ts, epoch_t, side='left')
     ts_fwd: np.array = ts[idx:]
     ts_back: np.array = ts[:idx][::-1]
-    # The epochs corresponding to the times in ts
-    epochs_dt: List[datetime] = [dt0 + timedelta(t) for t in ts]
+
+    # The epochs corresponding to the times in ts; as MJD and as datetime
+    epochs: np.array = ts + epoch_t
+    epochs_dt: np.array = np.array([dt0 + timedelta(t) for t in ts])
 
     # File names for forward and backward integrations
     fname_fwd: str = fname_archive.replace('.bin', '_fwd.bin')
@@ -234,11 +274,6 @@ def make_archive_impl(fname_archive: str,
     # Filename for numpy arrays of position and velocity
     fname_np: str = fname_archive.replace('.bin', '.npz')
 
-    # Save the epochs as a numpy array of datetime objects
-    epochs_np: np.array = np.array(epochs_dt)
-    # Save the object names as a numpy array of strings
-    object_names_np: np.array = np.array(object_names)
-
     # Save the object name hashes
     hashes: np.array = np.zeros(N, dtype=np.uint32)
     sim_epoch.serialize_particle_data(hash=hashes)
@@ -253,8 +288,8 @@ def make_archive_impl(fname_archive: str,
     # Save the numpy arrays with the object hashes, position and velocity
     np.savez(fname_np, 
              q=q, v=v, elts=elts,
-             ts=ts, epochs_np=epochs_np,
-             hashes=hashes, object_names_np=object_names_np)
+             ts=ts, epochs=epochs,
+             hashes=hashes, body_ids=body_ids, body_names=body_names)
     
     # Delete the forward and backward archives
     os.remove(fname_fwd)

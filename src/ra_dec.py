@@ -117,25 +117,6 @@ def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarra
     # Return (ra, dec) as a tuple
     return (ra, dec)
 
-# # ********************************************************************************************************************* 
-# def radec_app2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
-#     """
-#     Convert an apparent RA and DEC as of observation time to a unit displacement 
-#     vector u = (ux, uy, uz) in ecliptic plane.
-#     INPUTS:
-#         ra: An apparent Right Ascension in the ICRF; passed with units (default degrees)
-#         dec: An apparent Declination in the ICRF;  passed with units (default degrees)
-#         obtime_mjd: The observation time as a modified julian day
-#     RETURNS:
-#         u: An array [ux, uy, uz] on the unit sphere in the the ecliptic frame
-#     EXAMPLE:
-#         u = radec_app2dir(ra=76.391533*deg, dec=23.90881*deg, obstime_mjd=58600.0)
-#         (this is Mars viewed from Earth at mjd 58600 / 2019-04-27 with JPL RA and DEC)
-#     """
-#     # this is a placeholder function declaration.
-#     # probably don't need this
-#     pass
-
 # ********************************************************************************************************************* 
 def site2geoloc(site_name: str, verbose: bool = False):
     """

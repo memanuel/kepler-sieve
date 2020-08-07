@@ -141,7 +141,8 @@ def xyz_to_sph(x: np.array, y: np.array, z: np.array):
     """
     Convert a Cartesian coordinates x, y, z of a displacement vector to 
     spherical coordinates r, alt, az
-    DEPRECATED
+    Used only for error checking, not RA/DEC calculations.
+    See ra_dec.py for conversions between Cartesian and RA/DEC coordinates.
     """
     # The distance R
     r = np.sqrt(x*x + y*y + z*z)

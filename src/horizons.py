@@ -6,16 +6,23 @@ Michael S. Emanuel
 06-Aug-2020
 """
 
-# Library imports
+# Core
+import numpy as np
 import pandas as pd
+
+# Astronomy
 import rebound
+
+# Utility
 from datetime import datetime
 import collections
-from typing import List, Dict, Set
 
-# Local imports
+# MSE
 from astro_utils import mjd_to_jd
 from db_config import db_engine
+
+# Typing
+from typing import List, Dict, Set
 
 # ********************************************************************************************************************* 
 horizon_entry = collections.namedtuple('horizon_entry', 
@@ -49,31 +56,6 @@ def get_hrzn_state_coll(body_collection: str, epoch: int) -> pd.DataFrame:
     return states
 
 # ********************************************************************************************************************* 
-def add_hrzn_bodies(sim: rebound.Simulation, states: pd.DataFrame):
-    """
-    Add all the bodies in a collection of state vectors to a Rebound simulation.
-    INPUTS:
-        sim: Rebound simulation these particles will be added to
-        states: DataFrame including columns BodyName, m, qx, qy, qz, vx, vy, vz
-                Units are day, AU, Msun
-    """
-
-    # Number of bodies in the collection
-    n = states.shape[0]
-    
-    # Iterate over each body in the collection
-    for i in range(n):
-        # Get the ith body's state vector
-        s = states.iloc[i]
-
-        # Particle name and rebound hash of that name
-        body_name = s.BodyName
-        hash_id = rebound.hash(body_name)
-
-        # Add this particle with the given state vector
-        sim.add(m=s.m, x=s.qx, y=s.qy, z=s.qz, vx=s.vx, vy=s.vy, vz=s.vz, hash=hash_id)
-
-# ********************************************************************************************************************* 
 def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
     """
     Create a new rebound simulation with initial data from the NASA Horizons system
@@ -94,24 +76,101 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
     # Get state vectors
     states = get_hrzn_state_coll(body_collection=body_collection, epoch=epoch)
 
+    # When initializing a horizons simulation from a body collection, we ALWAYS treat bodies as massive
+    add_as_test: bool = False
+
+    # Save the epoch as an additional attribute; this is shared by all particles in the simulation
+    sim.epoch = epoch
+
+    # Set additional attributes on sim to store BodyID and BodyName field for each particle
+    sim.body_ids = np.array([], dtype=np.int64)
+    sim.body_names = np.array([], dtype='object')
+
     # Add bodies in this collection to the empty simulation
-    add_hrzn_bodies(sim, states)
+    add_hrzn_bodies(sim=sim, states=states, add_as_test=add_as_test)
 
     # Move to center of mass
-    sim.move_to_com()
+    # sim.move_to_com()
     
     return sim
 
 # ********************************************************************************************************************* 
-# def extend_sim_horizons(sim: rebound.Simulation, body_names: List[str], epoch: int) -> None:
-#     """Extend a rebound simulation with initial data from the NASA Horizons system"""
-#     # Generate list of missing object names
-#     hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
-#     bodies_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
+def add_hrzn_bodies(sim: rebound.Simulation, states: pd.DataFrame, add_as_test: bool) -> None:
+    """
+    Add all the bodies in a collection of state vectors to a Rebound simulation.
+    INPUTS:
+        sim:         Rebound simulation these bodies will be added to
+        states:      DataFrame including columns BodyName, m, qx, qy, qz, vx, vy, vz
+                     Units are day, AU, Msun
+        add_as_test: Flag indicating whether bodies added as massless test particles or not
+    RETURNS:
+        None.  Modifies the input simulation, sim, in place by adding the bodies.
+    """
+
+    # Number of bodies in the collection
+    n = states.shape[0]
+
+    # Set mass multiplier based on add_as_test
+    mass_multiplier: float = 0.0 if add_as_test else 1.0
     
-#     # Add missing objects one at a time if not already present
-#     for body_name in bodies_missing:
-#         add_one_object_hrzn(sim=sim, object_name=object_name, epoch_dt=epoch_dt, hrzn=hrzn)
+    # Iterate over each body in the collection
+    for i in range(n):
+        # Get the ith body's state vector
+        s = states.iloc[i]
+
+        # Particle name and rebound hash of that name
+        body_name: str = s.BodyName
+        hash_id: int = rebound.hash(body_name)
+
+        # Mass to use depends on add_as_test
+        m: float = s.m * mass_multiplier
+
+        # Add this particle with the given state vector
+        sim.add(m=m, x=s.qx, y=s.qy, z=s.qz, vx=s.vx, vy=s.vy, vz=s.vz, hash=hash_id)
     
-#     # Move to center of mass
-#     sim.move_to_com()
+    # Add the names and IDs of these bodies
+    sim.body_ids = np.concatenate([sim.body_ids, states.BodyID.values])
+    sim.body_names = np.concatenate([sim.body_names, states.BodyName.values])
+
+# ********************************************************************************************************************* 
+def extend_sim_horizons(sim: rebound.Simulation, body_names: List[str], add_as_test: bool) -> None:
+    """
+    Extend a rebound simulation with initial data from the NASA Horizons system
+    INPUTS:
+        sim:         A rebound simulation object
+        body_names:  List of string body names; references DB table KS.Body, field name BodyName
+        add_as_test: Flag indicating whether bodies added as massless test particles or not
+    RETURNS:
+        None:       Modifies sim in place
+    """
+    # Get the epoch from the simulation
+    epoch: int = sim.epoch
+
+    # Generate list of missing object names
+    hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
+    bodies_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
+    is_body_missing: bool = (len(bodies_missing) > 0)
+    
+    # Quit early if there are no missing bodies
+    if not is_body_missing:
+        return
+
+    # Current number of total particles
+    N_active = sim.N
+
+    # Add missing objects one at a time if not already present
+    with db_engine.connect() as conn:
+        for body_name in bodies_missing:
+            # Look up the state vector using stored procedure JPL.GetHorizonsState()
+            body_name_quoted = quote(body_name)
+            sql = f"CALL JPL.GetHorizonsState({body_name_quoted}, {epoch});"
+            state = pd.read_sql(sql, con=conn)
+            # Add this body to the simulation
+            add_hrzn_bodies(sim, states=state, add_as_test=add_as_test)
+
+    # Update number of active particles if necessary
+    if add_as_test:
+        sim.N_active = N_active
+
+    # Move to center of mass
+    # sim.move_to_com()
