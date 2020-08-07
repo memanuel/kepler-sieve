@@ -51,8 +51,10 @@ CREATE OR REPLACE TEMPORARY TABLE KS.BodySort
 SELECT
 b.BodyID,
 b.BodyName,
-row_number() OVER (ORDER BY b.BodyTypeID, b.BodyID) AS SortOrder
-FROM KS.Body AS b;
+row_number() OVER (ORDER BY (b.BodyID * IF(bt.BodyTypeCD='PS', 100, 1) - IF(bt.BodyTypeCD='PB', 99, 0)), bt.BodyTypeID) AS SortOrder
+FROM 
+	KS.Body AS b
+	INNER JOIN KS.BodyType AS bt ON bt.BodyTypeID = b.BodyTypeID;
 
 UPDATE
 KS.Body AS b
