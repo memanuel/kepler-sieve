@@ -137,7 +137,6 @@ def make_archive_impl(fname_archive: str,
     INPUTS:
         fname_archive:  the file name to save the archive to
         sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
-        object_names:   the user names of all the objects in the simulation
         mjd0:           the earliest MJD to simulate back to
         mjd1:           the latest MJD to simulate forward to
         time_step:      the time step in days for the simulation
@@ -309,7 +308,6 @@ def make_archive(fname_archive: str,
     INPUTS:
         fname_archive:  the file name to save the archive to
         sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
-        object_names:   the user names of all the objects in the simulation
         mjd0:           the earliest MJD to simulate back to
         mjd1:           the latest MJD to simulate forward to
         time_step:      the time step in days for the simulation
@@ -372,20 +370,20 @@ def load_sim_np(fname_np: str) -> Tuple[np.array, np.array, Dict[str, np.array]]
     return q, v, elts, catalog
 
 # ********************************************************************************************************************* 
-def sim_cfg_array(sim: rebound.Simulation, object_names: Optional[List[str]]=None) -> np.array:
+def sim_cfg_array(sim: rebound.Simulation, body_names: Optional[List[str]]=None) -> np.array:
     """Extract the Cartesian configuration of each body in the simulation"""
     # Allocate array of configurations
-    num_objects: int = sim.N if object_names is None else len(object_names)
+    num_objects: int = sim.N if body_names is None else len(body_names)
     cfgs: np.array = np.zeros(shape=(num_objects, 6))
 
     # Iterate through particles
     ps = sim.particles
 
     # Create list of (i, p) pairs
-    if object_names is None:
+    if body_names is None:
         ips = enumerate(ps)
     else:
-        ips = [(i, ps[object_name]) for i, object_name in enumerate(object_names)]
+        ips = [(i, ps[body_name]) for i, body_name in enumerate(body_names)]
 
     # Extract the configuration of each particle
     for i, p in ips:
@@ -394,44 +392,43 @@ def sim_cfg_array(sim: rebound.Simulation, object_names: Optional[List[str]]=Non
     return cfgs
 
 # ********************************************************************************************************************* 
-def sim_elt_array(sim: rebound.Simulation, object_names=None) -> np.array:
+def sim_elt_array(sim: rebound.Simulation, body_names=None) -> np.array:
     """Extract the orbital elements of each body in the simulation"""
     # Allocate array of elements
-    num_objects: int = sim.N-1 if object_names is None else len(object_names)
+    num_objects: int = sim.N-1 if body_names is None else len(body_names)
     elts: np.array = np.zeros(shape=(num_objects, 9))
     
     # Iterate through particles AFTER the primary
     ps: List[rebound.Particles] = sim.particles
     primary: rebound.Particle = ps[0]
-    if object_names is None:
+    if body_names is None:
         for i, p in enumerate(ps[1:]):
             orb = p.calculate_orbit(primary=primary)
             elts[i] = np.array([orb.a, orb.e, orb.inc, orb.Omega, orb.omega, 
                                 orb.f, orb.M, orb.pomega, orb.l])
     else:
-        for i, object_name in enumerate(object_names):
+        for i, body_name in enumerate(body_names):
             # look up the particle with this name
-            p = ps[object_name]
+            p = ps[body_name]
             orb = p.calculate_orbit(primary=primary)
             elts[i] = np.array([orb.a, orb.e, orb.inc, orb.Omega, orb.omega, 
                                 orb.f, orb.M, orb.pomega, orb.l])
     return elts
 
 # ********************************************************************************************************************* 
-def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, 
-                          object_names: List[str], verbose: bool=False) -> \
+def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, verbose: bool=False) -> \
                           Tuple[np.array, np.array]:
     """Report the difference between two simulations on a summary basis"""
-    # Extract configuration arrays for the two simulations
-    cfg0: np.array = sim_cfg_array(sim0, object_names)
-    cfg1: np.array = sim_cfg_array(sim1, object_names)
-    
-    # Convert both arrays to heliocentric coordinates
-    cfg0 = cfg0 - cfg0[0:1,:]
-    cfg1 = cfg1 - cfg1[0:1,:]
+    # Get the body names
+    body_names = sim0.body_names
 
+    # Extract configuration arrays for the two simulations
+    cfg0: np.array = sim_cfg_array(sim0, body_names)
+    cfg1: np.array = sim_cfg_array(sim1, body_names)
+    
     # Displacement of each body to earth
-    earth_idx: int = object_names.index('Earth')
+    # earth_idx: int = body_names.index('Earth')
+    earth_idx: int = np.argmax(body_names == 'Earth')
     q0: np.array = cfg0[:, 0:3] - cfg0[earth_idx, 0:3]
     q1: np.array = cfg1[:, 0:3] - cfg1[earth_idx, 0:3]
     
@@ -462,16 +459,16 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation,
         print(f'\nPosition difference - absolute & relative')
         print(f'(Angle errors in arcseconds, position in AU)')
         print(f'Body       : Phi     : Theta   : Pos AU  : Pos Rel : Vel Rel')
-        object_names_short: List[str] = [nm.replace(' Barycenter', '') for nm in object_names]
-        for i, nm in enumerate(object_names_short):
+        body_names_short: List[str] = [nm.replace(' Barycenter', '') for nm in body_names]
+        for i, nm in enumerate(body_names_short):
             print(f'{nm:10} : {asc_err[i]:5.2e}: {dec_err[i]:5.2e}: {pos_err[i]:5.2e}: '
                   f'{pos_err_rel[i]:5.2e}: {vel_err_rel[i]:5.2e}')
         print(f'Overall    : {rms(asc_err):5.2e}: {rms(dec_err):5.2e}: {rms(pos_err):5.2e}: '
               f'{rms(pos_err_rel):5.2e}: {rms(vel_err_rel):5.2e}')
 
     # Extract orbital element arrays from the two simulations
-    elt0: np.array = sim_elt_array(sim0, object_names[1:])
-    elt1: np.array = sim_elt_array(sim1, object_names[1:])
+    elt0: np.array = sim_elt_array(sim0, body_names[1:])
+    elt1: np.array = sim_elt_array(sim1, body_names[1:])
 
     # Take differences
     elt_diff: np.array = (elt1 - elt0)
@@ -492,7 +489,7 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation,
         print(f'elt    : RMS      : worst      : max_err  : HRZN        : REB')
         for j, elt in enumerate(elt_names):
             idx = np.argmax(elt_err[:, j])
-            worse = object_names_short[idx+1]
+            worse = body_names_short[idx+1]
             print(f'{elt:6} : {elt_rms[j]:5.2e} : {worse:10} : {elt_err[idx, j]:5.2e} : '
                   f'{elt0[idx, j]:11.8f} : {elt1[idx, j]:11.8f}')
         print(f'RMS (a, e, inc) =          {rms(elt_diff[:,0:3]):5.2e}')
@@ -505,8 +502,11 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation,
     return pos_err, ang_err
     
 # ********************************************************************************************************************* 
-def test_integration(sa: rebound.SimulationArchive, test_objects: List[str], 
-                     sim_name: str, test_name: str, 
+def test_integration(sa: rebound.SimulationArchive,
+                     body_collection: str, 
+                     test_bodies: List[str], 
+                     sim_name: str, 
+                     test_name: str, 
                      verbose: bool = False,
                      make_plot: bool = False) -> \
                      Tuple[np.array, np.array]:
@@ -517,28 +517,33 @@ def test_integration(sa: rebound.SimulationArchive, test_objects: List[str],
     # Dates to be tested
     test_years: List[int] = list(range(2000, 2041))
     test_dates: List[datetime] = [datetime(year, 1, 1) for year in test_years]
-    verbose_dates: List[datetime] = [test_dates[-1]]
+
+    # Convert dates to MJD
+    mjd0: int = int(datetime_to_mjd(dt0))
+    test_epochs: List[int] = [int(datetime_to_mjd(dt)) for dt in test_dates]
+    verbose_epochs: List[int] = [test_epochs[-1]]
     
     # Errors on these dates
     ang_errs: List[np.array] = []
     pos_errs: List[np.array] = []
     
     # Test the dates
-    dt_t: datetime
-    for dt_t in test_dates:
+    # dt_t: datetime
+    epoch: int
+    # for dt_t in test_dates:
+    for epoch in test_epochs:
         # The date to be tested as a time coordinate
-        t: int = (dt_t - dt0).days
+        t: int = epoch - mjd0
         # The reference simulation from Horizons
-        sim0: rebound.Simulation = make_sim_horizons(object_names=test_objects, epoch_dt=dt_t)
+        sim0: rebound.Simulation = make_sim_horizons(body_collection=body_collection, epoch=epoch)
         # The test simulation from the simulation archive
         sim1: rebound.Simulation = sa.getSimulation(t=t, mode='exact')
         # Verbosity flag and screen print if applicable
-        report_this_date: bool = (dt_t in verbose_dates) and verbose
+        report_this_date: bool = (epoch in verbose_epochs) and verbose
         if report_this_date:
             print(f'\nDifference on {dt_t}:')
         # Run the test
-        pos_err, ang_err = report_sim_difference(sim0=sim0, sim1=sim1, 
-                                                 object_names=test_objects, verbose=report_this_date)
+        pos_err, ang_err = report_sim_difference(sim0=sim0, sim1=sim1, verbose=report_this_date)
         # Save position and angle errors
         pos_errs.append(pos_err)
         ang_errs.append(ang_err)
