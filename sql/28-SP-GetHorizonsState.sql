@@ -16,6 +16,8 @@ SET @MinuteID = epoch * 24 * 60;
 # Get the state vector from JPL.HorizonsVectors and suitable joins
 # Use a left join to JPL.MassiveBody, because not all bodies have known masses, just the heavy bodies.
 SELECT
+	b.BodyID,
+	b.BodyName,
 	COALESCE(mb.M, 0.0) AS m,
 	hv.qx,
 	hv.qy,
@@ -27,6 +29,7 @@ FROM
 	JPL.HorizonsVectors AS hv
 	INNER JOIN JPL.HorizonsBody AS hb ON hb.HorizonsBodyID = hv.HorizonsBodyID
 	INNER JOIN JPL.HorizonsTime AS ht ON ht.HorizonsTimeID = hv.HorizonsTimeID
+	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID
 	LEFT JOIN JPL.MassiveBody AS mb ON mb.HorizonsBodyID = hv.HorizonsBodyID
 WHERE
 	hb.HorizonsBodyName = HorizonsBodyName AND ht.MinuteID = @MinuteID;
