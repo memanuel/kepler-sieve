@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
-from astro_utils import datetime_to_mjd, mjd_to_datetime, cart_to_sph
+from astro_utils import datetime_to_mjd, mjd_to_datetime, datetime_to_year, cart_to_sph
 from horizons import make_sim_horizons, extend_sim_horizons
 from utils import rms
 
@@ -129,7 +129,7 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
 def make_archive_impl(fname_archive: str, 
                       sim_epoch: rebound.Simulation, 
                       mjd0: float, mjd1: float, 
-                      time_step: int, save_step: int,
+                      time_step: float, save_step: int,
                       save_elements: bool,
                       progbar: bool) -> None:
     """
@@ -227,7 +227,7 @@ def make_archive_impl(fname_archive: str,
         sim.serialize_particle_data(vxvyvz=v[row])
         
         # Save a snapshot on multiples of save_step or the first / last row
-        if (i % save_step == 0) or (row in (0, M-1)):
+        if (row % save_step == 0) or (row in (0, M-1)):
             sim.simulationarchive_snapshot(filename=fname)
 
         # Save the orbital elements if applicable
@@ -503,6 +503,7 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, ve
     
 # ********************************************************************************************************************* 
 def test_integration(sa: rebound.SimulationArchive,
+                     mjd0: int,
                      body_collection: str, 
                      test_bodies: List[str], 
                      sim_name: str, 
@@ -511,29 +512,26 @@ def test_integration(sa: rebound.SimulationArchive,
                      make_plot: bool = False) -> \
                      Tuple[np.array, np.array]:
     """Test the integration of the planets against Horizons data"""
-    # Start time of simulation
-    dt0: datetime = datetime(2000, 1, 1)
-    
-    # Dates to be tested
-    test_years: List[int] = list(range(2000, 2041))
-    test_dates: List[datetime] = [datetime(year, 1, 1) for year in test_years]
+    # Times to be tested - every 100 days in simulation range
+    t_test = np.arange(sa.tmin, sa.tmax, 100.0).astype(np.int32)
 
-    # Convert dates to MJD
-    mjd0: int = int(datetime_to_mjd(dt0))
-    test_epochs: List[int] = [int(datetime_to_mjd(dt)) for dt in test_dates]
-    verbose_epochs: List[int] = [test_epochs[-1]]
+    # Epochs to be tested - generate from test times
+    test_epochs = t_test + mjd0
+    sz: int = test_epochs.shape[0]
+    verbose_epochs = test_epochs[sz-1:sz]
+
+    # Convert epochs to dates and years for plotting
+    test_dates = [mjd_to_datetime(mjd) for mjd in test_epochs]
+    test_years = [datetime_to_year(test_date) for test_date in test_dates]
     
     # Errors on these dates
     ang_errs: List[np.array] = []
     pos_errs: List[np.array] = []
     
-    # Test the dates
-    # dt_t: datetime
-    epoch: int
-    # for dt_t in test_dates:
-    for epoch in test_epochs:
-        # The date to be tested as a time coordinate
-        t: int = epoch - mjd0
+    # Test the specified times
+    for t in t_test:
+        # The epoch of this test time
+        epoch: int = mjd0 + t
         # The reference simulation from Horizons
         sim0: rebound.Simulation = make_sim_horizons(body_collection=body_collection, epoch=epoch)
         # The test simulation from the simulation archive
@@ -541,6 +539,7 @@ def test_integration(sa: rebound.SimulationArchive,
         # Verbosity flag and screen print if applicable
         report_this_date: bool = (epoch in verbose_epochs) and verbose
         if report_this_date:
+            dt_t: datetime = mjd_to_datetime(epoch)
             print(f'\nDifference on {dt_t}:')
         # Run the test
         pos_err, ang_err = report_sim_difference(sim0=sim0, sim1=sim1, verbose=report_this_date)

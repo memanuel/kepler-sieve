@@ -26,6 +26,58 @@ plot_style()
 # ********************************************************************************************************************* 
 # Collections of objects
 
+# The sun and 8 planets
+planets = [
+    'Sun', 'Mercury Barycenter', 'Venus Barycenter', 
+    'Earth', 'Moon',
+    'Mars Barycenter',  'Jupiter Barycenter', 'Saturn Barycenter', 
+    'Uranus Barycenter', 'Neptune Barycenter']
+object_names_planets = planets
+# Test the barycenters of other planets; skip the moon because this model can't handle it!
+test_objects_planets = [nm for nm in object_names_planets if nm != 'Moon']
+
+# The sun, 8 planets, and the most significant moons
+# See https://en.wikipedia.org/wiki/List_of_Solar_System_objects_by_size
+moons = [
+    'Sun', 
+    'Mercury', 
+    'Venus', 
+    'Earth', 'Moon', 
+    'Mars Barycenter',
+    'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto',
+    'Saturn', 'Mimas', 'Enceladus', 'Tethys', 'Dione', 'Rhea', 'Titan', 'Iapetus', 'Phoebe',
+    'Uranus', 'Ariel', 'Umbriel', 'Titania', 'Oberon', 'Miranda',
+    'Neptune', 'Triton', 'Proteus',
+    'Pluto', 'Charon']
+object_names_moons = moons
+# These are the objects tested for the moon integration
+test_objects_moons = [
+    'Sun', 'Mercury', 'Venus', 'Earth', 'Mars Barycenter', 
+    'Jupiter', 'Saturn', 'Uranus', 'Neptune']
+
+# Planet barycenters and selected dwarf planets above 1E-10 solar masses
+# block 1: mass above 1E-9 solar masses; 4 of the 5 IAU recognized
+dwarfs_09 = ['Pluto Barycenter', 'Eris', 'Makemake', 'Haumea']
+# block 2: mass above 1E-10 solar masses
+dwarfs_10 = [
+    '2007 OR10', 'Quaoar', 'Hygiea', 'Ceres', 'Orcus', 
+    'Salacia', 'Varuna', 'Varda', 'Vesta', 'Pallas']
+# block 3: mass above 1E-11 solar masses
+dwarfs_11 = [
+    '229762', '2002 UX25', '2002 WC19', 'Davida', 'Interamnia', 
+    'Eunomia', '2004 UX10', 'Juno', 'Psyche', '52 Europa']
+
+# Selected dwarfs
+dwarfs = dwarfs_09 + dwarfs_10
+# Object collection for dwarfs integration: planet barycenters + selected dwarfs
+object_names_dwarfs = object_names_planets + dwarfs
+# Test objects for dwarfs integration - same as for planets
+test_objects_dwarfs = test_objects_planets
+
+# Objects in collection 'all'
+object_names_all = object_names_moons + dwarfs
+test_objects_all = test_objects_moons
+
 # Shared collection of test asteroids to integrate
 test_asteroids = [
     'Ceres', 'Pallas', 'Juno', 'Vesta', 'Iris',
@@ -33,32 +85,58 @@ test_asteroids = [
 test_objects_asteroids = ['Earth'] + test_asteroids
 
 # ********************************************************************************************************************* 
-def make_sim_planets(epoch: int, integrator: str ='ias15', steps_per_day: int = 256):
+def make_sim_planets(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 256):
     """Create a simulation with the sun and 8 planets at the specified time"""
     # Arguments for make_sim
-    body_collection: str = 'Planets'
-    body_names_add: List[str] = []
-    add_as_test: bool = True
+    sim_name = 'planets'    
+    object_names = object_names_planets
     save_file = False
 
     # Build a simulation with the selected objects
-    sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
-                   add_as_test=add_as_test, integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
+                   integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
 
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_de435(epoch: int, integrator='ias15', steps_per_day: int = 16):
-    """Create a simulation with all the massive objects used in the DE-435 integration"""
+def make_sim_moons(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 16):
+    """Create a simulation with the sun and 8 planets plus selected moons"""
     # Arguments for make_sim
-    body_collection: str = 'Planets'
-    body_names_add: List[str] = []
-    add_as_test: bool = True
+    sim_name = 'moons'
+    object_names = object_names_moons
     save_file = False
 
     # Build a simulation with the selected objects
-    sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
-                   add_as_test=add_as_test, integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
+                   integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
+
+    return sim
+
+# ********************************************************************************************************************* 
+def make_sim_dwarfs(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 16):
+    """Create a simulation with the sun, 8 planets and selected dwarf planets"""
+    # Arguments for make_sim
+    sim_name = 'dwarfs'
+    object_names = object_names_dwarfs
+    save_file = False
+
+    # Build a simulation with the selected objects
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
+                   integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
+
+    return sim
+
+# ********************************************************************************************************************* 
+def make_sim_all(epoch_dt: datetime, integrator='ias15', steps_per_day: int = 16):
+    """Create a simulation with all the massive objects (planets, moons, dwarf planets)"""
+    # Arguments for make_sim
+    sim_name = 'all'
+    object_names = object_names_all
+    save_file = False
+
+    # Build a simulation with the selected objects
+    sim = make_sim(sim_name=sim_name, object_names=object_names, epoch_dt=epoch_dt, 
+                   integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
 
     return sim
 
