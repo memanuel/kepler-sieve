@@ -79,9 +79,6 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
     # When initializing a horizons simulation from a body collection, we ALWAYS treat bodies as massive
     add_as_test: bool = False
 
-    # Save the epoch as an additional attribute; this is shared by all particles in the simulation
-    sim.epoch = epoch
-
     # Set additional attributes on sim to store BodyID and BodyName field for each particle
     sim.body_ids = np.array([], dtype=np.int64)
     sim.body_names = np.array([], dtype='object')
@@ -89,9 +86,6 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
     # Add bodies in this collection to the empty simulation
     add_hrzn_bodies(sim=sim, states=states, add_as_test=add_as_test)
 
-    # Move to center of mass
-    # sim.move_to_com()
-    
     return sim
 
 # ********************************************************************************************************************* 
@@ -171,6 +165,3 @@ def extend_sim_horizons(sim: rebound.Simulation, body_names: List[str], add_as_t
     # Update number of active particles if necessary
     if add_as_test:
         sim.N_active = N_active
-
-    # Move to center of mass
-    # sim.move_to_com()

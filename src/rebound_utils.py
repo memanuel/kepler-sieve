@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
+from utils import arange_inc
 from astro_utils import datetime_to_mjd, mjd_to_datetime, datetime_to_year, cart_to_sph
 from horizons import make_sim_horizons, extend_sim_horizons
 from utils import rms
@@ -68,7 +69,8 @@ def extend_sim(sim: rebound.Simulation,
 
 # ********************************************************************************************************************* 
 def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as_test: bool,
-             integrator: str, steps_per_day: int, save_file: bool) -> rebound.Simulation:
+             integrator: str = 'ias15', steps_per_day: int = 4, epsilon: float = 2.0**-30,
+             save_file: bool = True) -> rebound.Simulation:
     """
     Create or load simulation with the specified objects at the specified time
     INPUTS:
@@ -77,16 +79,16 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
         add_as_test:        Flag indicating whether additional bodies are massless test particlesnot
         epoch:              MJD as of which state vectors are taken; INTEGER in range 40400 - 77600
         integrator:         String identifier for the Rebound integrator, e.g. 'ias15'
-        steps_per_day:      Number of integration steps per day
+        steps_per_day:      Number of integration steps per day used to set dt and min_dt
+        epsilon:            Tolerance for ias15 adaptive integrator; rebound default is 1.0E-9
         save_file:          Flag - whether to save the simulation to disk
 
     """
     # Filename for archive
-    epoch_dt = mjd_to_datetime(epoch)
-    file_date: str = epoch_dt.strftime('%Y%m%d')
-    # fname_archive: str = f'../data/rebound/sim/{body_collection}_{file_date}.bin'
+    file_date: str = f'{epoch}'
+    # epoch_dt = mjd_to_datetime(epoch)
     fname_sim: str = os.path.join(dir_sim, f'{body_collection}_{file_date}.bin')
-    fname_npz: str = os.path.join(dir_sim, f'{body_collection}_{file_date}_bodies.npz')
+    fname_npz: str = os.path.join(dir_sim, f'{body_collection}_bodies.npz')
 
     # If this file already exists, load it and check for both extra and missing bodies
     sim: rebound.Simulation
@@ -95,8 +97,7 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
         sim = rebound.Simulation(fname_sim)
         # print(f'Loaded {fname_sim}')
 
-        # Add epoch, body_ids, body_names to sim
-        sim.epoch = epoch
+        # Add body_ids and body_names to sim
         with np.load(fname_npz, allow_pickle=True) as npz:
             sim.body_ids = npz['body_ids']
             sim.body_names = npz['body_names']
@@ -104,32 +105,54 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
         # Initialize simulation
         print(f'Unable to load {fname_sim}, building from Horizons data...')
         sim = make_sim_horizons(body_collection=body_collection, epoch=epoch)
+    
+    # Extend the simulation for additional bodies if they were requested
+    if body_names_add:
         extend_sim_horizons(sim=sim, body_names=body_names_add, add_as_test=add_as_test)
 
     # Move to center of momentum
-    sim.move_to_com()
+    # sim.move_to_com()
 
     # Set integrator and time step
     sim.integrator = integrator
     dt: float = 1.0 / steps_per_day if steps_per_day > 0 else 0
     sim.dt = dt
+    # Special handling for the ias15 integrator
     if integrator == 'ias15':
+        # the ias15 integrator object
         ias15 = sim.ri_ias15
+        # Apply the time step dt as the minimum adaptive time step
         ias15.min_dt = dt
+        # Set tolerance epsilon for adaptive time steps
+        sim.ri_ias15.epsilon = epsilon
 
     # Save a snapshot to the archive file if requested
     if save_file:
         sim.simulationarchive_snapshot(filename=fname_sim, deletefile=True)
-        np.savez(fname_npz, epoch=sim.epoch, body_ids=sim.body_ids, body_names=sim.body_names)
+        np.savez(fname_npz, body_ids=sim.body_ids, body_names=sim.body_names)
+
+    # Save additional data attributes to the simulation for use downstream
+    sim.body_collection = body_collection
+    sim.body_names_add = body_names_add
+    sim.epoch = epoch
+    sim.steps_per_day: int = steps_per_day
+    sim.archive_filename = f'{body_collection}_<mjd0>_<mjd1>_sf{steps_per_day}.bin'
 
     # Return the simulation
     return sim
 
 # ********************************************************************************************************************* 
-def make_archive_impl(fname_archive: str, 
-                      sim_epoch: rebound.Simulation, 
-                      mjd0: float, mjd1: float, 
-                      time_step: float, save_step: int,
+def calc_fname_archive(sim: rebound.simulation, mjd0: int, mjd1: int) -> str:
+    """Generate filename for the simulation archive from a simulation"""
+    fname_archive: str = sim.archive_filename.replace('<mjd0>', f'{mjd0}').replace('<mjd1>', f'{mjd1}')
+    return fname_archive
+
+# ********************************************************************************************************************* 
+def make_archive_impl(sim_epoch: rebound.Simulation, 
+                      mjd0: int, 
+                      mjd1: int, 
+                      time_step: float, 
+                      save_step: int,
                       save_elements: bool,
                       progbar: bool) -> None:
     """
@@ -146,9 +169,10 @@ def make_archive_impl(fname_archive: str,
     OUTPUTS:
         None.  saves the assembled simulation archive to disk.
     """
-
+    # Get archive filename from simulation
+    fname_archive: str = calc_fname_archive(sim_epoch, mjd0, mjd1)
     # Path of archive file
-    fname_archive = os.path.join(dir_archive, fname_archive)
+    path_archive = os.path.join(dir_archive, fname_archive)
 
     # Look up the epoch from the base simulation
     epoch: int = sim_epoch.epoch
@@ -183,8 +207,8 @@ def make_archive_impl(fname_archive: str,
     epochs_dt: np.array = np.array([dt0 + timedelta(t) for t in ts])
 
     # File names for forward and backward integrations
-    fname_fwd: str = fname_archive.replace('.bin', '_fwd.bin')
-    fname_back: str = fname_archive.replace('.bin', '_back.bin')
+    fname_fwd: str = path_archive.replace('.bin', '_fwd.bin')
+    fname_back: str = path_archive.replace('.bin', '_back.bin')
 
     # Number of snapshots
     M_back: int = len(ts_back)
@@ -273,7 +297,7 @@ def make_archive_impl(fname_archive: str,
     sa_back: rebound.SimulationArchive = rebound.SimulationArchive(fname_back)
     
     # Filename for numpy arrays of position and velocity
-    fname_np: str = fname_archive.replace('.bin', '.npz')
+    fname_np: str = path_archive.replace('.bin', '.npz')
 
     # Save the object name hashes
     hashes: np.array = np.zeros(N, dtype=np.uint32)
@@ -284,7 +308,7 @@ def make_archive_impl(fname_archive: str,
     # Process each simulation snapshot in turn
     for i, sim in enumerate(sims):
         # Save a snapshot on multiples of save_step
-        sim.simulationarchive_snapshot(fname_archive)        
+        sim.simulationarchive_snapshot(path_archive)        
 
     # Save the numpy arrays with the object hashes, position and velocity
     np.savez(fname_np, 
@@ -297,9 +321,8 @@ def make_archive_impl(fname_archive: str,
     os.remove(fname_back)
     
 # ********************************************************************************************************************* 
-def make_archive(fname_archive: str, 
-                 sim_epoch: rebound.Simulation, 
-                 mjd0: float, mjd1: float, 
+def make_archive(sim_epoch: rebound.Simulation, 
+                 mjd0: int, mjd1: int, 
                  time_step: int, save_step: int,
                  save_elements: bool,
                  progbar: bool) -> rebound.SimulationArchive:
@@ -317,6 +340,8 @@ def make_archive(fname_archive: str,
     OUTPUTS:
         SimulationArchive: Rebound SimulationArchive object loaded from disk
     """
+    # Get archive filename from simulation
+    fname_archive: str = calc_fname_archive(sim_epoch, mjd0, mjd1)
     # Path of archive
     path_archive = os.path.join(dir_archive, fname_archive)
     try:
@@ -326,11 +351,23 @@ def make_archive(fname_archive: str,
         # If the archive is not on disk, save it to disk
         print(f'Generating archive {fname_archive}\n'
               f'from mjd {mjd0} to {mjd1}, time_step={time_step}, save_step={save_step}...')
-        make_archive_impl(fname_archive=fname_archive, sim_epoch=sim_epoch, 
-                          mjd0=mjd0, mjd1=mjd1, time_step=time_step, save_step=save_step, 
-                          save_elements=save_elements, progbar=progbar)
+        make_archive_impl(sim_epoch=sim_epoch, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
+                          save_step=save_step, save_elements=save_elements, progbar=progbar)
         # Load the new archive into memory
         sa = rebound.SimulationArchive(filename=path_archive)
+
+    # Bind the archive filename to the archive
+    sa.fname_archive: str = fname_archive
+    sa.fname_np: str = fname_archive.replace('.bin', '.npz')
+    sa.body_collection = sim_epoch.body_collection
+    # Bind various dates and time steps
+    sa.epoch = sim_epoch.epoch
+    sa.mjd0: int = mjd0
+    sa.mjd1: int = mjd1
+    sa.time_step: int = time_step
+    # Bind the simulation at the epoch
+    sa.sim_epoch = sim_epoch
+
     return sa
     
 # ********************************************************************************************************************* 
@@ -427,7 +464,6 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, ve
     cfg1: np.array = sim_cfg_array(sim1, body_names)
     
     # Displacement of each body to earth
-    # earth_idx: int = body_names.index('Earth')
     earth_idx: int = np.argmax(body_names == 'Earth')
     q0: np.array = cfg0[:, 0:3] - cfg0[earth_idx, 0:3]
     q1: np.array = cfg1[:, 0:3] - cfg1[earth_idx, 0:3]
@@ -503,8 +539,6 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, ve
     
 # ********************************************************************************************************************* 
 def test_integration(sa: rebound.SimulationArchive,
-                     mjd0: int,
-                     body_collection: str, 
                      test_bodies: List[str], 
                      sim_name: str, 
                      test_name: str, 
@@ -512,12 +546,26 @@ def test_integration(sa: rebound.SimulationArchive,
                      make_plot: bool = False) -> \
                      Tuple[np.array, np.array]:
     """Test the integration of the planets against Horizons data"""
-    # Times to be tested - every 100 days in simulation range
-    t_test = np.arange(sa.tmin, sa.tmax, 100.0).astype(np.int32)
+    # Extract body_collection from the simulation archive
+    body_collection: str = sa.body_collection
+
+    # Test bodies is input manually in case it's a strict subset of the bodies in the collection
+    if test_bodies is None:
+        test_bodies = sa.sim_epoch.body_names
+
+    # Extract mjd0, mjd1 from simulation archive
+    mjd0: int = sa.mjd0
+    mjd1: int = sa.mjd1
+    # Set the time step for comparing snapshots
+    step: int = 20
+
+    # Times to be tested - every step days in simulation range
+    t_test = np.arange(np.int32(sa.tmin), np.int32(sa.tmax), np.int32(step)).astype(np.int32)
 
     # Epochs to be tested - generate from test times
     test_epochs = t_test + mjd0
     sz: int = test_epochs.shape[0]
+    # Generate verbose output on the last test epoch if requested
     verbose_epochs = test_epochs[sz-1:sz]
 
     # Convert epochs to dates and years for plotting
@@ -561,7 +609,8 @@ def test_integration(sa: rebound.SimulationArchive,
         ax.set_title(f'Position Error of {test_name_chart} in {sim_name_chart} Integration')
         ax.set_ylabel(f'RMS Position Error in AU')
         ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0,))
-        ax.plot(test_years, pos_err_rms, marker='o', color='red')
+        # ax.plot(test_years, pos_err_rms, marker='o', color='red')
+        ax.plot(test_epochs, pos_err_rms, marker='o', color='red')
         ax.grid()
         fname: str = f'../figs/integration_test/sim_error_{sim_name}_{test_name}_pos.png'
         fig.savefig(fname=fname, bbox_inches='tight')
@@ -570,7 +619,8 @@ def test_integration(sa: rebound.SimulationArchive,
         fig, ax = plt.subplots(figsize=[16,10])
         ax.set_title(f'Angle Error of {test_name_chart} in {sim_name_chart} Integration')
         ax.set_ylabel(f'RMS Angle Error vs. Earth in Arcseconds')
-        ax.plot(test_years, ang_err_rms, marker='o', color='blue')
+        # ax.plot(test_years, ang_err_rms, marker='o', color='blue')
+        ax.plot(test_epochs, ang_err_rms, marker='o', color='blue')
         ax.grid()
         fname: str = f'../figs/integration_test/sim_error_{sim_name}_{test_name}_angle.png'
         fig.savefig(fname=fname, bbox_inches='tight')
