@@ -25,6 +25,9 @@ from db_config import db_engine
 from typing import List, Dict, Set
 
 # ********************************************************************************************************************* 
+# Gravitational constant from JPL
+G_jpl = 2.95912208285591095E-04
+
 horizon_entry = collections.namedtuple('horizon_entry', 
     ['BodyID', 'BodyName', 'm', 'x', 'y', 'z', 'vx', 'vy', 'vz',])    
 
@@ -73,6 +76,9 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
     # Set units
     sim.units = ('day', 'AU', 'Msun')
     
+    # Set gravitational constant
+    sim.G = G_jpl
+
     # Get state vectors
     states = get_hrzn_state_coll(body_collection=body_collection, epoch=epoch)
 

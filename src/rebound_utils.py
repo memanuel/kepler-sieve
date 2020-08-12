@@ -16,6 +16,7 @@ import rebound
 # Utilities
 from datetime import datetime, timedelta
 from collections import namedtuple
+from pathlib import Path
 import os
 from itertools import chain
 
@@ -42,32 +43,6 @@ dir_sim: str = '../data/rebound/sim'
 dir_archive: str = '../data/rebound/archive'
 
 # ********************************************************************************************************************* 
-def extend_sim(sim: rebound.Simulation, 
-               body_names: List[str], 
-               add_as_test: bool):
-    """
-    Extend an existing simulation to include a list of named bodies
-    INPUTS:
-        sim:         A rebound simulation object
-        body_names:  List of string body names; references DB table KS.Body, field name BodyName
-                     The state vectors of these bodies will be added to the simulation, sim.
-        add_as_test: Flag indicating whether bodies added as massless test particles or not
-    RETURNS:
-        None:        Modifies sim in place
-    """
-    # Generate list of missing object names
-    # hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
-    # body_names_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
-    body_names_present: Set[str] = set(sim.body_names)
-    body_names_missing: List[str] = [nm for nm in body_names if nm not in body_names_present]
-
-    # Extend the simulation and save it with the augmented bodies
-    if objects_missing:
-        extend_sim_horizons(sim, body_names=body_names_missing, add_as_test=add_as_test)
-
-    return sim
-
-# ********************************************************************************************************************* 
 def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as_test: bool,
              integrator: str = 'ias15', steps_per_day: int = 4, epsilon: float = 2.0**-30,
              save_file: bool = True) -> rebound.Simulation:
@@ -82,19 +57,20 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
         steps_per_day:      Number of integration steps per day used to set dt and min_dt
         epsilon:            Tolerance for ias15 adaptive integrator; rebound default is 1.0E-9
         save_file:          Flag - whether to save the simulation to disk
-
     """
     # Filename for archive
     file_date: str = f'{epoch}'
-    # epoch_dt = mjd_to_datetime(epoch)
-    fname_sim: str = os.path.join(dir_sim, f'{body_collection}_{file_date}.bin')
-    fname_npz: str = os.path.join(dir_sim, f'{body_collection}_bodies.npz')
+    # fname_sim: str = os.path.join(dir_sim, f'{body_collection}_{file_date}.bin')
+    # fname_npz: str = os.path.join(dir_sim, f'{body_collection}_bodies.npz')
+    fname_sim: str = f'{body_collection}_{file_date}.bin'
+    path_sim: Path = Path(dir_sim, f'{body_collection}_{file_date}.bin')
+    path_npz: Path = Path(dir_sim, f'{body_collection}_bodies.npz')    
 
     # If this file already exists, load it and check for both extra and missing bodies
     sim: rebound.Simulation
     try:
         # Attempt to load the archive file
-        sim = rebound.Simulation(fname_sim)
+        sim = rebound.Simulation(path_sim.as_posix())
         # print(f'Loaded {fname_sim}')
 
         # Add body_ids and body_names to sim
@@ -128,8 +104,8 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
 
     # Save a snapshot to the archive file if requested
     if save_file:
-        sim.simulationarchive_snapshot(filename=fname_sim, deletefile=True)
-        np.savez(fname_npz, body_ids=sim.body_ids, body_names=sim.body_names)
+        sim.simulationarchive_snapshot(filename=path_sim.as_posix(), deletefile=True)
+        np.savez(path_npz.as_posix(), body_ids=sim.body_ids, body_names=sim.body_names)
 
     # Save additional data attributes to the simulation for use downstream
     sim.body_collection = body_collection
@@ -139,6 +115,32 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
     sim.archive_filename = f'{body_collection}_<mjd0>_<mjd1>_sf{steps_per_day}.bin'
 
     # Return the simulation
+    return sim
+
+# ********************************************************************************************************************* 
+def extend_sim(sim: rebound.Simulation, 
+               body_names: List[str], 
+               add_as_test: bool):
+    """
+    Extend an existing simulation to include a list of named bodies
+    INPUTS:
+        sim:         A rebound simulation object
+        body_names:  List of string body names; references DB table KS.Body, field name BodyName
+                     The state vectors of these bodies will be added to the simulation, sim.
+        add_as_test: Flag indicating whether bodies added as massless test particles or not
+    RETURNS:
+        None:        Modifies sim in place
+    """
+    # Generate list of missing object names
+    # hashes_present: Set[int] = set(p.hash.value for p in sim.particles)
+    # body_names_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
+    body_names_present: Set[str] = set(sim.body_names)
+    body_names_missing: List[str] = [nm for nm in body_names if nm not in body_names_present]
+
+    # Extend the simulation and save it with the augmented bodies
+    if objects_missing:
+        extend_sim_horizons(sim, body_names=body_names_missing, add_as_test=add_as_test)
+
     return sim
 
 # ********************************************************************************************************************* 
@@ -172,7 +174,8 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
     # Get archive filename from simulation
     fname_archive: str = calc_fname_archive(sim_epoch, mjd0, mjd1)
     # Path of archive file
-    path_archive = os.path.join(dir_archive, fname_archive)
+    path_archive: Path = Path(dir_archive, fname_archive)
+    pathstr_archive: str = path_archive.as_posix()
 
     # Look up the epoch from the base simulation
     epoch: int = sim_epoch.epoch
@@ -194,6 +197,8 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
     # Set the time counter on both simulation copies to the epoch time
     sim_fwd.t = t_epoch
     sim_back.t = t_epoch
+    # Flip sign of dt on sim_back
+    sim_back.dt *= -1.0
 
     # Set the times for snapshots in both directions;
     ts: np.array = np.arange(t0, t1+time_step, time_step)
@@ -207,8 +212,12 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
     epochs_dt: np.array = np.array([dt0 + timedelta(t) for t in ts])
 
     # File names for forward and backward integrations
-    fname_fwd: str = path_archive.replace('.bin', '_fwd.bin')
-    fname_back: str = path_archive.replace('.bin', '_back.bin')
+    # fname_fwd: str = path_archive.replace('.bin', '_fwd.bin')
+    # fname_back: str = path_archive.replace('.bin', '_back.bin')
+    path_fwd: Path = Path(dir_archive, fname_archive.replace('.bin', '_fwd.bin'))
+    path_back: Path = Path(dir_archive, fname_archive.replace('.bin', '_back.bin'))
+    pathstr_fwd: str = path_fwd.as_posix()
+    pathstr_back: str = path_back.as_posix()
 
     # Number of snapshots
     M_back: int = len(ts_back)
@@ -280,7 +289,7 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
         # Row index for position data
         row: int = M_back + i
         # Process this row
-        process_row(sim=sim_fwd, fname=fname_fwd, t=t, row=row)
+        process_row(sim=sim_fwd, fname=pathstr_fwd, t=t, row=row)
         
     # Integrate the simulation backward in time
     idx_back: List[Tuple[int, float]] = list(enumerate(ts_back))
@@ -290,14 +299,15 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
         # Row index for position data
         row: int = M_back - (i+1)
         # Process this row
-        process_row(sim=sim_back, fname=fname_back, t=t, row=row)
+        process_row(sim=sim_back, fname=pathstr_back, t=t, row=row)
 
     # Load the archives with the forward and backward snapshots
-    sa_fwd: rebound.SimulationArchive = rebound.SimulationArchive(fname_fwd)
-    sa_back: rebound.SimulationArchive = rebound.SimulationArchive(fname_back)
-    
+    sa_fwd: rebound.SimulationArchive = rebound.SimulationArchive(pathstr_fwd) if idx_fwd else []
+    sa_back: rebound.SimulationArchive = rebound.SimulationArchive(pathstr_back) if idx_back else []
+
     # Filename for numpy arrays of position and velocity
-    fname_np: str = path_archive.replace('.bin', '.npz')
+    path_np = Path(dir_archive, fname_archive.replace('.bin', '.npz'))
+    pathstr_np = path_np.as_posix()
 
     # Save the object name hashes
     hashes: np.array = np.zeros(N, dtype=np.uint32)
@@ -308,17 +318,17 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
     # Process each simulation snapshot in turn
     for i, sim in enumerate(sims):
         # Save a snapshot on multiples of save_step
-        sim.simulationarchive_snapshot(path_archive)        
+        sim.simulationarchive_snapshot(pathstr_archive)   
 
     # Save the numpy arrays with the object hashes, position and velocity
-    np.savez(fname_np, 
+    np.savez(pathstr_np, 
              q=q, v=v, elts=elts,
              ts=ts, epochs=epochs, epochs_dt=epochs_dt,
              hashes=hashes, body_ids=body_ids, body_names=body_names)
     
     # Delete the forward and backward archives
-    os.remove(fname_fwd)
-    os.remove(fname_back)
+    path_fwd.unlink(missing_ok=True)
+    path_back.unlink(missing_ok=True)
     
 # ********************************************************************************************************************* 
 def make_archive(sim_epoch: rebound.Simulation, 
@@ -601,8 +611,8 @@ def test_integration(sa: rebound.SimulationArchive,
         
     if make_plot:
         # Chart titles
-        sim_name_chart = sim_name.title()
-        test_name_chart = test_name.title() if test_name != 'planets_com' else 'Planets (COM)'
+        sim_name_chart = sim_name
+        test_name_chart = test_name
 
         # Error in the position
         fig, ax = plt.subplots(figsize=[16,10])
