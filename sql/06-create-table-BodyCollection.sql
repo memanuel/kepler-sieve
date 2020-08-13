@@ -17,12 +17,12 @@ INSERT INTO KS.BodyCollection
 (BodyCollectionID, BodyCollectionName)
 VALUES
 (1, 'Planets'),
-(2, 'DE-435'),
-(3, 'DE-435-Top-16'),
-(4, 'DE-435-Top-32'),
-(5, 'DE-435-Top-64'),
-(6, 'DE-435-Top-128'),
-(7, 'DE-435-Top-256');
+(2, 'DE435'),
+(3, 'DE435-Top-16'),
+(4, 'DE435-Top-32'),
+(5, 'DE435-Top-64'),
+(6, 'DE435-Top-128'),
+(7, 'DE435-Top-256');
 
 -- BodyCollectionEntry
 CREATE OR REPLACE TABLE KS.BodyCollectionEntry(
@@ -65,7 +65,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'Planets'
 WHERE bt.IsLargeBody_JPL;
 
-# Populate KS.BodyCollection for the DE-435 
+# Populate KS.BodyCollection for the DE435 
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -75,10 +75,10 @@ SELECT
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435'
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435'
 ;
 
-# Populate KS.BodyCollection for the DE-435-Top-16
+# Populate KS.BodyCollection for the DE435-Top-16
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -88,7 +88,7 @@ SELECT
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-16'
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-16'
 WHERE mr.MassRank <= 16;
 
 # Populate KS.BodyCollection for the DE-435-Top-32
@@ -101,7 +101,7 @@ SELECT
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-32'
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-32'
 WHERE mr.MassRank <= 32;
 
 # Populate KS.BodyCollection for the DE-435-Top-64
@@ -114,7 +114,7 @@ SELECT
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-64'
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-64'
 WHERE mr.MassRank <= 64;
 
 # Populate KS.BodyCollection for the DE-435-Top-128
@@ -127,7 +127,7 @@ SELECT
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-128'
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-128'
 WHERE mr.MassRank <= 128;
 
 # Populate KS.BodyCollection for the DE-435-Top-256
@@ -140,7 +140,7 @@ SELECT
 FROM 
 	JPL.MassRank AS mr
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE-435-Top-256'
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-256'
 WHERE mr.MassRank <= 256;
 
 # Populate total mass of collections
