@@ -28,6 +28,7 @@ from tqdm.auto import tqdm as tqdm_auto
 # MSE imports
 from utils import arange_inc
 from astro_utils import datetime_to_mjd, mjd_to_datetime, datetime_to_year, cart_to_sph
+from db_config import db_engine
 from horizons import make_sim_horizons, extend_sim_horizons
 from utils import rms
 
@@ -101,6 +102,9 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
         ias15.min_dt = dt
         # Set tolerance epsilon for adaptive time steps
         sim.ri_ias15.epsilon = epsilon
+        # Compute error by max(acc_err / acc) when flag=0 (more demanding)
+        # Compute error by max(acc_err) / max(acc) when flag=1 (less demanding)
+        sim.ri_ias15.epsilon_global = 0
 
     # Save a snapshot to the archive file if requested
     if save_file:
@@ -136,6 +140,7 @@ def extend_sim(sim: rebound.Simulation,
     # body_names_missing: List[str] = [nm for nm in body_names if rebound.hash(nm).value not in hashes_present]
     body_names_present: Set[str] = set(sim.body_names)
     body_names_missing: List[str] = [nm for nm in body_names if nm not in body_names_present]
+    objects_missing: bool = len(body_names_missing) > 0
 
     # Extend the simulation and save it with the augmented bodies
     if objects_missing:
@@ -463,11 +468,13 @@ def sim_elt_array(sim: rebound.Simulation, body_names=None) -> np.array:
     return elts
 
 # ********************************************************************************************************************* 
-def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, verbose: bool=False) -> \
+def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, 
+                          body_names: Optional[List[str]] = None, verbose: bool=False) -> \
                           Tuple[np.array, np.array]:
     """Report the difference between two simulations on a summary basis"""
     # Get the body names
-    body_names = sim0.body_names
+    if body_names is None:
+        body_names = sim0.body_names
 
     # Extract configuration arrays for the two simulations
     cfg0: np.array = sim_cfg_array(sim0, body_names)
@@ -548,6 +555,14 @@ def report_sim_difference(sim0: rebound.Simulation, sim1: rebound.Simulation, ve
     return pos_err, ang_err
     
 # ********************************************************************************************************************* 
+def get_asteroids() -> pd.DataFrame:
+    """Return list of known asteroid names and IDs"""
+    with db_engine.connect() as conn:
+        sql = 'CALL KS.GetAsteroids()'
+        ast = pd.read_sql(sql, con=conn)
+    return ast
+
+# ********************************************************************************************************************* 
 def test_integration(sa: rebound.SimulationArchive,
                      test_bodies: List[str], 
                      sim_name: str, 
@@ -590,8 +605,9 @@ def test_integration(sa: rebound.SimulationArchive,
     for t in t_test:
         # The epoch of this test time
         epoch: int = mjd0 + t
-        # The reference simulation from Horizons
+        # The reference simulation from Horizons, including test bodies
         sim0: rebound.Simulation = make_sim_horizons(body_collection=body_collection, epoch=epoch)
+        extend_sim(sim=sim0, body_names=test_bodies, add_as_test=True)
         # The test simulation from the simulation archive
         sim1: rebound.Simulation = sa.getSimulation(t=t, mode='exact')
         # Verbosity flag and screen print if applicable
@@ -600,7 +616,8 @@ def test_integration(sa: rebound.SimulationArchive,
             dt_t: datetime = mjd_to_datetime(epoch)
             print(f'\nDifference on {dt_t}:')
         # Run the test
-        pos_err, ang_err = report_sim_difference(sim0=sim0, sim1=sim1, verbose=report_this_date)
+        pos_err, ang_err = report_sim_difference(sim0=sim0, sim1=sim1, 
+                                                 body_names=test_bodies, verbose=report_this_date)
         # Save position and angle errors
         pos_errs.append(pos_err)
         ang_errs.append(ang_err)

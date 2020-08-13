@@ -64,7 +64,7 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
     Create a new rebound simulation with initial data from the NASA Horizons system
     INPUTS:
         body_collection: String name of a collection of bodies on DB table KS.BodyCollection, e.g.
-                         'Planets', 'DE-435', 'DE-435-Top-16'
+                         'Planets', 'DE435', 'DE435-Top-16'
         epoch:           MJD as of which state vectors are taken.
                          Must be an INTEGER in the supported date range 40400 (1969-06-28) to 77600 (2071-05-04)
     RETURNS:
@@ -91,6 +91,9 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
 
     # Add bodies in this collection to the empty simulation
     add_hrzn_bodies(sim=sim, states=states, add_as_test=add_as_test)
+
+    # Set extra attribute with epoch
+    sim.epoch = epoch
 
     return sim
 

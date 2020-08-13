@@ -33,7 +33,7 @@ test_asteroids = [
 test_objects_asteroids = ['Earth'] + test_asteroids
 
 # ********************************************************************************************************************* 
-def make_sim_planets(epoch: int, integrator: str ='ias15', steps_per_day: int = 256):
+def make_sim_planets(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, steps_per_day: int = 16):
     """Create a simulation with the sun and 8 planets at the specified time"""
     # Arguments for make_sim
     body_collection: str = 'Planets'
@@ -43,23 +43,23 @@ def make_sim_planets(epoch: int, integrator: str ='ias15', steps_per_day: int = 
 
     # Build a simulation with the selected objects
     sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
-                   add_as_test=add_as_test, integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
-
+                   add_as_test=add_as_test, integrator=integrator, 
+                   epsilon=epsilon, steps_per_day=steps_per_day, save_file=save_file)
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_de435(epoch: int, integrator='ias15', steps_per_day: int = 16):
-    """Create a simulation with all the massive objects used in the DE-435 integration"""
+def make_sim_de435(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, steps_per_day: int = 16):
+    """Create a simulation with all the massive objects used in the DE435 integration"""
     # Arguments for make_sim
-    body_collection: str = 'Planets'
+    body_collection: str = 'DE435'
     body_names_add: List[str] = []
     add_as_test: bool = True
     save_file = False
 
     # Build a simulation with the selected objects
     sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
-                   add_as_test=add_as_test, integrator=integrator, steps_per_day=steps_per_day, save_file=save_file)
-
+                   add_as_test=add_as_test, integrator=integrator, 
+                   epsilon=epsilon, steps_per_day=steps_per_day, save_file=save_file)
     return sim
 
 # ********************************************************************************************************************* 
