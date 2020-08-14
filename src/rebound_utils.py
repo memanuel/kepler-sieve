@@ -29,7 +29,7 @@ from tqdm.auto import tqdm as tqdm_auto
 from utils import hash_id_crc32
 from astro_utils import datetime_to_mjd, mjd_to_datetime, datetime_to_year, cart_to_sph
 from db_config import db_engine
-from horizons import make_sim_horizons, extend_sim_horizons
+from horizons import make_sim_horizons, extend_sim_horizons, extend_sim_horizons_ast
 from utils import rms
 
 # Typing
@@ -44,7 +44,7 @@ dir_sim: str = '../data/rebound/sim'
 dir_archive: str = '../data/rebound/archive'
 
 # ********************************************************************************************************************* 
-def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as_test: bool,
+def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: int, add_as_test: bool,
              integrator: str = 'ias15', steps_per_day: int = 4, epsilon: float = 2.0**-30,
              save_file: bool = True) -> rebound.Simulation:
     """
@@ -119,9 +119,7 @@ def make_sim(body_collection: str, body_names_add: List[str], epoch: int, add_as
     return sim
 
 # ********************************************************************************************************************* 
-def extend_sim(sim: rebound.Simulation, 
-               body_names: List[str], 
-               add_as_test: bool):
+def extend_sim(sim: rebound.Simulation, body_names: List[str], add_as_test: bool):
     """
     Extend an existing simulation to include a list of named bodies
     INPUTS:
@@ -144,11 +142,27 @@ def extend_sim(sim: rebound.Simulation,
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_planets(epoch: int, integrator: str ='ias15', body_names_add: Optional[List[str]] = None,
-                     epsilon: float = 2.0**-32, steps_per_day: int = 16):
+def extend_sim_ast(sim: rebound.Simulation, n_ast: int, add_as_test: bool):
+    """
+    Extend an existing simulation to include a list of named bodies
+    INPUTS:
+        sim:         A rebound simulation object
+        n_ast:       The number of asteroids to add to the simulation; adds the first n_ast asteroids
+        add_as_test: Flag indicating whether bodies added as massless test particles or not
+    RETURNS:
+        None:        Modifies sim in place
+    """
+    # Extend the simulation and save it with the augmented bodies
+    extend_sim_horizons_ast(sim, n_ast=n_ast, add_as_test=add_as_test)
+
+    return sim
+
+# ********************************************************************************************************************* 
+def make_sim_planets(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, steps_per_day: int = 16):
     """Create a simulation with the sun and 8 planets at the specified time"""
     # Arguments for make_sim
     body_collection: str = 'Planets'
+    body_names_add: Optional[List[str]] = None
     add_as_test: bool = True
     save_file = True
 
@@ -159,11 +173,11 @@ def make_sim_planets(epoch: int, integrator: str ='ias15', body_names_add: Optio
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_de435(epoch: int, integrator: str ='ias15', body_names_add: Optional[List[str]] = None,
-                   epsilon: float = 2.0**-32, steps_per_day: int = 16):
+def make_sim_de435(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, steps_per_day: int = 16):
     """Create a simulation with all the massive objects used in the DE435 integration"""
     # Arguments for make_sim
     body_collection: str = 'DE435'
+    body_names_add: Optional[List[str]] = None
     add_as_test: bool = True
     save_file = True
 
@@ -245,8 +259,6 @@ def make_archive_impl(sim_epoch: rebound.Simulation,
     epochs_dt: np.array = np.array([dt0 + timedelta(t) for t in ts])
 
     # File names for forward and backward integrations
-    # fname_fwd: str = path_archive.replace('.bin', '_fwd.bin')
-    # fname_back: str = path_archive.replace('.bin', '_back.bin')
     path_fwd: Path = Path(dir_archive, fname_archive.replace('.bin', '_fwd.bin'))
     path_back: Path = Path(dir_archive, fname_archive.replace('.bin', '_back.bin'))
     pathstr_fwd: str = path_fwd.as_posix()

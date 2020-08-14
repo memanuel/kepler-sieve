@@ -115,7 +115,13 @@ def add_hrzn_bodies(sim: rebound.Simulation, states: pd.DataFrame, add_as_test: 
 
     # Set mass multiplier based on add_as_test
     mass_multiplier: float = 0.0 if add_as_test else 1.0
+
+    # Generate set of object hashes present before we start; used to avoid adding duplicates
+    hashes_present: Set[int] = set(p.hash.value for p in sim.particles) if sim.particles else set()
     
+    # Mask indicating whether each body is added (true for non-duplicates, false for duplicates)
+    mask = np.ones(shape=n, dtype=bool)
+
     # Iterate over each body in the collection
     for i in range(n):
         # Get the ith body's state vector
@@ -123,17 +129,26 @@ def add_hrzn_bodies(sim: rebound.Simulation, states: pd.DataFrame, add_as_test: 
 
         # Particle name and rebound hash of that name
         body_name: str = s.BodyName
-        hash_id: int = rebound.hash(body_name)
+        hash_id: int = rebound.hash(body_name).value
+
+        # If this particle is already present, don't add a duplicate
+        if hash_id in hashes_present:
+            mask[i] = False
+            continue
 
         # Mass to use depends on add_as_test
         m: float = s.m * mass_multiplier
 
         # Add this particle with the given state vector
         sim.add(m=m, x=s.qx, y=s.qy, z=s.qz, vx=s.vx, vy=s.vy, vz=s.vz, hash=hash_id)
-    
-    # Add the names and IDs of these bodies
-    sim.body_ids = np.concatenate([sim.body_ids, states.BodyID.values])
-    sim.body_names = np.concatenate([sim.body_names, states.BodyName.values])
+
+        # Add the names and IDs of this bodies
+        np.append(sim.body_ids,  s.BodyID)
+        np.append(sim.body_names,  s.BodyName)
+
+    # # Add the names and IDs of only those bodies that were not duplicates
+    sim.body_ids = np.concatenate([sim.body_ids, states.BodyID.values[mask]])
+    sim.body_names = np.concatenate([sim.body_names, states.BodyName.values[mask]])
 
 # ********************************************************************************************************************* 
 def extend_sim_horizons(sim: rebound.Simulation, body_names: List[str], add_as_test: bool) -> None:
@@ -170,6 +185,35 @@ def extend_sim_horizons(sim: rebound.Simulation, body_names: List[str], add_as_t
             state = pd.read_sql(sql, con=conn)
             # Add this body to the simulation
             add_hrzn_bodies(sim, states=state, add_as_test=add_as_test)
+
+    # Update number of active particles if necessary
+    if add_as_test:
+        sim.N_active = N_active
+
+# ********************************************************************************************************************* 
+def extend_sim_horizons_ast(sim: rebound.Simulation, n_ast: int, add_as_test: bool) -> None:
+    """
+    Extend a rebound simulation with initial data from the NASA Horizons system
+    INPUTS:
+        sim:         A rebound simulation object
+        n_ast:       The number of asteroids to be added; the first n_ast asteroids are added to the simulation
+        add_as_test: Flag indicating whether bodies added as massless test particles or not
+    RETURNS:
+        None:       Modifies sim in place
+    """
+    # Get the epoch from the simulation
+    epoch: int = sim.epoch
+
+    # Current number of total particles
+    N_active = sim.N
+
+    # Add missing objects one at a time if not already present
+    with db_engine.connect() as conn:
+        # Look up the state vector using stored procedure JPL.GetHorizonsStateAsteroids()
+        sql = f"CALL JPL.GetHorizonsStateAsteroids({n_ast}, {epoch});"
+        states = pd.read_sql(sql, con=conn)
+        # Add this body to the simulation
+        add_hrzn_bodies(sim, states=states, add_as_test=add_as_test)
 
     # Update number of active particles if necessary
     if add_as_test:
