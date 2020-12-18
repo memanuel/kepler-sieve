@@ -49,6 +49,9 @@ data/observations_win
 data/planets_win
 data/ztf_ast_win
 
+# Orbital elements
+data/jpl/orbital_elements
+
 # ******************************************************************************************
 # Model checkpoints in specific directories
 src/tensorflow-tutorial/checkpoints

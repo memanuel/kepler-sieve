@@ -31,3 +31,14 @@ CREATE OR REPLACE TABLE JPL.HorizonsImport(
 		COMMENT "Don't enforce uniqueness here to allow loading e.g. daily and weekly data files without a collision."
 )
 	COMMENT "Staging table to import data from files downloaded from Horizons API."
+
+-- Run this command to load CSV contents into JPL.HorizonsImport table
+/*
+LOAD DATA INFILE '/ssd1/tmp/mysql/jpl/horizons/*.csv'
+INTO TABLE JPL.HorizonsImport
+FIELDS TERMINATED BY ","
+LINES TERMINATED BY "\n"
+IGNORE 1 LINES
+(BoydNumber, BodyName, IntegrationSource, JD, CalendarDateTime, delta_T, qx, qy, qz, vx, vy, vz)
+SET HorizonsImportID=NULL;
+*/

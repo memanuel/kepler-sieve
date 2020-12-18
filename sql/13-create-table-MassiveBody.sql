@@ -23,3 +23,14 @@ CREATE OR REPLACE TABLE JPL.MassiveBody(
         FOREIGN KEY (HorizonsBodyID) REFERENCES JPL.HorizonsBody(HorizonsBodyID)
 )
 COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.";
+
+-- Run this command to load CSV contents into JPL.MassiveBodyImport table
+/*
+LOAD DATA INFILE '/ssd1/tmp/mysql/jpl/masses.csv'
+INTO TABLE JPL.MassiveBodyImport
+FIELDS TERMINATED BY ","
+LINES TERMINATED BY "\n"
+IGNORE 1 LINES
+(ParameterName, GM)
+;
+*/
