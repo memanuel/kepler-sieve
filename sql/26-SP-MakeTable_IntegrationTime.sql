@@ -6,23 +6,38 @@ PROCEDURE KS.MakeTable_IntegrationTime()
 COMMENT "Populate the IntegrationTime table from JPL.HorizonsTime"
 BEGIN 
 
-INSERT INTO KS.IntegrationTime
-(MinuteID, MJD, JD, CalendarDate, CalendarDateTime, delta_T)
+-- Populate IntegrationTime from HorizonsTime by joining pairs of dates to a minutes offset
+	INSERT INTO KS.IntegrationTime
+(TimeID, MJD, CalendarDate, CalendarDateTime, delta_T)
 SELECT 
-	FLOOR((ht.JD - 2400000.5) * 24 * 60) as MinuteID,
-	ht.JD - 2400000.5 as MJD,
-	ht.JD,
-	cast(ht.CalendarDateTime as Date) as Date,
-	ht.CalendarDateTime as DateTime,
-	ht.delta_T
-FROM JPL.HorizonsTime as ht;
+	ht.TimeID + minutes._ AS TimeID,
+	ht.MJD + minutes.mjd_offset AS MJD,
+	ht.CalendarDate,
+	DATE_ADD(ht.CalendarDateTime, INTERVAL minutes._ MINUTE) AS CalendarDateTime,
+	(minutes.wt0 * ht.delta_T) + (minutes.wt1 * ht1.delta_T) AS delta_T
+FROM 
+	-- The HorizonsTime record at the start of the day
+	JPL.HorizonsTime as ht
+	-- The HorizonsTime record one day in forward; used to interpolate delta_T
+	INNER JOIN JPL.HorizonsTime AS ht1 ON
+		ht1.TimeID = ht.TimeID + (24*60)
+	-- All the minutes records
+	CROSS JOIN KS.Minutes AS minutes;
 
-# Populate the the IntegrationTimeID field on JPL.HorizonsTime
-UPDATE 
-	JPL.HorizonsTime AS ht
-	INNER JOIN KS.IntegrationTime AS it ON it.MinuteID = ht.MinuteID
-SET
-	ht.IntegrationTimeID = it.IntegrationTimeID;
+-- Handle the last record in HorizonsTime
+INSERT INTO KS.IntegrationTime
+(TimeID, MJD, CalendarDate, CalendarDateTime, delta_T)
+SELECT 
+	ht.TimeID,
+	ht.MJD,
+	ht.CalendarDate,
+	ht.CalendarDateTime,
+	ht.delta_T
+FROM 
+	-- The HorizonsTime record for the very last day in HorizonsTime
+	JPL.HorizonsTime as ht
+WHERE
+	ht.TimeID = 77600*24*60;
 
 END
 $$

@@ -1,11 +1,9 @@
 -- Create tables for integrated vectors
 CREATE OR REPLACE TABLE KS.Integration_DE435(
+	TimeID INT NOT NULL
+		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
 	BodyID INT NOT NULL
 		COMMENT "The Body whose state vectors are described; FK to JS.Body",
-	IntegrationTimeID INT NOT NULL
-		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
-	MinuteID INT NOT NULL
-		COMMENT "MJD as integer number of minutes, e.g. floor(MJD*24*60)",
 	MJD DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from IntegrationTimeID but included for performance.",
 	qx DOUBLE NOT NULL
@@ -20,15 +18,13 @@ CREATE OR REPLACE TABLE KS.Integration_DE435(
 		COMMENT "Velocity of body (y coordinate) in AU/day in the barcycentric mean ecliptic frame",
 	vz DOUBLE NOT NULL
 		COMMENT "Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame",
-	PRIMARY KEY (BodyID, IntegrationTimeID)
-		COMMENT "A state vector is identified by the body and time stamp; use integer TimeStampID for performance.",
-	UNIQUE KEY (MinuteID, BodyID)
-		COMMENT "Times are uniquely identified by minute; allow fast search by MinuteID.",
-	INDEX MJD_BodyID (MJD, BodyID)
-		COMMENT "Index to support filtering directly on the time as an MJD.",
+	PRIMARY KEY (TimeID, BodyID)
+		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
+	UNIQUE KEY (BodyID, TimeID)
+		COMMENT "Allow fast search keyed first by BodyID.",
+	CONSTRAINT FK_Integration_DE435_TimeID
+		FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
 	CONSTRAINT FK_Integration_DE435_BodyID
-		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID),
-	CONSTRAINT FK_Integration_DE435_IntegrationTimeID
-		FOREIGN KEY (IntegrationTimeID) REFERENCES KS.IntegrationTime(IntegrationTimeID)        
+		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
 COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using all the massive bodies from the DE435 integration with initial conditions at MJD 59000."

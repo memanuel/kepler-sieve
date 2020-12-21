@@ -1,13 +1,13 @@
-CREATE OR REPLACE TABLE KS.IntegrationTime(
-	TimeID INT NOT NULL PRIMARY KEY
+CREATE OR REPLACE TABLE KS.TestTime(
+	IntegrationTimeID INT NOT NULL
 		COMMENT "MJD as integer number of minutes, e.g. floor(MJD*24*60)",
-	MJD DOUBLE NOT NULL UNIQUE
+	MJD DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame",
-	JD DOUBLE AS (MJD + 2400000.5)
+	JD DOUBLE NOT NULL
 		COMMENT "The Julian Date in the TDB (barycentric dynamical time) frame",
 	CalendarDate DATE NOT NULL
 		COMMENT "The date and time on the Gregorian calendar in the TDB frame",
-	CalendarDateTime DATETIME(6) NOT NULL UNIQUE
+	CalendarDateTime DATETIME(6) NOT NULL
 		COMMENT "The date and time on the Gregorian calendar in the TDB frame",
 	delta_T DOUBLE NOT NULL
 		COMMENT "The difference between the TDB and terrestial atomic time frames"
