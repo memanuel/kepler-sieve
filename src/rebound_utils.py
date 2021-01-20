@@ -14,6 +14,7 @@ import sqlalchemy
 import rebound
 
 # Utilities
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 import os
@@ -478,11 +479,16 @@ def integrate_df2db(df: pd.DataFrame, table_name: str):
 
     # SQL to truncate the table
     sql_truncate: str = f'TRUNCATE {schema}.{table_name};'
-    chunk_size: int = 1024
+    chunksize: int = 1024
 
     # Truncate the table, then insert the contents of the Pandas DF
     with db_engine.connect() as conn:
         conn.execute(sql_truncate)
         print(f'Inserting {row_count} rows into DB table {schema}.{table_name} ...')
+        t0 = time.time()
         df.to_sql(name=table_name, con=conn, schema=schema, if_exists='append', index=False, 
-                    chunksize=chunksize, method='multi')
+                    chunksize=chunksize)
+        t1 = time.time()
+    # Report elapsed time
+    elapsed_time = t1 - t0
+    print(f'Elapsed Time for DB insert: {elapsed_time:5.2f} seconds.')
