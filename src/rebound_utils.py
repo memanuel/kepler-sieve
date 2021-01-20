@@ -1,5 +1,4 @@
 """
-Harvard IACS Masters Thesis
 Utilities for working with Rebound simulations and archives
 
 Michael S. Emanuel
@@ -22,7 +21,6 @@ from itertools import chain
 
 # UI
 import matplotlib.pyplot as plt
-# from tqdm import tqdm as tqdm_console
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
@@ -42,6 +40,10 @@ OrbitalElement = namedtuple('OrbitalElement', 'a e inc Omega omega f')
 # Directories for single simulations and archives
 dir_sim: str = '../data/rebound/sim'
 dir_archive: str = '../data/rebound/archive'
+
+# Make directories if missing
+Path(dir_sim).mkdir(parents=True, exist_ok=True)
+Path(dir_archive).mkdir(parents=True, exist_ok=True)
 
 # ********************************************************************************************************************* 
 def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: int, add_as_test: bool,
@@ -104,6 +106,7 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
     if save_file:
         sim.simulationarchive_snapshot(filename=path_sim, deletefile=True)
         np.savez(path_npz, body_ids=sim.body_ids, body_names=sim.body_names)
+        print(f'Saved simulation snapshot to {path_sim} and Numpy arrays to {path_npz}.')
 
     # Save additional data attributes to the simulation for use downstream
     sim.body_collection = body_collection

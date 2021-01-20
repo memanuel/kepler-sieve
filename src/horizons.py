@@ -1,6 +1,8 @@
 """
-Harvard IACS Masters Thesis
-Utilities for building Rebound simulations using NASA JPL Horizons data
+Utilities for building Rebound simulations using NASA JPL Horizons data.
+Horizons data is queried from the JPL database, NOT the live Horizons API!
+The JPL database was populated by doing a one time dump of text files from JPL.
+The data reflects the DE-435 integration.
 
 Michael S. Emanuel
 06-Aug-2020
@@ -51,6 +53,7 @@ def get_hrzn_state_coll(body_collection: str, epoch: int) -> pd.DataFrame:
     # Assemble SQL to call the stored procedure JPL.GetHorizonsStateCollection
     body_collection = quote(body_collection)
     sql = f"CALL JPL.GetHorizonsStateCollection({body_collection}, {epoch});"
+    # print(sql)
 
     # Run the SP and wrap results as a DataFrame
     with db_engine.connect() as conn:
@@ -81,6 +84,7 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
 
     # Get state vectors
     states = get_hrzn_state_coll(body_collection=body_collection, epoch=epoch)
+    # print(f'Loaded horizons state at epoch {epoch} from JPL database.')
 
     # When initializing a horizons simulation from a body collection, we ALWAYS treat bodies as massive
     add_as_test: bool = False
@@ -91,6 +95,7 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
 
     # Add bodies in this collection to the empty simulation
     add_hrzn_bodies(sim=sim, states=states, add_as_test=add_as_test)
+    print(f'Added bodies to simulation.')
 
     # Set extra attribute with epoch
     sim.epoch = epoch

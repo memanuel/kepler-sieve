@@ -1,5 +1,4 @@
 """
-Harvard IACS Masters Thesis
 Utilites
 
 Michael S. Emanuel
