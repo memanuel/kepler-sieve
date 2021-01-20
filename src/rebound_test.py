@@ -24,8 +24,8 @@ import matplotlib.pyplot as plt
 from utils import rms, plot_style, print_stars
 from astro_utils import mjd_to_datetime, datetime_to_year, cart_to_sph
 from horizons import make_sim_horizons
-from rebound_utils import make_sim_planets, make_sim_de435, extend_sim
-from rebound_utils import make_archive, get_asteroids
+from rebound_utils import make_sim_planets, make_sim_de435, extend_sim, get_asteroids
+from rebound_archive import make_archive
 
 # Typing
 from typing import List, Tuple, Dict, Set, Optional

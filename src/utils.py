@@ -5,9 +5,9 @@ Michael S. Emanuel
 Tue Jun  4 15:24:22 2019
 """
 
+# Libraries
 import numpy as np
 import matplotlib as mpl
-# import matplotlib.pyplot as plt
 import pickle
 import zlib
 

@@ -1,5 +1,4 @@
 """
-Harvard IACS Masters Thesis
 Astronomy Utilities
 
 Michael S. Emanuel
@@ -10,6 +9,7 @@ Fri Aug 23 16:13:28 2019
 import numpy as np
 from scipy import interpolate
 from datetime import date, datetime, timedelta
+from collections import namedtuple
 
 # Astronomy
 import astropy
@@ -41,6 +41,10 @@ sec2day: float = 1.0 / day2sec
 
 # Radians in a circle
 tau = 2.0 * np.pi
+
+# *************************************************************************************************
+# Named tuple data type for orbital elements
+OrbitalElement = namedtuple('OrbitalElement', 'a e inc Omega omega f')
 
 # *************************************************************************************************
 def date_to_jd(t: date) -> int:
