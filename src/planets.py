@@ -24,8 +24,7 @@ import matplotlib.pyplot as plt
 # MSE imports
 from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
-from rebound_utils import make_sim_planets, make_sim_de435
-from rebound_archive import make_archive
+from rebound_utils import make_sim_planets, make_sim_de435, integrate_df, integrate_df2db
 from rebound_test import test_integration
 
 # Typing
@@ -89,9 +88,8 @@ def main():
     print(f'steps_per_day  : {steps_per_day}')
     print(f'dates to save  : {dates_saved}')
 
-    # Shared time_step and save_step
-    time_step: int = 1
-    save_step: int = 1
+    # Compute time_step from steps_per_day
+    time_step: np.float64 = np.float64(1.0 / steps_per_day)
 
     # Flags for building simulation archive
     save_elements: bool = False
@@ -102,28 +100,19 @@ def main():
         print()
         print_stars()
         # Simulation with initial configuration for planets
-        sim_planets = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
-        # Run the planets simulation
-        sa_planets = make_archive(sim_epoch=sim_planets, 
-                 mjd0=mjd0, mjd1=mjd1, time_step=time_step, save_step=save_step,
-                 save_elements=save_elements, progbar=progbar)
+        sim = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
+        # Run the planets simulation and save as a DataFrame
+        df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
+                          save_elements=save_elements, progbar=progbar)
+        # Save to Integration_Planets DB table
+        integrate_df2db(df=df, table_name='Integration_Planets')
 
     # If DE435 was requested, run the simulation and test the results
     if run_de435:
         print()
         print_stars()
         # Simulation with initial configuration for planets and DE435
-        sim_de435 = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
-        # Run the DE435 simulation
-        sa_de435 = make_archive(sim_epoch=sim_de435, 
-                 mjd0=mjd0, mjd1=mjd1, time_step=time_step, save_step=save_step,
-                 save_elements=save_elements, progbar=progbar)
-        # Test the DE435 integration if requested
-        if args.test: 
-            pos_err_de435, ang_err_de435 = \
-                test_integration(sa=sa_de435, test_bodies=test_bodies, 
-                sim_name='DE435', test_name=test_name, test_step=test_step,
-                verbose=verbose, make_plot=make_plot)        
+        sim = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

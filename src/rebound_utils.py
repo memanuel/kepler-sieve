@@ -8,6 +8,7 @@ Fri Aug 23 16:13:28 2019
 # Core
 import numpy as np
 import pandas as pd
+import sqlalchemy
 
 # Astronomy
 import rebound
@@ -104,7 +105,7 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
     if save_file:
         sim.simulationarchive_snapshot(filename=path_sim, deletefile=True)
         np.savez(path_npz, body_ids=sim.body_ids, body_names=sim.body_names)
-        print(f'Saved simulation snapshot to {path_sim} and body names and IDs to {path_npz}.')
+        # print(f'Saved simulation snapshot to {path_sim} and body names and IDs to {path_npz}.')
 
     # Save additional data attributes to the simulation for use downstream
     sim.body_collection = body_collection
@@ -359,14 +360,11 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
         # Process this row
         process_row(sim=sim_back, t=t, row=row)
 
-    # Save the object name hashes
-    # hashes: np.array = np.zeros(N, dtype=np.uint32)
-    # sim_epoch.serialize_particle_data(hash=hashes)
-
-    return body_ids, body_names, epochs, q, v
+    return body_ids, body_names, epochs, q, v, elts
 
 # ********************************************************************************************************************* 
-def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array, q: np.array, v: np.array):
+def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array, 
+                      q: np.array, v: np.array):
     """
     Arrange Numpy arrays with integration output into a Pandas DataFrame with one row per observation.\
     INPUTS:
@@ -381,7 +379,7 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
         BodyName:     N body names
         MJD:          M times as of which the integration was saved; MJDs
         qx, qy, qx:   Positions in AU in the BME
-        vx, vy, vz:   Velocities in AU / day   
+        vx, vy, vz:   Velocities in AU / day
     """
     # Array sizes
     M: int = epochs.shape[0]
@@ -448,10 +446,43 @@ def integrate_df(sim_epoch: rebound.Simulation,
         vx, vy, vz:   Velocities in AU / day
     """
     # Delegate to integrate_numpy
-    body_ids, body_names, epochs, q, v = \
+    body_ids, body_names, epochs, q, v, elts = \
             integrate_numpy(sim_epoch=sim_epoch, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
             save_elements=save_elements, progbar=progbar)    
     # Delegate to integration_np2df
     df = integration_np2df(body_ids=body_ids, body_names=body_names, epochs=epochs, q=q, v=v)
 
     return df
+
+# ********************************************************************************************************************* 
+def integrate_df2db(df: pd.DataFrame, table_name: str):
+    """
+    Write out the results of a rebound integration from a DataFrame to the KS database.
+    INPUTS:
+        df - DataFrame including columns BodyID, MJD, qx, qy, qz, vx, vy, vz
+    OUTPUTS:
+        None.  Replaces contents of table in place.
+    """
+
+    # Filter DataFrame to the desired columns
+    cols = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    df = df[cols]
+    # Number of rows
+    row_count: int = df.shape[0]
+
+    # Get DB connection
+    conn: sqlalchemy.engine = db_engine.connect()
+
+    # Set schema name
+    schema: str = 'KS'
+
+    # SQL to truncate the table
+    sql_truncate: str = f'TRUNCATE {schema}.{table_name};'
+    chunk_size: int = 1024
+
+    # Truncate the table, then insert the contents of the Pandas DF
+    with db_engine.connect() as conn:
+        conn.execute(sql_truncate)
+        print(f'Inserting {row_count} rows into DB table {schema}.{table_name} ...')
+        df.to_sql(name=table_name, con=conn, schema=schema, if_exists='append', index=False, 
+                    chunksize=chunksize, method='multi')
