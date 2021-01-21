@@ -479,16 +479,39 @@ def integrate_df2db(df: pd.DataFrame, table_name: str):
 
     # SQL to truncate the table
     sql_truncate: str = f'TRUNCATE {schema}.{table_name};'
-    chunksize: int = 1024
 
+    # Convert file to CSV
+    t0 = time.time()
+    fname = f'../data/rebound/csv/{table_name}.csv'
+    columns=['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    df.to_csv('../data/rebound/csv/Integration_Planets.csv', columns=columns, index=False)
+    t1 = time.time()
+
+    # Report elapsed time
+    elapsed_time = t1 - t0
+    print(f'Elapsed Time for CSV conversion: {elapsed_time:5.2f} seconds.')
+
+    # Load CSV into database
+    sql_load_csv = \
+    """
+    LOAD DATA LOCAL INFILE 
+    '/home/michael/Harvard/kepler-sieve/data/rebound/csv/Integration_Planets.csv'
+    IGNORE
+    INTO TABLE KS.Integration_Planets
+    FIELDS TERMINATED BY ','
+    LINES TERMINATED BY '\n'
+    IGNORE 1 LINES
+    (TimeID, BodyID, MJD, qx, qy, qz, vx, vy, vz);
+    """
+        
     # Truncate the table, then insert the contents of the Pandas DF
     with db_engine.connect() as conn:
         conn.execute(sql_truncate)
-        print(f'Inserting {row_count} rows into DB table {schema}.{table_name} ...')
-        t0 = time.time()
-        df.to_sql(name=table_name, con=conn, schema=schema, if_exists='append', index=False, 
-                    chunksize=chunksize)
-        t1 = time.time()
+        conn.execute(sql_load_csv)
+    t2 = time.time()
+
     # Report elapsed time
-    elapsed_time = t1 - t0
+    elapsed_time = t2 - t1
     print(f'Elapsed Time for DB insert: {elapsed_time:5.2f} seconds.')
+
+# ********************************************************************************************************************* 

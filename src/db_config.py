@@ -14,5 +14,5 @@ password = 'kepler'
 directory_csv = '/ssd1/tmp/mysql'
 
 # Create database engine - once for the whole module
-db_url: str = f'mysql+pymysql://{username}:{password}@{hostname}'
+db_url: str = f'mariadb+pymysql://{username}:{password}@{hostname}/?local_infile=1'
 db_engine: sqlalchemy.engine = sqlalchemy.create_engine(db_url)
