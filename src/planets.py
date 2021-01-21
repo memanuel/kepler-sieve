@@ -24,7 +24,8 @@ import matplotlib.pyplot as plt
 # MSE imports
 from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
-from rebound_utils import make_sim_planets, make_sim_de435, integrate_df, integrate_df2db
+from rebound_utils import make_sim_planets, make_sim_de435, integrate_df
+from db_utils import df2db
 from rebound_test import test_integration
 
 # Typing
@@ -105,7 +106,7 @@ def main():
         df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
                           save_elements=save_elements, progbar=progbar)
         # Save to Integration_Planets DB table
-        integrate_df2db(df=df, table_name='Integration_Planets')
+        df2db(df=df, schema='KS', table='Integration_Planets', truncate=True, report_time=True)
 
     # If DE435 was requested, run the simulation and test the results
     if run_de435:
