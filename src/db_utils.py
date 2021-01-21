@@ -16,7 +16,7 @@ dir_csv: str = '../data/df2db'
 Path(dir_csv).mkdir(parents=True, exist_ok=True)
 
 # ********************************************************************************************************************* 
-def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, report_time: bool=False):
+def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, verbose: bool=False):
     """
     Insert the contents of a Pandas DataFrame into a SQL table.
     INPUTS:
@@ -40,14 +40,15 @@ def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, repor
 
     # Filter DataFrame to the desired columns
     df = df[columns]
+    row_count: int = df.shape[0]
 
     # SQL to truncate the table
     sql_truncate: str = f'TRUNCATE {schema_table};'
-
     
     # File name of CSV
     fname_csv = os.path.join(dir_csv, f'{table}.csv')
-    if report_time:
+    if verbose:
+        print(f'Inserting {row_count} records from dataframe into {schema_table}...')
         print(f'CSV file name: {fname_csv}')
     
     # Convert file to CSV
@@ -55,7 +56,8 @@ def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, repor
     df.to_csv(fname_csv, columns=columns, index=False)   
     t1 = time.time()
     # Report elapsed time if requested
-    print(f'Elapsed Time for CSV conversion: {(t1-t0):5.2f} seconds.')
+    if verbose:
+        print(f'Elapsed Time for CSV conversion: {(t1-t0):5.2f} seconds.')
 
     # List of column names
     col_list = '(' + ','.join(columns) + ')'
@@ -85,5 +87,5 @@ IGNORE 1 LINES
 
     # Report elapsed time if requested
     t2 = time.time()
-    if report_time:
+    if verbose:
         print(f'Elapsed Time for DB insertion: {(t2-t1):5.2f} seconds.')
