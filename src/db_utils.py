@@ -68,7 +68,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, verbo
 f"""
 LOAD DATA LOCAL INFILE 
 '{fname_csv}'
-IGNORE
+REPLACE
 INTO TABLE {schema_table}
 FIELDS TERMINATED BY ','
 LINES TERMINATED BY '\n'
