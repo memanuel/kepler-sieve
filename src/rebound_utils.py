@@ -388,7 +388,8 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
 
     # The time stamps
     MJD = epochs.repeat(N)
-    TimeID = np.array(MJD*24*60).astype(np.int32)
+    # TimeID = np.array(MJD*24*60).astype(np.int32)
+    TimeID = np.rint(MJD*24*60).astype(np.int32)
 
     # The ID and name of each body
     BodyID = np.tile(body_ids, M)

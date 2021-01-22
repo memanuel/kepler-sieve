@@ -114,7 +114,7 @@ def main():
         # Save to Integration_Planets DB table
         print()
         print_stars()
-        df2db(df=df, schema='KS', table='Integration_Planets', truncate=True, verbose=True)
+        df2db(df=df, schema='KS', table='Integration_Planets', truncate=False, verbose=True)
 
     # If DE435 was requested, run the simulation and test the results
     if run_de435:
@@ -130,7 +130,7 @@ def main():
         # Save to Integration_DE435 DB table
         print()
         print_stars()
-        df2db(df=df, schema='KS', table='Integration_DE435', truncate=True, verbose=True)
+        df2db(df=df, schema='KS', table='Integration_DE435', truncate=False, verbose=True)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
