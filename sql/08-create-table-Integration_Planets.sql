@@ -20,7 +20,7 @@ CREATE OR REPLACE TABLE KS.Integration_Planets(
 		COMMENT "Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame",
 	PRIMARY KEY (TimeID, BodyID)
 		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
-	UNIQUE KEY (BodyID, TimeID)
+	UNIQUE KEY UNQ_Integration_Planets_BodyID_TimeID (BodyID, TimeID)
 		COMMENT "Allow fast search keyed first by BodyID.",
 	CONSTRAINT FK_Integration_Planets_TimeID
 		FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
