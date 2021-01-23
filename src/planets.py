@@ -105,7 +105,7 @@ def main():
     chunk_size: int = 2**19
 
     # If planets were requested, run the simulation and test the results
-    if run_planets and False:
+    if run_planets:
         # Simulation with initial configuration for planets
         print()
         print_stars()
@@ -113,7 +113,7 @@ def main():
 
         # Run the planets simulation and save as a DataFrame
         df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
-                         save_elements=save_elements, progbar=progbar)
+                          save_elements=save_elements, progbar=progbar)
 
         # Save to Integration_Planets DB table
         print()
@@ -129,15 +129,13 @@ def main():
         sim = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
 
         # Run the DE435 simulation and save as a DataFrame
-        # df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
-        #                  save_elements=save_elements, progbar=progbar)
-        df = pd.read_csv('../data/df2db/Integration_DE435.csv')
+        df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
+                           save_elements=save_elements, progbar=progbar)
 
         # Save to Integration_DE435 DB table
         print()
         print_stars()
-        # df2db(df=df, schema='KS', table='Integration_DE435', truncate=False, verbose=True)
-        df2db_chunked(df=df, schema='KS', table='Integration_Planets', 
+        df2db_chunked(df=df, schema='KS', table='Integration_DE435', 
                       chunk_size=chunk_size, truncate=False, progbar=True)
 
 # ********************************************************************************************************************* 
