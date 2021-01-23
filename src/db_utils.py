@@ -6,6 +6,7 @@ import sqlalchemy
 from pathlib import Path
 import os
 import time
+from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
 from db_config import db_engine
@@ -51,8 +52,8 @@ def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, verbo
         print(f'Inserting {row_count} records from dataframe into {schema_table}...')
         print(f'CSV file name: {fname_csv}')
     
-    # Convert file to CSV
-    t0 = time.time()
+    # Convert file to CSV in chunks    
+    t0 = time.time()   
     df.to_csv(fname_csv, columns=columns, index=False)   
     t1 = time.time()
     # Report elapsed time if requested
@@ -89,3 +90,34 @@ IGNORE 1 LINES
     t2 = time.time()
     if verbose:
         print(f'Elapsed Time for DB insertion: {(t2-t1):5.2f} seconds.')
+
+# ********************************************************************************************************************* 
+def df2db_chunked(df: pd.DataFrame, schema: str, table: str, chunk_size: int, 
+                  truncate: bool=False, progbar: bool=False):
+    """
+    Insert the contents of a Pandas DataFrame into a SQL table.
+    INPUTS:
+        df:         The DataFrame to insert
+        schema:     The schema of the destination DB table
+        chunk_size: The number of rows in each chunk
+        table:  The name of the destination DB table 
+        truncate: Flag indicating whether to first truncate the destination table
+    OUTPUTS:
+        None.  Modifies the DB table on the server.
+    """
+    # Set up chunks
+    row_count: int = df.shape[0]
+    chunk_count: int = row_count // chunk_size + 1 
+    ii = list(range(chunk_count))
+    if progbar:
+        ii = tqdm_auto(ii)
+
+    # Iterate over chunks of the DataFrame
+    for i in ii:
+        # Current chunk of the df
+        i0: int = i * chunk_size
+        i1: int = i0 + chunk_size
+        df_i: pd.DataFrame = df.iloc[i0:i1]
+        # Delegate to df2db
+        truncate_i: bool = truncate if (i==0) else False
+        df2db(df=df_i, schema=schema, table=table, truncate=truncate_i, verbose=False)
