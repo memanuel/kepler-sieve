@@ -12,7 +12,9 @@ CALL JPL.MakeTable_SmallBody();
 CALL JPL.MakeTable_HorizonsBody();
 CALL JPL.MakeTable_HorizonsTime();
 CALL JPL.MakeTable_HorizonsVectors();
-CALL JPL.MakeTable_MassiveBoyd();
+CALL JPL.MakeTable_IntegrationDiff();
+CALL JPL.MakeTable_BodyVariance()
+CALL JPL.MakeTable_MassiveBody();
 
 END $$
 

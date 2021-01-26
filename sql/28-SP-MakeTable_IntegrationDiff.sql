@@ -2,7 +2,7 @@ DELIMITER $$
 
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE KS.IntegrationDiff()
+PROCEDURE KS.MakeTable_IntegrationDiff()
 COMMENT "Populate the IntegrationDiff table from views IntegrationDiff_Planets and IntegrationDiff_DE435"
 
 BEGIN 

@@ -5,24 +5,26 @@ DROP TABLE IF EXISTS KS.BodyCollection;
 -- BodyCollection
 CREATE OR REPLACE TABLE KS.BodyCollection(
 	BodyCollectionID SMALLINT NOT NULL PRIMARY KEY,
+	BodyCollectionCD VARCHAR(4) NOT NULL,
 	BodyCollectionName VARCHAR(32) NOT NULL,
 	BodyCount SMALLINT NOT NULL DEFAULT 0,
 	TotalMass DOUBLE NOT NULL DEFAULT 0.0,
+	UNIQUE KEY UNQ_BodyCollectionCD (BodyCollectionCD),
 	UNIQUE KEY UNQ_BodyCollectionName (BodyCollectionName)
 )
 COMMENT "Collections of bodies used in solar system integrations.";
 
 -- Populate BodyCollection
 INSERT INTO KS.BodyCollection
-(BodyCollectionID, BodyCollectionName)
+(BodyCollectionID, BodyCollectionCD, BodyCollectionName)
 VALUES
-(1, 'Planets'),
-(2, 'DE435'),
-(3, 'DE435-Top-16'),
-(4, 'DE435-Top-32'),
-(5, 'DE435-Top-64'),
-(6, 'DE435-Top-128'),
-(7, 'DE435-Top-256');
+(1, 'P', 'Planets'),
+(2, 'D', 'DE435'),
+(3, 'D4', 'DE435-Top-16'),
+(4, 'D5', 'DE435-Top-32'),
+(5, 'D6', 'DE435-Top-64'),
+(6, 'D7', 'DE435-Top-128'),
+(7, 'D8', 'DE435-Top-256');
 
 -- BodyCollectionEntry
 CREATE OR REPLACE TABLE KS.BodyCollectionEntry(

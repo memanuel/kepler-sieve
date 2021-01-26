@@ -10,8 +10,8 @@ COMMENT "Get the state vectors (position and velocity) of the first n_ast number
 
 BEGIN 
 
-# Compute MinuteID from epoch
-SET @MinuteID = epoch * 24 * 60;
+# Compute TimeID from epoch
+SET @TimeID = epoch * 24 * 60;
 
 # Get the state vector from JPL.HorizonsVectors and suitable joins
 # Use a left join to JPL.MassiveBody, because not all bodies have known masses, just the heavy bodies.
@@ -36,7 +36,7 @@ FROM
 	LEFT JOIN JPL.MassiveBody AS mb ON mb.HorizonsBodyID = hb.HorizonsBodyID
 WHERE
 	sb.SmallBodyID <= n_ast AND
-	ht.MinuteID = @MinuteID
+	ht.TimeID = @TimeID
 ORDER BY sb.SmallBodyID;
 
 END
