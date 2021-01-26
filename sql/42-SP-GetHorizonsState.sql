@@ -10,8 +10,8 @@ COMMENT "Get the state vector (position and velocity) of one object at a given e
 
 BEGIN 
 
-# Compute MinuteID from epoch
-SET @MinuteID = epoch * 24 * 60;
+# Compute TimeID from epoch
+SET @TimeID = epoch * 24 * 60;
 
 # Get the state vector from JPL.HorizonsVectors and suitable joins
 # Use a left join to JPL.MassiveBody, because not all bodies have known masses, just the heavy bodies.
@@ -32,7 +32,7 @@ FROM
 	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID
 	LEFT JOIN JPL.MassiveBody AS mb ON mb.HorizonsBodyID = hv.HorizonsBodyID
 WHERE
-	hb.HorizonsBodyName = HorizonsBodyName AND ht.MinuteID = @MinuteID;
+	hb.HorizonsBodyName = HorizonsBodyName AND ht.TimeID = @TimeID;
 
 END
 $$
