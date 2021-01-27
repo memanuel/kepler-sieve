@@ -298,6 +298,19 @@ def anomaly_M2E(M: np.ndarray, e: np.ndarray):
     return E
 
 # *************************************************************************************************
+def anomaly_E2M(E: np.array, e: np.array):
+    """
+    Compute the mean anomaly M from the Eccentric Anomaly E and eccentricity e using Kepler's Equation
+    INPUTS:
+        E: The eccentric anomaly
+        e: The eccentricity
+    OUTPUT:
+        M: The mean anomaly
+    """
+    M = E - e * np.sin(E)
+    return M
+
+# *************************************************************************************************
 def anomaly_E2f(E: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the eccentric anomaly E to the true anomaly f
@@ -317,6 +330,42 @@ def anomaly_E2f(E: np.ndarray, e: np.ndarray) -> np.ndarray:
     # Shift angle returned to the interval [0, 2 pi)
     return f % tau
     
+# *************************************************************************************************
+def anomaly_f2E(f: np.array, e: np.array):
+    """
+    Convert the true anomaly f to the eccentric anomaly E
+    INPUTS:
+        f: The true anomaly    
+        e: The eccentricity
+    OUTPUTS:
+        E: The Eccenctric anomaly
+    """
+    # See https://en.wikipedia.org/wiki/Eccentric_anomaly
+    # Use formula E = 2 atan(sqrt((1-e)/(1+e)) * tan(theta/2))
+
+    # Apply formula
+    ecc_ratio = np.sqrt((1.0 - e) / (1.0 + e))
+    half_f = f * 0.5
+    E = 2.0 * np.arctan(ecc_ratio * np.tan(half_f))
+    # Shift angle returned to the interval [0, 2 pi)
+    return E % tau
+
+# *************************************************************************************************
+def anomaly_f2M(f: np.array, e: np.array):
+    """
+    Compute the mean anomaly M from the true anomaly f
+    INPUTS:
+        f: The true anomaly    
+        e: The eccentricity
+    OUTPUTS:
+        M: The mean anomaly
+    """
+    # First compute the eccentric anomaly E
+    E = anomaly_f2E(f=f, e=e)
+    # Now convert the eccentric anomaly E to the mean anomaly M
+    M = anomaly_E2M(E=E, e=e)
+    return M
+
 # *************************************************************************************************
 # Testing
 # *************************************************************************************************

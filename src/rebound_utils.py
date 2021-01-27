@@ -18,6 +18,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 import os
+from collections import namedtuple
 
 # UI
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
 from utils import hash_id_crc32, rms
-from astro_utils import mjd_to_datetime, datetime_to_mjd, OrbitalElement
+from astro_utils import mjd_to_datetime, datetime_to_mjd
 from db_config import db_engine
 from horizons import make_sim_horizons, extend_sim_horizons, extend_sim_horizons_ast
 
@@ -36,6 +37,9 @@ from typing import List, Tuple, Dict, Set, Optional
 # Directory for simulations; make if missing
 dir_sim: str = '../data/rebound/sim'
 Path(dir_sim).mkdir(parents=True, exist_ok=True)
+
+# Named tuple data type for orbital elements that includes the mean anomaly M
+OrbitalElement = namedtuple('OrbitalElement', 'a e inc Omega omega f M')
 
 # ********************************************************************************************************************* 
 def get_asteroids() -> pd.DataFrame:
@@ -232,7 +236,7 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
                     mjd1: int, 
                     time_step: float, 
                     save_elements: bool,
-                    progbar: bool) -> None:
+                    progbar: bool):
     """
     Perform an integration in rebound and save to Numpy arrays.
     INPUTS:
@@ -300,19 +304,20 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
     if save_elements:
         # Arrays for a, e, inc, Omega, omega, f
         shape_elt: Tuple[int] = (M, N)
-        orb_a: np.array = np.zeros(shape_elt, dtype=np.float64)
-        orb_e: np.array = np.zeros(shape_elt, dtype=np.float64)
-        orb_inc: np.array = np.zeros(shape_elt, dtype=np.float64)
-        orb_Omega: np.array = np.zeros(shape_elt, dtype=np.float64)
-        orb_omega: np.array = np.zeros(shape_elt, dtype=np.float64)
-        orb_f: np.array = np.zeros(shape_elt, dtype=np.float64)
+        orb_a: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
+        orb_e: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
+        orb_inc: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
+        orb_Omega: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
+        orb_omega: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
+        orb_f: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
+        orb_M: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
 
         # Wrap these into a named tuple
         elts: OrbitalElement = \
             OrbitalElement(a=orb_a, e=orb_e, inc=orb_inc,
-                           Omega=orb_Omega, omega=orb_omega, f=orb_f)
+                           Omega=orb_Omega, omega=orb_omega, f=orb_f, M=orb_M)
     else:
-        elts = OrbitalElement(a=0.0, e=0.0, inc=0.0, Omega=0.0, omega=0.0, f=0.0)
+        elts = None
 
     # Subfunction: process one row of the loop    
     def process_row(sim: rebound.Simulation, t: float, row: int):
@@ -328,10 +333,14 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
             # Compute the orbital elements vs. the sun as primary
             primary = sim.particles['Sun']
             orbits = sim.calculate_orbits(primary=primary, jacobi_masses=False)
-            # Save the elements on this date as an Nx6 array
+            # Compute the elements of the Moon using the Earth as primary
+            orb_moon = sim.particles['Moon'].calculate_orbit(primary=sim.particles['Earth'])
+            orbits[3] = orb_moon
+            # Save the elements on this date as an Nx7 array
             # This approach only traverses the (slow) Python list orbits one time
-            elt_array = np.array([[orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f] \
+            elt_array = np.array([[orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M] \
                                   for orb in orbits])
+
             # Save the elements into the current row of the named orbital elements arrays
             # The LHS row mask starts at 1 b/c orbital elements are not computed for the first object (Sun)
             orb_a[row, 1:] = elt_array[:, 0]
@@ -340,6 +349,7 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
             orb_Omega[row, 1:] = elt_array[:, 3]
             orb_omega[row, 1:] = elt_array[:, 4]
             orb_f[row, 1:] = elt_array[:, 5]
+            orb_M[row, 1:] = elt_array[:, 6]
 
     # Integrate the simulation forward in time
     idx_fwd: List[Tuple[int, float]] = list(enumerate(ts_fwd))
@@ -365,7 +375,7 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
 
 # ********************************************************************************************************************* 
 def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array, 
-                      q: np.array, v: np.array):
+                      q: np.array, v: np.array, elts: Optional[np.array]):
     """
     Arrange Numpy arrays with integration output into a Pandas DataFrame with one row per observation.\
     INPUTS:
@@ -374,6 +384,7 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
         epochs:         M times as of which the integration was saved; MJDs
         q:              MxNx3 array of positions in AU
         v:              MxNx3 array of velocities in AU / day
+        elts:           MxNx7 array of orbital elements; None when not included
     OUTPUTS:
         df: DataFrame with columns
         BodyID:       N integer body IDs of the bodies that were integrated
@@ -381,6 +392,7 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
         MJD:          M times as of which the integration was saved; MJDs
         qx, qy, qx:   Positions in AU in the BME
         vx, vy, vz:   Velocities in AU / day
+        a, e, inc, Omega, omega, f, M: orbital elements when included
     """
     # Array sizes
     M: int = epochs.shape[0]
@@ -418,6 +430,16 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
         'vy': vy,
         'vz': vz,
     }
+    
+    # Add the orbital elements if they were included
+    if elts is not None:
+        data_dict['a'] = elts.a.flatten()
+        data_dict['e'] = elts.e.flatten()
+        data_dict['inc'] = elts.inc.flatten()
+        data_dict['Omega'] = elts.Omega.flatten()
+        data_dict['omega'] = elts.omega.flatten()
+        data_dict['f'] = elts.f.flatten()
+        data_dict['M'] = elts.M.flatten()
 
     # Convert to a DataFrame
     df = pd.DataFrame(data_dict)
@@ -450,9 +472,9 @@ def integrate_df(sim_epoch: rebound.Simulation,
     # Delegate to integrate_numpy
     body_ids, body_names, epochs, q, v, elts = \
             integrate_numpy(sim_epoch=sim_epoch, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
-            save_elements=save_elements, progbar=progbar)    
+            save_elements=save_elements, progbar=progbar)
     # Delegate to integration_np2df
-    df = integration_np2df(body_ids=body_ids, body_names=body_names, epochs=epochs, q=q, v=v)
+    df = integration_np2df(body_ids=body_ids, body_names=body_names, epochs=epochs, q=q, v=v, elts=elts)
 
     return df
 

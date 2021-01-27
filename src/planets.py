@@ -27,7 +27,6 @@ from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
 from rebound_utils import make_sim_planets, make_sim_de435, integrate_df
 from db_utils import df2db, df2db_chunked
-from rebound_test import test_integration
 
 # Typing
 from typing import List
@@ -52,13 +51,13 @@ def main():
                         help='epoch of the first date in the integration, as an MJD.')
     parser.add_argument('--mjd1', nargs='?', metavar='t1', type=int, default=77600,
                         help='epoch of the last date in the integration, as an MJD.')
-    parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=-1,
+    parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=24,
                         help='the (max) number of steps per day taken by the integrator')
     args = parser.parse_args()
     
     # Unpack command line arguments
     epoch: int = args.epoch                 # MJD 59000 = 2020-05-31
-    steps_per_day: int = args.steps_per_day if args.steps_per_day > 0 else 16
+    steps_per_day: int = args.steps_per_day
 
     # Flags for planets and de435 integrations
     run_planets: bool = args.collection in ('p', 'a')
@@ -97,11 +96,19 @@ def main():
     time_step: np.float64 = np.float64(1.0 / steps_per_day)
 
     # Flags for building simulation archive
-    save_elements: bool = False
+    save_elements: bool = True
     progbar: bool = True
 
     # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
     chunk_size: int = 2**19
+
+    # Columns for state vectors and orbital element frames
+    cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    cols_elt = ['TimeID', 'BodyID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+    elt_col_map = {
+        'Omega':'Omega_node', 
+        'omega': 'omega_peri',
+    }
 
     # If planets were requested, run the simulation and test the results
     if run_planets:
@@ -114,10 +121,19 @@ def main():
         df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
                           save_elements=save_elements, progbar=progbar)
 
+        # Separate the vectors and elements
+        mask = (df.BodyName != 'Sun')
+        df_vec = df[cols_vec]
+        df_elt = df[mask][cols_elt]
+        # Rename columns to match DB; MariaDB has case insensitive column names :(
+        df_elt.rename(columns=elt_col_map, inplace=True)
+
         # Save to Integration_Planets DB table
         print()
         print_stars()
-        df2db_chunked(df=df, schema='KS', table='Integration_Planets', 
+        df2db_chunked(df=df_vec, schema='KS', table='Integration_Planets', 
+                      chunk_size=chunk_size, truncate=False, progbar=True)
+        df2db_chunked(df=df_elt, schema='KS', table='OrbitalElements', 
                       chunk_size=chunk_size, truncate=False, progbar=True)
 
     # If DE435 was requested, run the simulation and test the results
