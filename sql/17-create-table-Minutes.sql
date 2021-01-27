@@ -17,4 +17,6 @@ SELECT
 	(@mpd_i - minutes._) / @mpd_d AS wt0,
 	minutes._ / @mpd_d AS wt1
 FROM KS.Counter AS minutes
-WHERE minutes._ < (24*60) AND ((minutes._ % 5) = 0);
+WHERE minutes._ < (24*60) 
+--AND ((minutes._ % 5) = 0)
+;
