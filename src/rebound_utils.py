@@ -52,7 +52,7 @@ def get_asteroids() -> pd.DataFrame:
 # ********************************************************************************************************************* 
 def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: int, add_as_test: bool,
              integrator: str = 'ias15', steps_per_day: int = 4, epsilon: float = 2.0**-30,
-             save_file: bool = True) -> rebound.Simulation:
+             save_file: bool = True, load_file: bool = False) -> rebound.Simulation:
     """
     Create or load simulation with the specified objects at the specified time
     INPUTS:
@@ -64,6 +64,7 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
         steps_per_day:      Number of integration steps per day used to set dt and min_dt
         epsilon:            Tolerance for ias15 adaptive integrator; rebound default is 1.0E-9
         save_file:          Flag - whether to save the simulation to disk
+        load_file:          Flag - whether to use a loaded simulation
     """
     # Filename for archive
     file_date: str = f'{epoch}'
@@ -73,20 +74,27 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
 
     # If this file already exists, load it and check for both extra and missing bodies
     sim: rebound.Simulation
-    try:
-        # Attempt to load the archive file
-        sim = rebound.Simulation(path_sim)
-        # print(f'Loaded {fname_sim}')
+    sim_is_loaded: bool = False
+    if load_file:
+        try:
+            # Attempt to load the archive file
+            sim = rebound.Simulation(path_sim)
+            # print(f'Loaded {fname_sim}')
 
-        # Add body_ids and body_names to sim
-        with np.load(path_npz, allow_pickle=True) as npz:
-            sim.body_ids = npz['body_ids']
-            sim.body_names = npz['body_names']
-    except:           
-        # Initialize simulation
-        print(f'Unable to load {fname_sim}, building from Horizons data...')
-        sim = make_sim_horizons(body_collection=body_collection, epoch=epoch)
+            # Add body_ids and body_names to sim
+            with np.load(path_npz, allow_pickle=True) as npz:
+                sim.body_ids = npz['body_ids']
+                sim.body_names = npz['body_names']
+            # Set sim_is_loaded to indicate success
+            sim_is_loaded=True
+        except:
+            # Initialize simulation
+            print(f'Unable to load {fname_sim}, building from Horizons data...')
     
+    # If simulation was not loaded from disk (either by choice or a failure) generate it from Horizons DB
+    if not sim_is_loaded:
+        sim = make_sim_horizons(body_collection=body_collection, epoch=epoch)
+
     # Move to center of momentum
     # sim.move_to_com()
 
@@ -172,11 +180,12 @@ def make_sim_planets(epoch: int, integrator: str ='ias15', epsilon: float = 2.0*
     body_names_add: Optional[List[str]] = None
     add_as_test: bool = True
     save_file = True
+    load_file = False
 
     # Build a simulation with the selected objects
     sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
                    add_as_test=add_as_test, integrator=integrator, 
-                   epsilon=epsilon, steps_per_day=steps_per_day, save_file=save_file)
+                   epsilon=epsilon, steps_per_day=steps_per_day, save_file=save_file, load_file=load_file)
     return sim
 
 # ********************************************************************************************************************* 
@@ -187,11 +196,12 @@ def make_sim_de435(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-
     body_names_add: Optional[List[str]] = None
     add_as_test: bool = True
     save_file = True
+    load_file = False
 
     # Build a simulation with the selected objects
     sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
                    add_as_test=add_as_test, integrator=integrator, 
-                   epsilon=epsilon, steps_per_day=steps_per_day, save_file=save_file)
+                   epsilon=epsilon, steps_per_day=steps_per_day, save_file=save_file, load_file=load_file)
     return sim
 
 # ********************************************************************************************************************* 
@@ -302,7 +312,7 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
     
     # Initialize arrays for orbital elements if applicable  
     if save_elements:
-        # Arrays for a, e, inc, Omega, omega, f
+        # Arrays for a, e, inc, Omega, omega, f, M
         shape_elt: Tuple[int] = (M, N)
         orb_a: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)
         orb_e: np.array = np.full(shape_elt, fill_value=np.nan, dtype=np.float64)

@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
 from rebound_utils import make_sim_planets, make_sim_de435, integrate_df
-from db_utils import df2db, df2db_chunked, sp2df
+from db_utils import df2db, df2db_chunked, sp2df, sql_run, truncate_table
 
 # Typing
 from typing import List
@@ -67,6 +67,7 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     
     # Generate table names; add suffix with collection name for state vectors,
     # but only save orbital elements for the faster Planets integration
+    schema = 'KS'
     table_name_vec = f'Integration_{collection_name}'
     table_name_elt = 'OrbitalElements'
 
@@ -100,17 +101,40 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     # Save to Integration_<CollectionName> DB table
     print()
     print_stars()
-    df2db_chunked(df=df_vec, schema='KS', table=table_name_vec, 
+    df2db_chunked(df=df_vec, schema=schema, table=table_name_vec, 
                     chunk_size=chunk_size, truncate=truncate, progbar=True)
 
-    # Save to StateVectors table if we are running the Planets integration
+    # Insert from  Integration_Planets to StateVectors table if we are running the Planets integration
     if is_planets:
-        df2db_chunked(df=df_vec, schema='KS', table='StateVectors', 
-                        chunk_size=chunk_size, truncate=truncate, progbar=True)
-        
+        # df2db_chunked(df=df_vec, schema='schema', table='StateVectors', 
+        #                chunk_size=chunk_size, truncate=truncate, progbar=True)
+        if truncate:
+            truncate_table(schema=schema, table=table)
+        # Time range for insert
+        TimeID_0 = np.int32(np.rint(mjd0*24*60))
+        TimeID_1 = np.int32(np.rint(mjd1*24*60))
+        # SQL to insert from Integration_Planets to StateVectors
+        sql_str = \
+            """
+            REPLACE INTO KS.StateVectors
+            (TimeID, BodyID, MJD, qx, qy, qz, vx, vy, vz)
+            SELECT
+                ip.TimeID, ip.BodyID, ip.MJD, 
+                ip.qx, ip.qy, ip.qz,
+                ip.vx, ip.vy, ip.vz
+            FROM KS.Integration_Planets as ip
+            WHERE ip.TimeID BETWEEN :TimeID_0 AND :TimeID_1;
+            """
+        # Parameter bindings for the insert
+        params = {
+            'TimeID_0': TimeID_0,
+            'TimeID_1': TimeID_1,
+        }
+        sql_run(sql_str=sql_str, params=params)
+
     # Save to OrbitalElements table if requested (if / only running planets)
     if save_elements:
-        df2db_chunked(df=df_elt, schema='KS', table=table_name_elt, 
+        df2db_chunked(df=df_elt, schema=schema, table=table_name_elt, 
                         chunk_size=chunk_size, truncate=truncate, progbar=True)
 
 # ********************************************************************************************************************* 
@@ -133,7 +157,7 @@ def main():
                         help='the (max) number of steps per day taken by the integrator')
     parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
                         help='Whether to truncate tables before inserting.')
-    parser.add_argument('--regen_diff', dest='regen_diff', action='store_const', const=False, default=True,
+    parser.add_argument('--regen_diff', dest='regen_diff', action='store_const', const=True, default=False,
                         help='Whether to regenerate DB table IntegrationDiff.')
     args = parser.parse_args()
     
@@ -180,7 +204,7 @@ def main():
 
     # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
     chunk_size: int = 2**19
-
+    
     # If planets were requested, run the simulation and test the results
     if run_planets:
         # Simulation with initial configuration for planets
