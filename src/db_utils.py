@@ -21,6 +21,17 @@ dir_csv: str = '../data/df2db'
 Path(dir_csv).mkdir(parents=True, exist_ok=True)
 
 # ********************************************************************************************************************* 
+def sp_bind_args(sp_name: str, params: Optional[Dict]):
+    """Bind arguments to a SQL stored procedure.  Return a sqlalchemy text object."""
+    # Combine the arguments into a string formatted as expected by SQL alchemy
+    arg_str = ', '.join(f':{k}' for k in params.keys())
+    # Assemble the SQL string
+    sql_str = f'CALL {sp_name}({arg_str});'
+    # Bind the parameters into a SQL ALchemy text object
+    sql_stmt = sqlalchemy.text(sql_str).bindparams(**params)
+    return sql_stmt
+
+# ********************************************************************************************************************* 
 def sp2df(sp_name: str, params: Optional[Dict]=None):
     """
     Execute a SQL stored procedure and return a DataFrame.
@@ -31,17 +42,35 @@ def sp2df(sp_name: str, params: Optional[Dict]=None):
         df:  Pandas DataFrame with resultset        
     """
 
-    # Combine the arguments into a string formatted as expected by SQL alchemy
-    arg_str = ', '.join(f':{k}' for k in params.keys())
-    # Assemble the SQL string
-    sql_str = f'CALL {sp_name}({arg_str});'
-    # Bind the parameters into a SQL ALchemy text object
-    sql_stmt = sqlalchemy.text(sql_str).bindparams(**params)
+    # Bind arguments
+    sql_stmt = sp_bind_args(sp_name=sp_name, params=params)
 
     # Execute the bound SQL and return as a DataFrame
     with db_engine.connect() as conn:
-        df = pd.read_sql(sql_stmt, conn)
+        try:
+            df = pd.read_sql(sql_stmt, conn)
+        # OK to run an SP with no results; just return None instead
+        except sqlalchemy.exc.ResourceClosedError:
+            df = None
+    return df
 
+# ********************************************************************************************************************* 
+def sp_run(sp_name: str, params: Optional[Dict]=None):
+    """
+    Execute a SQL stored procedure.
+    INPUTS:
+        sp_name:  Name of the stored procedure
+        params:   Dictionary of parameters for stored procedure.  key = parameter name, value = parameter value
+    OUTPUT:
+        None
+    """
+
+    # Bind arguments
+    sql_stmt = sp_bind_args(sp_name=sp_name, params=params)
+
+    # Execute the bound SQL and return as a DataFrame
+    with db_engine.connect() as conn:
+        conn.execute(sql_stmt)
     return df
 
 # ********************************************************************************************************************* 

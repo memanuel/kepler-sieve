@@ -29,19 +29,21 @@ from db_utils import sp2df
 plot_style()
 
 # ********************************************************************************************************************* 
-def get_integration_diff(BodyCollectionCD: str, mjd0: int, mjd1: int):
+def get_integration_diff(BodyCollectionCD: str, mjd0: int, mjd1: int, by_date: bool):
     """
     Get integration error for a collection of bodies over a date range.
     INPUTS:
         BodyCollectionCD: Collection of bodies integrated in Rebound, e.g. 'P' for Planets, 'D' for DE435
         mjd0: First date in range
         mjd1: Last date in range
+        by_date: Flag; true to get summary by date, false for detail by planet
     OUTPUTS:
         df:   Pandas DataFrame with TimeID, MJD, dq_rel, dv_rel
     """
 
     # Wrap arguments to GetIntegrationDiffByDate stored procedure
-    sp_name = 'KS.GetIntegrationDiffByDate'
+    suffix: str = 'ByDate' if by_date else ''
+    sp_name: str = f'KS.GetIntegrationDiff{suffix}'
     params = {
         'BodyCollectionCD': BodyCollectionCD,
         'mjd0': mjd0,
@@ -78,15 +80,15 @@ def plot_errors(df_p: pd.DataFrame, df_d: pd.DataFrame, window: int):
 
     # Plot position error
     fig, ax = plt.subplots(figsize=[16,10])
-    ax.set_title(f'Relative Position Error on Sun & Planets')
+    ax.set_title('Relative Position Error on Sun & Planets')
     ax.set_ylabel('Relative Position Error $\\frac{|\Delta q|}{\sigma_{q}}$')
     ax.set_xlabel(f'End Date ({window} day moving average)')
     ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0,))
     ax.plot(plot_x, plot_y_p, label='Planets', color='blue')
-    ax.plot(plot_x, plot_y_d, label='DE435', color='red')
+    # ax.plot(plot_x, plot_y_d, label='DE435', color='red')
     ax.grid()
     ax.legend()
-    fig.savefig(fname=f'../figs/integration_test/planets/pos_error.png', bbox_inches='tight')    
+    fig.savefig(fname='../figs/integration_test/planets/pos_error.png', bbox_inches='tight')    
 
 # ********************************************************************************************************************* 
 def main():
@@ -103,7 +105,7 @@ def main():
     parser.add_argument('--mjd1', nargs='?', metavar='t1', type=int, default=62650,
                         help='epoch of the last date in the integration, as an MJD.')
     args = parser.parse_args()
-    
+
     # Unpack command line arguments
     epoch: int = args.epoch                 # MJD 59000 = 2020-05-31
 
@@ -114,7 +116,7 @@ def main():
     if args.half_width > 0:
         mjd0 = epoch - args.half_width
         mjd1 = epoch + args.half_width
-    
+
     # Epoch as a date for reporting
     epoch_dt = mjd_to_date(epoch)
     mjd0_dt = mjd_to_date(mjd0)
@@ -131,7 +133,7 @@ def main():
     # Run error on planets
     print()
     print_stars()
-    df_p = get_integration_diff(BodyCollectionCD='P', mjd0=mjd0, mjd1=mjd1)
+    df_p = get_integration_diff(BodyCollectionCD='P', mjd0=mjd0, mjd1=mjd1, by_date=True)
     mean_err_p = np.mean(df_p['dq_rel'])
     print('Mean Relative Error - Integration with Planets:')
     print(f'{mean_err_p:5.3e}')
@@ -139,7 +141,7 @@ def main():
     # Run error on DE435
     print()
     print_stars()
-    df_d = get_integration_diff(BodyCollectionCD='D', mjd0=mjd0, mjd1=mjd1)
+    df_d = get_integration_diff(BodyCollectionCD='D', mjd0=mjd0, mjd1=mjd1, by_date=True)
     mean_err_d = np.mean(df_d['dq_rel'])
     print('Mean Relative Error - Integration with DE435:')
     print(f'{mean_err_d:5.3e}')

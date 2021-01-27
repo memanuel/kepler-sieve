@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
 from rebound_utils import make_sim_planets, make_sim_de435, integrate_df
-from db_utils import df2db, df2db_chunked
+from db_utils import df2db, df2db_chunked, sp2df
 
 # Typing
 from typing import List
@@ -36,15 +36,15 @@ from typing import List
 plot_style()
 
 # ********************************************************************************************************************* 
-def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int):
+def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int, truncate: bool):
     """
     Integrate a simulation and save it to database
     INPUTS:
         sim:            Simulation for the desired collection of bodies as of the start epoch
+        collection_cd:  Code of the collection of bodies, e.g. 'P' for Planets or 'D' for DE435
         mjd0:           First date to process
         mjd1:           Last date to process
-        collection_cd:  Code of the collection of bodies, e.g. 'P' for Planets or 'D' for DE435
-        save_elements:  Flag indicating whether to additionally save orbital elements
+        truncate:       Flag indicating whether to truncate DB tables
     """
     # Columns for state vectors and orbital element frames
     cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
@@ -101,19 +101,17 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     print()
     print_stars()
     df2db_chunked(df=df_vec, schema='KS', table=table_name_vec, 
-                    chunk_size=chunk_size, truncate=False, progbar=True)
+                    chunk_size=chunk_size, truncate=truncate, progbar=True)
 
     # Save to StateVectors table if we are running the Planets integration
     if is_planets:
         df2db_chunked(df=df_vec, schema='KS', table='StateVectors', 
-                        chunk_size=chunk_size, truncate=False, progbar=True)
+                        chunk_size=chunk_size, truncate=truncate, progbar=True)
         
     # Save to OrbitalElements table if requested (if / only running planets)
     if save_elements:
         df2db_chunked(df=df_elt, schema='KS', table=table_name_elt, 
-                        chunk_size=chunk_size, truncate=False, progbar=True)
-
-    
+                        chunk_size=chunk_size, truncate=truncate, progbar=True)
 
 # ********************************************************************************************************************* 
 def main():
@@ -133,11 +131,17 @@ def main():
                         help='epoch of the last date in the integration, as an MJD.')
     parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=24,
                         help='the (max) number of steps per day taken by the integrator')
+    parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
+                        help='Whether to truncate tables before inserting.')
+    parser.add_argument('--regen_diff', dest='regen_diff', action='store_const', const=False, default=True,
+                        help='Whether to regenerate DB table IntegrationDiff.')
     args = parser.parse_args()
     
     # Unpack command line arguments
     epoch: int = args.epoch                 # MJD 59000 = 2020-05-31
     steps_per_day: int = args.steps_per_day
+    truncate: bool = args.truncate
+    regen_diff: bool = args.regen_diff
 
     # Flags for planets and de435 integrations
     run_planets: bool = args.collection in ('p', 'a')
@@ -171,6 +175,8 @@ def main():
     print(f'full width     : {width_yrs:3.1f} years')
     print(f'steps_per_day  : {steps_per_day}')
     print(f'times to save  : {times_saved}')
+    print(f'truncate       : {truncate}')
+    # print(f'regen int diff : {regen_diff}')
 
     # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
     chunk_size: int = 2**19
@@ -180,14 +186,19 @@ def main():
         # Simulation with initial configuration for planets
         sim = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
         # Delegate to process_sim
-        process_sim(sim=sim, collection_cd='P', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day)
+        process_sim(sim=sim, collection_cd='P', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, truncate=truncate)
 
     # If DE435 was requested, run the simulation and test the results
     if run_de435:
         # Simulation with initial configuration for DE435
         sim = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
         # Delegate to process_sim
-        process_sim(sim=sim, collection_cd='D', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day)
+        process_sim(sim=sim, collection_cd='D', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, truncate=truncate)
+
+    # Regenerate IntegrationDiff table if requested
+    if regen_diff:
+        print(f'\nRegenerating table KS.Integration_Diff...')
+        sp2df(sp_name='KS.MakeTable_IntegrationDiff', params=dict())
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

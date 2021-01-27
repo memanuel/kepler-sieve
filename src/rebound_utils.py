@@ -335,11 +335,13 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
             orbits = sim.calculate_orbits(primary=primary, jacobi_masses=False)
             # Compute the elements of the Moon using the Earth as primary
             orb_moon = sim.particles['Moon'].calculate_orbit(primary=sim.particles['Earth'])
-            orbits[3] = orb_moon
             # Save the elements on this date as an Nx7 array
             # This approach only traverses the (slow) Python list orbits one time
             elt_array = np.array([[orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M] \
                                   for orb in orbits])
+            # Handle the special entry for the moon
+            orb = orb_moon
+            # elt_array[4, :] = np.array([orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M])
 
             # Save the elements into the current row of the named orbital elements arrays
             # The LHS row mask starts at 1 b/c orbital elements are not computed for the first object (Sun)

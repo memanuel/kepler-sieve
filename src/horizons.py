@@ -151,7 +151,7 @@ def add_hrzn_bodies(sim: rebound.Simulation, states: pd.DataFrame, add_as_test: 
         np.append(sim.body_ids,  s.BodyID)
         np.append(sim.body_names,  s.BodyName)
 
-    # # Add the names and IDs of only those bodies that were not duplicates
+    # Add the names and IDs of only those bodies that were not duplicates
     sim.body_ids = np.concatenate([sim.body_ids, states.BodyID.values[mask]])
     sim.body_names = np.concatenate([sim.body_names, states.BodyName.values[mask]])
 
