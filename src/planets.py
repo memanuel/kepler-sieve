@@ -36,6 +36,86 @@ from typing import List
 plot_style()
 
 # ********************************************************************************************************************* 
+def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int):
+    """
+    Integrate a simulation and save it to database
+    INPUTS:
+        sim:            Simulation for the desired collection of bodies as of the start epoch
+        mjd0:           First date to process
+        mjd1:           Last date to process
+        collection_cd:  Code of the collection of bodies, e.g. 'P' for Planets or 'D' for DE435
+        save_elements:  Flag indicating whether to additionally save orbital elements
+    """
+    # Columns for state vectors and orbital element frames
+    cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    cols_elt = ['TimeID', 'BodyID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+
+    # Mapping to rename columns to match DB; MariaDB has case insensitive column names :(
+    elt_col_map = {
+        'Omega':'Omega_node', 
+        'omega': 'omega_peri',
+    }
+
+    # Generate collection name from collection code
+    collection_tbl = {
+        'P' : 'Planets',
+        'D' : 'DE435'
+    }
+    collection_name = collection_tbl[collection_cd]
+    # Are we building the default collection with the Planets?
+    is_planets: bool = (collection_cd == 'P')
+    
+    # Generate table names; add suffix with collection name for state vectors,
+    # but only save orbital elements for the faster Planets integration
+    table_name_vec = f'Integration_{collection_name}'
+    table_name_elt = 'OrbitalElements'
+
+    # Compute time_step from steps_per_day
+    time_step: np.float64 = np.float64(1.0 / steps_per_day)
+
+    # Flags for building simulation archive    
+    save_elements: bool = is_planets  # save elements when we are running Planets integration, but not DE435
+    progbar: bool = True
+
+    # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
+    chunk_size: int = 2**19
+
+    # Status
+    print()
+    print_stars()
+
+    # Run the simulation and save as a DataFrame
+    df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
+                        save_elements=save_elements, progbar=progbar)
+
+    # DataFrame with the state vectors
+    df_vec = df[cols_vec]
+
+    # DataFrame with the orbital elements; excludes the Sun (other elements are relative to Sun)
+    if save_elements:
+        mask = (df.BodyName != 'Sun')
+        df_elt = df[mask][cols_elt]
+        df_elt.rename(columns=elt_col_map, inplace=True)
+
+    # Save to Integration_<CollectionName> DB table
+    print()
+    print_stars()
+    df2db_chunked(df=df_vec, schema='KS', table=table_name_vec, 
+                    chunk_size=chunk_size, truncate=False, progbar=True)
+
+    # Save to StateVectors table if we are running the Planets integration
+    if is_planets:
+        df2db_chunked(df=df_vec, schema='KS', table='StateVectors', 
+                        chunk_size=chunk_size, truncate=False, progbar=True)
+        
+    # Save to OrbitalElements table if requested (if / only running planets)
+    if save_elements:
+        df2db_chunked(df=df_elt, schema='KS', table=table_name_elt, 
+                        chunk_size=chunk_size, truncate=False, progbar=True)
+
+    
+
+# ********************************************************************************************************************* 
 def main():
     """Integrate the orbits of the planets and major moons"""
 
@@ -92,66 +172,22 @@ def main():
     print(f'steps_per_day  : {steps_per_day}')
     print(f'times to save  : {times_saved}')
 
-    # Compute time_step from steps_per_day
-    time_step: np.float64 = np.float64(1.0 / steps_per_day)
-
-    # Flags for building simulation archive
-    save_elements: bool = True
-    progbar: bool = True
-
     # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
     chunk_size: int = 2**19
-
-    # Columns for state vectors and orbital element frames
-    cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
-    cols_elt = ['TimeID', 'BodyID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
-    elt_col_map = {
-        'Omega':'Omega_node', 
-        'omega': 'omega_peri',
-    }
 
     # If planets were requested, run the simulation and test the results
     if run_planets:
         # Simulation with initial configuration for planets
-        print()
-        print_stars()
         sim = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
-
-        # Run the planets simulation and save as a DataFrame
-        df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
-                          save_elements=save_elements, progbar=progbar)
-
-        # Separate the vectors and elements
-        mask = (df.BodyName != 'Sun')
-        df_vec = df[cols_vec]
-        df_elt = df[mask][cols_elt]
-        # Rename columns to match DB; MariaDB has case insensitive column names :(
-        df_elt.rename(columns=elt_col_map, inplace=True)
-
-        # Save to Integration_Planets DB table
-        print()
-        print_stars()
-        df2db_chunked(df=df_vec, schema='KS', table='Integration_Planets', 
-                      chunk_size=chunk_size, truncate=False, progbar=True)
-        df2db_chunked(df=df_elt, schema='KS', table='OrbitalElements', 
-                      chunk_size=chunk_size, truncate=False, progbar=True)
+        # Delegate to process_sim
+        process_sim(sim=sim, collection_cd='P', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day)
 
     # If DE435 was requested, run the simulation and test the results
     if run_de435:
-        # Simulation with initial configuration for planets
-        print()
-        print_stars()
+        # Simulation with initial configuration for DE435
         sim = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
-
-        # Run the DE435 simulation and save as a DataFrame
-        df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
-                           save_elements=save_elements, progbar=progbar)
-
-        # Save to Integration_DE435 DB table
-        print()
-        print_stars()
-        df2db_chunked(df=df, schema='KS', table='Integration_DE435', 
-                      chunk_size=chunk_size, truncate=False, progbar=True)
+        # Delegate to process_sim
+        process_sim(sim=sim, collection_cd='D', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
