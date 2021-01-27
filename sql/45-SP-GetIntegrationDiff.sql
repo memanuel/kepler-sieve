@@ -19,6 +19,7 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 SELECT
 	id.TimeID,
 	id.BodyID,
+	id.MJD,
 	id.dq,
 	id.dv,
 	(id.dq / bv.sd_q) AS dq_rel,
