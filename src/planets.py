@@ -77,7 +77,7 @@ def main():
     mjd0_dt = mjd_to_date(mjd0)
     mjd1_dt = mjd_to_date(mjd1)
     width_yrs: float = (mjd1 - mjd0) / 365.25
-    dates_saved: int = (mjd1-mjd0) * steps_per_day
+    times_saved: int = (mjd1-mjd0) * steps_per_day
 
     # Integrator settings
     integrator: str = 'ias15'
@@ -87,12 +87,11 @@ def main():
     print_stars()
     print(f'collection     : {args.collection} (run_planets = {run_planets}, run_de435 = {run_de435})')
     print(f'epoch          : {epoch} ({epoch_dt})')
-    # print(f'half_width     : {args.half_width} days')
     print(f'date range mjd : {mjd0} to {mjd1}')
     print(f'date range     : {mjd0_dt} to {mjd1_dt}')
     print(f'full width     : {width_yrs:3.1f} years')
     print(f'steps_per_day  : {steps_per_day}')
-    print(f'times to save  : {dates_saved}')
+    print(f'times to save  : {times_saved}')
 
     # Compute time_step from steps_per_day
     time_step: np.float64 = np.float64(1.0 / steps_per_day)

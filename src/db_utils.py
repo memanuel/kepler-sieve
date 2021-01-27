@@ -9,12 +9,40 @@ import time
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
+from utils import hash_id_crc32
 from db_config import db_engine
+
+# Types
+from typing import Optional, Dict
 
 # ********************************************************************************************************************* 
 # Directory for inserting CSV data into database; make if missing
 dir_csv: str = '../data/df2db'
 Path(dir_csv).mkdir(parents=True, exist_ok=True)
+
+# ********************************************************************************************************************* 
+def sp2df(sp_name: str, params: Optional[Dict]=None):
+    """
+    Execute a SQL stored procedure and return a DataFrame.
+    INPUTS:
+        sp_name:  Name of the stored procedure
+        params:   Dictionary of parameters for stored procedure.  key = parameter name, value = parameter value
+    OUTPUT:
+        df:  Pandas DataFrame with resultset        
+    """
+
+    # Combine the arguments into a string formatted as expected by SQL alchemy
+    arg_str = ', '.join(f':{k}' for k in params.keys())
+    # Assemble the SQL string
+    sql_str = f'CALL {sp_name}({arg_str});'
+    # Bind the parameters into a SQL ALchemy text object
+    sql_stmt = sqlalchemy.text(sql_str).bindparams(**params)
+
+    # Execute the bound SQL and return as a DataFrame
+    with db_engine.connect() as conn:
+        df = pd.read_sql(sql_stmt, conn)
+
+    return df
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, verbose: bool=False):
@@ -47,7 +75,8 @@ def df2db(df: pd.DataFrame, schema: str, table: str, truncate: bool=False, verbo
     sql_truncate: str = f'TRUNCATE {schema_table};'
     
     # File name of CSV
-    fname_csv = os.path.join(dir_csv, f'{table}.csv')
+    hash_id: int = hash_id_crc32(df)
+    fname_csv = os.path.join(dir_csv, f'{table}_{hash_id}.csv')
     if verbose:
         print(f'Inserting {row_count} records from dataframe into {schema_table}...')
         print(f'CSV file name: {fname_csv}')
