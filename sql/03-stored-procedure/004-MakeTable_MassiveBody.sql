@@ -56,6 +56,7 @@ SET
 -- Empty JPL.MassiveBody and populate it from the MassiveBodyImport table
 TRUNCATE TABLE JPL.MassiveBody;
 
+-- Populate JPL.MassiveBody from MassiveBodyImport (of CSVs)
 INSERT INTO JPL.MassiveBody 
 (HorizonsBodyID, M, GM)
 SELECT
@@ -65,6 +66,18 @@ SELECT
 FROM
 	JPL.MassiveBodyImport AS mbi
 	INNER JOIN JPL.HorizonsBody AS hb ON hb.HorizonsBodyName = mbi.HorizonsBodyName;
+
+-- Populate KS.MassiveBody from JPL.MassiveBody 
+INSERT INTO KS.MassiveBody
+(BodyID, M, GM)
+SELECT
+	b.BodyID,
+	mb.M,
+	mb.GM
+FROM
+	JPL.MassiveBody AS mb
+	INNER JOIN JPL.HorizonsBody AS hb ON hb.HorizonsBodyID = mb.HorizonsBodyID 
+	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID;
 
 END
 $$

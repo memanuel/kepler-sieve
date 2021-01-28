@@ -23,6 +23,18 @@ CREATE OR REPLACE TABLE JPL.MassiveBody(
 )
 COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.";
 
+CREATE OR REPLACE TABLE KS.MassiveBody(
+    BodyID INT NOT NULL PRIMARY KEY
+        COMMENT "Reference to the Body table",
+	M DOUBLE NOT NULL
+		COMMENT "Mass in solar equivalents (sun = 1.0)",
+	GM DOUBLE NOT NULL
+		COMMENT "Gravitational field strength (G x mass) in AU^3 / Day^2",
+    CONSTRAINT FK_MassiveBody_Body
+        FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
+)
+COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.";
+
 -- Run this command to load CSV contents into JPL.MassiveBodyImport table
 /*
 LOAD DATA INFILE '/ssd1/tmp/mysql/jpl/masses.csv'
