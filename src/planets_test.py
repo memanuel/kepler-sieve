@@ -29,11 +29,11 @@ from db_utils import sp2df
 plot_style()
 
 # ********************************************************************************************************************* 
-def get_integration_diff(BodyCollectionCD: str, mjd0: int, mjd1: int, by_date: bool):
+def get_integration_diff(body_collection: str, mjd0: int, mjd1: int, by_date: bool):
     """
     Get integration error for a collection of bodies over a date range.
     INPUTS:
-        BodyCollectionCD: Collection of bodies integrated in Rebound, e.g. 'P' for Planets, 'D' for DE435
+        body_collection: Collection of bodies integrated in Rebound, e.g. 'Planets', or 'DE435'
         mjd0: First date in range
         mjd1: Last date in range
         by_date: Flag; true to get summary by date, false for detail by planet
@@ -45,7 +45,7 @@ def get_integration_diff(BodyCollectionCD: str, mjd0: int, mjd1: int, by_date: b
     suffix: str = 'ByDate' if by_date else ''
     sp_name: str = f'KS.GetIntegrationDiff{suffix}'
     params = {
-        'BodyCollectionCD': BodyCollectionCD,
+        'BodyCollectionName': body_collection,
         'mjd0': mjd0,
         'mjd1': mjd1,
     }
@@ -133,7 +133,7 @@ def main():
     # Run error on planets
     print()
     print_stars()
-    df_p = get_integration_diff(BodyCollectionCD='P', mjd0=mjd0, mjd1=mjd1, by_date=True)
+    df_p = get_integration_diff(body_collection='planets', mjd0=mjd0, mjd1=mjd1, by_date=True)
     mean_err_p = np.mean(df_p['dq_rel'])
     print('Mean Relative Error - Integration with Planets:')
     print(f'{mean_err_p:5.3e}')
@@ -141,7 +141,7 @@ def main():
     # Run error on DE435
     print()
     print_stars()
-    df_d = get_integration_diff(BodyCollectionCD='D', mjd0=mjd0, mjd1=mjd1, by_date=True)
+    df_d = get_integration_diff(body_collection='DE435', mjd0=mjd0, mjd1=mjd1, by_date=True)
     mean_err_d = np.mean(df_d['dq_rel'])
     print('Mean Relative Error - Integration with DE435:')
     print(f'{mean_err_d:5.3e}')
