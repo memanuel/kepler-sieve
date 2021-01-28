@@ -11,11 +11,11 @@ COMMENT "Get the difference between position and velocities between a Rebound in
 
 BEGIN 
 
-# Compute TimeID from dates
+-- Compute TimeID from dates
 SET @TimeID_0 = mjd0 * 24 * 60;
 SET @TimeID_1 = mjd1 * 24 * 60;
 
-# Query IntegrationDiff table to get difference by TimeID and BodyID for the selected collection
+-- Query IntegrationDiff table to get difference by TimeID and BodyID for the selected collection
 SELECT
 	id.TimeID,
 	AVG(id.MJD) AS MJD,

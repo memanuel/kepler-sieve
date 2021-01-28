@@ -11,7 +11,6 @@ CREATE OR REPLACE TABLE JPL.MassiveBodyImport(
 )
 COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.  Import version of table keyed by HorizonsBodyName.";
 
-
 CREATE OR REPLACE TABLE JPL.MassiveBody(
     HorizonsBodyID INT NOT NULL PRIMARY KEY
         COMMENT "Reference to the HorizonsBody table",

@@ -3,7 +3,7 @@ DELIMITER $$
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.GetIntegrationDiff(
-	IN BodyCollectionCD VARCHAR(4),
+	IN BodyCollectionName VARCHAR(32),
     IN mjd0 INT,
     IN mjd1 INT
 )
@@ -31,7 +31,7 @@ FROM
  		id.TimeID BETWEEN @TimeID_0 AND @TimeID_1
  	INNER JOIN JPL.BodyVariance AS bv ON bv.BodyID = id.BodyID
 WHERE
-	bc.BodyCollectionCD = BodyCollectionCD
+	bc.BodyCollectionName = BodyCollectionName
 ORDER BY id.TimeID, id.BodyID;
 
 END

@@ -6,7 +6,7 @@ CREATE OR REPLACE TABLE KS.Minutes(
 	wt1 double NOT NULL
 );
 
-# Number of minutes in one day
+-- Number of minutes in one day
 SET @mpd_i = CAST(24*60 AS INT);
 SET @mpd_d = CAST(24*60 AS DOUBLE);
 
@@ -17,6 +17,4 @@ SELECT
 	(@mpd_i - minutes._) / @mpd_d AS wt0,
 	minutes._ / @mpd_d AS wt1
 FROM KS.Counter AS minutes
-WHERE minutes._ < (24*60) 
---AND ((minutes._ % 5) = 0)
-;
+WHERE minutes._ < (24*60);

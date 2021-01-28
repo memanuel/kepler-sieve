@@ -40,7 +40,7 @@ CREATE OR REPLACE TABLE KS.BodyCollectionEntry(
 )
 COMMENT "Members of body collections.";
 
-# Temporary table with ranks of massive bodies sorted by mass
+-- Temporary table with ranks of massive bodies sorted by mass
 CREATE OR REPLACE TEMPORARY TABLE JPL.MassRank
 SELECT
 	b.BodyName,
@@ -52,10 +52,10 @@ FROM
 	JPL.MassiveBody AS mb
 	INNER JOIN JPL.HorizonsBody AS hb ON hb.HorizonsBodyID = mb.HorizonsBodyID
 	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID
-# Avoid the EMB because we want to treat the Earth and Moon separately	
+-- Avoid the EMB because we want to treat the Earth and Moon separately	
 WHERE b.BodyName != 'Earth-Moon Barycenter';
 
-# Populate KS.BodyCollection for the planets
+-- Populate KS.BodyCollection for the planets
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -69,7 +69,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'Planets'
 WHERE bt.IsLargeBody_JPL;
 
-# Populate KS.BodyCollection for the DE435 
+-- Populate KS.BodyCollection for the DE435 
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -82,7 +82,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435'
 ;
 
-# Populate KS.BodyCollection for the DE435-Top-16
+-- Populate KS.BodyCollection for the DE435-Top-16
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -95,7 +95,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-16'
 WHERE mr.MassRank <= 16;
 
-# Populate KS.BodyCollection for the DE-435-Top-32
+-- Populate KS.BodyCollection for the DE-435-Top-32
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -108,7 +108,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-32'
 WHERE mr.MassRank <= 32;
 
-# Populate KS.BodyCollection for the DE-435-Top-64
+-- Populate KS.BodyCollection for the DE-435-Top-64
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -121,7 +121,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-64'
 WHERE mr.MassRank <= 64;
 
-# Populate KS.BodyCollection for the DE-435-Top-128
+-- Populate KS.BodyCollection for the DE-435-Top-128
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -134,7 +134,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-128'
 WHERE mr.MassRank <= 128;
 
-# Populate KS.BodyCollection for the DE-435-Top-256
+-- Populate KS.BodyCollection for the DE-435-Top-256
 INSERT INTO KS.BodyCollectionEntry
 (BodyCollectionID, BodyID, BodyNumber)
 SELECT
@@ -147,7 +147,7 @@ FROM
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'DE435-Top-256'
 WHERE mr.MassRank <= 256;
 
-# Populate total mass of collections
+-- Populate total mass of collections
 CREATE OR REPLACE TEMPORARY TABLE KS.BodyCollectionTotalMass
 SELECT
 	bce.BodyCollectionID,
@@ -161,7 +161,7 @@ FROM
 	INNER JOIN JPL.MassiveBody AS mb ON mb.HorizonsBodyID = hb.HorizonsBodyID
 GROUP BY bce.BodyCollectionID;
 
-# Apply the total mass to the BodyCollection table
+-- Apply the total mass to the BodyCollection table
 UPDATE 
 	KS.BodyCollection AS bc
 	INNER JOIN KS.BodyCollectionTotalMass AS bctm ON bctm.BodyCollectionID = bc.BodyCollectionID
@@ -169,6 +169,6 @@ SET
 	bc.BodyCount = bctm.BodyCount,
 	bc.TotalMass = bctm.TotalMass;
 
-# Clean up
+-- Clean up
 DROP TEMPORARY TABLE JPL.MassRank;
 DROP TEMPORARY TABLE KS.BodyCollectionTotalMass;

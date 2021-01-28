@@ -1,4 +1,5 @@
--- Create tables for state vectors
+-- Create tables for integrated vectors
+-- May include asteroids and derived quantities e.g. Earth-Moon Barycenter
 CREATE OR REPLACE TABLE KS.StateVectors(
 	TimeID INT NOT NULL
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
@@ -27,4 +28,5 @@ CREATE OR REPLACE TABLE KS.StateVectors(
 	CONSTRAINT FK_StateVectors_BodyID
 		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
-COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000."
+COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in Rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000. 
+Not limited to bodies used in the integration.  May include asteroids and derived quantities (e.g. Earth-Moon Barycenter)."

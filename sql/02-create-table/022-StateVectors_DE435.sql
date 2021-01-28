@@ -1,5 +1,6 @@
--- Create tables for integrated vectors
-CREATE OR REPLACE TABLE KS.Integration_DE435(
+-- State vectors from MSE integration using Rebound
+-- Includes records for all 353 objects in the JPL DE-435 integration
+CREATE OR REPLACE TABLE KS.StateVectors_DE435(
 	TimeID INT NOT NULL
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
 	BodyID INT NOT NULL
@@ -22,9 +23,10 @@ CREATE OR REPLACE TABLE KS.Integration_DE435(
 		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
 	UNIQUE KEY UNQ_BodyID_TimeID (BodyID, TimeID)
 		COMMENT "Allow fast search keyed first by BodyID.",
-	CONSTRAINT FK_Integration_DE435_TimeID
+	CONSTRAINT FK_StateVectors_DE435_TimeID
 		FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
-	CONSTRAINT FK_Integration_DE435_BodyID
+	CONSTRAINT FK_StateVectors_DE435_BodyID
 		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
-COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using all the massive bodies from the DE435 integration with initial conditions at MJD 59000."
+COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using all the massive bodies from the DE-435 integration with initial conditions at MJD 59000.
+Includes records for all 353 objects in the JPL DE-435 integration."

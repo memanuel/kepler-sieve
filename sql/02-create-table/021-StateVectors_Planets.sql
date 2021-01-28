@@ -1,5 +1,6 @@
--- Create tables for Horizons vectors
-CREATE OR REPLACE TABLE KS.Integration_Planets(
+-- State vectors from MSE integration using Rebound
+-- Includes records for the Sun, Earth, Moon, and planet barycenters
+CREATE OR REPLACE TABLE KS.StateVectors_Planets(
 	TimeID INT NOT NULL
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
 	BodyID INT NOT NULL
@@ -22,9 +23,10 @@ CREATE OR REPLACE TABLE KS.Integration_Planets(
 		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
 	UNIQUE KEY UNQ_BodyID_TimeID(BodyID, TimeID)
 		COMMENT "Allow fast search keyed first by BodyID.",
-	CONSTRAINT FK_Integration_Planets_TimeID
+	CONSTRAINT FK_StateVectors_Planets_TimeID
 		FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
-	CONSTRAINT FK_Integration_Planets_BodyID
+	CONSTRAINT FK_StateVectors_Planets_BodyID
 		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
-COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000."
+COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000.
+Includes records for the Sun, Earth, Moon, and planet barycenters."

@@ -3,7 +3,7 @@ DELIMITER $$
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.GetAsteroids()
-COMMENT "Get the state body IDs and names of asteroids"
+COMMENT "Get the body IDs and names of asteroids"
 
 BEGIN 
 

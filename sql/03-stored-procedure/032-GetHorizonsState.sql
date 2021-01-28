@@ -28,7 +28,7 @@ SELECT
 FROM
 	JPL.HorizonsVectors AS hv
 	INNER JOIN JPL.HorizonsBody AS hb ON hb.HorizonsBodyID = hv.HorizonsBodyID
-	INNER JOIN JPL.HorizonsTime AS ht ON ht.HorizonsTimeID = hv.HorizonsTimeID
+	INNER JOIN JPL.HorizonsTime AS ht ON ht.TimeID = hv.TimeID
 	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID
 	LEFT JOIN JPL.MassiveBody AS mb ON mb.HorizonsBodyID = hv.HorizonsBodyID
 WHERE
