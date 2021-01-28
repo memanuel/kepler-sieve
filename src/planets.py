@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
 from rebound_utils import make_sim_planets, make_sim_de435, integrate_df
-from db_utils import df2db, df2db_chunked, sp2df, sql_run, truncate_table
+from db_utils import df2db, sp2df, sql_run, truncate_table
 
 # Typing
 from typing import List
@@ -62,13 +62,15 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
         'D' : 'DE435'
     }
     collection_name = collection_tbl[collection_cd]
+    
     # Are we building the default collection with the Planets?
     is_planets: bool = (collection_cd == 'P')
     
     # Generate table names; add suffix with collection name for state vectors,
     # but only save orbital elements for the faster Planets integration
     schema = 'KS'
-    table_name_vec = f'Integration_{collection_name}'
+    table_name_int = f'Integration_{collection_name}'
+    table_name_vec = 'StateVectors'
     table_name_elt = 'OrbitalElements'
 
     # Compute time_step from steps_per_day
@@ -78,8 +80,10 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     save_elements: bool = is_planets  # save elements when we are running Planets integration, but not DE435
     progbar: bool = True
 
-    # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
-    chunk_size: int = 2**19
+    # Set chunksize for writing out DataFrame to database; DE435 export with ~700m rows crashed
+    chunksize: int = 2**19
+    # Verbosity for DF to DB upload
+    verbose: bool = True
 
     # Status
     print()
@@ -106,40 +110,17 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     print(f'Saving from DataFrame to Integration_{collection_name}...')
 
     # Save to Integration_<CollectionName> DB table
-    df2db_chunked(df=df_vec, schema=schema, table=table_name_vec, 
-                    chunk_size=chunk_size, truncate=truncate, progbar=True)
+    df2db(df=df_vec, schema=schema, table=table_name_int, truncate=truncate, chunksize=chunksize, verbose=verbose)
 
-    # Insert from  Integration_Planets to StateVectors table if we are running the Planets integration
+    # Insert from Integration_Planets to StateVectors table if we are running the Planets integration
     if is_planets:
-        if truncate:
-            truncate_table(schema=schema, table=table)
-        # Time range for insert
-        TimeID_0 = np.int32(np.rint(mjd0*24*60))
-        TimeID_1 = np.int32(np.rint(mjd1*24*60))
-        # SQL to insert from Integration_Planets to StateVectors
-        sql_str = \
-            """
-            REPLACE INTO KS.StateVectors
-            (TimeID, BodyID, MJD, qx, qy, qz, vx, vy, vz)
-            SELECT
-                ip.TimeID, ip.BodyID, ip.MJD, 
-                ip.qx, ip.qy, ip.qz,
-                ip.vx, ip.vy, ip.vz
-            FROM KS.Integration_Planets as ip
-            WHERE ip.TimeID BETWEEN :TimeID_0 AND :TimeID_1;
-            """
-        # Parameter bindings for the insert
-        params = {
-            'TimeID_0': TimeID_0,
-            'TimeID_1': TimeID_1,
-        }
-        sql_run(sql_str=sql_str, params=params)
+        print('\nSaving from DataFrame to StateVectors...')
+        df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
 
     # Save to OrbitalElements table if requested (if / only running planets)
     if save_elements:
-        print('Saving from DataFrame to OrbitalElements...')
-        df2db_chunked(df=df_elt, schema=schema, table=table_name_elt, 
-                        chunk_size=chunk_size, truncate=truncate, progbar=True)
+        print('\nSaving from DataFrame to OrbitalElements...')
+        df2db(df=df_elt, schema=schema, table=table_name_elt, truncate=truncate, chunksize=chunksize, verbose=verbose)
 
 # ********************************************************************************************************************* 
 def main():

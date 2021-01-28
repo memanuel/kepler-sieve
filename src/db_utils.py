@@ -1,6 +1,6 @@
 # Core
 import pandas as pd
-import dask
+import dask.dataframe
 import sqlalchemy
 
 # Utilities
@@ -27,7 +27,6 @@ Path(dir_csv).mkdir(parents=True, exist_ok=True)
 engine_count: int = 16
 db_engines = \
         tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
-        # tuple([sqlalchemy.create_engine(db_url, pool_size=1, poolclass=NullPool) for i in range(engine_count)])
 
 # ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
@@ -140,7 +139,7 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
     # If chunksize was passed, use Dask
     if chunksize > 0:
         # Convert the Pandas into a Dask DataFrame
-        ddf = dask.dataframe.from_pandas(df, chunksize=chunksize, name='Integration')
+        ddf = dask.dataframe.from_pandas(df, chunksize=chunksize)
         # Export it to CSV in chunks
         fname_chunk = fname_csv.replace('.csv', '-chunk-*.csv')
         fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False)
@@ -208,16 +207,15 @@ def csvs2db_stage(schema: str, table: str, columns: List[str], fnames_csv: List[
     OUTPUTS:
         None.  Modifies the database by creating a staging table
     """
+    # Display progress bar if requested
     if progbar:
         ii = tqdm_auto(ii)
     # Use the DB engine corresponding to this CPU number
     db_engine_c = db_engines[c]
-    # print(f'CPU {c}, DB engine {db_engine_c}')
     # All SQL statements on this engine use the same connection
     with db_engine_c.connect() as conn:
         for i in ii:
             csv2db_stage(schema=schema, table=table, columns=columns, fname_csv=fnames_csv[i], i=i, conn=conn)
-    # print(f'Completed csv2db_stage batch on {ii}.')
 
 # ********************************************************************************************************************* 
 def csv2db(schema: str, table: str, columns: List[str], i: int, conn):
@@ -268,8 +266,6 @@ def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], 
     # List of indices
     chunk_count: int = len(fnames_csv)
     ii = list(range(chunk_count))
-    if progbar:
-        ii = tqdm_auto(ii)
 
     # Multiprocessing
     cpu_max: int = 16
@@ -298,23 +294,22 @@ def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], 
             csv2db(schema=schema, table=table, columns=columns, i=i, conn=conn)
 
 # ********************************************************************************************************************* 
-def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
-          truncate: bool=False, verbose: bool=False, conn=None):
+def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
+          truncate: bool=False, chunksize: int=0, verbose: bool=False, progbar: bool=True):
     """
     Insert the contents of a Pandas DataFrame into a SQL table.
     INPUTS:
-        df:       The DataFrame to insert
-        schema:   The schema of the destination DB table
-        table:    The name of the destination DB table
-        columns:  List of columns to insert
-        truncate: Flag indicating whether to first truncate the destination table
+        df:         The DataFrame to insert
+        schema:     The schema of the destination DB table
+        table:      The name of the destination DB table
+        columns:    List of columns to insert; read from DB metadata if omitted
+        truncate:   Flag indicating whether to first truncate the destination table
+        chunksize:  Number of rows in each chunks
+        verbose:    Verbosity of output (true / false)
     OUTPUTS:
         None.  Modifies the DB table on the server.
     """
-
-    # Delimited table name
-    schema_table: str = f'{schema}.{table}'
-
+    
     # Get columns from DB metadata if they were not provided by caller
     if columns is None:
         columns = get_columns(schema=schema, table=table)
@@ -325,105 +320,27 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
 
     # File name of CSV
     fname_csv = os.path.join(dir_csv, f'{table}.csv')
+
+    # Build CSV in parallel with dask
     if verbose:
-        print(f'Inserting {row_count} records from dataframe into {schema_table}...')
+        print(f'Extracting {row_count} records from DataFrame into CSV files in chunks of {chunksize} rows...')        
         print(f'CSV file name: {fname_csv}')
-    
-    # Convert file to CSV in chunks    
-    t0 = time.time()   
-    df.to_csv(fname_csv, columns=columns, index=False)
+    t0 = time.time()
+    fnames_csv = df2csv(df=df, fname_csv=fname_csv, columns=columns, chunksize=chunksize)
     t1 = time.time()
+
     # Report elapsed time if requested
     if verbose:
         print(f'Elapsed Time for CSV conversion: {(t1-t0):5.2f} seconds.')
-
-    # List of column names
-    col_list = '(' + ','.join(columns) + ')'
-    # print(col_list)
-
-    # SQL to Load CSV into database
-    sql_load_csv = \
-        f"""
-        LOAD DATA LOCAL INFILE 
-        '{fname_csv}'
-        REPLACE
-        INTO TABLE {schema_table}
-        FIELDS TERMINATED BY ','
-        LINES TERMINATED BY '\n'
-        IGNORE 1 LINES
-        {col_list}
-        """
-
-    # Review the SQL statement
-    # print(sql_load_csv)
-        
-    # Truncate the table if requested, then insert the contents of the Pandas DF
-    if truncate:
-        truncate_table(schema=schema, table=table)
-    if conn is None:
-        with db_engine.connect() as conn:
-            conn.execute(sql_load_csv)
-    else:
-        conn.execute(sql_load_csv)
-
-    # Report elapsed time if requested
-    t2 = time.time()
-    if verbose:
-        print(f'Elapsed Time for DB insertion: {(t2-t1):5.2f} seconds.')
-
-# ********************************************************************************************************************* 
-def df2db_chunked(df: pd.DataFrame, schema: str, table: str, chunk_size: int, 
-                  truncate: bool=False, progbar: bool=False):
-    """
-    Insert the contents of a Pandas DataFrame into a SQL table.
-    INPUTS:
-        df:         The DataFrame to insert
-        schema:     The schema of the destination DB table
-        chunk_size: The number of rows in each chunk
-        table:  The name of the destination DB table 
-        truncate: Flag indicating whether to first truncate the destination table
-    OUTPUTS:
-        None.  Modifies the DB table on the server.
-    """
-    # Get DB columns
-    columns = get_columns(schema=schema, table=table)
 
     # Truncate the table if requested
     if truncate:
         truncate_table(schema=schema, table=table)
 
-    # Subfunction to process one chunk
-    def process_chunk(i: int, conn):
-        """Process chunk i"""
-        # print(f'i={i}. conn={conn}.')
-        # Current chunk of the df
-        i0: int = i * chunk_size
-        i1: int = i0 + chunk_size
-        df_i: pd.DataFrame = df.iloc[i0:i1]
-        # Delegate to df2db
-        df2db(df=df_i, schema=schema, table=table, columns=columns, 
-            truncate=False, verbose=False, conn=conn)
+    # Insert from the CSVs into the DB table using multiprocessing    
+    csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns, progbar=progbar)
 
-    # Subfunction for a core to process a batch of chunks
-    def process_batch(ii: List[int], conn, progbar: bool):
-        """Process batch of chunks on one CPU core"""
-        # if len(ii) > 0:
-        #    print(f'Started core {ii[0]}. conn={conn}.')
-        if progbar:
-            ii = tqdm_auto(ii)
-        for i in ii:
-            process_chunk(i=i, conn=conn)
-
-    # Set up chunks
-    row_count: int = df.shape[0]
-    chunk_count: int = row_count // chunk_size + 1
-    cpu_max: int = 2
-    cpu_count: int = min(multiprocessing.cpu_count() // 2, cpu_max)
-    
-    # Iterate over chunks of the DataFrame on one CPU core
-    ii = list(range(chunk_count))
-    if progbar:
-       ii = tqdm_auto(ii)
-    with db_engine.connect() as conn:
-        for i in ii:
-            process_chunk(i=i, conn=conn)
+    # Report elapsed time if requested
+    t2 = time.time()
+    if verbose:
+        print(f'Elapsed Time for DB insertion: {(t2-t1):5.2f} seconds.')
