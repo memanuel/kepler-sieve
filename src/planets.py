@@ -37,7 +37,7 @@ plot_style()
 
 # ********************************************************************************************************************* 
 def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int, 
-                truncate: bool, save_elements: bool):
+                save_elements: bool, truncate: bool):
     """
     Integrate a simulation and save it to database
     INPUTS:
@@ -45,8 +45,8 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
         collection_cd:  Code of the collection of bodies, e.g. 'P' for Planets or 'D' for DE435
         mjd0:           First date to process
         mjd1:           Last date to process
-        truncate:       Flag indicating whether to truncate DB tables
         save_elements:  Whether to save orbital elements (True) or just state vectors (False)
+        truncate:       Flag indicating whether to truncate DB tables
     """
     # Columns for state vectors and orbital element frames
     cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
@@ -93,7 +93,7 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
 
     # Run the simulation and save as a DataFrame
     df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
-                        save_elements=save_elements, progbar=progbar)
+                      save_elements=save_elements, progbar=progbar)
 
     # DataFrame with the state vectors
     df_vec = df[cols_vec]
@@ -122,7 +122,8 @@ def main():
     """Integrate the orbits of the planets and major moons"""
 
     # Process command line arguments
-    parser = argparse.ArgumentParser(description='The solar system integrations against Horizons results.')
+    parser = argparse.ArgumentParser(description='Integrate solar system objects in Rebound '
+            'with initial conditions from Horizons in the DE-435 integration.')
     parser.add_argument('--collection', nargs='?', metavar='COLL', type=str, default='p',
                         help='collection of bodies to integrate: p- planets; d- DE435; a-all (both planets and DE435)')
     parser.add_argument('--epoch', nargs='?', metavar='EP', type=int, default=59000,
@@ -135,6 +136,8 @@ def main():
                         help='epoch of the last date in the integration, as an MJD.')
     parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=24,
                         help='the (max) number of steps per day taken by the integrator')
+    parser.add_argument('--skip_elements', dest='skip_elements', action='store_const', const=True, default=False,
+                        help='Whether to skip orbital elements and only save state vectors.')
     parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
                         help='Whether to truncate tables before inserting.')
     parser.add_argument('--regen_diff', dest='regen_diff', action='store_const', const=True, default=False,
@@ -144,6 +147,7 @@ def main():
     # Unpack command line arguments
     epoch: int = args.epoch                 # MJD 59000 = 2020-05-31
     steps_per_day: int = args.steps_per_day
+    save_elements: bool = not args.skip_elements
     truncate: bool = args.truncate
     regen_diff: bool = args.regen_diff
 
@@ -179,6 +183,7 @@ def main():
     print(f'full width     : {width_yrs:3.1f} years')
     print(f'steps_per_day  : {steps_per_day}')
     print(f'times to save  : {times_saved}')
+    print(f'save elements  : {save_elements}')
     print(f'truncate       : {truncate}')
     # print(f'regen int diff : {regen_diff}')
 
@@ -188,16 +193,20 @@ def main():
     # If planets were requested, run the simulation and test the results
     if run_planets:
         # Simulation with initial configuration for planets
-        sim = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
+        sim = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, 
+                               steps_per_day=steps_per_day, load_file=False)
         # Delegate to process_sim
-        process_sim(sim=sim, collection_cd='P', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, truncate=truncate)
+        process_sim(sim=sim, collection_cd='P', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
+                    save_elements=save_elements, truncate=truncate)
 
     # If DE435 was requested, run the simulation and test the results
     if run_de435:
         # Simulation with initial configuration for DE435
-        sim = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, steps_per_day=steps_per_day)
+        sim = make_sim_de435(epoch=epoch, integrator=integrator, epsilon=epsilon, 
+                             steps_per_day=steps_per_day, load_file=False)
         # Delegate to process_sim
-        process_sim(sim=sim, collection_cd='D', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, truncate=truncate)
+        process_sim(sim=sim, collection_cd='D', mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
+                    save_elements=save_elements, truncate=truncate)
 
     # Regenerate IntegrationDiff table if requested
     if regen_diff:

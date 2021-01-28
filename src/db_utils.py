@@ -24,7 +24,7 @@ dir_csv: str = '../data/df2db'
 Path(dir_csv).mkdir(parents=True, exist_ok=True)
 
 # Create a single shared collection of database engines
-engine_count: int = 16
+engine_count: int = 32
 db_engines = \
         tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
 
@@ -268,7 +268,7 @@ def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], 
     ii = list(range(chunk_count))
 
     # Multiprocessing
-    cpu_max: int = 16
+    cpu_max: int = 32
     cpu_count: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
     
     # Prepare inputs for CSV staging function
