@@ -22,6 +22,7 @@ import collections
 # MSE
 from astro_utils import mjd_to_jd
 from db_config import db_engine
+from db_utils import sp2df
 
 # Typing
 from typing import List, Dict, Set
@@ -51,13 +52,19 @@ def get_hrzn_state_coll(body_collection: str, epoch: int) -> pd.DataFrame:
         states:          Pandas DataFrame including columns BodyID, BodyName, m, qx, qy, qz, vx, vy, vz
     """
     # Assemble SQL to call the stored procedure JPL.GetHorizonsStateCollection
-    body_collection = quote(body_collection)
-    sql = f"CALL JPL.GetHorizonsStateCollection({body_collection}, {epoch});"
+    # body_collection = quote(body_collection)
+    # sql = f"CALL JPL.GetHorizonsStateCollection({body_collection}, {epoch});"
     # print(sql)
 
     # Run the SP and wrap results as a DataFrame
-    with db_engine.connect() as conn:
-        states = pd.read_sql(sql, con=conn)
+    # with db_engine.connect() as conn:
+    #    states = pd.read_sql(sql, con=conn)
+
+    # Call the stored procedure JPL.GetHorizonsStateCollection
+    params = {
+        'BodyCollectionName': body_collection,
+        'epoch': epoch}
+    states = sp2df(sp_name='JPL.GetHorizonsStateCollection', params=params)
 
     return states
 

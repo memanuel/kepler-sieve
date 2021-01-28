@@ -173,14 +173,14 @@ def extend_sim_ast(sim: rebound.Simulation, n_ast: int, add_as_test: bool):
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_planets(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, steps_per_day: int = 16):
+def make_sim_planets(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, 
+                     steps_per_day: int = 48, load_file: bool=False):
     """Create a simulation with the sun and 8 planets at the specified time"""
     # Arguments for make_sim
     body_collection: str = 'Planets'
     body_names_add: Optional[List[str]] = None
     add_as_test: bool = True
     save_file = True
-    load_file = False
 
     # Build a simulation with the selected objects
     sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,
@@ -189,14 +189,14 @@ def make_sim_planets(epoch: int, integrator: str ='ias15', epsilon: float = 2.0*
     return sim
 
 # ********************************************************************************************************************* 
-def make_sim_de435(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, steps_per_day: int = 16):
+def make_sim_de435(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-32, 
+                   steps_per_day: int=48, load_file: bool=False):
     """Create a simulation with all the massive objects used in the DE435 integration"""
     # Arguments for make_sim
     body_collection: str = 'DE435'
     body_names_add: Optional[List[str]] = None
     add_as_test: bool = True
     save_file = True
-    load_file = False
 
     # Build a simulation with the selected objects
     sim = make_sim(body_collection=body_collection, body_names_add=body_names_add, epoch=epoch,

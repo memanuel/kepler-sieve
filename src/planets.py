@@ -36,7 +36,8 @@ from typing import List
 plot_style()
 
 # ********************************************************************************************************************* 
-def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int, truncate: bool):
+def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int, 
+                truncate: bool, save_elements: bool):
     """
     Integrate a simulation and save it to database
     INPUTS:
@@ -45,6 +46,7 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
         mjd0:           First date to process
         mjd1:           Last date to process
         truncate:       Flag indicating whether to truncate DB tables
+        save_elements:  Whether to save orbital elements (True) or just state vectors (False)
     """
     # Columns for state vectors and orbital element frames
     cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
@@ -69,9 +71,8 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     # Generate table names; add suffix with collection name for state vectors,
     # but only save orbital elements for the faster Planets integration
     schema = 'KS'
-    table_name_int = f'Integration_{collection_name}'
-    table_name_vec = 'StateVectors'
-    table_name_elt = 'OrbitalElements'
+    table_name_vec = f'StateVectors_{collection_name}'
+    table_name_elt = f'OrbitalElements_{collection_name}'
 
     # Compute time_step from steps_per_day
     time_step: np.float64 = np.float64(1.0 / steps_per_day)
@@ -99,7 +100,6 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
 
     # DataFrame with the orbital elements; excludes the Sun (other elements are relative to Sun)
     if save_elements:
-        # mask = (df.BodyName != 'Sun')
         mask = (df.BodyID != 10)
         df_elt = df[mask][cols_elt]
         df_elt.rename(columns=elt_col_map, inplace=True)
@@ -107,19 +107,14 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     # Status
     print()
     print_stars()
-    print(f'Saving from DataFrame to Integration_{collection_name}...')
+    print(f'Saving from DataFrame to {table_name_vec}...')
 
-    # Save to Integration_<CollectionName> DB table
-    df2db(df=df_vec, schema=schema, table=table_name_int, truncate=truncate, chunksize=chunksize, verbose=verbose)
+    # Insert to StateVectors_<CollectionName> DB table
+    df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
 
-    # Insert from Integration_Planets to StateVectors table if we are running the Planets integration
-    if is_planets:
-        print('\nSaving from DataFrame to StateVectors...')
-        df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
-
-    # Save to OrbitalElements table if requested (if / only running planets)
+    # Insert to OrbitalElements_<CollectionName> DB table if requested
     if save_elements:
-        print('\nSaving from DataFrame to OrbitalElements...')
+        print(f'\nSaving from DataFrame to {table_name_elt}...')
         df2db(df=df_elt, schema=schema, table=table_name_elt, truncate=truncate, chunksize=chunksize, verbose=verbose)
 
 # ********************************************************************************************************************* 

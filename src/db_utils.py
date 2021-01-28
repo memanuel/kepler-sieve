@@ -319,7 +319,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     row_count: int = df.shape[0]
 
     # File name of CSV
-    fname_csv = os.path.join(dir_csv, f'{table}.csv')
+    fname_csv = os.path.join(dir_csv, f'{table}', f'{table}.csv')
 
     # Build CSV in parallel with dask
     if verbose:
