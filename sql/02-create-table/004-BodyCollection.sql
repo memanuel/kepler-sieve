@@ -51,7 +51,9 @@ SELECT
 FROM
 	JPL.MassiveBody AS mb
 	INNER JOIN JPL.HorizonsBody AS hb ON hb.HorizonsBodyID = mb.HorizonsBodyID
-	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID;
+	INNER JOIN KS.Body AS b ON b.BodyID = hb.BodyID
+# Avoid the EMB because we want to treat the Earth and Moon separately	
+WHERE b.BodyName != 'Earth-Moon Barycenter';
 
 # Populate KS.BodyCollection for the planets
 INSERT INTO KS.BodyCollectionEntry
@@ -65,7 +67,7 @@ FROM
 	INNER JOIN KS.Body AS b ON b.BodyID = mr.BodyID
 	INNER JOIN KS.BodyType AS bt ON bt.BodyTypeID = b.BodyTypeID
 	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionName = 'Planets'
-WHERE bt.IsLargeBody_JPL AND b.BodyName != 'Earth-Moon Barycenter';
+WHERE bt.IsLargeBody_JPL;
 
 # Populate KS.BodyCollection for the DE435 
 INSERT INTO KS.BodyCollectionEntry
