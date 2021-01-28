@@ -16,11 +16,18 @@ from db_config import db_engine, db_url
 
 # Types
 from typing import Optional, List, Dict
+conn_type = sqlalchemy.engine.base.Connection
 
 # ********************************************************************************************************************* 
 # Directory for inserting CSV data into database; make if missing
 dir_csv: str = '../data/df2db'
 Path(dir_csv).mkdir(parents=True, exist_ok=True)
+
+# Create a single shared collection of database engines
+engine_count: int = 16
+db_engines = \
+        tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
+        # tuple([sqlalchemy.create_engine(db_url, pool_size=1, poolclass=NullPool) for i in range(engine_count)])
 
 # ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
@@ -144,7 +151,7 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
     return fnames
 
 # ********************************************************************************************************************* 
-def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i: int, conn):
+def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i: int, conn: conn_type):
     """
     Load one CSV file into a staging table for the named DB table.
     INPUTS:
@@ -184,6 +191,33 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
     # Clone the table and load the CSV file
     conn.execute(sql_clone_table)
     conn.execute(sql_load_csv)
+
+# ********************************************************************************************************************* 
+def csvs2db_stage(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
+                  ii: List[int], c: int, progbar: bool):
+    """
+    Load a batch of CSV files into a staging table for the named DB table.
+    INPUTS:
+        schema:     Schema of the DB table
+        table:      Name of the DB table
+        columns:    List of columns of the DB table
+        fnames_csv: List of the CSV file names
+        ii:         List of chunk numbers for this batch
+        c:          CPU (process) number; used to choose the DB engine from the shared pool
+        progbar:    Whether to show a tqdm progress bar
+    OUTPUTS:
+        None.  Modifies the database by creating a staging table
+    """
+    if progbar:
+        ii = tqdm_auto(ii)
+    # Use the DB engine corresponding to this CPU number
+    db_engine_c = db_engines[c]
+    # print(f'CPU {c}, DB engine {db_engine_c}')
+    # All SQL statements on this engine use the same connection
+    with db_engine_c.connect() as conn:
+        for i in ii:
+            csv2db_stage(schema=schema, table=table, columns=columns, fname_csv=fnames_csv[i], i=i, conn=conn)
+    # print(f'Completed csv2db_stage batch on {ii}.')
 
 # ********************************************************************************************************************* 
 def csv2db(schema: str, table: str, columns: List[str], i: int, conn):
@@ -238,42 +272,30 @@ def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], 
         ii = tqdm_auto(ii)
 
     # Multiprocessing
-    cpu_max: int = 2
-    cpu_count: int = min(multiprocessing.cpu_count() // 2, cpu_max)
+    cpu_max: int = 16
+    cpu_count: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
     
-    # Iterate over chunks of the DataFrame on one CPU core
-    # Load CSVs into staging tables
-    for i in ii:
-        with db_engine.connect() as conn:
-            csv2db_stage(schema=schema, table=table, columns=columns, fname_csv=fnames_csv[i], i=i, conn=conn)    
-    # Roll up from staging table to schema
-    for i in ii:
-        with db_engine.connect() as conn:
+    # Prepare inputs for CSV staging function
+    stage_inputs = []
+    for c in range(cpu_count):
+        # The indices i handled by cpu c
+        ii_c = tuple(range(c, chunk_count, cpu_count))
+        progbar_c = progbar and (c==0)
+        # Arguments to csv2db_stage
+        args = (schema, table, columns, fnames_csv, ii_c, c, progbar_c)
+        # List of argument tuples for the staging function
+        stage_inputs.append(args)
+    # Convert from list to tuple
+    stage_inputs = tuple(stage_inputs)
+    
+    # Run in CSV staging in parallel
+    pool = multiprocessing.Pool(processes=cpu_count)
+    pool.starmap(csvs2db_stage, stage_inputs)
+
+    # Roll up from staging table to schema on one CPU core
+    with db_engine.connect() as conn:
+        for i in ii:        
             csv2db(schema=schema, table=table, columns=columns, i=i, conn=conn)
-
-    # # Create list of engines and DB connections
-    # engines= [sqlalchemy.create_engine(db_url) for c in range(cpu_count)]
-    # conns = [engine.connect() for engine in engines]
-
-    # # Iterate over cpu cores
-    # for c in range(cpu_count):
-    #     # The connection used by this core
-    #     conn = conns[c]
-    #     # The indices i handled by cpu c
-    #     ii = list(range(c, chunk_count, cpu_count))
-    #     progbar_c = progbar and (c==0)
-    #     # Dispatch to cpu c
-    #     kwargs={
-    #         'ii' : ii, 
-    #         'conn' : conn, 
-    #         'progbar': progbar_c}
-    #     args = (ii, conn, progbar_c)
-    #     p = multiprocessing.Process(target=process_batch, args=args)
-    #     p.start()
-
-    # # Close all the connections
-    # for conn in conns:
-    #     conn.close()
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
@@ -321,17 +343,17 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
 
     # SQL to Load CSV into database
     sql_load_csv = \
-f"""
-LOAD DATA LOCAL INFILE 
-'{fname_csv}'
-REPLACE
-INTO TABLE {schema_table}
-FIELDS TERMINATED BY ','
-LINES TERMINATED BY '\n'
-IGNORE 1 LINES
-{col_list}
-"""
-    
+        f"""
+        LOAD DATA LOCAL INFILE 
+        '{fname_csv}'
+        REPLACE
+        INTO TABLE {schema_table}
+        FIELDS TERMINATED BY ','
+        LINES TERMINATED BY '\n'
+        IGNORE 1 LINES
+        {col_list}
+        """
+
     # Review the SQL statement
     # print(sql_load_csv)
         
@@ -405,27 +427,3 @@ def df2db_chunked(df: pd.DataFrame, schema: str, table: str, chunk_size: int,
     with db_engine.connect() as conn:
         for i in ii:
             process_chunk(i=i, conn=conn)
-    
-    # # Create list of engines and DB connections
-    # engines= [sqlalchemy.create_engine(db_url) for c in range(cpu_count)]
-    # conns = [engine.connect() for engine in engines]
-
-    # # Iterate over cpu cores
-    # for c in range(cpu_count):
-    #     # The connection used by this core
-    #     conn = conns[c]
-    #     # The indices i handled by cpu c
-    #     ii = list(range(c, chunk_count, cpu_count))
-    #     progbar_c = progbar and (c==0)
-    #     # Dispatch to cpu c
-    #     kwargs={
-    #         'ii' : ii, 
-    #         'conn' : conn, 
-    #         'progbar': progbar_c}
-    #     args = (ii, conn, progbar_c)
-    #     p = multiprocessing.Process(target=process_batch, args=args)
-    #     p.start()
-
-    # # Close all the connections
-    # for conn in conns:
-    #     conn.close()
