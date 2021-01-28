@@ -351,7 +351,7 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
                                   for orb in orbits])
             # Handle the special entry for the moon
             orb = orb_moon
-            # elt_array[4, :] = np.array([orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M])
+            elt_array[3, :] = np.array([orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M])
 
             # Save the elements into the current row of the named orbital elements arrays
             # The LHS row mask starts at 1 b/c orbital elements are not computed for the first object (Sun)
@@ -412,7 +412,6 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
 
     # The time stamps
     MJD = epochs.repeat(N)
-    # TimeID = np.array(MJD*24*60).astype(np.int32)
     TimeID = np.rint(MJD*24*60).astype(np.int32)
 
     # The ID and name of each body
@@ -433,7 +432,7 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
     data_dict = {
         'TimeID': TimeID,
         'BodyID': BodyID,
-        'BodyName': BodyName,
+        # 'BodyName': BodyName,
         'MJD': MJD,
         'qx': qx,
         'qy': qy,

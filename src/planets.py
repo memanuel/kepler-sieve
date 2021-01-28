@@ -84,6 +84,7 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     # Status
     print()
     print_stars()
+    print(f'Integrating {collection_name} from {mjd0} to {mjd1}...')
 
     # Run the simulation and save as a DataFrame
     df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, time_step=time_step, 
@@ -94,20 +95,22 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
 
     # DataFrame with the orbital elements; excludes the Sun (other elements are relative to Sun)
     if save_elements:
-        mask = (df.BodyName != 'Sun')
+        # mask = (df.BodyName != 'Sun')
+        mask = (df.BodyID != 10)
         df_elt = df[mask][cols_elt]
         df_elt.rename(columns=elt_col_map, inplace=True)
 
-    # Save to Integration_<CollectionName> DB table
+    # Status
     print()
     print_stars()
+    print(f'Saving from DataFrame to Integration_{collection_name}...')
+
+    # Save to Integration_<CollectionName> DB table
     df2db_chunked(df=df_vec, schema=schema, table=table_name_vec, 
                     chunk_size=chunk_size, truncate=truncate, progbar=True)
 
     # Insert from  Integration_Planets to StateVectors table if we are running the Planets integration
     if is_planets:
-        # df2db_chunked(df=df_vec, schema='schema', table='StateVectors', 
-        #                chunk_size=chunk_size, truncate=truncate, progbar=True)
         if truncate:
             truncate_table(schema=schema, table=table)
         # Time range for insert
@@ -134,6 +137,7 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
 
     # Save to OrbitalElements table if requested (if / only running planets)
     if save_elements:
+        print('Saving from DataFrame to OrbitalElements...')
         df2db_chunked(df=df_elt, schema=schema, table=table_name_elt, 
                         chunk_size=chunk_size, truncate=truncate, progbar=True)
 

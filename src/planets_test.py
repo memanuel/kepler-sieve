@@ -85,7 +85,7 @@ def plot_errors(df_p: pd.DataFrame, df_d: pd.DataFrame, window: int):
     ax.set_xlabel(f'End Date ({window} day moving average)')
     ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0,))
     ax.plot(plot_x, plot_y_p, label='Planets', color='blue')
-    # ax.plot(plot_x, plot_y_d, label='DE435', color='red')
+    ax.plot(plot_x, plot_y_d, label='DE435', color='red')
     ax.grid()
     ax.legend()
     fig.savefig(fname='../figs/integration_test/planets/pos_error.png', bbox_inches='tight')    

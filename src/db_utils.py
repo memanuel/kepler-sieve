@@ -1,5 +1,6 @@
 # Core
 import pandas as pd
+import dask
 import sqlalchemy
 
 # Utilities
@@ -102,7 +103,6 @@ def truncate_table(schema: str, table: str) -> None:
     with db_engine.connect() as conn:
         conn.execute(sql_truncate)    
 
-
 # ********************************************************************************************************************* 
 def get_columns(schema: str, table: str) -> List[str]:
     """Get list of column names for DB table; skip derived columns"""
@@ -117,6 +117,163 @@ def get_columns(schema: str, table: str) -> List[str]:
         # Get list of all available DB columns; exclude computed columns!
         columns = [c.name for c in tbl_md.columns if not c.computed]
     return columns
+
+# ********************************************************************************************************************* 
+def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int = 0) -> List[str]:
+    """
+    Convert a DataFrame to one or a collection of CSVs with a specified chunksize of rows.csv
+    INPUTS:
+        df:        A Pandas DataFrame
+        fname_csv: Filename of output, e.g. TableName.csv for a DB export.
+                   Chunk number will be automatically appended when used.
+        chunksize: The number of rows in each chunk.  Use 0 for one big chunk (pandas to csv)
+    OUTPUTS:
+        fnames: List of output filenames
+    """
+    # If chunksize was passed, use Dask
+    if chunksize > 0:
+        # Convert the Pandas into a Dask DataFrame
+        ddf = dask.dataframe.from_pandas(df, chunksize=chunksize, name='Integration')
+        # Export it to CSV in chunks
+        fname_chunk = fname_csv.replace('.csv', '-chunk-*.csv')
+        fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False)
+    # If no chunksize was specified, dump the whole frame into one CSV file
+    else:
+        df.to_csv(fname_csv, columns=columns, index=False)
+        fnames = [fname_csv]
+    return fnames
+
+# ********************************************************************************************************************* 
+def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i: int, conn):
+    """
+    Load one CSV file into a staging table for the named DB table.
+    INPUTS:
+        schema:    Schema of the DB table
+        table:     Name of the DB table
+        columns:   List of columns of the DB table
+        fname_csv: Name of the CSV file
+        i:         Chunk number
+        conn:      DB connection object
+    OUTPUTS:
+        None.  Modifies the database by creating a staging table
+    """
+
+    # Destination table with schema
+    schema_table = f'{schema}.{table}'
+    # Staging table for this chunk
+    staging_table = f'{schema}.{table}_chunk_{i:03d}'
+    # List of column names
+    col_list = '(' + ','.join(columns) + ')'
+
+    # SQL to create staging table
+    sql_clone_table = f"CREATE OR REPLACE TABLE {staging_table} LIKE {schema_table};"
+
+    # SQL to Load CSV into database into staging table
+    sql_load_csv = \
+        f"""
+        LOAD DATA LOCAL INFILE 
+        '{fname_csv}'
+        REPLACE
+        INTO TABLE {staging_table}
+        FIELDS TERMINATED BY ','
+        LINES TERMINATED BY '\n'
+        IGNORE 1 LINES
+        {col_list}
+        """
+
+    # Clone the table and load the CSV file
+    conn.execute(sql_clone_table)
+    conn.execute(sql_load_csv)
+
+# ********************************************************************************************************************* 
+def csv2db(schema: str, table: str, columns: List[str], i: int, conn):
+    """
+    Load one CSV file into a staging table for the named DB table.
+    INPUTS:
+        schema:    Schema of the DB table
+        table:     Name of the DB table
+        i:         Chunk number
+        conn:      DB connection object
+    OUTPUTS:
+        None.  Modifies the database by inserting from the staging table into the main table
+    """
+
+    # Destination table with schema
+    schema_table = f'{schema}.{table}'
+    # Staging table for this chunk
+    staging_table = f'{schema}.{table}_chunk_{i:03d}'
+    # List of column names
+    col_list = '(' + ','.join(columns) + ')'
+    # Columns to select
+    select_fields = ',\n'.join(columns)
+
+    # SQL to insert into the main table from the staging table
+    sql_insert_stage = \
+        f"""
+        REPLACE INTO {schema_table}
+        {col_list}
+        SELECT
+        {select_fields}
+        FROM {staging_table};
+        """
+
+    # SQL to drop the staging table, which is no longer needed
+    sql_drop_stage = f"DROP TABLE {staging_table};"
+
+    # Insert from the staging table, then drop it
+    conn.execute(sql_insert_stage)
+    conn.execute(sql_drop_stage)
+
+# ********************************************************************************************************************* 
+def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], progbar: bool):
+    """
+    Load a batch of CSVs into the named DB table.
+    First delegates to csv2db to populate the staging tables in parallel.
+    Then rolls up from all of the staging tables into the big table at the end.
+    """
+    # List of indices
+    chunk_count: int = len(fnames_csv)
+    ii = list(range(chunk_count))
+    if progbar:
+        ii = tqdm_auto(ii)
+
+    # Multiprocessing
+    cpu_max: int = 2
+    cpu_count: int = min(multiprocessing.cpu_count() // 2, cpu_max)
+    
+    # Iterate over chunks of the DataFrame on one CPU core
+    # Load CSVs into staging tables
+    for i in ii:
+        with db_engine.connect() as conn:
+            csv2db_stage(schema=schema, table=table, columns=columns, fname_csv=fnames_csv[i], i=i, conn=conn)    
+    # Roll up from staging table to schema
+    for i in ii:
+        with db_engine.connect() as conn:
+            csv2db(schema=schema, table=table, columns=columns, i=i, conn=conn)
+
+    # # Create list of engines and DB connections
+    # engines= [sqlalchemy.create_engine(db_url) for c in range(cpu_count)]
+    # conns = [engine.connect() for engine in engines]
+
+    # # Iterate over cpu cores
+    # for c in range(cpu_count):
+    #     # The connection used by this core
+    #     conn = conns[c]
+    #     # The indices i handled by cpu c
+    #     ii = list(range(c, chunk_count, cpu_count))
+    #     progbar_c = progbar and (c==0)
+    #     # Dispatch to cpu c
+    #     kwargs={
+    #         'ii' : ii, 
+    #         'conn' : conn, 
+    #         'progbar': progbar_c}
+    #     args = (ii, conn, progbar_c)
+    #     p = multiprocessing.Process(target=process_batch, args=args)
+    #     p.start()
+
+    # # Close all the connections
+    # for conn in conns:
+    #     conn.close()
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
@@ -145,15 +302,14 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     row_count: int = df.shape[0]
 
     # File name of CSV
-    hash_id: int = hash_id_crc32(df)
-    fname_csv = os.path.join(dir_csv, f'{table}_{hash_id}.csv')
+    fname_csv = os.path.join(dir_csv, f'{table}.csv')
     if verbose:
         print(f'Inserting {row_count} records from dataframe into {schema_table}...')
         print(f'CSV file name: {fname_csv}')
     
     # Convert file to CSV in chunks    
     t0 = time.time()   
-    df.to_csv(fname_csv, columns=columns, index=False)   
+    df.to_csv(fname_csv, columns=columns, index=False)
     t1 = time.time()
     # Report elapsed time if requested
     if verbose:
