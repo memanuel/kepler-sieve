@@ -103,16 +103,56 @@ WHERE n._ <= 9
 ORDER BY BodyCollectionID, BodyNumber;
 
 -- Apply the total mass to the BodyCollection table
+-- First handle sum of bodies whose mass is listed on MassiveBody
+CREATE TEMPORARY TABLE KS.bctm AS
+SELECT
+	bc.BodyCollectionID,
+	count(bce.BodyID) AS BodyCount,
+	sum(mb.M) AS TotalMass,
+	sum(mb.GM) AS TotalGM
+FROM
+	KS.BodyCollection AS bc
+	INNER JOIN KS.BodyCollectionEntry AS bce ON bce.BodyCollectionID = bc.BodyCollectionID
+	INNER JOIN KS.Body AS b ON b.BodyID = bce.BodyID
+	INNER JOIN KS.MassiveBody AS mb ON mb.BodyID = b.BodyID
+GROUP BY bc.BodyCollectionID;
+
 UPDATE 
 	KS.BodyCollection AS bc
-	INNER JOIN KS.BodyCollectionTotalMass AS bctm ON bctm.BodyCollectionID = bc.BodyCollectionID
+	INNER JOIN KS.bctm ON bctm.BodyCollectionID = bc.BodyCollectionID
 SET
 	bc.BodyCount = bctm.BodyCount,
 	bc.TotalMass = bctm.TotalMass;
 
+-- Next handle the planetary systems other than Earth
+UPDATE
+	Counter AS n
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionCD = CONCAT('PS', n._)
+	INNER JOIN KS.MassiveBody AS mb ON mb.BodyID = n._
+SET	
+	bc.TotalMass = mb.M	
+WHERE n._ BETWEEN 1 AND 9 AND n._ <> 3;	
+
+-- Populate BarycenterWeight table
+TRUNCATE TABLE KS.BarycenterWeight;
+
+INSERT INTO KS.BarycenterWeight
+(BodyCollectionID, BodyID, M, Weight)
+SELECT
+	bc.BodyCollectionID,
+	b.BodyID,
+	COALESCE(mb.M, 0.0) AS M,
+	COALESCE(mb.M, 0.0) / bc.TotalMass AS Weight
+FROM
+	KS.BodyCollection AS bc
+	INNER JOIN KS.BodyCollectionEntry AS bce ON	bce.BodyCollectionID = bc.BodyCollectionID
+	INNER JOIN KS.Body AS b ON b.BodyID= bce.BodyID
+	LEFT JOIN KS.MassiveBody AS mb ON mb.BodyID = b.BodyID
+;
+
 -- Clean up
 DROP TEMPORARY TABLE JPL.MassRank;
-DROP TEMPORARY TABLE KS.BodyCollectionTotalMass;
+DROP TEMPORARY TABLE KS.bctm;
 	
 END
 $$

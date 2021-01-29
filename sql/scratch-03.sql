@@ -1,16 +1,21 @@
-SELECT 
-	elt.TimeID,
-	elt.BodyID,
-	elt.MJD,
-	elt.a,
-	elt.e
-FROM KS.OrbitalElements AS elt
+explain
+SELECT
+ 	it.TimeID,
+ 	bw.BodyID,
+ 	it.MJD,
+ 	bw.Weight
+FROM 
+	KS.Body AS b_emb	
+	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionCD = 'PS3'
+	INNER JOIN KS.BarycenterWeight AS bw ON
+		bw.BodyCollectionID = bc.BodyCollectionID
+	-- INNER JOIN KS.Body AS b ON b.BodyID = bw.BodyID
+	INNER JOIN KS.IntegrationTime AS it ON (it.TimeID BETWEEN 59000*24*60 AND 59001*24*60)
+	INNER JOIN KS.StateVectors_Planets AS sv ON
+		sv.TimeID = it.TimeID AND
+		sv.BodyID = bw.BodyID
+	
 WHERE
-	elt.TimeID = 59000*24*60 AND
-	elt.BodyID IN (301, 399)
+	b_emb.BodyName = 'Earth-Moon Barycenter'
+GROUP BY it.TimeID
 ;
-
-
-UPDATE KS.OrbitalElements AS elt
-SET elt.a=10
-WHERE elt.TimeID = 59000*24*60 AND elt.BodyID=301;

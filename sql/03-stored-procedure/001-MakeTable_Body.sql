@@ -20,7 +20,6 @@ INSERT INTO KS.Body
 (BodyID, BodyName, BodyTypeID)
 SELECT 
 	hi.BodyNumber AS BodyID, 
-	-- CONCAT('LB.', hi.BodyName) as BodyName,
     hi.BodyName,
 	bt.BodyTypeID
 FROM 
@@ -63,6 +62,12 @@ INNER JOIN KS.BodySort AS bs ON
 SET b.SortOrder = bs.SortOrder;
 
 DROP TEMPORARY TABLE IF EXISTS KS.BodySort
+
+-- Special insert of solar system barycenter
+INSERT INTO KS.Body
+(BodyID, BodyName, BodyTypeID, SortOrder)
+VALUES
+(0, 'Solar System Barycenter', 0, 0);
 
 -- Restore foreign keys	
 SET FOREIGN_KEY_CHECKS=1;

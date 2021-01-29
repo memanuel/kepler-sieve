@@ -18,6 +18,7 @@ CREATE OR REPLACE TABLE KS.BodyType(
 INSERT INTO KS.BodyType
 (BodyTypeID, BodyTypeCD, BodyTypeName, IsLargeBody_JPL, SortOrder)
 VALUES
+(0, 'SS', 'Solar System Barycenter', True, 1),
 (1, 'S', 'Star', True, 1),
 (2, 'PS', 'Planetary System Barycenter', True, 2),
 (3, 'PB', 'Planet Single Body', True, 3),

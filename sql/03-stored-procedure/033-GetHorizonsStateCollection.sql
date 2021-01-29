@@ -10,11 +10,11 @@ COMMENT "Get the state vectors (position and velocity) of all bodies in the name
 
 BEGIN 
 
-# Compute MinuteID from epoch
-SET @MinuteID = epoch * 24 * 60;
+-- Compute TimeID from epoch
+SET @TimeID = epoch * 24 * 60;
 
-# Get the state vector from JPL.HorizonsVectors and suitable joins
-# Use a left join to JPL.MassiveBody, because not all bodies have known masses, just the heavy bodies.
+-- Get the state vector from JPL.HorizonsVectors and suitable joins
+-- Use a left join to JPL.MassiveBody, because not all bodies have known masses, just the heavy bodies.
 SELECT
 	b.BodyID,
 	b.BodyName,
@@ -37,7 +37,7 @@ FROM
 	LEFT JOIN JPL.MassiveBody AS mb ON mb.HorizonsBodyID = hb.HorizonsBodyID
 WHERE
 	bc.BodyCollectionName = BodyCollectionName AND
-	ht.MinuteID = @MinuteID
+	ht.TimeID = @TimeID
 ORDER BY bce.BodyNumber;
 
 END
