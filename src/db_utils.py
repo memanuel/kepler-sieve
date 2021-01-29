@@ -4,10 +4,12 @@ import dask.dataframe
 import sqlalchemy
 
 # Utilities
+import os
 import multiprocessing
 from pathlib import Path
-import os
+import glob
 import time
+import traceback
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
@@ -26,7 +28,7 @@ Path(dir_csv).mkdir(parents=True, exist_ok=True)
 # Create a single shared collection of database engines
 engine_count: int = 32
 db_engines = \
-        tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
+    tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
 
 # ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
@@ -60,7 +62,7 @@ def sp2df(sp_name: str, params: Optional[Dict]=None):
         # OK to run an SP with no results; just return None instead
         except:
             print(f'sp2df(sp_name) failed!')
-            traceback.print_ext()
+            traceback.print_exc()
             df = None
     return df
 
@@ -142,6 +144,7 @@ def get_columns(schema: str, table: str) -> List[str]:
         except:
             print(f'get_columns failed!')
             traceback.print_exc()
+            # columns = []
     return columns
 
 # ********************************************************************************************************************* 
@@ -160,10 +163,10 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
         # If chunksize was passed, use Dask
         if chunksize > 0:
             # Convert the Pandas into a Dask DataFrame
-            ddf = dask.dataframe.from_pandas(df, chunksize=chunksize)
+            ddf = dask.dataframe.from_pandas(df, chunksize=chunksize, scheduler='threads')
             # Export it to CSV in chunks
             fname_chunk = fname_csv.replace('.csv', '-chunk-*.csv')
-            fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False)
+            fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False, scheduler='threads')
         # If no chunksize was specified, dump the whole frame into one CSV file
         else:
             df.to_csv(fname_csv, columns=columns, index=False)
@@ -281,12 +284,23 @@ def csv2db(schema: str, table: str, columns: List[str], i: int, conn):
     conn.execute(sql_drop_stage)
 
 # ********************************************************************************************************************* 
-def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], progbar: bool):
+def csvs2db(schema: str, table: str, 
+            fnames_csv: Optional[List[str]]=None, columns: Optional[List[str]]=None, progbar: bool=True):
     """
     Load a batch of CSVs into the named DB table.
     First delegates to csv2db to populate the staging tables in parallel.
     Then rolls up from all of the staging tables into the big table at the end.
     """
+    # Get list of CSV files if they were note provided
+    if fnames_csv is None:
+        search_path = os.path.join(dir_csv, table, f'{table}-chunk*.csv')
+        fnames_csv = glob.glob(search_path)
+        fnames_csv.sort()    
+
+    # Get columns from DB metadata if they were not provided by caller
+    if columns is None:
+        columns = get_columns(schema=schema, table=table)
+
     # List of indices
     chunk_count: int = len(fnames_csv)
     ii = list(range(chunk_count))
