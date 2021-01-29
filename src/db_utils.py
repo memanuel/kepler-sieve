@@ -11,7 +11,7 @@ import time
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
-from utils import hash_id_crc32
+from utils import print_time
 from db_config import db_engine, db_url
 
 # Types
@@ -58,12 +58,14 @@ def sp2df(sp_name: str, params: Optional[Dict]=None):
         try:
             df = pd.read_sql(sql_stmt, conn)
         # OK to run an SP with no results; just return None instead
-        except sqlalchemy.exc.ResourceClosedError:
+        except:
+            print(f'sp2df(sp_name) failed!')
+            traceback.print_ext()
             df = None
     return df
 
 # ********************************************************************************************************************* 
-def sp_run(sp_name: str, params: Optional[Dict]=None):
+def sp_run(sp_name: str, params: Optional[Dict]=None) -> None:
     """
     Execute a SQL stored procedure.
     INPUTS:
@@ -77,8 +79,12 @@ def sp_run(sp_name: str, params: Optional[Dict]=None):
     sql_stmt = sp_bind_args(sp_name=sp_name, params=params)
     # Execute the bound SQL and return as a DataFrame
     with db_engine.connect() as conn:
-        conn.execute(sql_stmt)
-    return df
+        try:
+            conn.execute(sql_stmt)
+        except:
+            print(f'sp_run({sp_name}) failed!')
+            print(sql_stmt)
+            traceback.print_exc()
 
 # ********************************************************************************************************************* 
 def sql_run(sql_str: str, params: Optional[Dict]=None) -> None:
@@ -95,7 +101,12 @@ def sql_run(sql_str: str, params: Optional[Dict]=None) -> None:
     sql_stmt = sqlalchemy.text(sql_str).bindparams(**params)
     # Execute the bound SQL and return as a DataFrame
     with db_engine.connect() as conn:
-        conn.execute(sql_stmt)    
+        try:
+            conn.execute(sql_stmt)
+        except:
+            print(f'sql_run failed!')
+            print(sql_stmt)
+            traceback.print_exc()
 
 # ********************************************************************************************************************* 
 def truncate_table(schema: str, table: str) -> None:
@@ -107,7 +118,12 @@ def truncate_table(schema: str, table: str) -> None:
     sql_truncate: str = f'TRUNCATE TABLE {schema_table};'
     # Execute the truncation
     with db_engine.connect() as conn:
-        conn.execute(sql_truncate)    
+        try:
+            conn.execute(sql_truncate)
+        except:
+            print(f'truncate_table failed!')
+            print(sql_truncate)
+            traceback.print_exc()
 
 # ********************************************************************************************************************* 
 def get_columns(schema: str, table: str) -> List[str]:
@@ -117,11 +133,15 @@ def get_columns(schema: str, table: str) -> List[str]:
 
     # Get DB metadata
     with db_engine.connect() as conn:
-        md = sqlalchemy.MetaData(bind=conn, schema=schema)
-        md.reflect()
-        tbl_md = md.tables[schema_table]
-        # Get list of all available DB columns; exclude computed columns!
-        columns = [c.name for c in tbl_md.columns if not c.computed]
+        try:
+            md = sqlalchemy.MetaData(bind=conn, schema=schema)
+            md.reflect()
+            tbl_md = md.tables[schema_table]
+            # Get list of all available DB columns; exclude computed columns!
+            columns = [c.name for c in tbl_md.columns if not c.computed]
+        except:
+            print(f'get_columns failed!')
+            traceback.print_exc()
     return columns
 
 # ********************************************************************************************************************* 
@@ -136,17 +156,21 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
     OUTPUTS:
         fnames: List of output filenames
     """
-    # If chunksize was passed, use Dask
-    if chunksize > 0:
-        # Convert the Pandas into a Dask DataFrame
-        ddf = dask.dataframe.from_pandas(df, chunksize=chunksize)
-        # Export it to CSV in chunks
-        fname_chunk = fname_csv.replace('.csv', '-chunk-*.csv')
-        fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False)
-    # If no chunksize was specified, dump the whole frame into one CSV file
-    else:
-        df.to_csv(fname_csv, columns=columns, index=False)
-        fnames = [fname_csv]
+    try:
+        # If chunksize was passed, use Dask
+        if chunksize > 0:
+            # Convert the Pandas into a Dask DataFrame
+            ddf = dask.dataframe.from_pandas(df, chunksize=chunksize)
+            # Export it to CSV in chunks
+            fname_chunk = fname_csv.replace('.csv', '-chunk-*.csv')
+            fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False)
+        # If no chunksize was specified, dump the whole frame into one CSV file
+        else:
+            df.to_csv(fname_csv, columns=columns, index=False)
+            fnames = [fname_csv]
+    except:
+        print(f'df2csv() to fname_csv failed!')
+        traceback.print_exc()
     return fnames
 
 # ********************************************************************************************************************* 
@@ -290,8 +314,12 @@ def csvs2db(schema: str, table: str, fnames_csv: List[str], columns: List[str], 
 
     # Roll up from staging table to schema on one CPU core
     with db_engine.connect() as conn:
-        for i in ii:        
-            csv2db(schema=schema, table=table, columns=columns, i=i, conn=conn)
+        for i in ii:
+            try:
+                csv2db(schema=schema, table=table, columns=columns, i=i, conn=conn)
+            except:
+                print('csvs2db failed! Table {schema}.{table}, chunk i={i}.')
+                traceback.print_ext()
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
@@ -331,16 +359,21 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
 
     # Report elapsed time if requested
     if verbose:
-        print(f'Elapsed Time for CSV conversion: {(t1-t0):5.2f} seconds.')
+        print_time(time=(t1-t0), msg='Elapsed Time for CSV Conversion')
 
     # Truncate the table if requested
     if truncate:
         truncate_table(schema=schema, table=table)
 
-    # Insert from the CSVs into the DB table using multiprocessing    
-    csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns, progbar=progbar)
-
+    # Insert from the CSVs into the DB table using multiprocessing
+    try:   
+        csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns, progbar=progbar)
+    except:
+        print('df2db failed!')
+        print(f'Table {schema}.{table}.')
+        print('Columns:\n', columns)
+        
     # Report elapsed time if requested
     t2 = time.time()
     if verbose:
-        print(f'Elapsed Time for DB insertion: {(t2-t1):5.2f} seconds.')
+        print_time(time=(t2-t1), msg='Elapsed Time for DB insertion')

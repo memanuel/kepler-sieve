@@ -110,7 +110,11 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     print(f'Saving from DataFrame to {table_name_vec}...')
 
     # Insert to StateVectors_<CollectionName> DB table
-    df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
+    try:
+        df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
+    except:
+        if save_elements:
+            print("Problem with DB insertion... Continuing to save orbital elements.")
 
     # Insert to OrbitalElements_<CollectionName> DB table if requested
     if save_elements:

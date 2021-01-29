@@ -8,16 +8,10 @@ Tue Jun  4 15:24:22 2019
 # Libraries
 import numpy as np
 import matplotlib as mpl
+from datetime import timedelta
 import pickle
 import zlib
-
 from typing import Dict, Callable, Optional
-import os
-import sys
-
-module_path = os.path.abspath(os.path.join('../src'))
-if module_path not in sys.path:
-    sys.path.append(module_path)
 
 # Type aliases
 funcType = Callable[[float], float]
@@ -55,22 +49,37 @@ def plot_style() -> None:
     mpl.rcParams.update({'font.size': 20})
 
 # *************************************************************************************************
-def print_stars(newline: bool = False):
+def print_stars(newline: bool = False) -> None:
     """Print a row of 80 stars"""
     stars = '********************************************************************************'
     row = '\n' + stars if newline else stars
     print(row)
 
 # *************************************************************************************************
-def print_header(msg: str, newline=True):
+def print_header(msg: str, newline=True) -> None:
     """Print a message wrapped in two layers of stars"""
     print_stars(newline=newline)
     print(msg)
     print_stars(newline=False)
 
 # *************************************************************************************************
+def print_time(time: float, msg: str='') -> None:
+    """
+    Print an elapsed time in seconds in human readable format.
+    Inputs:
+        time: Elapsed time in seconds
+        msg:  Message that appears as a prefix
+    """
+    # Convert elapsed time to a string using timedelta
+    time_str: str = str(timedelta(seconds=time))
+    # Put a colon to separate message from time string
+    if len(msg) > 0:
+        msg = msg + ': '
+    print(f'{msg}{time_str}')
+
+# *************************************************************************************************
 # Generic root mean square of numpy arrays
-def rms(x: np.array, axis=None):
+def rms(x: np.array, axis=None) -> np.array:
     return np.sqrt(np.mean(np.square(x), axis=axis))
 
 # *************************************************************************************************
@@ -96,4 +105,3 @@ def hash_id_crc32(attributes: Dict) -> int:
     attributes_bytes = bytes(str(attributes), 'utf-8')
     hash_id = zlib.crc32(attributes_bytes)
     return hash_id
-    
