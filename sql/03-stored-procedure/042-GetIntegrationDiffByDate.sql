@@ -3,7 +3,7 @@ DELIMITER $$
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.GetIntegrationDiffByDate(
-	IN BodyCollectionCD VARCHAR(4),
+	IN BodyCollectionName VARCHAR(32),
     IN mjd0 INT,
     IN mjd1 INT
 )
@@ -19,6 +19,8 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 SELECT
 	id.TimeID,
 	AVG(id.MJD) AS MJD,
+	AVG(id.dq) AS dq,
+	AVG(id.dv) AS dv,	
 	AVG(id.dq / bv.sd_q) AS dq_rel,
 	AVG(id.dv / bv.sd_v) AS dv_rel	
 FROM
@@ -33,7 +35,7 @@ FROM
  		bce.BodyCollectionID = bcp.BodyCollectionID AND
  		bce.BodyID = id.BodyID
 WHERE
-	bc.BodyCollectionCD = BodyCollectionCD
+	bc.BodyCollectionName = BodyCollectionName
 GROUP BY id.TimeID
 ORDER BY id.TimeID;
 

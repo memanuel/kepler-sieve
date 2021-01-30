@@ -1,24 +1,40 @@
+DELIMITER $$
+
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.MakeTable_StateVectors(
+    IN mjd0 INT,
+    IN mjd1 INT
+)
+COMMENT "Populate the StateVectors table from StateVectors_Planets"
+BEGIN 
+
+-- TimeID for this date range
+SET @TimeID_0 = mjd0 * 24 * 60;
+SET @TimeID_1 = mjd1 * 24 * 60;
+
+-- Select from StateVectors_Planets into StateVectors
+REPLACE INTO KS.StateVectors
+(TimeID, BodyID, MJD, qx, qy, qz, vx, vy, vz)
 SELECT
- 	it.TimeID,
- 	b_emb.BodyID,
- 	it.MJD,
-	SUM(bw.Weight * sv.qx) AS qx,
-	SUM(bw.Weight * sv.qy) AS qy,
-	SUM(bw.Weight * sv.qz) AS qz,
-	SUM(bw.Weight * sv.vx) AS vx,
-	SUM(bw.Weight * sv.vy) AS vy,
-	SUM(bw.Weight * sv.vz) AS vz
+    sv.TimeID,
+    sv.BodyID,
+    sv.MJD,
+    sv.qx,
+    sv.qy,
+    sv.qz,
+    sv.vx,
+    sv.vy,
+    sv.vz
 FROM 
-	KS.Body AS b_emb	
-	INNER JOIN KS.BodyCollection AS bc ON bc.BodyCollectionCD = 'PS3'
-	INNER JOIN KS.BarycenterWeight AS bw ON
-		bw.BodyCollectionID = bc.BodyCollectionID
-	INNER JOIN KS.Body AS b ON b.BodyID = bw.BodyID
-	INNER JOIN KS.IntegrationTime AS it
-	INNER JOIN KS.StateVectors_Planets AS sv ON
-		sv.TimeID = it.TimeID AND
-		sv.BodyID = b.BodyID
+    KS.StateVectors_Planets as sv
 WHERE
-	b_emb.BodyName = 'Earth-Moon Barycenter'
-GROUP BY it.TimeID
-LIMIT 100;
+    mjd0 <= sv.TimeID AND sv.TimeID < mjd1;
+   
+-- Add the Earth-Moon Barycenter
+CALL KS.Calc_EarthMoonBarycenter()
+
+END
+$$
+
+DELIMITER ;
