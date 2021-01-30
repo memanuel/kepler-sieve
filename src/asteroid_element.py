@@ -1,5 +1,4 @@
 """
-Harvard IACS Masters Thesis
 Assemble orbital elements for known asteroids Pandas DataFrame.
 Main interface used by consumers is load_ast_elt()
 
