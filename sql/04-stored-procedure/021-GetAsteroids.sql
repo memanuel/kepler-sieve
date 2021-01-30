@@ -8,13 +8,12 @@ COMMENT "Get the body IDs and names of asteroids"
 BEGIN 
 
 SELECT
-	b.BodyID,
-	b.BodyName
+	ast.AsteroidID,
+	ast.BodyID,
+	ast.AsteroidName
 FROM
-	KS.Body AS b
-	INNER JOIN KS.BodyType AS bt ON bt.BodyTypeID = b.BodyTypeID
-WHERE bt.BodyTypeCD = 'A'
-ORDER BY b.BodyID;
+	KS.Asteroid AS ast
+ORDER BY ast.AsteroidID;
 
 END
 $$
