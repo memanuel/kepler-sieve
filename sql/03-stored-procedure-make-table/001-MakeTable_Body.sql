@@ -45,6 +45,23 @@ GROUP BY hi.BodyTypeCD, hi.BodyNumber
 ORDER BY bt.BodyTypeID, hi.BodyNumber
 ON DUPLICATE KEY UPDATE BodyID=BodyID;
 
+-- Insert missing small bodies into KS.Body from JPL.AsteroidImport
+INSERT INTO KS.Body 
+(BodyID, BodyName, BodyTypeID, SortOrder)
+SELECT
+	ast.AsteroidNumber + 1000000 AS BodyID,
+	CONCAT('SB.', ast.AsteroidName) AS BodyName,
+	bt.BodyTypeID,
+	0 AS SortOrder
+FROM 
+	JPL.AsteroidElement AS ast
+	LEFT JOIN JPL.SmallBody AS sb ON sb.SmallBodyID=ast.AsteroidNumber
+	INNER JOIN KS.BodyType AS bt ON bt.BodyTypeCD = 'A'
+WHERE 
+	sb.SmallBodyID IS NULL AND
+	NOT EXISTS (SELECT b.BodyID FROM KS.Body AS b WHERE b.BodyID = ast.AsteroidNumber+1000000)
+ORDER BY ast.AsteroidNumber;
+
 -- Set SortOrder field on Body table
 CREATE OR REPLACE TEMPORARY TABLE KS.BodySort
 SELECT

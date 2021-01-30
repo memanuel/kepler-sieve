@@ -29,7 +29,7 @@ SELECT
 FROM 
     KS.StateVectors_Planets as sv
 WHERE
-    mjd0 <= sv.TimeID AND sv.TimeID < mjd1;
+    @TimeID_0 <= sv.TimeID AND sv.TimeID < @TimeID_1;
 
 -- Insert Earth-Moon Barycenter
 CALL KS.Calc_EarthMoonBarycenter(mjd0, mjd1);
