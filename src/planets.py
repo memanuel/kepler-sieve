@@ -50,7 +50,6 @@ calc_type_tbl = {
     'elt' : 'OrbitalElements'
 }
 
-
 # ********************************************************************************************************************* 
 def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: int, 
                 save_elements: bool, truncate: bool):
@@ -75,24 +74,15 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
     }
 
     # Generate collection name from collection code
-    collection_name = collection_name_tbl [collection_cd]
-    
-    # Are we building the default collection with the Planets?
-    is_planets: bool = (collection_cd == 'P')
+    collection_name = collection_name_tbl[collection_cd]
     
     # Generate table names; add suffix with collection name for state vectors,
-    # but only save orbital elements for the faster Planets integration
     schema = 'KS'
     table_name_vec = f'StateVectors_{collection_name}'
     table_name_elt = f'OrbitalElements_{collection_name}'
 
-    # Compute time_step from steps_per_day
-    time_step: np.float64 = np.float64(1.0 / steps_per_day)
-
     # Flags for building simulation archive    
-    save_elements: bool = is_planets  # save elements when we are running Planets integration, but not DE435
     progbar: bool = True
-
     # Set chunksize for writing out DataFrame to database; DE435 export with ~700m rows crashed
     chunksize: int = 2**19
     # Verbosity for DF to DB upload
@@ -252,7 +242,7 @@ def main():
     print(f' full width     : {width_yrs:3.1f} years')
     print(f'*steps_per_day  : {steps_per_day}')
     print(f' times to save  : {times_saved}')
-    print(f'*save_elements  : {save_elements}')
+    print(f'*skip_elements  : {not save_elements}')
     print(f'*load_csv       : {load_csv}')
     print(f'*truncate       : {truncate}')
     # print(f'regen int diff : {regen_diff}')

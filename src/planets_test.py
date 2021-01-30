@@ -55,28 +55,55 @@ def get_integration_diff(body_collection: str, mjd0: int, mjd1: int, by_date: bo
     return df
 
 # ********************************************************************************************************************* 
-def plot_errors(df_p: pd.DataFrame, df_d: pd.DataFrame, window: int):
+def report_error(body_collection: str, mjd0: int, mjd1: int):
+    """Report errors for one integration"""
+    # Get DataFrames of errors by date and for each body
+    df = get_integration_diff(body_collection=body_collection, mjd0=mjd0, mjd1=mjd1, by_date=False)
+    dfd = get_integration_diff(body_collection=body_collection, mjd0=mjd0, mjd1=mjd1, by_date=True)
+    
+    # Error on all 11 bodies (Sun, 9 Planets, Moon)
+    mean_dq = np.mean(dfd['dq'])
+    mean_dq_rel = np.mean(dfd['dq_rel'])
+
+    # Error on 11 bodies excluding Mercury
+    mask = (df.BodyID != 1)
+    dfd_xm = df[mask].groupby(dfd.TimeID).mean()
+    mean_dq_xm = np.mean(dfd_xm['dq'])
+    mean_dq_rel_xm = np.mean(dfd_xm['dq_rel'])
+
+    # Report results
+    print()
+    print_stars()
+    print(f'Mean Error - Integration with {body_collection}:')
+    print('                All Bodies : Ex Mercury')
+    print(f'Absolute Error: {mean_dq:5.3e}  : {mean_dq_xm:5.3e}')
+    print(f'Relative Error: {mean_dq_rel:5.3e}  : {mean_dq_rel_xm:5.3e}')
+
+    return df, dfd, dfd_xm
+
+# ********************************************************************************************************************* 
+def plot_errors(dfd_p: pd.DataFrame, dfd_d: pd.DataFrame, window: int):
     """
     Generate plot of relative errors.
     INPUTS:
-        df_p: DataFrame of integration errors for Planets.
-        df_d: DataFrame of integration errors for DE435.
+        dfd_p: DataFrame of integration errors for Planets grouped by date.
+        dfd_d: DataFrame of integration errors for DE435 grouped by date.
     OUTPUTS:
         Saves a figure to 
     """
 
     # Array of dates from MJDs
-    dt = np.array([mjd_to_date(mjd) for mjd in df_p.MJD])
+    dt = np.array([mjd_to_date(mjd) for mjd in dfd_p.MJD])
 
     # Set window for rolling average
     half_window: int = window // 2
     window = 2*half_window
-    n = df_p.shape[0]
+    n = dfd_p.shape[0]
 
     # Generate moving average error
     plot_x = dt[half_window:n-half_window]
-    plot_y_p = df_p.dq_rel.rolling(window).mean()[window:]
-    plot_y_d = df_d.dq_rel.rolling(window).mean()[window:]
+    plot_y_p = dfd_p.dq_rel.rolling(window).mean()[window:]
+    plot_y_d = dfd_d.dq_rel.rolling(window).mean()[window:]
 
     # Plot position error
     fig, ax = plt.subplots(figsize=[16,10])
@@ -130,24 +157,14 @@ def main():
     print(f'date range     : {mjd0_dt} to {mjd1_dt}')
     print(f'full width     : {width_yrs:3.1f} years')
 
-    # Run error on planets
-    print()
-    print_stars()
-    df_p = get_integration_diff(body_collection='planets', mjd0=mjd0, mjd1=mjd1, by_date=True)
-    mean_err_p = np.mean(df_p['dq_rel'])
-    print('Mean Relative Error - Integration with Planets:')
-    print(f'{mean_err_p:5.3e}')
+    # Run error on Planets
+    df_p, dfd_p, dfd_xm_p = report_error(body_collection='Planets', mjd0=mjd0, mjd1=mjd1)
 
     # Run error on DE435
-    print()
-    print_stars()
-    df_d = get_integration_diff(body_collection='DE435', mjd0=mjd0, mjd1=mjd1, by_date=True)
-    mean_err_d = np.mean(df_d['dq_rel'])
-    print('Mean Relative Error - Integration with DE435:')
-    print(f'{mean_err_d:5.3e}')
+    df_d, dfd_d, dfd_xm_d = report_error(body_collection='DE435', mjd0=mjd0, mjd1=mjd1)
 
     # Generate plots
-    plot_errors(df_p=df_p, df_d=df_d, window=180)
+    plot_errors(dfd_p=dfd_p, dfd_d=dfd_d, window=180)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

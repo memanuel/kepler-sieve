@@ -144,7 +144,7 @@ def get_columns(schema: str, table: str) -> List[str]:
         except:
             print(f'get_columns failed!')
             traceback.print_exc()
-            # columns = []
+            columns = []
     return columns
 
 # ********************************************************************************************************************* 
@@ -159,21 +159,28 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
     OUTPUTS:
         fnames: List of output filenames
     """
+    # Set up dask parallel computing
+    compute_kwargs = {
+        'scheduler':'threads',
+    }
+    # Put all the interesting steps in a try / catch so calling program won't crash
     try:
         # If chunksize was passed, use Dask
         if chunksize > 0:
             # Convert the Pandas into a Dask DataFrame
-            ddf = dask.dataframe.from_pandas(df, chunksize=chunksize, scheduler='threads')
+            ddf = dask.dataframe.from_pandas(df, chunksize=chunksize)
             # Export it to CSV in chunks
             fname_chunk = fname_csv.replace('.csv', '-chunk-*.csv')
-            fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False, scheduler='threads')
+            fnames = ddf.to_csv(filename=fname_chunk, columns=columns, index=False, compute_kwargs=compute_kwargs)
         # If no chunksize was specified, dump the whole frame into one CSV file
         else:
             df.to_csv(fname_csv, columns=columns, index=False)
             fnames = [fname_csv]
+    # Catch exception and return an empty list of CSV file names
     except:
         print(f'df2csv() to fname_csv failed!')
         traceback.print_exc()
+        fnames = []
     return fnames
 
 # ********************************************************************************************************************* 
