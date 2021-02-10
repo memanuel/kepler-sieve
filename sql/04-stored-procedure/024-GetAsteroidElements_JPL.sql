@@ -2,10 +2,10 @@ DELIMITER $$
 
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE KS.GetAsteroidRefElements(
+PROCEDURE JPL.GetAsteroidRefElements(
     IN epoch INT
 )
-COMMENT "Get all available reference orbital elements for asteroids on the given epoch."
+COMMENT "Get all available reference orbital elements as directly quoted by JPL."
 
 BEGIN 
 
@@ -14,8 +14,8 @@ SET @TimeID = epoch * 24 * 60;
 
 -- Select all available orbital elements at this time, sorted by AsteroidID.
 SELECT
-	elt.AsteroidID,
-	elt.TimeID,
+	ast.AsteroidID,
+	it.TimeID,
 	ast.AsteroidName,
 	elt.epoch,
 	elt.a,
@@ -23,14 +23,14 @@ SELECT
 	elt.inc,
 	elt.Omega_node AS Omega,
 	elt.omega_peri AS omega,
-	elt.f,
-	elt.M
+	elt.M AS M
 FROM
-	KS.AsteroidElement_Ref AS elt
-	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidID = elt.AsteroidID
+	JPL.AsteroidElement AS elt
+	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber = elt.AsteroidNumber
+	INNER JOIN KS.IntegrationTime AS it ON it.MJD = elt.epoch
 WHERE
-	elt.TimeID = @TimeID
-ORDER BY elt.AsteroidID;
+	it.TimeID = @TimeID
+ORDER BY ast.AsteroidID;
 
 END
 $$
