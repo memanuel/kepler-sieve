@@ -1,5 +1,4 @@
 """
-Harvard IACS Masters Thesis
 Numerically integrate trajectories for Known Asteroids
 
 Michael S. Emanuel
