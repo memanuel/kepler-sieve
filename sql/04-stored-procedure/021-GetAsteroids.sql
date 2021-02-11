@@ -10,9 +10,11 @@ BEGIN
 SELECT
 	ast.AsteroidID,
 	ast.BodyID,
-	ast.AsteroidName
+	ast.AsteroidName,
+	b.BodyName
 FROM
 	KS.Asteroid AS ast
+	INNER JOIN KS.Body AS b ON b.BodyID = ast.BodyID
 ORDER BY ast.AsteroidID;
 
 END

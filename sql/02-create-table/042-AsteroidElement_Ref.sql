@@ -39,9 +39,9 @@ CREATE OR REPLACE TABLE KS.AsteroidElement_Ref(
 		COMMENT "longitude of pericenter in radians",
 	EA DOUBLE AS (2.0*ATAN(SQRT((1.0-e)/(1.0+e))*TAN(0.5*f))) 
 		COMMENT "The eccentric anomaly; derived from the true anomaly",		
-    mean_longitude DOUBLE AS (Omega_node + omega_peri + M)
+    mean_longitude DOUBLE AS (MOD(Omega_node + omega_peri + M, 2.0 * PI()))
         COMMENT "Mean longitude, l, in radians = Omega + omega + M",        
-    true_longitude DOUBLE AS (Omega_node + omega_peri + f)
+    true_longitude DOUBLE AS (MOD(Omega_node + omega_peri + f, 2.0 * PI()))
         COMMENT "The angle, theta, in radians = Omega + omega + f",
 	-- Keys and constraints
     PRIMARY KEY (AsteroidID, TimeID)
