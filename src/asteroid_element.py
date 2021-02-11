@@ -71,7 +71,7 @@ def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.array:
         # Add the new asteroid
         sim.add(m=0.0, a=a, e=e, inc=inc, Omega=Omega, omega=omega, M=M, primary=primary)
         # Set the hash to the asteroid's AsteroidID
-        # sim.particles[-1].hash = int(elts.AsteroidID[i])
+        sim.particles[-1].hash = int(elts.AsteroidID[i])
         # Save the name of this asteroid to the particle entry (hack)
         sim.particles[-1].name = elts.AsteroidName[i]
 
