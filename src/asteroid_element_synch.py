@@ -201,7 +201,7 @@ def main():
     print(f'Found {date_count} dates to process with {ast_count} asteroids.')
 
     # Set up batches    
-    batch_count: int = date_count // batch_size
+    batch_count: int = int(np.ceil(date_count / batch_size))
     print(f'Running {batch_count} batches of size {batch_size} dates...')
 
     for i in range(batch_count):

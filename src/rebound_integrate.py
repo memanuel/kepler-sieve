@@ -40,7 +40,7 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
         mjd0:           the earliest MJD to simulate back to
         mjd1:           the latest MJD to simulate forward to
         steps_per_day:  the number of time steps per day to save the simulation
-        save_elements:  flag indiciting whether to save orbital elements
+        save_elements:  flag indicating whether to save orbital elements
         progbar:        flag - whether to display a progress bar
     OUTPUTS:
         Numpy arrays with output of integration
@@ -126,9 +126,11 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
         sim.integrate(t, exact_finish_time=1)
         
         # Serialize the position and velocity
+        # While the rebound interface includes methods for the accelerations, these do NOT appear to be
+        # supported at this time! They just return 0.0, even after calculating the orbit.
         sim.serialize_particle_data(xyz=q[row])
         sim.serialize_particle_data(vxvyvz=v[row])
-        
+
         # Save the orbital elements if applicable
         if save_elements:
             # Compute the orbital elements vs. the sun as primary

@@ -18,10 +18,17 @@ from db_utils import sp2df
 
 
 # ********************************************************************************************************************* 
-def get_asteroids() -> pd.DataFrame:
-    """Return list of known asteroid names and IDs"""
+def get_asteroids(key_to_body_id: bool=False) -> pd.DataFrame:
+    """
+    Return list of known asteroid names and IDs
+    INPUTS:
+        key_to_body_id: When true, reindex this DataFrame to BodyID.  Default (false) keys to AsteroidID.
+    """
     ast: pd.DataFrame = sp2df(sp_name='KS.GetAsteroids')
-    ast.set_index(keys='AsteroidID', drop=False, inplace=True)
+    if key_to_body_id:
+        ast.set_index(keys='BodyID', drop=False, inplace=True)
+    else:
+        ast.set_index(keys='AsteroidID', drop=False, inplace=True)
     return ast
 
 # ********************************************************************************************************************* 

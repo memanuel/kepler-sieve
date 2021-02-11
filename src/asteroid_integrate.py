@@ -20,7 +20,7 @@ import sys
 # MSE imports
 from utils import print_stars
 from astro_utils import mjd_to_date
-from asteroid_element import make_sim_asteroids
+from asteroid_element import make_sim_asteroids, get_asteroids
 from rebound_integrate import integrate_df
 from db_utils import df2db, csvs2db, sp2df, truncate_table
 
@@ -34,8 +34,11 @@ calc_type_tbl = {
     'elt' : 'OrbitalElements'
 }
 
+# Load a single copy of the Asteroid list keyed by BodyID
+ast = get_asteroids(key_to_body_id=True)
+
 # ********************************************************************************************************************* 
-def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int, truncate: bool):
+def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int, truncate: bool, progbar:bool=False):
     """
     Integrate a simulation and save it to database
     INPUTS:
@@ -47,8 +50,8 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
         truncate:       Flag indicating whether to truncate DB tables
     """
     # Columns for state vectors and orbital element frames
-    cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
-    cols_elt = ['TimeID', 'BodyID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+    cols_vec = ['TimeID', 'AsteroidID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    cols_elt = ['TimeID', 'AsteroidID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
 
     # Mapping to rename columns to match DB; MariaDB has case insensitive column names :(
     elt_col_map = {
@@ -58,15 +61,13 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
 
     # Generate table names; add suffix with collection name for state vectors,
     schema = 'KS'
-    table_name_vec = f'StateVectors'
-    table_name_elt = f'OrbitalElements'
+    table_name_vec = f'AsteroidVectors'
+    table_name_elt = f'AsteroidElements'
 
-    # Flags for building simulation archive    
-    progbar: bool = True
     # Set chunksize for writing out DataFrame to database
     chunksize: int = 2**19
     # Verbosity for DF to DB upload
-    verbose: bool = True
+    verbose: bool = progbar
 
     # Status
     print()
@@ -78,13 +79,20 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
                       save_elements=True, progbar=progbar)
 
     # Mask down to only the asteroids
-    mask = (df.BodyID < 1000000)
+    mask = (df.BodyID > 1000000)
+    df = df[mask]
+
+    # Add the AsteroidID column to the DataFrame
+    df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
+    # df['AsteroidName'] = ast.loc[df.BodyID, 'AsteroidName'].values
 
     # DataFrame with the state vectors
-    df_vec = df[mask][cols_vec]
+    # df_vec = df[mask][cols_vec]
+    df_vec = df[cols_vec]
 
     # DataFrame with the orbital elements
-    df_elt = df[mask][cols_elt]
+    # df_elt = df[mask][cols_elt]
+    df_elt = df[cols_elt]
     df_elt.rename(columns=elt_col_map, inplace=True)
 
     # Status
@@ -96,8 +104,7 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
     try:
         df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
     except:
-        if save_elements:
-            print("Problem with DB insertion... Continuing to save orbital elements.")
+        print("Problem with DB insertion... Continuing to save orbital elements.")
 
     # Insert to OrbitalElements_<CollectionName> DB table if requested
     print(f'\nSaving from DataFrame to {table_name_elt}...')
@@ -161,6 +168,8 @@ def main():
                         help="Don\'t do another solar system integration, just load cached CSV into DB.")
     parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
                         help='Whether to truncate tables before inserting.')
+    parser.add_argument('--progress', default=False, action='store_true',
+                        help='display progress bar')
     parser.add_argument('--dry_run', dest='dry_run', action='store_const', const=True, default=False,
                         help='Dry run: report parsed inputs then quit.')
     
@@ -175,6 +184,7 @@ def main():
     # Flags
     truncate: bool = args.truncate
     load_csv: bool = args.load_csv
+    progbar: bool = args.progress
     dry_run: bool = args.dry_run
 
     # Date range for integration
