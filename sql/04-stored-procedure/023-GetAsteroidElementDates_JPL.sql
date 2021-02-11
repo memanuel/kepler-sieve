@@ -17,10 +17,14 @@ FROM
 	JPL.AsteroidElement AS elt
 	INNER JOIN KS.IntegrationTime AS it ON
 		it.MJD = elt.epoch
--- WHERE NOT EXISTS (
--- 	SELECT elt2.AsteroidNumber FROM JPL.AsteroidElement AS elt2 
--- 	WHERE elt2.AsteroidNumber = elt.AsteroidNumber AND elt2.epoch = epoch
--- 	)
+-- Only take records that don't have a match
+WHERE NOT EXISTS (
+	SELECT relt.AsteroidID 
+	FROM 
+		KS.AsteroidElement_Ref AS relt
+		INNER JOIN KS.Asteroid AS ast ON ast.AsteroidID = relt.AsteroidID
+	WHERE ast.AsteroidNumber = elt.AsteroidNumber AND relt.epoch = epoch
+	)
 GROUP BY elt.epoch
 ORDER BY elt.epoch;
 
