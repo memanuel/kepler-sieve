@@ -5,26 +5,45 @@ CREATE OR REPLACE TABLE KS.AsteroidElement_Ref(
 		COMMENT "Foreign key to IntegrationTime table",
 	epoch DOUBLE NOT NULL
 		COMMENT "The epoch as of which the orbital elements are computed; expressed as an MJD",
+	-- The six main orbital elements plus mean anomaly for interpolation
 	a DOUBLE NOT NULL
-		COMMENT "The semimajor axis in AU",
+		COMMENT "The semimajor axis, a, in AU",
 	e DOUBLE NOT NULL
-		COMMENT "The eccentricity; dimensionless",
+		COMMENT "The eccentricity, e; dimensionless",
 	inc DOUBLE NOT NULL
-		COMMENT "The inclination in radians",
+		COMMENT "The inclination, inc, in radians",
 	Omega_node DOUBLE NOT NULL
-		COMMENT "The longitude of the ascending node in radians",
+		COMMENT "The longitude of the ascending node, Omega, in radians",
 	omega_peri DOUBLE NOT NULL
-		COMMENT "The argument of perhelion omega in radians",
+		COMMENT "The argument of perhelion, omega, in radians",
     f DOUBLE NOT NULL
-        COMMENT "The true anomaly f in radians",
+        COMMENT "The true anomaly, f, in radians",
 	M DOUBLE NOT NULL
-		COMMENT "The mean anomaly M in radians",
-    eccentric_anomaly DOUBLE NOT NULL
-        COMMENT "The eccentric anomaly E in radians",
+		COMMENT "The mean anomaly, M, in radians",
+    -- Physics calculations
+	d DOUBLE NOT NULL
+		COMMENT "The radial distance from the primary in AU",
+	v DOUBLE NOT NULL
+		COMMENT "The speed relative to the primary in AU/day",
+	h DOUBLE NOT NULL
+		COMMENT "The specific angular momentum",
+	-- Period and motion
     period DOUBLE NOT NULL
-        COMMENT "The orbital period in days",
+        COMMENT "The orbital period, P, in days",
     mean_motion DOUBLE NOT NULL
-        COMMENT "The mean motion in radians per day",
+        COMMENT "The mean motion, n, in radians per day",
+    T_peri DOUBLE NOT NULL
+    	COMMENT "The time of pericenter passage",
+	-- Additional angles
+	pomega DOUBLE NOT NULL
+		COMMENT "longitude of pericenter in radians",
+	EA DOUBLE AS (2.0*ATAN(SQRT((1.0-e)/(1.0+e))*TAN(0.5*f))) 
+		COMMENT "The eccentric anomaly; derived from the true anomaly",		
+    mean_longitude DOUBLE AS (Omega_node + omega_peri + M)
+        COMMENT "Mean longitude, l, in radians = Omega + omega + M",        
+    true_longitude DOUBLE AS (Omega_node + omega_peri + f)
+        COMMENT "The angle, theta, in radians = Omega + omega + f",
+	-- Keys and constraints
     PRIMARY KEY (AsteroidID, TimeID)
         COMMENT "Reference elements uniquely defined by the asteroid and the epoch",
     UNIQUE KEY (TimeID, AsteroidID)
@@ -34,4 +53,4 @@ CREATE OR REPLACE TABLE KS.AsteroidElement_Ref(
     CONSTRAINT FK_AsteroidElement_Ref_TimeID
         FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID)
 )
-COMMENT "Orbital elements of asteroids as of reference dates; used to initialize integrations. Primary for these elements is the Sun, NOT the Solar System Barycenter!";
+COMMENT "Orbital elements of asteroids as of reference dates; used to initialize integrations. Primary for these elements is the Sun, NOT the Solar System Barycenter!  See https://rebound.readthedocs.io/en/latest/python_api.html for details on rebound orbital elements";

@@ -11,7 +11,7 @@ BEGIN
 -- Compute TimeID from epoch
 SET @TimeID = epoch * 24 * 60;
 
--- Select all available orbital elements at this time, sorted by AsteroidID.
+-- Select all distinct dates with orbital elements available
 SELECT
 	elt.TimeID,
 	elt.epoch,
