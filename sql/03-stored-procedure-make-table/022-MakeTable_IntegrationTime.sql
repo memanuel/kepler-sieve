@@ -7,7 +7,7 @@ COMMENT "Populate the IntegrationTime table from JPL.HorizonsTime"
 BEGIN 
 
 -- Populate IntegrationTime from HorizonsTime by joining pairs of dates to a minutes offset
-	INSERT INTO KS.IntegrationTime
+INSERT INTO KS.IntegrationTime
 (TimeID, MJD, CalendarDate, CalendarDateTime, delta_T)
 SELECT 
 	ht.TimeID + minutes._ AS TimeID,

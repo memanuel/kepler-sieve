@@ -3,7 +3,9 @@ DELIMITER $$
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.GetAsteroidRefElements(
-    IN epoch INT
+    IN epoch INT,
+    IN n0 INT,
+    IN n1 INT
 )
 COMMENT "Get all available reference orbital elements for asteroids on the given epoch."
 
@@ -29,7 +31,8 @@ FROM
 	KS.AsteroidElement_Ref AS elt
 	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidID = elt.AsteroidID
 WHERE
-	elt.TimeID = @TimeID
+	elt.TimeID = @TimeID AND
+    n0 <= ast.AsteroidID AND ast.AsteroidID < n1
 ORDER BY elt.AsteroidID;
 
 END
