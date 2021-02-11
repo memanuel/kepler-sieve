@@ -69,7 +69,7 @@ def get_hrzn_state_coll(body_collection: str, epoch: int) -> pd.DataFrame:
     return states
 
 # ********************************************************************************************************************* 
-def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
+def make_sim_horizons(body_collection: str, epoch: int, verbose: bool=False) -> rebound.Simulation:
     """
     Create a new rebound simulation with initial data from the NASA Horizons system
     INPUTS:
@@ -91,7 +91,8 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
 
     # Get state vectors
     states = get_hrzn_state_coll(body_collection=body_collection, epoch=epoch)
-    # print(f'Loaded horizons state at epoch {epoch} from JPL database.')
+    if verbose:
+        print(f'Loaded horizons state at epoch {epoch} from JPL database.')
 
     # When initializing a horizons simulation from a body collection, we ALWAYS treat bodies as massive
     add_as_test: bool = False
@@ -102,7 +103,8 @@ def make_sim_horizons(body_collection: str, epoch: int) -> rebound.Simulation:
 
     # Add bodies in this collection to the empty simulation
     add_hrzn_bodies(sim=sim, states=states, add_as_test=add_as_test)
-    print(f'Added bodies to simulation.')
+    if verbose:
+        print(f'Added bodies to simulation.')
 
     # Set extra attribute with epoch
     sim.epoch = epoch

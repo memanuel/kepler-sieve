@@ -35,7 +35,7 @@ Path(dir_sim).mkdir(parents=True, exist_ok=True)
 # ********************************************************************************************************************* 
 def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: int, add_as_test: bool,
              integrator: str = 'ias15', steps_per_day: int = 4, epsilon: float = 2.0**-30,
-             save_file: bool = True, load_file: bool = False) -> rebound.Simulation:
+             save_file: bool=True, load_file: bool=False, verbose: bool=False) -> rebound.Simulation:
     """
     Create or load simulation with the specified objects at the specified time
     INPUTS:
@@ -72,11 +72,12 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
             sim_is_loaded=True
         except:
             # Initialize simulation
-            print(f'Unable to load {fname_sim}, building from Horizons data...')
+            if verbose:
+                print(f'Unable to load {fname_sim}, building from Horizons data...')
     
     # If simulation was not loaded from disk (either by choice or a failure) generate it from Horizons DB
     if not sim_is_loaded:
-        sim = make_sim_horizons(body_collection=body_collection, epoch=epoch)
+        sim = make_sim_horizons(body_collection=body_collection, epoch=epoch, verbose=verbose)
 
     # Move to center of momentum
     # sim.move_to_com()

@@ -48,13 +48,13 @@ def process_dates(epoch, max_dates: int = None, progbar: bool=False):
     N_date: int = epochs.shape[0]
 
     # Set up tqdm iterator for the dates
-    i_max: int = N_date if max_dates is None else max_dates
+    i_max: int = N_date if max_dates is None else min(max_dates, N_date)
     ii = list(range(i_max))
     if progbar:
         ii = tqdm_auto(ii)
 
     # Iterate through the dates
-    for i in range(i_max):
+    for i in ii:
         # Two epochs: current one (with quoted elements) and next one
         epoch: int = epochs[i]
         epoch_next: int = epochs[i+1]
@@ -189,17 +189,12 @@ def main():
 
     # Synchronize the elements
     print(f'Synchronizing orbital elements to epoch {epoch}...')
-    sim, elts = process_dates(epoch=epoch, max_dates=10, progbar=True)
+    sim, elts = process_dates(epoch=epoch, progbar=True)
     # Extract reference elements DataFrame
     print(f'Extracting reference orbital elements for DB insertion...')
     ref_elts = calc_ref_elt(sim, progbar=True)
 
     # Insert into KS.AsteroidElement_Ref
-    # schema='KS'
-    # table='AsteroidElement_Ref'
-    # truncate=False
-    # chunksize=0
-    # verbose=True
     df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', truncate=True, chunksize=0, verbose=True)
 
 # ********************************************************************************************************************* 
