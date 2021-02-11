@@ -20,7 +20,7 @@ import os
 
 # MSE imports
 from db_utils import sp2df
-from horizons import make_sim_horizons, extend_sim_horizons, extend_sim_horizons_ast
+from horizons import make_sim_horizons
 from orbital_element import OrbitalElement_aeiOofM as OrbitalElement # a, e, inc, Omega, omega, f, M
 
 # Typing
@@ -30,7 +30,6 @@ from typing import List, Tuple, Dict, Set, Optional
 # Directory for simulations; make if missing
 dir_sim: str = '../data/rebound/sim'
 Path(dir_sim).mkdir(parents=True, exist_ok=True)
-
 
 # ********************************************************************************************************************* 
 def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: int, add_as_test: bool,
@@ -79,8 +78,8 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
     if not sim_is_loaded:
         sim = make_sim_horizons(body_collection=body_collection, epoch=epoch, verbose=verbose)
 
-    # Move to center of momentum
-    # sim.move_to_com()
+    # DO NOT Move to center of momentum with sim.move_to_com() method !!!
+    # The Horizons data is already in the barycentric frame
 
     # Set integrator and time step
     sim.integrator = integrator
@@ -115,45 +114,6 @@ def make_sim(body_collection: str, body_names_add: Optional[List[str]], epoch: i
         extend_sim_horizons(sim=sim, body_names=body_names_add, add_as_test=add_as_test)
 
     # Return the simulation
-    return sim
-
-# ********************************************************************************************************************* 
-def extend_sim(sim: rebound.Simulation, body_names: List[str], add_as_test: bool):
-    """
-    Extend an existing simulation to include a list of named bodies
-    INPUTS:
-        sim:         A rebound simulation object
-        body_names:  List of string body names; references DB table KS.Body, field name BodyName
-                     The state vectors of these bodies will be added to the simulation, sim.
-        add_as_test: Flag indicating whether bodies added as massless test particles or not
-    RETURNS:
-        None:        Modifies sim in place
-    """
-    # Generate list of missing object names
-    body_names_present: Set[str] = set(sim.body_names)
-    body_names_missing: List[str] = [nm for nm in body_names if nm not in body_names_present]
-    objects_missing: bool = len(body_names_missing) > 0
-
-    # Extend the simulation and save it with the augmented bodies
-    if objects_missing:
-        extend_sim_horizons(sim, body_names=body_names_missing, add_as_test=add_as_test)
-
-    return sim
-
-# ********************************************************************************************************************* 
-def extend_sim_ast(sim: rebound.Simulation, n_ast: int, add_as_test: bool):
-    """
-    Extend an existing simulation to include a list of named bodies
-    INPUTS:
-        sim:         A rebound simulation object
-        n_ast:       The number of asteroids to add to the simulation; adds the first n_ast asteroids
-        add_as_test: Flag indicating whether bodies added as massless test particles or not
-    RETURNS:
-        None:        Modifies sim in place
-    """
-    # Extend the simulation and save it with the augmented bodies
-    extend_sim_horizons_ast(sim, n_ast=n_ast, add_as_test=add_as_test)
-
     return sim
 
 # ********************************************************************************************************************* 
@@ -225,7 +185,43 @@ def load_sim_np(fname_np: str) -> Tuple[np.array, np.array, Dict[str, np.array]]
     return q, v, elts, catalog
 
 # ********************************************************************************************************************* 
-def get_asteroids() -> pd.DataFrame:
-    """Return list of known asteroid names and IDs"""
-    ast: pd.DataFrame = sp2df(sp_name='KS.GetAsteroids')
-    return ast
+# OLD CODE FOR HANDLING ASTEROIDS - GET RID OF THIS
+# ********************************************************************************************************************* 
+# def extend_sim(sim: rebound.Simulation, body_names: List[str], add_as_test: bool):
+#     """
+#     Extend an existing simulation to include a list of named bodies
+#     INPUTS:
+#         sim:         A rebound simulation object
+#         body_names:  List of string body names; references DB table KS.Body, field name BodyName
+#                      The state vectors of these bodies will be added to the simulation, sim.
+#         add_as_test: Flag indicating whether bodies added as massless test particles or not
+#     RETURNS:
+#         None:        Modifies sim in place
+#     """
+#     # Generate list of missing object names
+#     body_names_present: Set[str] = set(sim.body_names)
+#     body_names_missing: List[str] = [nm for nm in body_names if nm not in body_names_present]
+#     objects_missing: bool = len(body_names_missing) > 0
+
+#     # Extend the simulation and save it with the augmented bodies
+#     if objects_missing:
+#         extend_sim_horizons(sim, body_names=body_names_missing, add_as_test=add_as_test)
+
+#     return sim
+
+# # ********************************************************************************************************************* 
+# def extend_sim_ast(sim: rebound.Simulation, n_ast: int, add_as_test: bool):
+#     """
+#     Extend an existing simulation to include a list of named bodies
+#     INPUTS:
+#         sim:         A rebound simulation object
+#         n_ast:       The number of asteroids to add to the simulation; adds the first n_ast asteroids
+#         add_as_test: Flag indicating whether bodies added as massless test particles or not
+#     RETURNS:
+#         None:        Modifies sim in place
+#     """
+#     # Extend the simulation and save it with the augmented bodies
+#     extend_sim_horizons_ast(sim, n_ast=n_ast, add_as_test=add_as_test)
+
+#     return sim
+

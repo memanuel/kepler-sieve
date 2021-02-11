@@ -20,11 +20,8 @@ import pandas as pd
 import argparse
 import sys
 
-# Plotting
-import matplotlib.pyplot as plt
-
 # MSE imports
-from utils import plot_style, print_stars
+from utils import print_stars
 from astro_utils import mjd_to_date
 from rebound_sim import make_sim_planets, make_sim_de435
 from rebound_integrate import integrate_df
@@ -32,10 +29,6 @@ from db_utils import df2db, csvs2db, sp2df, truncate_table
 
 # Typing
 from typing import List
-
-# ********************************************************************************************************************* 
-# Set plot style
-plot_style()
 
 # ********************************************************************************************************************* 
 # Collections of bodies to integrate: Planets or DE435

@@ -30,6 +30,9 @@ engine_count: int = 32
 db_engines = \
     tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
 
+# Get the process_id to avoid collisions on the staging tables
+pid: int = os.getpid()
+
 # ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
     """Bind arguments to a SQL stored procedure.  Return a sqlalchemy text object."""
@@ -42,7 +45,7 @@ def sp_bind_args(sp_name: str, params: Optional[Dict]):
     return sql_stmt
 
 # ********************************************************************************************************************* 
-def sp2df(sp_name: str, params: Optional[Dict]=None):
+def sp2df(sp_name: str, params: Dict=dict()):
     """
     Execute a SQL stored procedure and return a DataFrame.
     INPUTS:
@@ -165,6 +168,8 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
     }
     # Put all the interesting steps in a try / catch so calling program won't crash
     try:
+        # Create directory including the pid
+        Path(fname_csv).parent.mkdir(parents=True, exist_ok=True)
         # If chunksize was passed, use Dask
         if chunksize > 0:
             # Convert the Pandas into a Dask DataFrame
@@ -184,6 +189,17 @@ def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int 
     return fnames
 
 # ********************************************************************************************************************* 
+def make_table_names(schema: str, table: str, i: int):
+    """Consistently generate schema_table and staging_table names."""
+    # Destination table with schema
+    dest_table = f'{schema}.{table}'
+    # Staging table for this chunk
+    # staging_table = f'{schema}.{table}_pid_{pid}_chunk_{i:03d}'
+    staging_table = f'temp.{table}_pid_{pid}_chunk_{i:03d}'
+
+    return dest_table, staging_table
+
+# ********************************************************************************************************************* 
 def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i: int, conn: conn_type):
     """
     Load one CSV file into a staging table for the named DB table.
@@ -198,15 +214,13 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
         None.  Modifies the database by creating a staging table
     """
 
-    # Destination table with schema
-    schema_table = f'{schema}.{table}'
-    # Staging table for this chunk
-    staging_table = f'{schema}.{table}_chunk_{i:03d}'
+    # Destination and staging table names
+    dest_table, staging_table = make_table_names(schema=schema, table=table, i=i)
     # List of column names
     col_list = '(' + ','.join(columns) + ')'
 
     # SQL to create staging table
-    sql_clone_table = f"CREATE OR REPLACE TABLE {staging_table} LIKE {schema_table};"
+    sql_clone_table = f"CREATE OR REPLACE TABLE {staging_table} LIKE {dest_table};"
 
     # SQL to Load CSV into database into staging table
     sql_load_csv = \
@@ -264,10 +278,8 @@ def csv2db(schema: str, table: str, columns: List[str], i: int, conn):
         None.  Modifies the database by inserting from the staging table into the main table
     """
 
-    # Destination table with schema
-    schema_table = f'{schema}.{table}'
-    # Staging table for this chunk
-    staging_table = f'{schema}.{table}_chunk_{i:03d}'
+    # Destination and staging table names
+    dest_table, staging_table = make_table_names(schema=schema, table=table, i=i)
     # List of column names
     col_list = '(' + ','.join(columns) + ')'
     # Columns to select
@@ -276,7 +288,7 @@ def csv2db(schema: str, table: str, columns: List[str], i: int, conn):
     # SQL to insert into the main table from the staging table
     sql_insert_stage = \
         f"""
-        REPLACE INTO {schema_table}
+        REPLACE INTO {dest_table}
         {col_list}
         SELECT
         {select_fields}
@@ -300,7 +312,7 @@ def csvs2db(schema: str, table: str,
     """
     # Get list of CSV files if they were note provided
     if fnames_csv is None:
-        search_path = os.path.join(dir_csv, table, f'{table}-chunk*.csv')
+        search_path = os.path.join(dir_csv, table, f'pid-*', f'{table}*-chunk*.csv')
         fnames_csv = glob.glob(search_path)
         fnames_csv.sort()    
 
@@ -339,8 +351,8 @@ def csvs2db(schema: str, table: str,
             try:
                 csv2db(schema=schema, table=table, columns=columns, i=i, conn=conn)
             except:
-                print('csvs2db failed! Table {schema}.{table}, chunk i={i}.')
-                traceback.print_ext()
+                print(f'csvs2db failed! Table {schema}.{table}, chunk i={i}.')
+                traceback.print_stack()
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
@@ -367,8 +379,9 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     df = df[columns]
     row_count: int = df.shape[0]
 
-    # File name of CSV
-    fname_csv = os.path.join(dir_csv, f'{table}', f'{table}.csv')
+    # File name of CSV - include process id to avoid collisions when running multiple program instances
+    pid: int = os.getpid()
+    fname_csv = os.path.join(dir_csv, f'{table}', f'pid_{pid}', f'{table}.csv')
 
     # Build CSV in parallel with dask
     if verbose:
@@ -393,6 +406,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         print('df2db failed!')
         print(f'Table {schema}.{table}.')
         print('Columns:\n', columns)
+        traceback.print_stack()
         
     # Report elapsed time if requested
     t2 = time.time()

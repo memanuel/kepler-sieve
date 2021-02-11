@@ -24,6 +24,7 @@ import sys
 from tqdm.auto import tqdm as tqdm_auto
 
 # Local imports
+from utils import print_stars
 from db_utils import sp2df, df2db
 from rebound_sim import make_sim_planets
 from asteroid_element import get_ast_ref_elts_jpl, add_asteroid_elts, update_asteroid_elements
@@ -100,8 +101,11 @@ def calc_ref_elt(sim: rebound.Simulation, progbar: bool=False):
     epoch = np.repeat(sim.t, N)
     TimeID = np.int32(np.rint(epoch * 24 * 60))
 
+    # Grab the AsteroidID array from the simulation object
+    AsteroidID = sim.asteroid_ids
+
     # Empty vectors for remaining columns
-    AsteroidID = np.zeros(N)
+    # AsteroidID = np.zeros(N)
     a = np.zeros(N)
     e = np.zeros(N)
     inc = np.zeros(N)
@@ -133,7 +137,7 @@ def calc_ref_elt(sim: rebound.Simulation, progbar: bool=False):
         p = sim.particles[j]
         # Save all the columns out from the particle to the arrays
         # Save angles in the standard interval [0, 2 pi)
-        AsteroidID[i] = np.int32(p.hash)
+        # AsteroidID[i] = np.int32(p.hash)
         a[i] = p.a
         e[i] = p.e
         inc[i] = p.inc
@@ -182,20 +186,36 @@ def main():
             'to desired epoch and save output into KS.AsteroidElement_Ref.')
     parser.add_argument('--epoch', nargs='?', metavar='EP', type=int, default=59000,
                         help='epoch to which quoted orbital elements are synchronized.')
+    parser.add_argument('--batch_size', nargs='?', metavar='BS', type=int, default=256,
+                        help='the number of dates to process in each batch')
     args = parser.parse_args()
 
     # Unpack command line arguments
     epoch: int = args.epoch
+    batch_size: int = args.batch_size
 
-    # Synchronize the elements
-    print(f'Synchronizing orbital elements to epoch {epoch}...')
-    sim, elts = process_dates(epoch=epoch, progbar=True)
-    # Extract reference elements DataFrame
-    print(f'Extracting reference orbital elements for DB insertion...')
-    ref_elts = calc_ref_elt(sim, progbar=True)
+    # Count the number of dates
+    elt_dates = sp2df(sp_name='JPL.GetAsteroidRefElementDates', params={'epoch':epoch})
+    date_count: int = elt_dates.shape[0]
+    ast_count: int = elt_dates.AsteroidCount.sum()
+    print(f'Found {date_count} dates to process with {ast_count} asteroids.')
 
-    # Insert into KS.AsteroidElement_Ref
-    df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', truncate=True, chunksize=0, verbose=True)
+    # Set up batches    
+    batch_count: int = date_count // batch_size
+    print(f'Running {batch_count} batches of size {batch_size} dates...')
+
+    for i in range(batch_count):
+        # Status
+        print_stars()
+        print(f'Starting batch {i}.')
+        # Synchronize the elements
+        print(f'Synchronizing orbital elements to epoch {epoch}...')
+        sim, elts = process_dates(epoch=epoch, max_dates=batch_size, progbar=True)
+        # Extract reference elements DataFrame
+        print(f'Extracting reference orbital elements for DB insertion...')
+        ref_elts = calc_ref_elt(sim, progbar=True)
+        # Insert into KS.AsteroidElement_Ref
+        df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', truncate=False, chunksize=0, verbose=True)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
