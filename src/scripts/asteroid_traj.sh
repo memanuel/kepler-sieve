@@ -1,12 +1,12 @@
 # Input parameters
 # The number of asteroids processed in each Python program, e.g. 1000
-batch_size=1000
+batch_size=$1
 # The number of batches run in parallel in each large job, e.g. 50
-num_batch=50
+num_batch=$2
 # The smallest asteroid ID to process
-min_ast_num=$1
+min_ast_num=$3
 # The largest asteroid ID to process
-max_ast_num=$2
+max_ast_num=$4
 
 # Compute number of jobs required to process all data
 ast_per_job=$((num_batch*batch_size))

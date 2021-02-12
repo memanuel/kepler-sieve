@@ -38,8 +38,8 @@ calc_type_tbl = {
 ast = get_asteroids(key_to_body_id=True)
 
 # ********************************************************************************************************************* 
-def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int, 
-                truncate: bool, progbar:bool=False):
+def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,  
+                truncate: bool, single_thread: bool, progbar:bool=False):
     """
     Integrate a simulation and save it to database
     INPUTS:
@@ -48,6 +48,7 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
         n1:             Last asteroid number to process (exclusive)
         mjd0:           First date to process
         mjd1:           Last date to process
+        single_thread:  Whether to run in single threaded mode
         truncate:       Flag indicating whether to truncate DB tables
     """
     # Columns for state vectors and orbital element frames
@@ -85,17 +86,11 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
 
     # Add the AsteroidID column to the DataFrame
     df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
-    # df['AsteroidID'] = np.int32(0)
-    # df.loc[mask, 'AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
-    # df['AsteroidName'] = ast.loc[df.BodyID, 'AsteroidName'].values
 
     # DataFrame with the state vectors
-    # df_vec = df[mask][cols_vec]
     df_vec = df[cols_vec]
-    # df_vec = df.loc[mask, cols_vec]
 
     # DataFrame with the orbital elements
-    # df_elt = df[mask][cols_elt]
     df_elt = df[cols_elt].rename(columns=elt_col_map)
 
     # Status
@@ -105,7 +100,8 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
 
     # Insert to StateVectors_<CollectionName> DB table
     try:
-        df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, chunksize=chunksize, verbose=verbose)
+        df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, 
+              chunksize=chunksize, single_thread=single_thread, verbose=verbose)
     except:
         print("Problem with DB insertion... Continuing to save orbital elements.")
 
@@ -167,10 +163,12 @@ def main():
                         help='epoch of the last date in the integration, as an MJD.')
     parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=1,
                         help='the (max) number of steps per day taken by the integrator')
-    parser.add_argument('--load_csv', dest='load_csv', action='store_const', const=True, default=False,
-                        help="Don\'t do another solar system integration, just load cached CSV into DB.")
+    # parser.add_argument('--load_csv', dest='load_csv', action='store_const', const=True, default=False,
+    #                     help="Don\'t do another solar system integration, just load cached CSV into DB.")
     parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
                         help='Whether to truncate tables before inserting.')
+    parser.add_argument('--single_thread', dest='single_thread', action='store_const', const=True, default=False,
+                        help='run in single threaded mode; better if running many parallel instances.')
     parser.add_argument('--quiet', const=True, default=False, action='store_const',
                         help='run in quiet mode (hide progress bar')
     parser.add_argument('--dry_run', dest='dry_run', action='store_const', const=True, default=False,
@@ -186,7 +184,8 @@ def main():
 
     # Flags
     truncate: bool = args.truncate
-    load_csv: bool = args.load_csv
+    # load_csv: bool = args.load_csv
+    single_thread: bool = args.single_thread
     progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
 
@@ -213,7 +212,7 @@ def main():
     print(f' date range mjd : {mjd0} to {mjd1}')
     print(f'*steps_per_day  : {steps_per_day}')
     print(f' times to save  : {times_saved}')
-    print(f'*load_csv       : {load_csv}')
+    # print(f'*load_csv       : {load_csv}')
     print(f'*truncate       : {truncate}')
     print(f'*dry_run        : {dry_run}')
 
@@ -222,20 +221,21 @@ def main():
         print('\n This was a dry run.  Bye!')
         sys.exit()
 
-    # If we are just loading CSVs, don't do the integration, just try to reload them into DB and quit
-    if load_csv:
-        load_csv_batches()
-        # Now quit early after the CSVs are loaded
-        sys.exit()
+    # # If we are just loading CSVs, don't do the integration, just try to reload them into DB and quit
+    # if load_csv:
+    #     load_csv_batches()
+    #     # Now quit early after the CSVs are loaded
+    #     sys.exit()
 
     # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
     chunk_size: int = 2**19
     
     # Simulation with initial configuration for planets
     sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1)
+  
     # Delegate to process_sim
     process_sim(sim=sim, n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
-                truncate=truncate, progbar=progbar)
+                truncate=truncate, single_thread=single_thread, progbar=progbar)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

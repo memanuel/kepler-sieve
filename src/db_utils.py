@@ -326,7 +326,8 @@ def csv2db(dest_table: str, staging_table: str, columns: List[str], conn):
 # ********************************************************************************************************************* 
 def csvs2db(schema: str, table: str, 
             fnames_csv: Optional[List[str]]=None, 
-            columns: Optional[List[str]]=None, 
+            columns: Optional[List[str]]=None,
+            single_thread: bool=False, 
             progbar: bool=True):
     """
     Load a batch of CSVs into the named DB table.
@@ -349,7 +350,8 @@ def csvs2db(schema: str, table: str,
 
     # Multiprocessing
     cpu_max: int = 32
-    cpu_count: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
+    cpu_default: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
+    cpu_count: int = 1 if single_thread else cpu_default
     
     # Prepare inputs for CSV staging function
     stage_inputs = []
@@ -384,7 +386,8 @@ def csvs2db(schema: str, table: str,
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
-          truncate: bool=False, chunksize: int=0, verbose: bool=False, progbar: bool=True):
+          truncate: bool=False, chunksize: int=0, single_thread: bool=False,
+          verbose: bool=False, progbar: bool=True):
     """
     Insert the contents of a Pandas DataFrame into a SQL table.
     INPUTS:
@@ -393,7 +396,8 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         table:      The name of the destination DB table
         columns:    List of columns to insert; read from DB metadata if omitted
         truncate:   Flag indicating whether to first truncate the destination table
-        chunksize:  Number of rows in each chunks
+        chunksize:  Number of rows in each chunk
+        single_thread: Whether to run single threaded
         verbose:    Verbosity of output (true / false)
     OUTPUTS:
         None.  Modifies the DB table on the server.
@@ -428,7 +432,8 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
 
     # Insert from the CSVs into the DB table using multiprocessing
     try:   
-        csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns, progbar=progbar)
+        csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns,
+                single_thread=single_thread, progbar=progbar)
     except:
         print('df2db failed!')
         print(f'Table {schema}.{table}.')
