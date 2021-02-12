@@ -31,5 +31,6 @@ CREATE OR REPLACE TABLE KS.StateVectors_DE435(
 	CONSTRAINT FK_StateVectors_DE435_BodyID
 		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
+ENGINE='aria' TRANSACTIONAL=0
 COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using all the massive bodies from the DE-435 integration with initial conditions at MJD 59000.
 Includes records for all 353 objects in the JPL DE-435 integration."

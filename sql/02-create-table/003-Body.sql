@@ -12,7 +12,8 @@ CREATE OR REPLACE TABLE KS.Body(
 	CONSTRAINT FK_Body_BodyTypeID FOREIGN KEY (BodyTypeID) REFERENCES BodyType(BodyTypeID),
 	UNIQUE KEY UNQ_BodyTypeID_BodyName (BodyTypeID, BodyName)
 )
-	COMMENT "Solar System bodies used in the Kepler Sieve application.";
+ENGINE='aria' TRANSACTIONAL=1
+COMMENT "Solar System bodies used in the Kepler Sieve application.";
 
 -- Large Body
 CREATE OR REPLACE TABLE JPL.LargeBody(
@@ -23,7 +24,8 @@ CREATE OR REPLACE TABLE JPL.LargeBody(
 	CONSTRAINT FK_LargeBody_BodyTypeID FOREIGN KEY (BodyTypeID) REFERENCES KS.BodyType(BodyTypeID),
 	CONSTRAINT FK_LargeBody_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
-	COMMENT "Large Body as defined by JPL / Horizons system.  Includes stars, planets, moons.";
+ENGINE='aria' TRANSACTIONAL=1
+COMMENT "Large Body as defined by JPL / Horizons system.  Includes stars, planets, moons.";
 
 -- Small Body
 CREATE OR REPLACE TABLE JPL.SmallBody(
@@ -34,7 +36,8 @@ CREATE OR REPLACE TABLE JPL.SmallBody(
 	CONSTRAINT FK_SmallBody_BodyTypeID FOREIGN KEY (BodyTypeID) REFERENCES KS.BodyType(BodyTypeID),
 	CONSTRAINT FK_SmallBody_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
-	COMMENT "Small Body as defined by JPL / Horizons system.  Includes asteroids.";
+ENGINE='aria' TRANSACTIONAL=1
+COMMENT "Small Body as defined by JPL / Horizons system.  Includes asteroids.";
 
 -- HorizonsBody
 CREATE OR REPLACE TABLE JPL.HorizonsBody(
@@ -47,9 +50,10 @@ CREATE OR REPLACE TABLE JPL.HorizonsBody(
 	SmallBodyID INT NULL,
 	UNIQUE KEY UNQ_BodyTypeID_BodyNumber (BodyTypeID, HorizonsBodyNumber),
 	UNIQUE KEY UNQ_BodyTypeID_BodyName (BodyTypeID, HorizonsBodyName),
-	CONSTRAINT FK_Body_BodyTypeID FOREIGN KEY (BodyTypeID) REFERENCES KS.BodyType(BodyTypeID),
+	CONSTRAINT FK_HorizonsBody_BodyTypeID FOREIGN KEY (BodyTypeID) REFERENCES KS.BodyType(BodyTypeID),
 	CONSTRAINT FK_HorizonsBody_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID),
 	CONSTRAINT FK_HorizonsBody_LargeBodyID FOREIGN KEY (LargeBodyID) REFERENCES JPL.LargeBody(LargeBodyID),
 	CONSTRAINT FK_HorizonsBody_SmallBodyID FOREIGN KEY (SmallBodyID) REFERENCES JPL.SmallBody(SmallBodyID)
 )
-	COMMENT "Solar System bodies with data downloaded from Horizons.";
+ENGINE='aria' TRANSACTIONAL=1
+COMMENT "Solar System bodies with data downloaded from Horizons.";

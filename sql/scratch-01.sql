@@ -1,3 +1,31 @@
--- CALL KS.GetAsteroidRefElementDates(59000);
-CALL KS.GetAsteroidRefElements(59000);
-CALL JPL.GetAsteroidRefElements(59000);
+-- Drop all the foreign keys
+-- CALL KS.DropFK_Body();
+-- CALL JPL.DropFK_LargeBody();
+-- CALL JPL.DropFK_SmallBody();
+-- CALL JPL.DropFK_HorizonsBody();
+-- CALL KS.DropFK_BodyCollectionEntry();
+-- CALL KS.DropFK_BarycenterWeight();
+-- CALL KS.DropFK_StateVectors_Planets();
+-- CALL KS.DropFK_StateVectors_DE435();
+-- CALL KS.DropFK_StateVectors();
+-- CALL KS.DropFK_OrbitalElements_Planets();
+-- CALL KS.DropFK_OrbitalElements_DE435();
+-- CALL KS.DropFK_OrbitalElements();
+-- CALL JPL.DropFK_MassiveBody();
+CALL KS.DropFK_MassiveBody();
+
+-- Restore all the foreign keys
+-- CALL KS.RestoreFK_Body();
+-- CALL JPL.RestoreFK_LargeBody();
+-- CALL JPL.RestoreFK_SmallBody();
+-- CALL JPL.RestoreFK_HorizonsBody();
+-- CALL KS.RestoreFK_BodyCollectionEntry();
+-- CALL KS.RestoreFK_BarycenterWeight();
+-- CALL KS.RestoreFK_StateVectors_Planets();
+-- CALL KS.RestoreFK_StateVectors_DE435();
+-- CALL KS.RestoreFK_StateVectors();
+-- CALL KS.RestoreFK_OrbitalElements_Planets();
+-- CALL KS.RestoreFK_OrbitalElements_DE435();
+-- CALL KS.RestoreFK_OrbitalElements();
+-- CALL JPL.RestoreFK_MassiveBody();
+CALL KS.RestoreFK_MassiveBody();

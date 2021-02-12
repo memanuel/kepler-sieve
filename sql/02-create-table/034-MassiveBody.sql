@@ -9,6 +9,7 @@ CREATE OR REPLACE TABLE JPL.MassiveBodyImport(
 	GM DOUBLE NOT NULL
 		COMMENT "Gravitational field strength (G x mass) in AU^3 / Day^2"
 )
+ENGINE='Aria' INTEGRITY=1
 COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.  Import version of table keyed by HorizonsBodyName.";
 
 CREATE OR REPLACE TABLE JPL.MassiveBody(
@@ -21,6 +22,7 @@ CREATE OR REPLACE TABLE JPL.MassiveBody(
     CONSTRAINT FK_MassiveBody_HorizonsBody
         FOREIGN KEY (HorizonsBodyID) REFERENCES JPL.HorizonsBody(HorizonsBodyID)
 )
+ENGINE='Aria' INTEGRITY=1
 COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.";
 
 CREATE OR REPLACE TABLE KS.MassiveBody(
@@ -33,6 +35,7 @@ CREATE OR REPLACE TABLE KS.MassiveBody(
     CONSTRAINT FK_MassiveBody_Body
         FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
+ENGINE='Aria' INTEGRITY=1
 COMMENT "Mass of heavy objects included in DE 435 integration, sources from technical comments.";
 
 -- Run this command to load CSV contents into JPL.MassiveBodyImport table
