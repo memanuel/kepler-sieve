@@ -250,6 +250,8 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
     # Clone the table and load the CSV file
     conn.execute(sql_clone_table)
     conn.execute(sql_load_csv)
+    # Delete the CSV file after it has been successfully loaded
+    os.remove(fname_csv)
 
     # Return the name of the staging table
     return staging_table
