@@ -38,7 +38,8 @@ calc_type_tbl = {
 ast = get_asteroids(key_to_body_id=True)
 
 # ********************************************************************************************************************* 
-def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int, truncate: bool, progbar:bool=False):
+def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int, 
+                truncate: bool, progbar:bool=False):
     """
     Integrate a simulation and save it to database
     INPUTS:
@@ -170,8 +171,8 @@ def main():
                         help="Don\'t do another solar system integration, just load cached CSV into DB.")
     parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
                         help='Whether to truncate tables before inserting.')
-    parser.add_argument('--progress', default=False, action='store_true',
-                        help='display progress bar')
+    parser.add_argument('--quiet', const=True, default=False, action='store_const',
+                        help='run in quiet mode (hide progress bar')
     parser.add_argument('--dry_run', dest='dry_run', action='store_const', const=True, default=False,
                         help='Dry run: report parsed inputs then quit.')
     
@@ -186,7 +187,7 @@ def main():
     # Flags
     truncate: bool = args.truncate
     load_csv: bool = args.load_csv
-    progbar: bool = args.progress
+    progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
 
     # Date range for integration
@@ -233,7 +234,8 @@ def main():
     # Simulation with initial configuration for planets
     sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1)
     # Delegate to process_sim
-    process_sim(sim=sim, n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, truncate=truncate)
+    process_sim(sim=sim, n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
+                truncate=truncate, progbar=progbar)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
