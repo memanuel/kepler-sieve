@@ -40,6 +40,17 @@ pid: int = os.getpid()
 pd.set_option('mode.chained_assignment', 'raise')
 
 # ********************************************************************************************************************* 
+def release_db_engines():
+    """Release all but the first DB engine; single threaded clients should call this."""
+    # Reference the one shared copy of db_engines
+    global db_engines
+    # Close down all but the first engine
+    for eng in db_engines[1:]:
+        eng.dispose()
+    # Now shrink db_engines to just this one item
+    db_engines = tuple([db_engines[0],])
+
+# ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
     """Bind arguments to a SQL stored procedure.  Return a sqlalchemy text object."""
     # Combine the arguments into a string formatted as expected by SQL alchemy
@@ -336,7 +347,7 @@ def csvs2db(schema: str, table: str,
     """
     # Get list of CSV files if they were not provided
     if fnames_csv is None:
-        search_path = os.path.join(dir_csv, table, f'pid-*', f'{table}*-chunk*.csv')
+        search_path = os.path.join(dir_csv, table, f'pid_*', f'{table}-chunk-*.csv')
         fnames_csv = glob.glob(search_path)
         fnames_csv.sort()    
 
@@ -350,8 +361,8 @@ def csvs2db(schema: str, table: str,
 
     # Multiprocessing
     cpu_max: int = 32
-    cpu_default: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
-    cpu_count: int = 1 if single_thread else cpu_default
+    cpu_count_default: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
+    cpu_count: int = 1 if single_thread else cpu_count_default
     
     # Prepare inputs for CSV staging function
     stage_inputs = []
@@ -402,7 +413,10 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     OUTPUTS:
         None.  Modifies the DB table on the server.
     """
-    
+    # When running in single_thread mode, chunksize must be zero
+    if single_thread:
+        chunk_size = 0
+
     # Get columns from DB metadata if they were not provided by caller
     if columns is None:
         columns = get_columns(schema=schema, table=table)
@@ -431,7 +445,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         truncate_table(schema=schema, table=table)
 
     # Insert from the CSVs into the DB table using multiprocessing
-    try:   
+    try:
         csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns,
                 single_thread=single_thread, progbar=progbar)
     except:
