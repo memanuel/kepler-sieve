@@ -33,7 +33,7 @@ do
 		break
 	fi
 
-	# run the first job with a progress bar, the rest silently
+	# run the last job with a progress bar, the rest silently
 	if [ $i -lt $((num_batch-1)) ]
 	then		
 		python asteroid_integrate.py $n $batch_size --single_thread --quiet &	

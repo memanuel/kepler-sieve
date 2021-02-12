@@ -67,7 +67,7 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
     table_name_elt = f'AsteroidElements'
 
     # Set chunksize for writing out DataFrame to database
-    chunksize: int = 2**19
+    chunksize: int = 2**19 if not single_thread else 0
     # Verbosity for DF to DB upload
     verbose: bool = progbar
 
