@@ -46,21 +46,28 @@ def get_ast_ref_elts_jpl(epoch: int) -> pd.DataFrame:
     return elts
 
 # ********************************************************************************************************************* 
-def get_ast_ref_elts(epoch: int, n0: int, n1: int) -> pd.DataFrame:
+def get_ast_ref_elts(epoch: int, n0: int, n1: int, missing: bool=True) -> pd.DataFrame:
     """
     Get calculated reference orbital elements as of the given epoch.
     INPUTS:
-        epoch:  The epoch as of which to get the reference elements
+        epoch:      The epoch as of which to get the reference elements
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        missing:    Flag - true (default) only returns elements for asteroids that haven't already been integrated.  
+                    False returns all available elements.
     OUTPUTS:
         elts:   DataFrame with orbital elements calculated directly from the JPL provided elements.
     """
-    # Get the elements on this epoch from the database
+    # Select SP name based on the missing flag
+    sp_name = 'KS.GetAsteroidRefElementsMissing' if missing else 'KS.GetAsteroidRefElements'
+    # Assemble input parameters (same for both stored procedures)
     params = {
         'epoch': epoch,
         'n0': n0,
         'n1': n1
     }
-    elts = sp2df(sp_name='KS.GetAsteroidRefElements', params=params)    # Return assembled DataFrame
+    # Get the elements on this epoch from the database
+    elts = sp2df(sp_name=sp_name, params=params)    
     return elts
 
 # ********************************************************************************************************************* 
