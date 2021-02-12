@@ -215,7 +215,7 @@ def main():
         print(f'Extracting reference orbital elements for DB insertion...')
         ref_elts = calc_ref_elt(sim, progbar=True)
         # Insert into KS.AsteroidElement_Ref
-        df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', truncate=False, chunksize=0, verbose=True)
+        df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', truncate=False, single_thread=True, verbose=True)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

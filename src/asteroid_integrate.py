@@ -72,9 +72,10 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
     verbose: bool = progbar
 
     # Status
-    print()
-    print_stars()
-    print(f'Integrating asteroids {n0:06d}-{n1:06d} from {mjd0} to {mjd1}...')
+    if verbose:
+        print()
+        print_stars()
+        print(f'Integrating asteroids {n0:06d}-{n1:06d} from {mjd0} to {mjd1}...')
 
     # Run the simulation and save as a DataFrame
     df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
@@ -94,20 +95,26 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
     df_elt = df[cols_elt].rename(columns=elt_col_map)
 
     # Status
-    print()
-    print_stars()
-    print(f'Saving from DataFrame to {table_name_vec}...')
+    if verbose:
+        print()
+        print_stars()
+        print(f'Saving from DataFrame to {table_name_vec}...')
 
     # Insert to StateVectors_<CollectionName> DB table
     try:
         df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, 
-              chunksize=chunksize, single_thread=single_thread, verbose=verbose)
+              chunksize=chunksize, single_thread=single_thread, verbose=verbose, progbar=progbar)
     except:
-        print("Problem with DB insertion... Continuing to save orbital elements.")
+        print("Problem with DB insertion of state vectors... Attempting to save orbital elements.")
 
     # Insert to OrbitalElements_<CollectionName> DB table if requested
-    print(f'\nSaving from DataFrame to {table_name_elt}...')
-    df2db(df=df_elt, schema=schema, table=table_name_elt, truncate=truncate, chunksize=chunksize, verbose=verbose)
+    if verbose:
+        print(f'\nSaving from DataFrame to {table_name_elt}...')
+    try:
+        df2db(df=df_elt, schema=schema, table=table_name_elt, truncate=truncate, 
+            chunksize=chunksize, single_thread=single_thread, verbose=verbose, progbar=progbar)
+    except:
+        print("Problem with DB insertion of orbital elements.")
 
 # ********************************************************************************************************************* 
 def load_csv_batch(calc_type_cd: str):
@@ -186,6 +193,7 @@ def main():
     truncate: bool = args.truncate
     # load_csv: bool = args.load_csv
     single_thread: bool = args.single_thread
+    verbose: bool = not args.quiet
     progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
 
@@ -205,16 +213,17 @@ def main():
     epsilon: float = 2.0**-32
 
     # Report arguments and integrator settings
-    print_stars()
-    print(f'*n0             : {n0:06d}')
-    print(f'*n1             : {n1:06d}')
-    print(f'*epoch          : {epoch} ({epoch_dt})')
-    print(f' date range mjd : {mjd0} to {mjd1}')
-    print(f'*steps_per_day  : {steps_per_day}')
-    print(f' times to save  : {times_saved}')
-    # print(f'*load_csv       : {load_csv}')
-    print(f'*truncate       : {truncate}')
-    print(f'*dry_run        : {dry_run}')
+    if verbose:
+        print_stars()
+        print(f'*n0             : {n0:06d}')
+        print(f'*n1             : {n1:06d}')
+        print(f'*epoch          : {epoch} ({epoch_dt})')
+        print(f' date range mjd : {mjd0} to {mjd1}')
+        print(f'*steps_per_day  : {steps_per_day}')
+        print(f' times to save  : {times_saved}')
+        # print(f'*load_csv       : {load_csv}')
+        print(f'*truncate       : {truncate}')
+        print(f'*dry_run        : {dry_run}')
 
     # Quit early if it was a dry run
     if dry_run:

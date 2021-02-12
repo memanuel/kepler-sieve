@@ -350,8 +350,8 @@ def csvs2db(schema: str, table: str,
 
     # Multiprocessing
     cpu_max: int = 32
-    cpu_default: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
-    cpu_count: int = 1 if single_thread else cpu_default
+    cpu_count_default: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
+    cpu_count: int = 1 if single_thread else cpu_count_default
     
     # Prepare inputs for CSV staging function
     stage_inputs = []
@@ -402,7 +402,10 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     OUTPUTS:
         None.  Modifies the DB table on the server.
     """
-    
+    # When running in single_thread mode, chunksize must be zero
+    if single_thread:
+        chunk_size = 0
+
     # Get columns from DB metadata if they were not provided by caller
     if columns is None:
         columns = get_columns(schema=schema, table=table)
@@ -431,7 +434,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         truncate_table(schema=schema, table=table)
 
     # Insert from the CSVs into the DB table using multiprocessing
-    try:   
+    try:
         csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns,
                 single_thread=single_thread, progbar=progbar)
     except:

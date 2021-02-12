@@ -17,7 +17,7 @@ j0=$((num_batch*(job_num-1)))
 j1=$((j0+num_batch-1))
 # n is the first asteroid number to process in each call; ranges from n0 to n1
 n0=$((j0*batch_size))
-n1=$((j1*batch_size))
+n1=$(((j1+1)*batch_size))
 echo "Bash asteroid_traj_batch.sh is processing asteroids from n0=$n0 to n1=$n1 with batch_size=$batch_size..."
 
 # Run all the jobs jobs in parallel
@@ -36,9 +36,9 @@ do
 	# run the first job with a progress bar, the rest silently
 	if [ $i -lt $((num_batch-1)) ]
 	then		
-		python asteroid_integrate.py $n $batch_size --quiet &	
+		python asteroid_integrate.py $n $batch_size --single_thread --quiet &	
 	else
-		python asteroid_integrate.py $n $batch_size &
+		python asteroid_integrate.py $n $batch_size --single_thread &
 	fi
 
 	# Slight pause so the batches will be executed in the specified order
