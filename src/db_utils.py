@@ -40,6 +40,17 @@ pid: int = os.getpid()
 pd.set_option('mode.chained_assignment', 'raise')
 
 # ********************************************************************************************************************* 
+def release_db_engines():
+    """Release all but the first DB engine; single threaded clients should call this."""
+    # Reference the one shared copy of db_engines
+    global db_engines
+    # Close down all but the first engine
+    for eng in db_engines[1:]:
+        eng.dispose()
+    # Now shrink db_engines to just this one item
+    db_engines = tuple([db_engines[0],])
+
+# ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
     """Bind arguments to a SQL stored procedure.  Return a sqlalchemy text object."""
     # Combine the arguments into a string formatted as expected by SQL alchemy
@@ -336,7 +347,7 @@ def csvs2db(schema: str, table: str,
     """
     # Get list of CSV files if they were not provided
     if fnames_csv is None:
-        search_path = os.path.join(dir_csv, table, f'pid-*', f'{table}*-chunk*.csv')
+        search_path = os.path.join(dir_csv, table, f'pid_*', f'{table}-chunk-*.csv')
         fnames_csv = glob.glob(search_path)
         fnames_csv.sort()    
 
