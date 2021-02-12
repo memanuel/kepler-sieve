@@ -1,12 +1,11 @@
--- State vectors from MSE integration using Rebound
--- Includes records for all 353 objects in the JPL DE-435 integration
-CREATE OR REPLACE TABLE KS.StateVectors_DE435(
+-- Create tables for integrated vectors for asteroids
+CREATE OR REPLACE TABLE KS.AsteroidVectors(
 	TimeID INT NOT NULL
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
-	BodyID INT NOT NULL
-		COMMENT "The Body whose state vectors are described; FK to JS.Body",
+	AsteroidID INT NOT NULL
+		COMMENT "The asteroid whose state vectors are described; FK to KS.Asteroid",
 	MJD DOUBLE NOT NULL
-		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from IntegrationTimeID but included for performance.",
+		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from TimeID but included for performance.",
 	-- Position q = [qx, qy, qz]
 	qx DOUBLE NOT NULL
 		COMMENT "Position of body (x coordinate) in AU in the barcycentric mean ecliptic frame",
@@ -22,14 +21,14 @@ CREATE OR REPLACE TABLE KS.StateVectors_DE435(
 	vz DOUBLE NOT NULL
 		COMMENT "Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame",
 	-- Keys and constraints
-	PRIMARY KEY (TimeID, BodyID)
+	PRIMARY KEY (TimeID, AsteroidID)
 		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
-	UNIQUE KEY UNQ_BodyID_TimeID (BodyID, TimeID)
-		COMMENT "Allow fast search keyed first by BodyID.",
-	CONSTRAINT FK_StateVectors_DE435_TimeID
+	UNIQUE KEY UNQ_AsteroidID_TimeID(AsteroidID, TimeID)
+		COMMENT "Allow fast search keyed first by AsteroidID.",
+	CONSTRAINT FK_AsteroidVectors_TimeID
 		FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
-	CONSTRAINT FK_StateVectors_DE435_BodyID
-		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
+	CONSTRAINT FK_AsteroidVectors_BodyID
+		FOREIGN KEY (AsteroidID) REFERENCES KS.Asteroid(AsteroidID)
 )
-COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using all the massive bodies from the DE-435 integration with initial conditions at MJD 59000.
-Includes records for all 353 objects in the JPL DE-435 integration."
+COMMENT "State vectors (position and velocity) for asteroids computed in Rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000.
+Initial conditions for asteroids sourced from AsteroidElement_Ref"

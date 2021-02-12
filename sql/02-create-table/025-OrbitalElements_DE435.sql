@@ -13,7 +13,8 @@ CREATE OR REPLACE TABLE KS.OrbitalElements_DE435(
 	omega_peri DOUBLE NOT NULL COMMENT "The argument of periapsis in radians",
 	f DOUBLE NOT NULL COMMENT "The true anomaly in radians",
 	M DOUBLE NOT NULL COMMENT "The mean anomaly in radians",
-	EA DOUBLE AS (2.0*ATAN(SQRT((1.0-e)/(1.0+e))*TAN(0.5*f))) 
+	-- Computed columns
+	EA DOUBLE AS (MOD(2.0*ATAN(SQRT((1.0-e)/(1.0+e))*TAN(0.5*f))+2.0*PI(), 2.0*PI())) PERSISTENT
 		COMMENT "The eccentric anomaly; derived from the true anomaly",
 	PRIMARY KEY (TimeID, BodyID)
 		COMMENT "A orbital elements vector is identified by the body and time stamp; use integer time ID for performance.",
