@@ -84,16 +84,18 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
 
     # Add the AsteroidID column to the DataFrame
     df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
+    # df['AsteroidID'] = np.int32(0)
+    # df.loc[mask, 'AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
     # df['AsteroidName'] = ast.loc[df.BodyID, 'AsteroidName'].values
 
     # DataFrame with the state vectors
     # df_vec = df[mask][cols_vec]
     df_vec = df[cols_vec]
+    # df_vec = df.loc[mask, cols_vec]
 
     # DataFrame with the orbital elements
     # df_elt = df[mask][cols_elt]
-    df_elt = df[cols_elt]
-    df_elt.rename(columns=elt_col_map, inplace=True)
+    df_elt = df[cols_elt].rename(columns=elt_col_map)
 
     # Status
     print()
