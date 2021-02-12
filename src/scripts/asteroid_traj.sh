@@ -3,10 +3,10 @@
 batch_size=1000
 # The number of batches run in parallel in each large job, e.g. 50
 num_batch=50
-# The smallest asteroid number to process
-min_ast_num=0
-# The largest asteroid number to process
-max_ast_num=1255514
+# The smallest asteroid ID to process
+min_ast_num=$1
+# The largest asteroid ID to process
+max_ast_num=$2
 
 # Compute number of jobs required to process all data
 ast_per_job=$((num_batch*batch_size))

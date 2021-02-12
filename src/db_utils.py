@@ -435,7 +435,11 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         print('Columns:\n', columns)
         # traceback.print_stack()
         raise
-        
+
+    # If we reach this point, the whole operation was a success.  
+    # Clean up the now empty directory that previously had the CSV files
+    Path(fname_csv).parent.rmdir()
+
     # Report elapsed time if requested
     t2 = time.time()
     if verbose:
