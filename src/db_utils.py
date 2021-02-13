@@ -28,11 +28,6 @@ conn_type = sqlalchemy.engine.base.Connection
 dir_csv: str = '../data/df2db'
 Path(dir_csv).mkdir(parents=True, exist_ok=True)
 
-# Create a single shared collection of database engines
-engine_count: int = 32
-db_engines = \
-    tuple([sqlalchemy.create_engine(db_url, pool_size=2) for i in range(engine_count)])
-
 # Get the process_id to avoid collisions on the staging tables
 pid: int = os.getpid()
 
@@ -40,15 +35,13 @@ pid: int = os.getpid()
 pd.set_option('mode.chained_assignment', 'raise')
 
 # ********************************************************************************************************************* 
-def release_db_engines():
-    """Release all but the first DB engine; single threaded clients should call this."""
-    # Reference the one shared copy of db_engines
+def make_db_engines(single_thread: bool) -> None:
+    """Create a shared set of DB engine objects (global variable).  Used to support multithreading."""
     global db_engines
-    # Close down all but the first engine
-    for eng in db_engines[1:]:
-        eng.dispose()
-    # Now shrink db_engines to just this one item
-    db_engines = tuple([db_engines[0],])
+    if single_thread:
+        db_engines = (db_engine,)
+    else:
+        from db_engine_pool import db_engines
 
 # ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
@@ -345,11 +338,14 @@ def csvs2db(schema: str, table: str,
     First delegates to csv2db to populate the staging tables in parallel.
     Then rolls up from all of the staging tables into the big table at the end.
     """
+    # Set DB engine pool based on single_thread flag
+    make_db_engines(single_thread=single_thread)
+
     # Get list of CSV files if they were not provided
     if fnames_csv is None:
         search_path = os.path.join(dir_csv, table, f'pid_*', f'{table}-chunk-*.csv')
         fnames_csv = glob.glob(search_path)
-        fnames_csv.sort()    
+        fnames_csv.sort()
 
     # Get columns from DB metadata if they were not provided by caller
     if columns is None:
@@ -361,6 +357,7 @@ def csvs2db(schema: str, table: str,
 
     # Multiprocessing
     cpu_max: int = 32
+    engine_count: int = len(db_engines)
     cpu_count_default: int = min(multiprocessing.cpu_count() // 2, chunk_count, cpu_max, engine_count)
     cpu_count: int = 1 if single_thread else cpu_count_default
     

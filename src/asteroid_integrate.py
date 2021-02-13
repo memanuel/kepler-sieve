@@ -22,7 +22,7 @@ from utils import print_stars
 from astro_utils import mjd_to_date
 from asteroid_element import make_sim_asteroids, get_asteroids
 from rebound_integrate import integrate_df
-from db_utils import release_db_engines, df2db, csvs2db, sp2df, truncate_table
+from db_utils import df2db, csvs2db, sp2df, truncate_table
 
 # Typing
 from typing import List
@@ -101,22 +101,30 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
         print(f'Saving from DataFrame to {table_name_vec}...')
 
     # Insert to StateVectors_<CollectionName> DB table
+    e_vec: Optional[Exception] = None
     try:
         df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, 
               chunksize=chunksize, single_thread=single_thread, verbose=verbose, progbar=progbar)
-    except:
-        # print("Problem with DB insertion of state vectors... Attempting to save orbital elements.")
-        raise
+    except Exception as e:
+        print("Problem with DB insertion of state vectors... Attempting to save orbital elements.")
+        e_vec = e
 
     # Insert to OrbitalElements_<CollectionName> DB table if requested
+    e_elt: Optional[Exception] = None
     if verbose:
         print(f'\nSaving from DataFrame to {table_name_elt}...')
     try:
         df2db(df=df_elt, schema=schema, table=table_name_elt, truncate=truncate, 
             chunksize=chunksize, single_thread=single_thread, verbose=verbose, progbar=progbar)
-    except:
+    except Exception as e:
         print("Problem with DB insertion of orbital elements.")
-        raise
+        e_elt = e
+
+    # Now raise any exceptions
+    if e_vec is not None:
+        raise e_vec
+    if e_elt is not None:
+        raise e_elt
 
 # ********************************************************************************************************************* 
 def load_csv_batch(calc_type_cd: str):
@@ -231,10 +239,6 @@ def main():
     if dry_run:
         print('\n This was a dry run.  Bye!')
         sys.exit()
-
-    # If we are in single threaded mode, release unnecessary SQL engines
-    if single_thread:
-        release_db_engines()
 
     # If we are just loading CSVs, don't do the integration, just try to reload them into DB and quit
     if load_csv:

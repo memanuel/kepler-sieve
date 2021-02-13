@@ -1,13 +1,24 @@
+#!/usr/bin/bash
+# *****************************************************************************
+# Integrate one batch of asteroid trajectories on multiple threads
+# Call from kepler-sieve/src
+# $ scripts/asteroid_traj_batch batch_size num_batch max_ast_num job_num
+# $ scripts/asteroid_traj_batch 1000 40 550000 1
+# When called with job_num 1, this will integrate asteroids 0 to 1000
+# With job_num 2, it will integrate 1000 to 2000, etc.
+
+# *****************************************************************************
 # Extract command line arguments
 # This is the number of asteroids processed in each Python program, e.g. 1000
 batch_size=$1
-# The number of batches run in parallel in each large job, e.g. 50
+# The number of batches run in parallel in each large job, e.g. 40
 num_batch=$2
-# The largest asteroid number to process
+# The largest asteroid number to process, e.g. 550000
 max_ast_num=$3
 # The number of this job, starting from 1
 job_num=$4
 
+# *****************************************************************************
 # Additional parameters
 sleep_time=0.1
 
@@ -19,6 +30,7 @@ j1=$((j0+num_batch-1))
 n0=$((j0*batch_size))
 n1=$(((j1+1)*batch_size))
 echo "Bash asteroid_traj_batch.sh is processing asteroids from n0=$n0 to n1=$n1 with batch_size=$batch_size..."
+exit
 
 # Run all the jobs jobs in parallel
 for (( i=0; i<num_batch; i++))

@@ -44,12 +44,12 @@ def process_dates(epoch, max_dates: int = None, progbar: bool=False):
     # Get structure of the elements DataFrame, but no rows
     elts = get_ast_ref_elts_jpl(epoch=0)
 
-    # Number of dates to process
+    # Dates to process
     epochs: np.array = elt_dates.epoch.values
     N_date: int = epochs.shape[0]
 
     # Set up tqdm iterator for the dates
-    i_max: int = N_date if max_dates is None else min(max_dates, N_date)
+    i_max: int = N_date-1 if max_dates is None else min(max_dates, N_date-1)
     ii = list(range(i_max))
     if progbar:
         ii = tqdm_auto(ii)
