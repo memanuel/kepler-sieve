@@ -224,6 +224,7 @@ def main():
         print(f' times to save  : {times_saved}')
         print(f'*load_csv       : {load_csv}')
         print(f'*truncate       : {truncate}')
+        print(f'*single_thread  : {single_thread}')
         print(f'*dry_run        : {dry_run}')
 
     # Quit early if it was a dry run
@@ -232,7 +233,8 @@ def main():
         sys.exit()
 
     # If we are in single threaded mode, release unnecessary SQL engines
-    release_db_engines()
+    if single_thread:
+        release_db_engines()
 
     # If we are just loading CSVs, don't do the integration, just try to reload them into DB and quit
     if load_csv:
