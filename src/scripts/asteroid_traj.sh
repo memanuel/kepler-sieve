@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # *****************************************************************************
 # Integrate one multiple batches of asteroids
 # Call from kepler-sieve/src

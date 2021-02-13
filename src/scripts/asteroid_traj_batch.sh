@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # *****************************************************************************
 # Integrate one batch of asteroid trajectories on multiple threads
 # Call from kepler-sieve/src
@@ -30,7 +30,6 @@ j1=$((j0+num_batch-1))
 n0=$((j0*batch_size))
 n1=$(((j1+1)*batch_size))
 echo "Bash asteroid_traj_batch.sh is processing asteroids from n0=$n0 to n1=$n1 with batch_size=$batch_size..."
-exit
 
 # Run all the jobs jobs in parallel
 for (( i=0; i<num_batch; i++))
