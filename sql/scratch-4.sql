@@ -1,1 +1,0 @@
-SELECT * FROM KS.AsteroidElement_Ref LIMIT 100; 

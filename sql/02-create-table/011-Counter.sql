@@ -1,7 +1,8 @@
 -- Create counter table
 CREATE OR REPLACE TABLE KS.Counter(
     _ INT NOT NULL PRIMARY KEY
-);
+)
+ENGINE='aria' TRANSACTIONAL=1;
 
 -- Populate counter table up to 2^24 (about 4 million)
 INSERT INTO KS.Counter ( _ )
