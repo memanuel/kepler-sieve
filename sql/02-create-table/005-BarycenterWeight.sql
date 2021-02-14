@@ -12,4 +12,5 @@ CREATE OR REPLACE TABLE KS.BarycenterWeight(
 	CONSTRAINT FK_BarycenterWeight_BodyID
 		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Weighting factors for bodies in collections.";

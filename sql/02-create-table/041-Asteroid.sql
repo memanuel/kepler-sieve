@@ -15,4 +15,5 @@ CREATE OR REPLACE TABLE KS.Asteroid(
 		COMMENT "The G brightness parameter",
 	CONSTRAINT FK_Asteroid_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Census of all known asteroids including reference to KS.Body table.  Orbital Elements stored separately.";

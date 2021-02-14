@@ -13,7 +13,7 @@ CREATE OR REPLACE TABLE KS.BodyType(
 		COMMENT "Whether this type of body is considered 'large' or 'small' by JPL.",
 	SortOrder TINYINT NOT NULL
 )
-ENGINE='aria' TRANSACTIONAL=1
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Types of Solar System bodies.";
 
 INSERT INTO KS.BodyType

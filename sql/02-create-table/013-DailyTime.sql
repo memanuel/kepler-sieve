@@ -12,5 +12,5 @@ CREATE OR REPLACE TABLE KS.DailyTime(
 	delta_T DOUBLE NOT NULL
 		COMMENT "The difference between the TDB and terrestial atomic time frames"
 )
-ENGINE='aria' TRANSACTIONAL=1
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Distinct time stamps at sampled once per day.";

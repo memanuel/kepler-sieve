@@ -11,5 +11,5 @@ CREATE OR REPLACE TABLE KS.IntegrationDiff(
 	CONSTRAINT FK_IntegrationDiff_TimeID FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
 	CONSTRAINT FK_IntegrationDiff_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)	
 )
-ENGINE='aria' TRANSACTIONAL=0
+ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "Compare the state vectors (position and velocity) for Solar System bodies computed in Rebound using various collections of bodies to JPL results.";

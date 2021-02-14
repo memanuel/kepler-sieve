@@ -53,4 +53,5 @@ CREATE OR REPLACE TABLE KS.AsteroidElement_Ref(
     CONSTRAINT FK_AsteroidElement_Ref_TimeID
         FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID)
 )
+ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "Orbital elements of asteroids as of reference dates; used to initialize integrations. Primary for these elements is the Sun, NOT the Solar System Barycenter!  See https://rebound.readthedocs.io/en/latest/python_api.html for details on rebound orbital elements";

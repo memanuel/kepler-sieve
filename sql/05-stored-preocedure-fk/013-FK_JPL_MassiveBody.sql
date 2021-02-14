@@ -8,7 +8,7 @@ COMMENT "Drop foreign keys on MassiveBody table"
 BEGIN 
 
 ALTER TABLE JPL.MassiveBody	
-	DROP CONSTRAINT IF EXISTS FK_MassiveBody_HorizonsBody;
+	DROP CONSTRAINT IF EXISTS FK_MassiveBody_HorizonsBodyID;
 	
 END
 $$
@@ -21,7 +21,7 @@ COMMENT "Restore foreign keys on MassiveBody table"
 BEGIN 
 
 ALTER TABLE JPL.MassiveBody
-	ADD CONSTRAINT FK_MassiveBody_HorizonsBody FOREIGN KEY (HorizonsBodyID) REFERENCES JPL.HorizonsBody(HorizonsBodyID);
+	ADD CONSTRAINT FK_MassiveBody_HorizonsBodyID FOREIGN KEY (HorizonsBodyID) REFERENCES JPL.HorizonsBody(HorizonsBodyID);
 
 END
 $$

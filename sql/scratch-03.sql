@@ -1,6 +1,4 @@
-ALTER TABLE KS.StateVectors_DE435 DROP CONSTRAINT FK_StateVectors_DE435_TimeID;
-ALTER TABLE KS.StateVectors_DE435 DROP CONSTRAINT FK_StateVectors_DE435_BodyID;
-ALTER TABLE KS.StateVectors_DE435 engine='aria' transactional=0;
+SELECT * FROM KS.AsteroidElement_Ref AS elt WHERE elt.AsteroidID = 2;
 
-ALTER TABLE KS.StateVectors_DE435 ADD CONSTRAINT FK_StateVectors_DE435_TimeID FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID);
-ALTER TABLE KS.StateVectors_DE435 ADD CONSTRAINT FK_StateVectors_DE435_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID);
+SELECT * FROM JPL.AsteroidElement AS elt WHERE elt.AsteroidNumber = 2;
+

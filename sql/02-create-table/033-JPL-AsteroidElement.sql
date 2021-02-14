@@ -35,5 +35,5 @@ CREATE OR REPLACE TABLE JPL.AsteroidElement(
 		COMMENT "JPL description of the integration used to calculate this ephemeris",
 	`row_num` int NOT NULL
 )
-ENGINE='Aria' INTEGRITY=1
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Import JPL files with orbital elements of both numbered and unnumbered asteroids. Primary is the Sun, NOT Solar System Barycenter! Performs calculations on quoted elements to convert them to radians and add true anomaly f from mean anomly M.";

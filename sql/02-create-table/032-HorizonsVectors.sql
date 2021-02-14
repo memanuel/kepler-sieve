@@ -23,4 +23,5 @@ CREATE OR REPLACE TABLE JPL.HorizonsVectors(
 	UNIQUE KEY (HorizonsBodyID, TimeID)
 		COMMENT "Support searching by HorizonsBodyID first."
 )
+ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "State vectors (position and velocity) for Solar Systems bodies downloaded from JPL Horizons web server."

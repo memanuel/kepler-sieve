@@ -25,5 +25,5 @@ CREATE OR REPLACE TABLE KS.AsteroidElements(
 	CONSTRAINT FK_AsteroidElements_AsteroidID
 		FOREIGN KEY (AsteroidID) REFERENCES KS.Asteroid(AsteroidID)
 )
-ENGINE='aria' TRANSACTIONAL=0
+ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000.";

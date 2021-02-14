@@ -10,4 +10,5 @@ CREATE OR REPLACE TABLE JPL.BodyVariance(
     sd_v DOUBLE NOT NULL
         COMMENT "The standard deviation of the velocity of this body in AU/day"
 )
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Variance and standard deviation of position and velocity of solar system bodies.  Used to compute relative accuracy of an integration compared to Horizons.";

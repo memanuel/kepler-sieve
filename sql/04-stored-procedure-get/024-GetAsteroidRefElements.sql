@@ -14,7 +14,6 @@ BEGIN
 -- Compute TimeID from epoch
 SET @TimeID = epoch * 24 * 60;
 
-/*
 -- Select all available orbital elements at this time, sorted by AsteroidID.
 SELECT
 	elt.AsteroidID,
@@ -26,7 +25,7 @@ SELECT
 	elt.inc,
 	elt.Omega_node AS Omega,
 	elt.omega_peri AS omega,
-	elt.f,
+	-- elt.f,
 	elt.M,
 	b.BodyID,
 	b.BodyName
@@ -35,11 +34,12 @@ FROM
 	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidID = elt.AsteroidID
 	INNER JOIN KS.Body AS b ON b.BodyID = ast.BodyID
 WHERE
-	elt.TimeID = @TimeID AND
-    n0 <= ast.AsteroidID AND ast.AsteroidID < n1
+    (n0 <= ast.AsteroidID AND ast.AsteroidID < n1) 
+    AND
+    (elt.TimeID = @TimeID)
 ORDER BY elt.AsteroidID;
-*/
 
+/*
 SELECT
 	ast.AsteroidID,	
 	dt.TimeID,
@@ -62,6 +62,7 @@ WHERE
 	dt.TimeID = @TimeID AND
 	n0 <= ast.AsteroidID AND ast.AsteroidID < n1
 ORDER BY ast.AsteroidID;
+*/
 
 END
 $$

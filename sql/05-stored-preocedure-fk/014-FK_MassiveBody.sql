@@ -8,7 +8,7 @@ COMMENT "Drop foreign keys on MassiveBody table"
 BEGIN 
 
 ALTER TABLE KS.MassiveBody	
-	DROP CONSTRAINT IF EXISTS FK_MassiveBody_Body;
+	DROP CONSTRAINT IF EXISTS FK_MassiveBody_BodyID;
 	
 END
 $$
@@ -21,7 +21,7 @@ COMMENT "Restore foreign keys on MassiveBody table"
 BEGIN 
 
 ALTER TABLE KS.MassiveBody
-	ADD CONSTRAINT FK_MassiveBody_Body FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID);
+	ADD CONSTRAINT FK_MassiveBody_BodyID FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID);
 END
 $$
 

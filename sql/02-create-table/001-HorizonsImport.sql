@@ -30,7 +30,8 @@ CREATE OR REPLACE TABLE JPL.HorizonsImport(
 	KEY BodyTypeCD_BodyNumber (BodyTypeCD, BodyNumber, JD)
 		COMMENT "Don't enforce uniqueness here to allow loading e.g. daily and weekly data files without a collision."
 )
-	COMMENT "Staging table to import data from files downloaded from Horizons API."
+ENGINE='Aria' TRANSACTIONAL=1
+COMMENT "Staging table to import data from files downloaded from Horizons API."
 
 -- Run this command to load CSV contents into JPL.HorizonsImport table
 /*

@@ -12,6 +12,7 @@ CREATE OR REPLACE TABLE KS.BodyCollection(
 	UNIQUE KEY UNQ_BodyCollectionCD (BodyCollectionCD),
 	UNIQUE KEY UNQ_BodyCollectionName (BodyCollectionName)
 )
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Collections of bodies used in solar system integrations.";
 
 -- BodyCollectionEntry
@@ -26,4 +27,5 @@ CREATE OR REPLACE TABLE KS.BodyCollectionEntry(
 	CONSTRAINT FK_BodyCollectionEntry_BodyID
 		FOREIGN KEY (BodyID) REFERENCES KS.Body(BodyID)
 )
+ENGINE='Aria' TRANSACTIONAL=1
 COMMENT "Members of body collections.";

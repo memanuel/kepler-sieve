@@ -32,8 +32,9 @@ FROM
 		relt.AsteroidID = ast.AsteroidID AND 
 		relt.TimeID = dt1.TimeID
 WHERE
-	relt.AsteroidID IS NULL 
-	-- AND dt0.TimeID <= dt1.TimeID
+	relt.AsteroidID IS NULL AND
+	-- Only synchronize elements quoted PRIOR to the desired epoch
+	dt0.TimeID < dt1.TimeID
 GROUP BY elt.epoch
 ORDER BY elt.epoch;
 

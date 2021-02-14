@@ -5,7 +5,7 @@ CREATE OR REPLACE TABLE KS.Minutes(
 	wt0 double NOT NULL,
 	wt1 double NOT NULL
 )
-ENGINE='aria' TRANSACTIONAL=1;
+ENGINE='Aria' TRANSACTIONAL=1
 
 -- Number of minutes in one day
 SET @mpd_i = CAST(24*60 AS INT);

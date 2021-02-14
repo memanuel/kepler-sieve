@@ -12,4 +12,5 @@ CREATE OR REPLACE TABLE JPL.HorizonsTime(
 	delta_T DOUBLE NOT NULL
 		COMMENT "The difference between the TDB and terrestial atomic time frames"
 )
-	COMMENT "Distinct time stamps at which Horizons data is available.";
+ENGINE='Aria' TRANSACTIONAL=1
+COMMENT "Distinct time stamps at which Horizons data is available.";
