@@ -21,9 +21,19 @@ max_ast_num=$4
 job_num=$5
 
 # *****************************************************************************
+# Utility function: report elapsed time from seconds
+elapsed_time() {
+ ((h=${1}/3600))
+ ((m=(${1}%3600)/60))
+ ((s=${1}%60))
+ mf=$(bc <<< "${1}/60")
+ printf "Elapsed Time: %02d:%02d:%02d (%05.2f minutes)\n" $h $m $s
+}
+
 # Start timer
 t0=$SECONDS
 
+# *****************************************************************************
 # Additional parameters
 sleep_time=0.1
 
@@ -78,10 +88,8 @@ done
 # End timer
 t1=$SECONDS
 et_sec=(($t1-$t0))
-et_min=(($et_sec/60))
-et_sec=(($et_sec-$et_min*60))
 
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Processed asteroid trajectories from $n0 to $n1."
-echo "Elapsed time $et_min:$et_sec"
+echo $(elapsed_time et_sec)
 echo -e "********************************************************************************\n"

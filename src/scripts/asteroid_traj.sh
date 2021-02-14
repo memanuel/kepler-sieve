@@ -21,6 +21,19 @@ batch_size=1000
 num_batch=40
 
 # *****************************************************************************
+# Utility function: report elapsed time from seconds
+elapsed_time() {
+ ((h=${1}/3600))
+ ((m=(${1}%3600)/60))
+ ((s=${1}%60))
+ mf=$(bc <<< "${1}/60")
+ printf "Elapsed Time: %02d:%02d:%02d (%05.2f minutes)\n" $h $m $s
+}
+
+# Start timer
+t0=$SECONDS
+
+# *****************************************************************************
 # Compute number of jobs required to process all data
 ast_per_job=$((num_batch*batch_size))
 job_num_min=$((min_ast_num/ast_per_job + 1))
@@ -34,3 +47,12 @@ do
 	bash scripts/asteroid_traj_batch.sh $mode $batch_size $num_batch $max_ast_num $job_num
 	# echo "job_num=$job_num"
 done
+
+# End timer
+t1=$SECONDS
+et_sec=(($t1-$t0))
+
+echo -e "\n********************************************************************************"
+echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Completed $num_jobs."
+echo $(elapsed_time et_sec)
+echo -e "********************************************************************************\n"
