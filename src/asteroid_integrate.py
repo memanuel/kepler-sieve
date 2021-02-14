@@ -13,7 +13,15 @@ Michael S. Emanuel
 import numpy as np
 import pandas as pd
 
-# Utility
+# Astronomy
+import rebound
+
+# File system
+import os
+import glob
+from pathlib import Path
+
+# Commandline arguments
 import argparse
 import sys
 
@@ -22,60 +30,64 @@ from utils import print_stars
 from astro_utils import mjd_to_date
 from asteroid_element import make_sim_asteroids, get_asteroids
 from rebound_integrate import integrate_df
-from db_utils import df2db, csvs2db, sp2df, truncate_table
+from db_utils import df2db, df2csv, csvs2db, sp2df
 
 # Typing
-from typing import List
+from typing import List, Tuple
 
 # ********************************************************************************************************************* 
-# Type of calculation: state vectors or orbital elements
-calc_type_tbl = {
-    'vec' : 'AsteroidVectors',
-    'elt' : 'AsteroidElements'
+# Table names for state vectors and orbital elements
+schema = 'KS'
+table_vec = f'AsteroidVectors'
+table_elt = f'AsteroidElements'
+
+# Columns for state vectors and orbital element frames
+cols_vec_df = ['TimeID', 'AsteroidID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+cols_elt_df = ['TimeID', 'AsteroidID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+
+# Mapping to rename orbital element columnd names
+# This is necessary because DB column names are case insensitive, causing a name clash between 'Omega' and 'omega'
+elt_col_map = {
+    'Omega':'Omega_node', 
+    'omega': 'omega_peri',
 }
+
+# The column names for the DB tables
+cols_vec_db = cols_vec_df
+cols_elt_db = [elt_col_map.get(c, None) or c for c in cols_elt_df]
+
+# Directory where CSVs are saved
+dir_csv: str = '../data/df2db'
+# Get the process_id to avoid collisions on CSV file names for different threads
+pid: int = os.getpid()
+pid_str: str = f'pid_{pid:07d}'
+# Base CSV files names
+fname_csv_vec = os.path.join(dir_csv, table_vec, pid_str, f'{table_vec}.csv')
+fname_csv_elt = os.path.join(dir_csv, table_elt, pid_str, f'{table_elt}.csv')
 
 # Load a single copy of the Asteroid list keyed by BodyID
 ast = get_asteroids(key_to_body_id=True)
 
 # ********************************************************************************************************************* 
-def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,  
-                truncate: bool, single_thread: bool, progbar:bool=False):
+def integrate_ast(sim: rebound.Simulation, n0: int, n1: int, mjd0: int, mjd1: int, 
+                  steps_per_day: int, progbar:bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Integrate a simulation and save it to database
+    Integrate a simulation and return two DataFrames with state vectors and orbital elements
     INPUTS:
         sim:            Simulation for the desired collection of bodies as of the start epoch
         n0:             First asteroid number to process (inclusive)
         n1:             Last asteroid number to process (exclusive)
         mjd0:           First date to process
         mjd1:           Last date to process
-        single_thread:  Whether to run in single threaded mode
-        truncate:       Flag indicating whether to truncate DB tables
+        steps_per_day:  Number of steps to save in output frames per day
+        progbar:        Whether to show a progress bar
     """
-    # Columns for state vectors and orbital element frames
-    cols_vec = ['TimeID', 'AsteroidID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
-    cols_elt = ['TimeID', 'AsteroidID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
-
-    # Mapping to rename columns to match DB; MariaDB has case insensitive column names :(
-    elt_col_map = {
-        'Omega':'Omega_node', 
-        'omega': 'omega_peri',
-    }
-
-    # Generate table names; add suffix with collection name for state vectors,
-    schema = 'KS'
-    table_name_vec = f'AsteroidVectors'
-    table_name_elt = f'AsteroidElements'
-
-    # Set chunksize for writing out DataFrame to database
-    chunksize: int = 2**19 if not single_thread else 0
-    # Verbosity for DF to DB upload
-    verbose: bool = progbar
 
     # Status
-    if verbose:
+    if progbar:
         print()
         print_stars()
-        print(f'Integrating asteroids {n0:06d}-{n1:06d} from {mjd0} to {mjd1}...')
+        print(f'Integrating asteroids {n0:07d}-{n1:07d} from {mjd0} to {mjd1}...')
 
     # Run the simulation and save as a DataFrame
     df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
@@ -85,84 +97,99 @@ def process_sim(sim, n0: int, n1: int, mjd0: int, mjd1: int, steps_per_day: int,
     mask = (df.BodyID > 1000000)
     df = df[mask]
 
-    # Add the AsteroidID column to the DataFrame
+    # Add the AsteroidID column to the DataFrame; search common asteroids frame for this
     df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
-
     # DataFrame with the state vectors
-    df_vec = df[cols_vec]
-
+    df_vec = df[cols_vec_df]
     # DataFrame with the orbital elements
-    df_elt = df[cols_elt].rename(columns=elt_col_map)
+    df_elt = df[cols_elt_df].rename(columns=elt_col_map)
 
-    # Status
-    if verbose:
-        print()
-        print_stars()
-        print(f'Saving from DataFrame to {table_name_vec}...')
-
-    # Insert to StateVectors_<CollectionName> DB table
-    e_vec: Optional[Exception] = None
-    try:
-        df2db(df=df_vec, schema=schema, table=table_name_vec, truncate=truncate, 
-              chunksize=chunksize, single_thread=single_thread, verbose=verbose, progbar=progbar)
-    except Exception as e:
-        print("Problem with DB insertion of state vectors... Attempting to save orbital elements.")
-        e_vec = e
-
-    # Insert to OrbitalElements_<CollectionName> DB table if requested
-    e_elt: Optional[Exception] = None
-    if verbose:
-        print(f'\nSaving from DataFrame to {table_name_elt}...')
-    try:
-        df2db(df=df_elt, schema=schema, table=table_name_elt, truncate=truncate, 
-            chunksize=chunksize, single_thread=single_thread, verbose=verbose, progbar=progbar)
-    except Exception as e:
-        print("Problem with DB insertion of orbital elements.")
-        e_elt = e
-
-    # Now raise any exceptions
-    if e_vec is not None:
-        raise e_vec
-    if e_elt is not None:
-        raise e_elt
+    return df_vec, df_elt
 
 # ********************************************************************************************************************* 
-def load_csv_batch(calc_type_cd: str):
+def report_csv_files(fnames_csv_vec, fnames_csv_elt, verbose: bool):
+    """Report CSV file names"""
+    if verbose:
+        nf_vec = len(fnames_csv_vec)
+        nf_elt = len(fnames_csv_elt)
+        print(f'CSV files: {nf_vec} vectors and {nf_elt} elements:')
+        if nf_vec > 0:
+            print(fnames_csv_vec[0])
+        if nf_elt > 0:
+            print(fnames_csv_elt[0])
+
+# ********************************************************************************************************************* 
+def save_csvs(df_vec: pd.DataFrame, df_elt: pd.DataFrame, verbose:bool) -> [List[str], List[str]]:
     """
-    Loads CSV files of the requested data type into database.
+    Save DataFrames to CSV files
     INPUTS:
-        calc_type_cd:   Code describing calculation type.
-                        Must be one of 'vec', 'elt' for state vectors, orbital elements.
+        df_vec:         DataFrame of asteroid state vectors
+        df_elt:         DataFrame of asteroid orbital elements
+        progbar:        Whether to show a progress bar
+    """
+
+    # Set chunksize for writing out DataFrame to database
+    chunksize: int = 2**19
+
+    # Initial status
+    if verbose:
+        print_stars()
+
+    # Save a batch of CSV files for the state vectors
+    if verbose:
+        print(f'Saving from state vectors DataFrame to CSV files...')
+    fnames_csv_vec = df2csv(df=df_vec, fname_csv=fname_csv_vec, columns=cols_vec_db, chunksize=chunksize)
+
+    # Save a batch of CSV files for the orbital elements
+    if verbose:
+        print(f'Saving from orbital elements DataFrame to CSV files...')
+    fnames_csv_elt = df2csv(df=df_elt, fname_csv=fname_csv_elt, columns=cols_elt_db, chunksize=chunksize)
+
+    # Report results
+    report_csv_files(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, verbose=verbose)
+
+    # Return the names of the files
+    return fnames_csv_vec, fnames_csv_elt
+
+# ********************************************************************************************************************* 
+def find_fnames_csv(verbose: bool) -> Tuple[List[str], List[str]]:
+    """Generate a list of CSV file names for state vectors and orbital elements"""
+    search_path_vec = os.path.join(dir_csv, table_vec, f'pid_*', f'{table_vec}-chunk-*.csv')
+    search_path_elt = os.path.join(dir_csv, table_elt, f'pid_*', f'{table_elt}-chunk-*.csv')
+    fnames_csv_vec = sorted(glob.glob(search_path_vec))
+    fnames_csv_elt = sorted(glob.glob(search_path_elt))
+
+    # Report results
+    report_csv_files(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, verbose=verbose)
+
+    return fnames_csv_vec, fnames_csv_elt
+
+# ********************************************************************************************************************* 
+def insert_csvs(fnames_csv_vec: List[str], fnames_csv_elt: List[str], progbar: bool) -> None:
+    """
+    Inserts CSV files into the database.
+    INPUTS:
+        fnames_csv_vec:   File names for CSVs with the state vectors
+        fnames_csv_elt:   File names for CSVs with the orbital elements
+        progbar:          Whether to display a progress bar
     OUTPUTS:
         None.  Loads tables into the database.
     """
-    # Name of DB table
-    schema: str = 'KS'
-    table: str = calc_type_tbl[calc_type_cd]
-
     # Delegate to csvs2db
-    single_thread = False
-    progbar = True
-    csvs2db(schema=schema, table=table, single_thread=single_thread, progbar=progbar)
+    csvs2db(schema=schema, table=table_vec, columns=cols_vec_db, fnames_csv=fnames_csv_vec, progbar=progbar)
+    csvs2db(schema=schema, table=table_elt, columns=cols_elt_db, fnames_csv=fnames_csv_elt, progbar=progbar)
 
-# ********************************************************************************************************************* 
-def load_csv_batches():
-    """Program flow when in load_csv mode"""
-    # List of the calculation types to save
-    calc_type_cds = ['vec', 'elt']
-
-    # Status
-    print()
-    print_stars()
-    print(f'Loading CSVs for calculation types {calc_type_cds}.')
-
-    # Iterate over desired calculation type
-    for calc_type_cd in calc_type_cds:
-        load_csv_batch(calc_type_cd=calc_type_cd)
+    # If the DB insert is successful, csvs2db deletes the CSV file. Clean up any empty directories now.
+    folders = set(Path(fname_csv).parent for fname_csv in fnames_csv_vec + fnames_csv_elt)
+    for folder in folders:
+        try:
+            folder.rmdir()
+        except OSError:
+            pass
 
 # ********************************************************************************************************************* 
 def main():
-    """Integrate the orbits of the planets and major moons"""
+    """Integrate the orbits of the planets and selected batch of asteroids"""
 
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Integrate planets and selected asteroids in Rebound '
@@ -171,6 +198,11 @@ def main():
                         help='the first asteroid number to process')
     parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
                         help='the number of asteroids to process in this batch'),
+    parser.add_argument('mode', nargs='?', metavar='MODE', type=str, default='DB',
+                        help='Mode of operation. Three valid choices DB, CSV, and INS. '
+                        'DB: insert to DB via CSVs.'
+                        'CSV: Calculate and save to CSVs.'
+                        'INS: Insert CSVs from previous run into DB.'),
     parser.add_argument('--epoch', nargs='?', metavar='EP', type=int, default=59000,
                         help='epoch of the base simulation that is integrated forward and backwards, as an MJD')
     parser.add_argument('--mjd0', nargs='?', metavar='t0', type=int, default=48000, # originally 40400
@@ -179,12 +211,8 @@ def main():
                         help='epoch of the last date in the integration, as an MJD.')
     parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=1,
                         help='the (max) number of steps per day taken by the integrator')
-    parser.add_argument('--load_csv', dest='load_csv', action='store_const', const=True, default=False,
-                        help="Don\'t do another asteroid integration, just load cached CSV files into DB.")
-    parser.add_argument('--truncate', dest='truncate', action='store_const', const=True, default=False,
-                        help='Whether to truncate tables before inserting.')
-    parser.add_argument('--single_thread', dest='single_thread', action='store_const', const=True, default=False,
-                        help='run in single threaded mode; better if running many parallel instances.')
+    # parser.add_argument('--single_thread', dest='single_thread', action='store_const', const=True, default=False,
+    #                     help='run in single threaded mode; better if running many parallel instances.')
     parser.add_argument('--quiet', const=True, default=False, action='store_const',
                         help='run in quiet mode (hide progress bar')
     parser.add_argument('--dry_run', dest='dry_run', action='store_const', const=True, default=False,
@@ -198,10 +226,19 @@ def main():
     n1: int = n0 + args.n_ast
     epoch: int = args.epoch
 
+    # Operation mode
+    mode: str = args.mode.upper()
+    if mode not in ('DB', 'CSV', 'INS'):
+        raise ValueErrror("Mode must be one of 'DB', 'CSV' or 'INS'.")
+    mode_description_tbl = {
+        'DB':  'Insert to DB via CSVs.',
+        'CSV': 'Calculate and save to CSVs.',
+        'INS': 'Insert CSVs from previous run into DB.',
+    }
+    mode_description: str = mode_description_tbl[mode]
+
     # Flags
-    truncate: bool = args.truncate
-    load_csv: bool = args.load_csv
-    single_thread: bool = args.single_thread
+    # single_thread: bool = args.single_thread
     verbose: bool = not args.quiet
     progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
@@ -230,9 +267,8 @@ def main():
         print(f' date range mjd : {mjd0} to {mjd1}')
         print(f'*steps_per_day  : {steps_per_day}')
         print(f' times to save  : {times_saved}')
-        print(f'*load_csv       : {load_csv}')
-        print(f'*truncate       : {truncate}')
-        print(f'*single_thread  : {single_thread}')
+        print(f'*mode           : {mode}: {mode_description}')
+        # print(f'*single_thread  : {single_thread}')
         print(f'*dry_run        : {dry_run}')
 
     # Quit early if it was a dry run
@@ -240,21 +276,31 @@ def main():
         print('\n This was a dry run.  Bye!')
         sys.exit()
 
-    # If we are just loading CSVs, don't do the integration, just try to reload them into DB and quit
-    if load_csv:
-        load_csv_batches()
-        # Now quit early after the CSVs are loaded
-        sys.exit()
-
-    # Set chunk_size for writing out DataFrame to database; DE435 export with ~700m rows crashed
+    # Set chunk_size for writing out DataFrame to database
     chunk_size: int = 2**19
-    
+
     # Simulation with initial configuration for planets
     sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1)
   
-    # Delegate to process_sim
-    process_sim(sim=sim, n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
-                truncate=truncate, single_thread=single_thread, progbar=progbar)
+    # Delegate to appropriate functions depending on the mode
+    # We need to integrate the asteroid orbits in either DB or CSV mode, but not in INS mode.
+    # We also need to save the DataFrame to CSV in these modes.
+    if mode in ('DB', 'CSV'):
+        # Integrate the asteroids
+        df_vec, df_elt = integrate_ast(sim=sim, n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, 
+                                       steps_per_day=steps_per_day, progbar=progbar)
+        # Save the DataFrames to CSV
+        fnames_csv_vec, fnames_csv_elt = save_csvs(df_vec=df_vec, df_elt=df_elt, verbose=verbose)
+
+    # If we are in insert mode, we don't have a list of file names yet.
+    # Generate it by searching for matching files in the designated directory.
+    if mode == 'INS':
+        fnames_csv_vec, fnames_csv_elt = find_fnames_csv(verbose=verbose)
+
+    # If we are in either DB or INS mode, we need to insert the CSV files to the database now
+    if mode in ('DB', 'INS'):
+        insert_csvs(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, progbar=progbar)
+
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

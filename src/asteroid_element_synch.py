@@ -5,7 +5,8 @@ Saved calculations are synchronized to the desired date (MJD 59000)
 and saved in DB table KS.AsteroidElement_Ref
 
 Example call:
-$ python planets.py --epoch 59000
+$ python asteroid_elements_synch.py
+$ python asteroid_elements_synch.py --epoch 59000
 
 Michael S. Emanuel
 2021-02-10
@@ -33,12 +34,10 @@ from asteroid_element import get_ast_ref_elts_jpl, add_asteroid_elts, update_ast
 tau = 2.0 * np.pi
 
 # ********************************************************************************************************************* 
-def process_dates(epoch, max_dates: int = None, progbar: bool=False):
+def process_dates(epoch, elt_dates, max_dates: int = None, progbar: bool=False):
     """Process all the orbital elements to the reference epoch"""
     # Save the original input argument to epoch_out
     epoch_out: int = epoch
-    # All the reference dates with orbital elements that must be brought forward
-    elt_dates = sp2df(sp_name='JPL.GetAsteroidRefElementDates', params={'epoch':epoch_out})
     # The first date to process
     epoch = np.int32(elt_dates.epoch[0])
     # Get structure of the elements DataFrame, but no rows
@@ -210,7 +209,7 @@ def main():
         print(f'Starting batch {i}.')
         # Synchronize the elements
         print(f'Synchronizing orbital elements to epoch {epoch}...')
-        sim, elts = process_dates(epoch=epoch, max_dates=batch_size, progbar=True)
+        sim, elts = process_dates(epoch=epoch, elt_dates=elt_dates, max_dates=batch_size, progbar=True)
         # Extract reference elements DataFrame
         print(f'Extracting reference orbital elements for DB insertion...')
         ref_elts = calc_ref_elt(sim, progbar=True)

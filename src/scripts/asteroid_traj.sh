@@ -23,6 +23,7 @@ num_batch=40
 ast_per_job=$((num_batch*batch_size))
 job_num_min=$((min_ast_num/ast_per_job + 1))
 job_num_max=$((max_ast_num/ast_per_job + 1))
+num_jobs=$((job_num_max-job_num_min+1))
 echo "Running $num_jobs jobs with batch_size=$batch_size and $num_batch batches per job..."
 
 # Delegate to asteroid_traj_batch.sh

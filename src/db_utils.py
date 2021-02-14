@@ -1,14 +1,16 @@
-# Core
+# Data
 import pandas as pd
 import dask.dataframe
 import sqlalchemy
-import multiprocessing
 
-# Utilities
-import os
-from pathlib import Path
-import glob
+# Algorithms
+import multiprocessing
 import itertools
+
+# File system
+from pathlib import Path
+import os
+import glob
 
 # UI
 from tqdm.auto import tqdm as tqdm_auto
@@ -214,6 +216,67 @@ def staging_table_name(table: str, i: int):
     return staging_table
 
 # ********************************************************************************************************************* 
+def csv2db(schema: str, table: str, columns: List[str], fname_csv: str, conn: conn_type):
+    """
+    Load one CSV file directly into the named DB table.
+    INPUTS:
+        schema:    Schema of the DB table
+        table:     Name of the DB table
+        columns:   List of columns of the DB table
+        fname_csv: Name of the CSV file
+        conn:      DB connection object
+    OUTPUTS:
+        None. Modifies the database table.
+    """
+
+    # Destination and staging table names
+    dest_table = dest_table_name(schema=schema, table=table)
+    # List of column names
+    col_list = '(' + ','.join(columns) + ')'
+
+    # SQL to Load CSV into database into staging table
+    sql_load_csv = \
+        f"""
+        LOAD DATA LOCAL INFILE 
+        '{fname_csv}'
+        REPLACE INTO TABLE {dest_table}
+        FIELDS TERMINATED BY ','
+        LINES TERMINATED BY '\n'
+        IGNORE 1 LINES
+        {col_list}
+        """
+
+    # Clone the table and load the CSV file
+    conn.execute(sql_load_csv)
+    # Delete the CSV file after it has been successfully loaded
+    os.remove(fname_csv)
+
+# ********************************************************************************************************************* 
+def csvs2db(schema: str, table: str, columns: List[str], fnames_csv: List[str], progbar: bool):
+    """
+    Directly load a batch of CSV files into the named DB table.
+    INPUTS:
+        schema:     Schema of the DB table
+        table:      Name of the DB table
+        columns:    List of columns of the DB table
+        fnames_csv: List of the CSV file names
+        progbar:    Whether to show a tqdm progress bar
+    OUTPUTS:
+        staging_tables: List of staging table names  
+        Modifies the database by creating a staging table
+    """
+    # Display progress bar if requested
+    ii = list(range(len(fnames_csv)))
+    if progbar:
+        ii = tqdm_auto(ii)
+    
+    # All SQL statements on this engine use the same connection
+    with db_engine.connect() as conn:
+        for i in ii:
+            fname_csv = fnames_csv[i]
+            csv2db(schema=schema, table=table, columns=columns, fname_csv=fname_csv, conn=conn)
+
+# ********************************************************************************************************************* 
 def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i: int, conn: conn_type):
     """
     Load one CSV file into a staging table for the named DB table.
@@ -294,7 +357,7 @@ def csvs2db_stage(schema: str, table: str, columns: List[str], fnames_csv: List[
     return staging_tables
 
 # ********************************************************************************************************************* 
-def csv2db(dest_table: str, staging_table: str, columns: List[str], conn):
+def stage2db(dest_table: str, staging_table: str, columns: List[str], conn: conn_type):
     """
     Finishing loading a CSV file by inserting from the staging table into the named DB table.
     INPUTS:
@@ -328,14 +391,14 @@ def csv2db(dest_table: str, staging_table: str, columns: List[str], conn):
     conn.execute(sql_drop_stage)
 
 # ********************************************************************************************************************* 
-def csvs2db(schema: str, table: str, 
-            fnames_csv: Optional[List[str]]=None, 
-            columns: Optional[List[str]]=None,
-            single_thread: bool=False, 
-            progbar: bool=True):
+def csvs2db_stage(schema: str, table: str, 
+                  fnames_csv: Optional[List[str]]=None, 
+                  columns: Optional[List[str]]=None,
+                  single_thread: bool=False, 
+                  progbar: bool=True):
     """
     Load a batch of CSVs into the named DB table.
-    First delegates to csv2db to populate the staging tables in parallel.
+    First delegates to csv2db_stage to populate the staging tables in parallel.
     Then rolls up from all of the staging tables into the big table at the end.
     """
     # Set DB engine pool based on single_thread flag
@@ -378,23 +441,18 @@ def csvs2db(schema: str, table: str,
     pool = multiprocessing.Pool(processes=cpu_count)
     staging_tables_pool = pool.starmap(csvs2db_stage, stage_inputs)
     # Flatten the list of staging table collections into one complete 
-    staging_tables =  list(itertools.chain.from_iterable(staging_tables_pool))
+    staging_tables = list(itertools.chain.from_iterable(staging_tables_pool))
 
     # The destination table name
     dest_table = dest_table_name(schema=schema, table=table)
     # Roll up from staging table to schema on one CPU core
     with db_engine.connect() as conn:
         for staging_table in staging_tables:
-            try:
-                csv2db(dest_table=dest_table, staging_table=staging_table, columns=columns, conn=conn)
-            except:
-                print(f'csvs2db failed! Table {schema}.{table}, chunk i={i}.')
-                # traceback.print_stack()
-                raise
+            stage2db(dest_table=dest_table, staging_table=staging_table, columns=columns, conn=conn)
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
-          truncate: bool=False, chunksize: int=0, single_thread: bool=False,
+          chunksize: int=0, single_thread: bool=False, use_stage:bool=False,
           verbose: bool=False, progbar: bool=True):
     """
     Insert the contents of a Pandas DataFrame into a SQL table.
@@ -403,7 +461,6 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         schema:     The schema of the destination DB table
         table:      The name of the destination DB table
         columns:    List of columns to insert; read from DB metadata if omitted
-        truncate:   Flag indicating whether to first truncate the destination table
         chunksize:  Number of rows in each chunk
         single_thread: Whether to run single threaded
         verbose:    Verbosity of output (true / false)
@@ -437,19 +494,17 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     if verbose:
         print_time(time=(t1-t0), msg='Elapsed Time for CSV Conversion')
 
-    # Truncate the table if requested
-    if truncate:
-        truncate_table(schema=schema, table=table)
-
     # Insert from the CSVs into the DB table using multiprocessing
     try:
-        csvs2db(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns,
-                single_thread=single_thread, progbar=progbar)
+        if use_stage:
+            csvs2db_stage(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns,
+                    single_thread=single_thread, progbar=progbar)
+        else:
+            csvs2db(schema=schema, table=table, columns=columns, fnames_csv=fnames_csv, progbar=progbar)
     except:
         print('df2db failed!')
         print(f'Table {schema}.{table}.')
         print('Columns:\n', columns)
-        # traceback.print_stack()
         raise
 
     # If we reach this point, the whole operation was a success.  

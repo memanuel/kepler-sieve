@@ -35,6 +35,7 @@ sql/01-MakeTable
 # ******************************************************************************************
 # Symlinks on Linux - don't want these as part of repo
 data/asteroids
+data/df2db
 data/candidate_elt
 data/elt_sim
 data/observations
