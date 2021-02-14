@@ -306,8 +306,7 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
         f"""
         LOAD DATA LOCAL INFILE 
         '{fname_csv}'
-        REPLACE
-        INTO TABLE {staging_table}
+        REPLACE INTO TABLE {staging_table}
         FIELDS TERMINATED BY ','
         LINES TERMINATED BY '\n'
         IGNORE 1 LINES

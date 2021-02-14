@@ -231,9 +231,9 @@ def main():
     if mode not in ('DB', 'CSV', 'INS'):
         raise ValueErrror("Mode must be one of 'DB', 'CSV' or 'INS'.")
     mode_description_tbl = {
-        'DB':  'Insert to DB via CSVs.',
-        'CSV': 'Calculate and save to CSVs.',
-        'INS': 'Insert CSVs from previous run into DB.',
+        'DB':  'Insert to database via CSVs.',
+        'CSV': 'Calculate and save to CSVs to disk; must insert them later.',
+        'INS': 'Insert CSVs from previous run into database.',
     }
     mode_description: str = mode_description_tbl[mode]
 
