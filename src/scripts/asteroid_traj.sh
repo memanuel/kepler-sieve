@@ -16,9 +16,9 @@ min_ast_num=$2
 # The largest asteroid ID to process, e.g. 550000 or 1500000
 max_ast_num=$3
 # The number of asteroids processed in each Python program, e.g. 1000
-batch_size=1000
+batch_size=250
 # The number of batches run in parallel in each large job, e.g. 40
-num_batch=40
+num_batch=80
 
 # *****************************************************************************
 # Utility function: report elapsed time from seconds
