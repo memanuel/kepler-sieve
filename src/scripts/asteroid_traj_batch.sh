@@ -47,9 +47,9 @@ do
 	# run the last job with a progress bar, the rest silently
 	if [ $i -lt $((num_batch-1)) ]
 	then		
-		python asteroid_integrate.py $n $batch_size --single_thread --quiet &	
+		python asteroid_integrate.py $n $batch_size --quiet &	
 	else
-		python asteroid_integrate.py $n $batch_size --single_thread &
+		python asteroid_integrate.py $n $batch_size &
 	fi
 
 	# Slight pause so the batches will be executed in the specified order
