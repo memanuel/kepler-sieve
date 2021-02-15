@@ -50,7 +50,7 @@ done
 
 # End timer
 t1=$SECONDS
-et_sec=(($t1-$t0))
+et_sec=$(($t1-$t0))
 
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Completed $num_jobs."

@@ -66,17 +66,15 @@ fname_csv_vec = os.path.join(dir_csv, table_vec, pid_str, f'{table_vec}.csv')
 fname_csv_elt = os.path.join(dir_csv, table_elt, pid_str, f'{table_elt}.csv')
 
 # Load a single copy of the Asteroid list keyed by BodyID
-ast = get_asteroids(key_to_body_id=True)
+# ast = get_asteroids(key_to_body_id=True)
 
 # ********************************************************************************************************************* 
-def integrate_ast(sim: rebound.Simulation, n0: int, n1: int, mjd0: int, mjd1: int, 
+def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int, 
                   steps_per_day: int, progbar:bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Integrate a simulation and return two DataFrames with state vectors and orbital elements
     INPUTS:
         sim:            Simulation for the desired collection of bodies as of the start epoch
-        n0:             First asteroid number to process (inclusive)
-        n1:             Last asteroid number to process (exclusive)
         mjd0:           First date to process
         mjd1:           Last date to process
         steps_per_day:  Number of steps to save in output frames per day
@@ -85,6 +83,8 @@ def integrate_ast(sim: rebound.Simulation, n0: int, n1: int, mjd0: int, mjd1: in
 
     # Status
     if progbar:
+        n0: int = sim.asteroid_ids[0] if sim.asteroid_ids else 0
+        n1: int = sim.asteroid_ids[-1] if sim.asteroid_ids else 0
         print()
         print_stars()
         print(f'Integrating asteroids {n0:07d}-{n1:07d} from {mjd0} to {mjd1}...')
@@ -98,7 +98,8 @@ def integrate_ast(sim: rebound.Simulation, n0: int, n1: int, mjd0: int, mjd1: in
     df = df[mask]
 
     # Add the AsteroidID column to the DataFrame; search common asteroids frame for this
-    df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
+    # df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
+    df['AsteroidID'] = sim.asteroid_ids
     # DataFrame with the state vectors
     df_vec = df[cols_vec_df]
     # DataFrame with the orbital elements
@@ -287,8 +288,7 @@ def main():
     # We also need to save the DataFrame to CSV in these modes.
     if mode in ('DB', 'CSV'):
         # Integrate the asteroids
-        df_vec, df_elt = integrate_ast(sim=sim, n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, 
-                                       steps_per_day=steps_per_day, progbar=progbar)
+        df_vec, df_elt = integrate_ast(sim=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, progbar=progbar)
         # Save the DataFrames to CSV
         fnames_csv_vec, fnames_csv_elt = save_csvs(df_vec=df_vec, df_elt=df_elt, verbose=verbose)
 
