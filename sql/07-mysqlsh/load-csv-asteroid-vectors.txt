@@ -1,0 +1,21 @@
+# See https://dev.mysql.com/doc/mysql-shell/8.0/en/mysql-shell-utilities-parallel-table.html
+
+$ mysqlsh michael@10.0.1.201
+> \py
+> \use KS 
+> util.import_table("/ssd1/Harvard/kepler-sieve/data/df2db/AsteroidVectors/pid_0125162/*.csv", 
+{
+"schema": "KS", 
+"table": "AsteroidVectors", 
+"replaceDuplicates": true,
+"dialect": "csv-unix", 
+"skipRows": 1, 
+"threads":40,
+"showProgress": True, 
+})
+
+Syntax to issue from the command line:
+$ mysqlsh mysql://kepler:@10.0.1.201:3306 --ssl-mode=DISABLED --util import-table \
+/ssd1/Harvard/kepler-sieve/data/df2db/AsteroidVectors/pid_0125162/*.csv \
+--schema=KS --table=AsteroidVectors --replaceDuplicautes=True \
+--dialect=csv-unix --skipRows=1, threads=40, showProgress=True
