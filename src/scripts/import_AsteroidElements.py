@@ -12,5 +12,5 @@ dir_csv = '/ssd1/Harvard/kepler-sieve/data/df2db'
 columns = ['TimeID', 'AsteroidID', 'MJD', 'a', 'e', 'inc', 'Omega_node', 'omega_peri', 'f', 'M']
 
 # Import orbital elements
-import_table(mysql_import=util.import_table, table='AsteroidElements', threads=40, columns=columns)
+import_table(mysql_import=util.import_table, table='AsteroidElements', threads=20, columns=columns)
 

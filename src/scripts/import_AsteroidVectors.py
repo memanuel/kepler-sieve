@@ -9,5 +9,8 @@ import glob
 dir_csv = '/ssd1/Harvard/kepler-sieve/data/df2db'
 
 # Import state vectors
-import_table(mysql_import=util.import_table, table='AsteroidVectors', threads=40)
+table='AsteroidVectors'
+import_table(mysql_import=util.import_table, table=table, threads=20)
+
+
 

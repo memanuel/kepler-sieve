@@ -1,6 +1,7 @@
 # Libraries for searching file system
 import os
 import glob
+import shutil
 
 # The root directory where CSVs are saved
 dir_csv = '/ssd1/Harvard/kepler-sieve/data/df2db'
@@ -12,6 +13,28 @@ def find_csvs(table):
 	fnames = glob.glob(search_path)
 	fnames.sort()
 	return fnames
+
+# *****************************************************************************
+def merge_csvs_chunk(table, fnames_in, chunk_size, i):
+	"""Merge the CSVs matching a file into one big CSV"""
+	n0 = chunk_size*i
+	n1 = n0 + chunk_size
+	fname_out = f'{table}-megachunk-{i:03d}.csv'
+	path_out = os.path.join(dir_csv, table, fname_out)
+	with open(path_out, 'wb') as fh_out:
+		for fname in fnames_in[n0:n1]:
+			with open(fname, 'rb') as fh_in:
+				shutil.copyfileobj(fh_in, fh_out)
+				fh_out.write(b"\n")
+
+# *****************************************************************************
+def merge_csvs(table, chunk_size):
+	"""Merge the CSVs matching a file into a batch of big CSV"""
+	fnames_in = find_csvs(table)
+	# i_max = len(fnames_in) // chunk_size
+	i_max = 1
+	for i in range(i_max):
+		merge_csvs_chunk(table=table, fnames_in=fnames_in, chunk_size=chunk_size, i=i)
 
 # *****************************************************************************
 def import_table(mysql_import, table, threads, columns=None):
