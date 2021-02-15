@@ -65,9 +65,6 @@ pid_str: str = f'pid_{pid:07d}'
 fname_csv_vec = os.path.join(dir_csv, table_vec, pid_str, f'{table_vec}.csv')
 fname_csv_elt = os.path.join(dir_csv, table_elt, pid_str, f'{table_elt}.csv')
 
-# Load a single copy of the Asteroid list keyed by BodyID
-# ast = get_asteroids(key_to_body_id=True)
-
 # ********************************************************************************************************************* 
 def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int, 
                   steps_per_day: int, progbar:bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -80,11 +77,16 @@ def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int,
         steps_per_day:  Number of steps to save in output frames per day
         progbar:        Whether to show a progress bar
     """
+    # Test whether we have any asteroids at all
+    has_ast: bool = sim.asteroid_ids.size > 0
+    # In the corner case where no asteroids included, don't integrate the planets to save time
+    if not has_ast:
+        mjd1 = mjd0
 
     # Status
-    if progbar:
-        n0: int = sim.asteroid_ids[0] if sim.asteroid_ids else 0
-        n1: int = sim.asteroid_ids[-1] if sim.asteroid_ids else 0
+    if progbar:        
+        n0: int = sim.asteroid_ids[0] if has_ast else 0
+        n1: int = sim.asteroid_ids[-1] if has_ast else 0
         print()
         print_stars()
         print(f'Integrating asteroids {n0:07d}-{n1:07d} from {mjd0} to {mjd1}...')
@@ -97,9 +99,16 @@ def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int,
     mask = (df.BodyID > 1000000)
     df = df[mask]
 
+    # Mapping table used to add the AsteroidID to the output frames
+    ast_tbl = {
+        'BodyID': sim.body_ids[sim.body_ids>1000000],
+        'AsteroidID': sim.asteroid_ids,
+    }
+    ast = pd.DataFrame(ast_tbl)
+    ast.set_index('BodyID', drop=False, inplace=True)    
+
     # Add the AsteroidID column to the DataFrame; search common asteroids frame for this
-    # df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
-    df['AsteroidID'] = sim.asteroid_ids
+    df['AsteroidID'] = ast.loc[df.BodyID, 'AsteroidID'].values
     # DataFrame with the state vectors
     df_vec = df[cols_vec_df]
     # DataFrame with the orbital elements
@@ -199,7 +208,7 @@ def main():
                         help='the first asteroid number to process')
     parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
                         help='the number of asteroids to process in this batch'),
-    parser.add_argument('mode', nargs='?', metavar='MODE', type=str, default='DB',
+    parser.add_argument('mode', nargs='?', metavar='MODE', type=str, default='CSV',
                         help='Mode of operation. Three valid choices DB, CSV, and INS. '
                         'DB: insert to DB via CSVs.'
                         'CSV: Calculate and save to CSVs.'
@@ -212,8 +221,6 @@ def main():
                         help='epoch of the last date in the integration, as an MJD.')
     parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=1,
                         help='the (max) number of steps per day taken by the integrator')
-    # parser.add_argument('--single_thread', dest='single_thread', action='store_const', const=True, default=False,
-    #                     help='run in single threaded mode; better if running many parallel instances.')
     parser.add_argument('--quiet', const=True, default=False, action='store_const',
                         help='run in quiet mode (hide progress bar')
     parser.add_argument('--dry_run', dest='dry_run', action='store_const', const=True, default=False,
@@ -239,7 +246,6 @@ def main():
     mode_description: str = mode_description_tbl[mode]
 
     # Flags
-    # single_thread: bool = args.single_thread
     verbose: bool = not args.quiet
     progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
@@ -269,7 +275,6 @@ def main():
         print(f'*steps_per_day  : {steps_per_day}')
         print(f' times to save  : {times_saved}')
         print(f'*mode           : {mode}: {mode_description}')
-        # print(f'*single_thread  : {single_thread}')
         print(f'*dry_run        : {dry_run}')
 
     # Quit early if it was a dry run
