@@ -34,6 +34,6 @@ def import_table(table, threads, columns=None):
 	util.import_table(fnames, options)
 
 # Import state vectors and orbital elements
-import_table(table='AsteroidVectors', threads=40)
-import_table(table='AsteroidElements', threads=40)
+import_table(table='AsteroidVectors', threads=80)
+import_table(table='AsteroidElements', threads=80)
 
