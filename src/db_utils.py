@@ -239,7 +239,8 @@ def csv2db(schema: str, table: str, columns: List[str], fname_csv: str, conn: co
         f"""
         LOAD DATA LOCAL INFILE 
         '{fname_csv}'
-        REPLACE INTO TABLE {dest_table}
+        REPLACE
+        INTO TABLE {dest_table}
         FIELDS TERMINATED BY ','
         LINES TERMINATED BY '\n'
         IGNORE 1 LINES
@@ -299,14 +300,19 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
     col_list = '(' + ','.join(columns) + ')'
 
     # SQL to create staging table
-    sql_clone_table = f"CREATE OR REPLACE TABLE {staging_table} LIKE {dest_table};"
+    sql_clone_table = \
+        f"""
+        CREATE OR REPLACE TABLE {staging_table} LIKE {dest_table};
+        ALTER table {staging_table} engine='Memory';
+        """
 
     # SQL to Load CSV into database into staging table
     sql_load_csv = \
         f"""
         LOAD DATA LOCAL INFILE 
         '{fname_csv}'
-        REPLACE INTO TABLE {staging_table}
+        IGNORE 
+        INTO TABLE {staging_table}
         FIELDS TERMINATED BY ','
         LINES TERMINATED BY '\n'
         IGNORE 1 LINES
