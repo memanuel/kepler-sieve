@@ -46,6 +46,10 @@ def process_dates(epoch, elt_dates, max_dates: int = None, progbar: bool=False):
     # Dates to process
     epochs: np.array = elt_dates.epoch.values
     N_date: int = epochs.shape[0]
+    # Append the output date to the end of epochs if not already present
+    if (N_date == 0) or (epochs[0] < epoch_out):
+        epochs = np.append(epochs, epoch_out)
+        N_date= N_date+1
 
     # Set up tqdm iterator for the dates
     i_max: int = N_date-1 if max_dates is None else min(max_dates, N_date-1)
@@ -54,6 +58,7 @@ def process_dates(epoch, elt_dates, max_dates: int = None, progbar: bool=False):
         ii = tqdm_auto(ii)
 
     # Iterate through the dates
+    # This loop advances from epoch[i] to epoch[i+1], which is why i_max is 1 less than N_date
     for i in ii:
         # Two epochs: current one (with quoted elements) and next one
         epoch: int = epochs[i]

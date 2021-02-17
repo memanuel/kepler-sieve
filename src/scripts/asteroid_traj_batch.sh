@@ -81,11 +81,11 @@ done
 
 # End timer
 t1=$SECONDS
-et_sec=$(($t1-$t0))
+et=$(($t1-$t0))
 
 # *****************************************************************************
 # Report results
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Processed asteroid trajectories from $n0 to $n1."
-echo $(elapsed_time et_sec)
+elapsed_time et
 echo -e "********************************************************************************\n"
