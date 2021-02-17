@@ -17,13 +17,11 @@ CREATE OR REPLACE TABLE KS.AsteroidElements(
 	EA DOUBLE AS (MOD(2.0*ATAN(SQRT((1.0-e)/(1.0+e))*TAN(0.5*f))+2.0*PI(), 2.0*PI())) PERSISTENT
 		COMMENT "The eccentric anomaly; derived from the true anomaly",
 	PRIMARY KEY (TimeID, AsteroidID)
-		COMMENT "A orbital elements vector is identified by the body and time stamp; use integer time ID for performance.",
+		COMMENT "A orbital elements vector is identified by the body and time stamp; use integer time ID for performance."
 	UNIQUE KEY UNQ_AsteroidID_TimeID(AsteroidID, TimeID)
-		COMMENT "Allow fast search keyed first by AsteroidID.",
-	CONSTRAINT FK_AsteroidElements_TimeID
-		FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
-	CONSTRAINT FK_AsteroidElements_AsteroidID
-		FOREIGN KEY (AsteroidID) REFERENCES KS.Asteroid(AsteroidID)
+        COMMENT "Allow fast search keyed first by AsteroidID.",
+	CONSTRAINT FK_AsteroidElements_TimeID FOREIGN KEY (TimeID) REFERENCES KS.IntegrationTime(TimeID),
+	CONSTRAINT FK_AsteroidElements_AsteroidID FOREIGN KEY (AsteroidID) REFERENCES KS.Asteroid(AsteroidID)
 )
 ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "State vectors (position and velocity) for Solar Systems bodies computed in rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000.";
