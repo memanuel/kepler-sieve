@@ -150,17 +150,46 @@ def get_columns(schema: str, table: str) -> List[str]:
 
     # Get DB metadata
     with db_engine.connect() as conn:
-        try:
-            md = sqlalchemy.MetaData(bind=conn, schema=schema)
-            md.reflect()
-            tbl_md = md.tables[schema_table]
-            # Get list of all available DB columns; exclude computed columns!
-            columns = [c.name for c in tbl_md.columns if not c.computed]
-        except:
-            print(f'get_columns failed!')
-            traceback.print_exc()
-            columns = []
+        md = sqlalchemy.MetaData(bind=conn, schema=schema)
+        md.reflect()
+        tbl_md = md.tables[schema_table]
+        # Get list of all available DB columns; exclude computed columns!
+        columns = [c.name for c in tbl_md.columns if not c.computed]
     return columns
+
+# ********************************************************************************************************************* 
+def get_generated_columns(schema: str, table: str) -> List[str]:
+    """Get list of generated column names for DB table"""
+    # Delimited table name
+    schema_table: str = f'{schema}.{table}'
+
+    # Get DB metadata
+    with db_engine.connect() as conn:
+        md = sqlalchemy.MetaData(bind=conn, schema=schema)
+        md.reflect()
+        tbl_md = md.tables[schema_table]
+        # Get list of all available DB columns; exclude computed columns!
+        columns = [c.name for c in tbl_md.columns if c.computed]
+    return columns
+    
+# ********************************************************************************************************************* 
+def drop_columns(schema: str, table: str, cols: List[str], conn) -> None:
+    """Drop the named columns"""
+    # Special case - if cols is empty, do nothing
+    if len(cols) == 0:
+        return
+    
+    # Form the delimited table name
+    schema_table = f'{schema}.{table}' if len(schema)>0 else table
+    
+    # SQL to drop the columns in just one statement
+    sql = f'ALTER TABLE {schema_table}\n'
+    for col in cols:
+        sql += f'DROP COLUMN {col},\n'        
+    sql = sql[:-2] + ';'
+
+    # Exectue the drop columns statement
+    conn.execute(sql)
 
 # ********************************************************************************************************************* 
 def df2csv(df: pd.DataFrame, fname_csv: str, columns: List[str], chunksize: int = 0) -> List[str]:
@@ -278,16 +307,18 @@ def csvs2db(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
             csv2db(schema=schema, table=table, columns=columns, fname_csv=fname_csv, conn=conn)
 
 # ********************************************************************************************************************* 
-def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i: int, conn: conn_type):
+def csv2db_stage(schema: str, table: str, columns: List[str], cols_to_drop: List[str],
+                 fname_csv: str, i: int, conn: conn_type):
     """
     Load one CSV file into a staging table for the named DB table.
     INPUTS:
-        schema:    Schema of the DB table
-        table:     Name of the DB table
-        columns:   List of columns of the DB table
-        fname_csv: Name of the CSV file
-        i:         Chunk number
-        conn:      DB connection object
+        schema:         Schema of the DB table
+        table:          Name of the DB table
+        columns:        List of columns of the DB table
+        cols_to_drop:   Columns to drop after cloning tabl
+        fname_csv:      Name of the CSV file
+        i:              Chunk number
+        conn:           DB connection object
     OUTPUTS:
         staging_table: Name of the staging dable in the DB
         Modifies the database by creating a staging table
@@ -300,11 +331,14 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
     col_list = '(' + ','.join(columns) + ')'
 
     # SQL to create staging table
-    sql_clone_table = \
-        f"""
-        CREATE OR REPLACE TABLE {staging_table} LIKE {dest_table};
-        ALTER table {staging_table} engine='Memory';
-        """
+    # sql_clone_table = f"""
+    # CREATE OR REPLACE TABLE {staging_table} LIKE {dest_table};
+    # ALTER table {staging_table} transactional=default;
+    # ALTER table {staging_table} engine='Memory';
+    # """
+    sql_clone_table_1 = f"CREATE OR REPLACE TABLE {staging_table} LIKE {dest_table};"
+    sql_clone_table_2 = f"ALTER table {staging_table} transactional=default;"
+    sql_clone_table_3 = f"ALTER table {staging_table} engine='Memory';"
 
     # SQL to Load CSV into database into staging table
     sql_load_csv = \
@@ -320,7 +354,11 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
         """
 
     # Clone the table and load the CSV file
-    conn.execute(sql_clone_table)
+    # conn.execute(sql_clone_table)
+    conn.execute(sql_clone_table_1)
+    conn.execute(sql_clone_table_2)
+    drop_columns(schema='', table=staging_table, cols=cols_to_drop, conn=conn)
+    conn.execute(sql_clone_table_3)
     conn.execute(sql_load_csv)
     # Delete the CSV file after it has been successfully loaded
     os.remove(fname_csv)
@@ -329,14 +367,15 @@ def csv2db_stage(schema: str, table: str, columns: List[str], fname_csv: str, i:
     return staging_table
 
 # ********************************************************************************************************************* 
-def csvs2db_stage(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
+def csvs2stage(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
                   ii: List[int], c: int, progbar: bool):
     """
     Load a batch of CSV files into a staging table for the named DB table.
     INPUTS:
-        schema:     Schema of the DB table
-        table:      Name of the DB table
-        columns:    List of columns of the DB table
+        schema:         Schema of the DB table
+        table:          Name of the DB table
+        columns:        List of columns of the DB table
+        cols_to_drop:   List of columns to be dropped (e.g. generated columns)
         fnames_csv: List of the CSV file names
         ii:         List of chunk numbers for this batch
         c:          CPU (process) number; used to choose the DB engine from the shared pool
@@ -345,6 +384,9 @@ def csvs2db_stage(schema: str, table: str, columns: List[str], fnames_csv: List[
         staging_tables: List of staging table names  
         Modifies the database by creating a staging table
     """
+    # Calculate list of columns to drop
+    cols_to_drop = get_generated_columns(schema=schema, table=table)
+
     # Display progress bar if requested
     if progbar:
         ii = tqdm_auto(ii)
@@ -356,7 +398,8 @@ def csvs2db_stage(schema: str, table: str, columns: List[str], fnames_csv: List[
     with db_engine_c.connect() as conn:
         for i in ii:
             staging_table = \
-                csv2db_stage(schema=schema, table=table, columns=columns, fname_csv=fnames_csv[i], i=i, conn=conn)
+                csv2db_stage(schema=schema, table=table, columns=columns, cols_to_drop=cols_to_drop,
+                fname_csv=fnames_csv[i], i=i, conn=conn)
             staging_tables.append(staging_table)
 
     return staging_tables
@@ -444,7 +487,7 @@ def csvs2db_stage(schema: str, table: str,
     
     # Run in CSV staging in parallel
     pool = multiprocessing.Pool(processes=cpu_count)
-    staging_tables_pool = pool.starmap(csvs2db_stage, stage_inputs)
+    staging_tables_pool = pool.starmap(csvs2stage, stage_inputs)
     # Flatten the list of staging table collections into one complete 
     staging_tables = list(itertools.chain.from_iterable(staging_tables_pool))
 
@@ -503,7 +546,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     try:
         if use_stage:
             csvs2db_stage(schema=schema, table=table, fnames_csv=fnames_csv, columns=columns,
-                    single_thread=single_thread, progbar=progbar)
+                          single_thread=single_thread, progbar=progbar)
         else:
             csvs2db(schema=schema, table=table, columns=columns, fnames_csv=fnames_csv, progbar=progbar)
     except:

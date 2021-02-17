@@ -30,7 +30,7 @@ from utils import print_stars
 from astro_utils import mjd_to_date
 from asteroid_element import make_sim_asteroids, get_asteroids
 from rebound_integrate import integrate_df
-from db_utils import df2db, df2csv, csvs2db, sp2df
+from db_utils import df2db, df2csv, csvs2db, csvs2db_stage, sp2df
 
 # Typing
 from typing import List, Tuple
@@ -175,19 +175,27 @@ def find_fnames_csv(verbose: bool) -> Tuple[List[str], List[str]]:
     return fnames_csv_vec, fnames_csv_elt
 
 # ********************************************************************************************************************* 
-def insert_csvs(fnames_csv_vec: List[str], fnames_csv_elt: List[str], progbar: bool) -> None:
+def insert_csvs(fnames_csv_vec: List[str], fnames_csv_elt: List[str], use_stage: bool, progbar: bool) -> None:
     """
     Inserts CSV files into the database.
     INPUTS:
         fnames_csv_vec:   File names for CSVs with the state vectors
         fnames_csv_elt:   File names for CSVs with the orbital elements
+        use_stage:        Whether to use staging tables
         progbar:          Whether to display a progress bar
     OUTPUTS:
         None.  Loads tables into the database.
     """
-    # Delegate to csvs2db
-    csvs2db(schema=schema, table=table_vec, columns=cols_vec_db, fnames_csv=fnames_csv_vec, progbar=progbar)
-    csvs2db(schema=schema, table=table_elt, columns=cols_elt_db, fnames_csv=fnames_csv_elt, progbar=progbar)
+    # Delegate to csvs2db or staging tables
+    if use_stage:
+        single_thread=False
+        csvs2db_stage(schema=schema, table=table_vec, columns=cols_vec_db, fnames_csv=fnames_csv_vec, 
+                      single_thread=single_thread, progbar=progbar)
+        csvs2db_stage(schema=schema, table=table_elt, columns=cols_elt_db, fnames_csv=fnames_csv_elt, 
+                      single_thread=single_thread, progbar=progbar)
+    else:
+        csvs2db(schema=schema, table=table_vec, columns=cols_vec_db, fnames_csv=fnames_csv_vec, progbar=progbar)
+        csvs2db(schema=schema, table=table_elt, columns=cols_elt_db, fnames_csv=fnames_csv_elt, progbar=progbar)
 
     # If the DB insert is successful, csvs2db deletes the CSV file. Clean up any empty directories now.
     folders = set(Path(fname_csv).parent for fname_csv in fnames_csv_vec + fnames_csv_elt)
@@ -246,6 +254,7 @@ def main():
     mode_description: str = mode_description_tbl[mode]
 
     # Flags
+    use_stage: bool = False
     verbose: bool = not args.quiet
     progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
@@ -304,7 +313,8 @@ def main():
 
     # If we are in either DB or INS mode, we need to insert the CSV files to the database now
     if mode in ('DB', 'INS'):
-        insert_csvs(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, progbar=progbar)
+        use_stage=True
+        insert_csvs(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, use_stage=use_stage, progbar=progbar)
 
 
 # ********************************************************************************************************************* 
