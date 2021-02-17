@@ -8,6 +8,10 @@
 # With job_num 2, it will integrate 1000 to 2000, etc.
 
 # *****************************************************************************
+# Imports
+source ./bash_utils.sh
+
+# *****************************************************************************
 # Extract command line arguments
 # The mode; one of CSV, DB, or INS
 mode=$1
@@ -21,19 +25,9 @@ max_ast_num=$4
 job_num=$5
 
 # *****************************************************************************
-# Utility function: report elapsed time from seconds
-elapsed_time() {
- ((h=${1}/3600))
- ((m=(${1}%3600)/60))
- ((s=${1}%60))
- mf=$(bc <<< "${1}/60")
- printf "Elapsed Time: %02d:%02d:%02d (%05.2f minutes)\n" $h $m $s
-}
-
 # Start timer
 t0=$SECONDS
 
-# *****************************************************************************
 # Additional parameters
 sleep_time=0.1
 
@@ -89,6 +83,8 @@ done
 t1=$SECONDS
 et_sec=$(($t1-$t0))
 
+# *****************************************************************************
+# Report results
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Processed asteroid trajectories from $n0 to $n1."
 echo $(elapsed_time et_sec)

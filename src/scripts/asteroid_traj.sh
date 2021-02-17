@@ -8,6 +8,10 @@
 # With job_num 2, it will integrate 1000 to 2000, etc.
 
 # *****************************************************************************
+# Imports
+source ./bash_utils.sh
+
+# *****************************************************************************
 # Input parameters
 # The mode
 mode=$1
@@ -21,19 +25,9 @@ batch_size=250
 num_batch=80
 
 # *****************************************************************************
-# Utility function: report elapsed time from seconds
-elapsed_time() {
- ((h=${1}/3600))
- ((m=(${1}%3600)/60))
- ((s=${1}%60))
- mf=$(bc <<< "${1}/60")
- printf "Elapsed Time: %02d:%02d:%02d (%05.2f minutes)\n" $h $m $s
-}
-
 # Start timer
 t0=$SECONDS
 
-# *****************************************************************************
 # Compute number of jobs required to process all data
 ast_per_job=$((num_batch*batch_size))
 job_num_min=$((min_ast_num/ast_per_job + 1))
@@ -52,7 +46,9 @@ done
 t1=$SECONDS
 et_sec=$(($t1-$t0))
 
+# *****************************************************************************
+# Report results
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Completed $num_jobs."
-echo $(elapsed_time et_sec)
+elapsed_time et_sec
 echo -e "********************************************************************************\n"
