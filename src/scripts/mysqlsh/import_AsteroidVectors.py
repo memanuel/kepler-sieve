@@ -10,7 +10,6 @@ dir_csv = '/ssd1/Harvard/kepler-sieve/data/df2db'
 
 # Import state vectors
 table='AsteroidVectors'
-import_table(mysql_import=util.import_table, table=table, threads=20)
+import_table(mysql_import=util.import_table, table=table, threads=1)
 
-
-
+# Delete the files

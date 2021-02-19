@@ -48,7 +48,9 @@ def main():
                          help='The name of the table to load, e.g AsteroidVectors')
     parser.add_argument('--schema', nargs='?', metavar='SCH', type=str, default='KS',
                         help='The name of the schema, e.g KS')
-
+    parser.add_argument('--use_cols', const=True, default=False, action='store_const',
+                        help='specify only a subset of columns; for tables with generated columns')
+    
     # Unpack command line arguments
     args = parser.parse_args()
     schema = args.schema
@@ -65,14 +67,15 @@ def main():
     clean_empty_dirs(fnames_csv)
 
     # Add a progress bar
-    fnames_csv = tqdm_auto(fnames_csv)
+    fnames_it = tqdm_auto(fnames_csv, smoothing=0.0)
 
     # Get the real column names for this DB table, skipping derived columns
-    # columns = get_columns(schema=schema, table=table)
-    # col_list = ','.join(columns)
+    # if use_cols:
+    columns = get_columns(schema=schema, table=table)
+    col_list = ','.join(columns)
 
     # Iterate through the CSVs and load them with mariadb-import
-    for fname_csv in fnames_csv:
+    for fname_csv in fnames_it:
         # Rename this chunk file to AsteroidVectors.csv
         # This is a limitation of mariadb-import; the CSV file name must match the table name exactly
         os.rename(fname_csv, fname_load)
@@ -82,13 +85,13 @@ def main():
             'mariadb-import',
             f'--defaults-file={mdbi_opt}',
             '--replace',
-            # '--ignore',
-            # f'--columns={col_list}',
             # '--use-threads=8',
             '--silent',
             schema, 
-            fname_load,
+            fname_load
         ]
+        if use_cols:
+            args.insert(3, f'--columns={col_list}')
 
         # Run mariadb-import
         # print('\n', fname_csv)

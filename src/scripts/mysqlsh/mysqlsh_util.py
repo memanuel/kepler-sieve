@@ -69,3 +69,5 @@ def import_table(mysql_import, table, threads, columns=None):
 	# Import the CSVs into the DB
 	mysql_import(fnames, options)
 
+	# Delete these files after they are imported
+
