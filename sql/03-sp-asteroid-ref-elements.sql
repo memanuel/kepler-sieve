@@ -3,4 +3,4 @@ CALL JPL.GetAsteroidRefElements(58600);
 
 CALL KS.GetAsteroidRefElements(59000, 0, 10);
 CALL KS.GetAsteroidRefElementsMissing(59000, 0, 550000);
-CALL KS.GetAsteroidRefElementsMissing(59000, 1000000, 1100000);
+CALL KS.GetAsteroidRefElementsMissing(59000, 1200000, 1300000);
