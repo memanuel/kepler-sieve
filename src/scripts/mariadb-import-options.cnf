@@ -1,0 +1,8 @@
+[mariadb-import]
+host = Thor
+user = kepler
+password = kepler
+local=true
+ignore-lines = 1
+fields-terminated-by = ','
+# use-threads = 1

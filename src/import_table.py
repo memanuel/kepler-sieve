@@ -1,12 +1,26 @@
+"""
+Perform a batch import of CSVs to a DB table.
+Example call:
+$ python import_table AsteroidVectors
+
+Michael S. Emanuel
+2021-02-18
+"""
+
+# File system
 import os
 import sys
 import subprocess
 import glob
 
-import kepler_sieve
+# MSE imports
+from config import ks_root
 from db_utils import find_fnames_csv
 
 from typing import List
+
+# Root directory where CSV files are found 
+dir_csv: str = os.path.join(ks_root, 'data', 'df2db')
 
 # ********************************************************************************************************************* 
 def report_csv_files(fnames_csv, verbose: bool):
@@ -19,16 +33,24 @@ def report_csv_files(fnames_csv, verbose: bool):
 
 # ********************************************************************************************************************* 
 def main():
-    # Directory name
-    dir_csv = '/ssd1/Harvard/kepler-sieve/data/df2db'
+    # Process command line arguments
+    parser = argparse.ArgumentParser(description='Load CSVs into the named database table.')
+    parser.add_argument('table', nargs='?', metavar='TBL', type=str, 
+                        help='The name of the table to load, e.g AsteroidVectors')
+    parser.add_argument('--schema', nargs='?', metavar='SCH', type=str, default='KS'
+                        help='The name of the schema, e.g KS')
+
+    # Unpack command line arguments
+    args = parser.parse_args()
+
     # Table name
-    schema = 'KS'
-    table = 'AsteroidVectors'
+    schema = args.schema
+    table = args.table
     # File name for loading
-    fname_load = os.path.join(dir_csv, f'{table}.csv')
+    fname_load = os.path.join(dir_csv, 'mariadb-import', f'{table}.csv')
+    Path(fname_load).mkdir(parents=True, exist_ok=True)
 
     # Get CSV file names
-    # fnames_csv = ['/ssd1/Harvard/kepler-sieve/data/df2db/AsteroidVectors-chunk-0.csv']
     fnames_csv = find_fnames_csv(table=table, verbose=True)
     fnames_csv = fnames_csv[100:110]
 
