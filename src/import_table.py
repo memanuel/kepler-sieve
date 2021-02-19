@@ -50,11 +50,15 @@ def main():
                         help='The name of the schema, e.g KS')
     parser.add_argument('--use_cols', const=True, default=False, action='store_const',
                         help='specify only a subset of columns; for tables with generated columns')
-    
+    parser.add_argument('--clean', const=True, default=False, action='store_const',
+                        help='just clean up empty directories and quit')
+
     # Unpack command line arguments
     args = parser.parse_args()
     schema = args.schema
     table = args.table
+    use_cols = args.use_cols
+    clean = args.clean
 
     # File name for loading
     Path(os.path.join(dir_csv, 'mariadb-import')).mkdir(parents=True, exist_ok=True)
@@ -65,6 +69,9 @@ def main():
 
     # Do an initial pass of cleaning empty directories
     clean_empty_dirs(fnames_csv)
+    # Quit early if clean was requested
+    if clean:
+        sys.exit()
 
     # Add a progress bar
     fnames_it = tqdm_auto(fnames_csv, smoothing=0.0)
@@ -75,6 +82,7 @@ def main():
     col_list = ','.join(columns)
 
     # Iterate through the CSVs and load them with mariadb-import
+    i: int = 0
     for fname_csv in fnames_it:
         # Rename this chunk file to AsteroidVectors.csv
         # This is a limitation of mariadb-import; the CSV file name must match the table name exactly
@@ -99,6 +107,11 @@ def main():
 
         # Delete the file; once it's loaded we don't need it anymore
         os.remove(fname_load)
+
+        # Loop counter
+        i += 1
+        if (i % 100) == 0:
+            clean_empty_dirs(fnames_csv[i-100:i])
 
     # If we get here, files were loaded successfully.  Clean out any empty folders
     clean_empty_dirs(fnames_csv)
