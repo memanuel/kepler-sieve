@@ -17,10 +17,11 @@ from pathlib import Path
 # Running programs
 import argparse
 import subprocess
+from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
 from config import ks_root
-from db_utils import find_fnames_csv
+from db_utils import find_fnames_csv, clean_empty_dirs, get_columns
 
 # Types
 from typing import List
@@ -60,6 +61,16 @@ def main():
     # Get CSV file names
     fnames_csv = find_fnames_csv(table=table, verbose=True)
 
+    # Do an initial pass of cleaning empty directories
+    clean_empty_dirs(fnames_csv)
+
+    # Add a progress bar
+    fnames_csv = tqdm_auto(fnames_csv)
+
+    # Get the real column names for this DB table, skipping derived columns
+    # columns = get_columns(schema=schema, table=table)
+    # col_list = ','.join(columns)
+
     # Iterate through the CSVs and load them with mariadb-import
     for fname_csv in fnames_csv:
         # Rename this chunk file to AsteroidVectors.csv
@@ -71,15 +82,23 @@ def main():
             'mariadb-import',
             f'--defaults-file={mdbi_opt}',
             '--replace',
+            # '--ignore',
+            # f'--columns={col_list}',
+            # '--use-threads=8',
+            '--silent',
             schema, 
             fname_load,
         ]
+
         # Run mariadb-import
-        print('\n', fname_csv)
+        # print('\n', fname_csv)
         subprocess.run(args)
 
-        # # Restore the file name
-        os.rename(fname_load, fname_csv)
+        # Delete the file; once it's loaded we don't need it anymore
+        os.remove(fname_load)
+
+    # If we get here, files were loaded successfully.  Clean out any empty folders
+    clean_empty_dirs(fnames_csv)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

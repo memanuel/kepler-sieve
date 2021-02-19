@@ -2,7 +2,8 @@
 host = Thor
 user = kepler
 password = kepler
-local=true
+local = true
 ignore-lines = 1
+ignore-foreign-keys = true
 fields-terminated-by = ','
 # use-threads = 1

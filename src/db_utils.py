@@ -13,6 +13,7 @@ import sqlalchemy
 # Algorithms
 import multiprocessing
 import itertools
+import subprocess
 
 # File system
 from pathlib import Path
@@ -256,7 +257,6 @@ def find_fnames_csv(table: str, verbose: bool) -> List[str]:
     """Generate a list of CSV file names for the given file name"""
     search_path = os.path.join(dir_csv, table, f'pid_*', f'{table}-chunk-*.csv')
     fnames_csv = sorted(glob.glob(search_path))
-    print(search_path)
 
     # Report results
     if verbose:
@@ -280,27 +280,40 @@ def csv2db(schema: str, table: str, columns: List[str], fname_csv: str):
         None. Modifies the database table.
     """
     # List of column names
-    col_list = '(' + ','.join(columns) + ')'
-    # File name for loading that matches table name    
-    fname_load = os.path.join(Path(fname_csv).parent, f'{table}.csv')
+    col_list = ','.join(columns)
+
+    # File name for loading
+    Path(os.path.join(dir_csv, 'mariadb-import')).mkdir(parents=True, exist_ok=True)
+    fname_load = os.path.join(dir_csv, 'mariadb-import', f'{table}.csv')
+
+    # Rename this chunk file to AsteroidVectors.csv
+    # This is a limitation of mariadb-import; the CSV file name must match the table name exactly
+    os.rename(fname_csv, fname_load)
 
     # Arguments to run mariadb-import from subprocess
     args = [
         'mariadb-import',
-        '--defaults-file=mariadb-import-options.cnf', 
-        'temp', 
+        f'--defaults-file={mdbi_opt}',
+        '--replace',
+        # f'--columns={col_list}',
+        # '--use-threads=1',
+        '--silent',
+        schema, 
         fname_load,
     ]
+
     # Run mariadb-import
+    # print('\n', fname_csv)
     subprocess.run(args)
 
-    # # Restore the file name
-    os.rename(dst, fname_csv)
+    # Remove the file that was loaded 
+    os.remove(fname_load)
 
 # ********************************************************************************************************************* 
 def csv2db_ldi(schema: str, table: str, columns: List[str], fname_csv: str, conn: conn_type):
     """
     Load one CSV file directly into the named DB table using the Load Data Infile command.
+    This is MUCH SLOWER than using mariadb-import
     INPUTS:
         schema:    Schema of the DB table
         table:     Name of the DB table
@@ -353,11 +366,25 @@ def csvs2db(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
     if progbar:
         ii = tqdm_auto(ii)
     
-    # All SQL statements on this engine use the same connection
-    with db_engine.connect() as conn:
-        for i in ii:
-            fname_csv = fnames_csv[i]
-            csv2db(schema=schema, table=table, columns=columns, fname_csv=fname_csv, conn=conn)
+    # Load the CSVs into the database
+    for i in ii:
+        fname_csv = fnames_csv[i]
+        csv2db(schema=schema, table=table, columns=columns, fname_csv=fname_csv)
+
+# ********************************************************************************************************************* 
+def clean_empty_dirs(fnames_csv: List[str]):
+    """Loop through a list of file names; clean out any folders that are now empty"""
+    # Get set of distinct folders on this list of files
+    folders = [str(Path(fname_csv).parent) for fname_csv in fnames_csv]
+    folders_unq = sorted(set(folders))
+
+    # Delete these folders if empty
+    for folder in folders_unq:
+        # Better to ask foregiveness
+        try:
+            Path(folder).rmdir()
+        except OSError:
+            pass
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
@@ -403,7 +430,7 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
     if verbose:
         print_time(time=(t1-t0), msg='Elapsed Time for CSV Conversion')
 
-    # Insert from the CSVs into the DB table using multiprocessing
+    # Insert from the CSVs into the DB table; single threaded, but mariadb-import is at least fast
     try:
         csvs2db(schema=schema, table=table, columns=columns, fnames_csv=fnames_csv, progbar=progbar)
     except:
