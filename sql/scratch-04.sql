@@ -1,24 +1,25 @@
+SET @TimeID=59000*24*60;
+
 SELECT
 	ast.AsteroidID,
-	dt.TimeID,
-	elt.epoch,
-	elt.a,
-	elt.e,
-	elt.inc,
-	elt.Omega_node,
-	elt.omega_peri,
-	elt.f,
-	elt.M,
-	0.0 AS d,
-	0.0 AS v,
-	0.0 AS h,
-	elt.period,
-	elt.mean_motion,
-	0.0 AS T_peri,
-	0.0 AS pomega
+	dt0.MJD AS epoch
 FROM
-	JPL.AsteroidElement AS elt
-	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber=elt.AsteroidNumber
-    -- The time as of which the elements were quoted
-    INNER JOIN KS.DailyTime AS dt ON dt.MJD = elt.epoch
-WHERE elt.epoch = 59000;    
+	-- Start with JPL reference elements
+	JPL.AsteroidElement AS elt_jpl
+	-- The matching asteroid and body to this quote from JPL
+	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber = elt_jpl.AsteroidNumber
+	INNER JOIN KS.Body AS b ON b.BodyID = ast.BodyID
+	-- The epoch when the elements are quoted
+	INNER JOIN KS.DailyTime AS dt0 ON dt0.MJD = elt_jpl.epoch
+	-- The epoch as of which we want the results
+	INNER JOIN KS.DailyTime AS dt1 ON dt1.TimeID = @TimeID
+	-- Try to join AsteroidElement_Ref on the date we want, dt1
+	LEFT JOIN KS.AsteroidElement_Ref AS elt_ks ON
+		elt_ks.AsteroidID = ast.AsteroidID AND
+		elt_ks.TimeID = dt1.TimeID
+WHERE
+	-- Only take rows that are not already in KS.AsteroidElement_Ref
+	elt_ks.AsteroidID IS NULL AND
+	-- Only synchronize elements quoted PRIOR to the desired epoch
+	dt0.TimeID < dt1.TimeID
+ORDER BY ast.AsteroidID;
