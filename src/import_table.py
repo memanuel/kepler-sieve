@@ -2,6 +2,7 @@
 Perform a batch import of CSVs to a DB table.
 Example call:
 $ python import_table AsteroidVectors
+$ python import_table AsteroidVectors --schema KS
 
 Michael S. Emanuel
 2021-02-18
@@ -10,17 +11,24 @@ Michael S. Emanuel
 # File system
 import os
 import sys
-import subprocess
 import glob
+from pathlib import Path
+
+# Running programs
+import argparse
+import subprocess
 
 # MSE imports
 from config import ks_root
 from db_utils import find_fnames_csv
 
+# Types
 from typing import List
 
 # Root directory where CSV files are found 
 dir_csv: str = os.path.join(ks_root, 'data', 'df2db')
+# The mariadb-import configuration file
+mdbi_opt: str = os.path.join(ks_root, 'cfg', 'mariadb-import-options.cnf')
 
 # ********************************************************************************************************************* 
 def report_csv_files(fnames_csv, verbose: bool):
@@ -36,23 +44,21 @@ def main():
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Load CSVs into the named database table.')
     parser.add_argument('table', nargs='?', metavar='TBL', type=str, 
-                        help='The name of the table to load, e.g AsteroidVectors')
-    parser.add_argument('--schema', nargs='?', metavar='SCH', type=str, default='KS'
+                         help='The name of the table to load, e.g AsteroidVectors')
+    parser.add_argument('--schema', nargs='?', metavar='SCH', type=str, default='KS',
                         help='The name of the schema, e.g KS')
 
     # Unpack command line arguments
     args = parser.parse_args()
-
-    # Table name
     schema = args.schema
     table = args.table
+
     # File name for loading
+    Path(os.path.join(dir_csv, 'mariadb-import')).mkdir(parents=True, exist_ok=True)
     fname_load = os.path.join(dir_csv, 'mariadb-import', f'{table}.csv')
-    Path(fname_load).mkdir(parents=True, exist_ok=True)
 
     # Get CSV file names
     fnames_csv = find_fnames_csv(table=table, verbose=True)
-    fnames_csv = fnames_csv[100:110]
 
     # Iterate through the CSVs and load them with mariadb-import
     for fname_csv in fnames_csv:
@@ -63,7 +69,7 @@ def main():
         # Arguments to run mariadb-import from subprocess
         args = [
             'mariadb-import',
-            '--defaults-file=mariadb-import-options.cnf',
+            f'--defaults-file={mdbi_opt}',
             '--replace',
             schema, 
             fname_load,
