@@ -89,5 +89,5 @@ et=$(($t1-$t0))
 # Report results
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Processed asteroid trajectories from $n0 to $n1."
-elapsed_time et
+elapsed_time $et
 echo -e "********************************************************************************\n"

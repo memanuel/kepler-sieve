@@ -24,7 +24,8 @@ mode=${3:-DB}
 suffix=$4
 # The number of asteroids processed in each Python program, e.g. 1000
 batch_size=250
-# The number of batches run in parallel in each large job, e.g. 40
+# The number of batches run in parallel in each large job; 
+# determined automatically as the number of physical cores
 num_cpu=$(nproc)
 num_batch=$((num_cpu/2))
 
@@ -54,5 +55,5 @@ et=$(($t1-$t0))
 # Report results
 echo -e "\n********************************************************************************"
 echo "$(date +"%Y-%m-%d %H:%M:%S") Done! Completed $num_jobs."
-elapsed_time et
+elapsed_time $et
 echo -e "********************************************************************************\n"
