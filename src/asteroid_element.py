@@ -128,7 +128,7 @@ def update_asteroid_elements(sim, elts, epoch) -> None:
         epoch: New epoch (after integration) as of which elements are quoted
     """
     # Calculate all orbits; primary is the Sun
-    orb = sim.calculate_orbits(primary=sim.particles[0])
+    orbits = sim.calculate_orbits(primary=sim.particles[0])
 
     # Number of asteroids and active particles
     N: int = elts.shape[0]
@@ -142,17 +142,19 @@ def update_asteroid_elements(sim, elts, epoch) -> None:
         # The index j in the orbits is offset by number of active particles-1; 
         # the minus 1 is because the primary (sun) has no elements
         j: int = N_active + i - 1
+        # The orbit of this asteroid
+        orb = orbits[j]
         # Updated time variables
         elts.loc[i, 'TimeID'] = TimeID
         elts.loc[i, 'epoch'] = epoch
         # Updated orbital elements
-        elts.loc[i, 'a'] = orb[j].a
-        elts.loc[i, 'e'] = orb[j].e
-        elts.loc[i, 'inc'] = orb[j].inc
-        elts.loc[i, 'Omega'] = orb[j].Omega
-        elts.loc[i, 'omega'] = orb[j].omega
-        elts.loc[i, 'f'] = orb[j].f
-        elts.loc[i, 'M'] = orb[j].M
+        elts.loc[i, 'a'] = orb.a
+        elts.loc[i, 'e'] = orb.e
+        elts.loc[i, 'inc'] = orb.inc
+        elts.loc[i, 'Omega'] = orb.Omega
+        elts.loc[i, 'omega'] = orb.omega
+        elts.loc[i, 'f'] = orb.f
+        elts.loc[i, 'M'] = orb.M
 
 # ********************************************************************************************************************* 
 def make_sim_asteroids(epoch: int, n0: int, n1: int, missing: bool):

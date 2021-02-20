@@ -128,7 +128,7 @@ def calc_ref_elt(sim: rebound.Simulation, progbar: bool=False):
     pomega = np.zeros(N)
 
     # Calculate all orbits with the Sun as primary
-    orb = sim.calculate_orbits(primary=sim.particles[0])
+    orbits = sim.calculate_orbits(primary=sim.particles[0])
 
     # Set up asteroid iterator
     ii = list(range(N))
@@ -139,9 +139,11 @@ def calc_ref_elt(sim: rebound.Simulation, progbar: bool=False):
     for i in ii:
         # The index j in the simulation is offset by number of active particles, minus 1 b/c Sun has no elements
         j: int = N_active + i - 1
+        # The orbit of this asteroid
+        orb = orbits[j]
         # Save all the columns out from the particle to the arrays
         # Save angles in the standard interval [0, 2 pi)
-        # AsteroidID[i] = np.int32(p.hash)
+        # AsteroidID[i] = np.int32(p.hash)        
         a[i] = orb.a
         e[i] = orb.e
         inc[i] = orb.inc
@@ -203,6 +205,10 @@ def main():
 
     # Count the number of dates
     elt_dates = sp2df(sp_name='JPL.GetAsteroidRefElementDates', params={'epoch':epoch})
+    # DEBUG
+    mask = (elt_dates.epoch==58600)
+    elt_dates = elt_dates[mask]
+    # END DEBUG
     date_count: int = elt_dates.shape[0]
     ast_count: int = elt_dates.AsteroidCount.sum()
     print(f'Found {date_count} dates to process with {ast_count} asteroids.')
