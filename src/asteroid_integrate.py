@@ -218,6 +218,8 @@ def main():
                         help='epoch of the last date in the integration, as an MJD.')
     parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=1,
                         help='the (max) number of steps per day taken by the integrator')
+    parser.add_argument('--run_all', const=True, default=False, action='store_const',
+                        help='when true, run ALL asteroids; default is just to integrate missing ones.')
     parser.add_argument('--quiet', const=True, default=False, action='store_const',
                         help='run in quiet mode (hide progress bar')
     parser.add_argument('--dry_run', dest='dry_run', action='store_const', const=True, default=False,
@@ -243,6 +245,8 @@ def main():
     mode_description: str = mode_description_tbl[mode]
 
     # Flags
+    run_all: bool = args.run_all
+    missing: bool = not run_all
     verbose: bool = not args.quiet
     progbar: bool = not args.quiet
     dry_run: bool = args.dry_run
@@ -272,6 +276,7 @@ def main():
         print(f'*steps_per_day  : {steps_per_day}')
         print(f' times to save  : {times_saved}')
         print(f'*mode           : {mode}: {mode_description}')
+        print(f'*run_all        : {run_all}')
         print(f'*dry_run        : {dry_run}')
 
     # Quit early if it was a dry run
@@ -283,7 +288,7 @@ def main():
     chunk_size: int = 2**19
 
     # Simulation with initial configuration for planets and selected asteroids; only take missing ones
-    sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1, missing=True)
+    sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1, missing=missing)
   
     # Delegate to appropriate functions depending on the mode
     # We need to integrate the asteroid orbits in either DB or CSV mode, but not in INS mode.
