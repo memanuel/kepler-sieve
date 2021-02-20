@@ -68,7 +68,7 @@ def main():
     fnames_csv = find_fnames_csv(table=table, verbose=True)
 
     # Do an initial pass of cleaning empty directories
-    clean_empty_dirs(fnames_csv)
+    clean_empty_dirs(table=table)
     # Quit early if clean was requested
     if clean:
         sys.exit()
@@ -111,10 +111,10 @@ def main():
         # Loop counter
         i += 1
         if (i % 100) == 0:
-            clean_empty_dirs(fnames_csv[i-100:i])
+            clean_empty_dirs(table=table)
 
     # If we get here, files were loaded successfully.  Clean out any empty folders
-    clean_empty_dirs(fnames_csv)
+    clean_empty_dirs(table=table)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

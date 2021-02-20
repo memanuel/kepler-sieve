@@ -372,14 +372,14 @@ def csvs2db(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
         csv2db(schema=schema, table=table, columns=columns, fname_csv=fname_csv)
 
 # ********************************************************************************************************************* 
-def clean_empty_dirs(fnames_csv: List[str]):
+def clean_empty_dirs(table: str):
     """Loop through a list of file names; clean out any folders that are now empty"""
     # Get set of distinct folders on this list of files
-    folders = [str(Path(fname_csv).parent) for fname_csv in fnames_csv]
-    folders_unq = sorted(set(folders))
+    batch_parent_dir = Path(os.path.join(dir_csv, table))
+    folders = sorted(batch_parent_dir.rglob('pid_*')) + [batch_parent_dir]
 
     # Delete these folders if empty
-    for folder in folders_unq:
+    for folder in folders:
         # Better to ask foregiveness
         try:
             Path(folder).rmdir()
