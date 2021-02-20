@@ -46,7 +46,7 @@ def main():
                          help='The name of the table to load, e.g AsteroidVectors')
     parser.add_argument('--schema', nargs='?', metavar='SCH', type=str, default='KS',
                         help='The name of the schema, e.g KS')
-    parser.add_argument('--use_cols', const=True, default=False, action='store_const',
+    parser.add_argument('--columns', const=True, default=False, action='store_const',
                         help='specify only a subset of columns; for tables with generated columns')
     parser.add_argument('--clean', const=True, default=False, action='store_const',
                         help='just clean up empty directories and quit')
@@ -55,7 +55,7 @@ def main():
     args = parser.parse_args()
     schema = args.schema
     table = args.table
-    use_cols = args.use_cols
+    use_cols = args.columns
     clean = args.clean
 
     # File name for loading

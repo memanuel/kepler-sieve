@@ -2,8 +2,9 @@
 # *****************************************************************************
 # Integrate one multiple batches of asteroids
 # Call from kepler-sieve/src
-# $ scripts/asteroid_traj_batch mode min_ast_num max_ast_num
-# $ scripts/asteroid_traj_batch CSV 0 550000
+# $ scripts/asteroid_traj_batch min_ast_num max_ast_num mode
+# $ scripts/asteroid_traj_batch 0 550000 DB
+# $ scripts/asteroid_traj_batch 1000000 1415000 CSV
 # When called with job_num 1, this will integrate asteroids 0 to 1000
 # With job_num 2, it will integrate 1000 to 2000, etc.
 
@@ -13,12 +14,12 @@ source scripts/bash_utils.sh
 
 # *****************************************************************************
 # Input parameters
-# The mode
-mode=$1
 # The smallest asteroid ID to process, e.g. 0 or 1000000
-min_ast_num=$2
+min_ast_num=$1
 # The largest asteroid ID to process, e.g. 550000 or 1500000
-max_ast_num=$3
+max_ast_num=$2
+# The mode; defaults to DB
+mode=${3:-DB}
 # The number of asteroids processed in each Python program, e.g. 1000
 batch_size=250
 # The number of batches run in parallel in each large job, e.g. 40

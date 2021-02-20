@@ -28,15 +28,31 @@ from db_utils import sp2df
 plot_style()
 
 # ********************************************************************************************************************* 
-def get_integration_diff():
+def get_diff_by_date():
+    """
+    Get difference in integration of asteroids between JPL and MSE from database. 
+    Returns df: Pandas DataFrame with MJD, dq, dq_rel, match_count
+    """
+    # Wrap arguments to stored procedure
+    sp_name: str = 'KS.GetAsteroidIntegrationDiffByDate'
+    # Run SQL and return as a DataFrame
+    df = sp2df(sp_name=sp_name)
+    return df
+
+# ********************************************************************************************************************* 
+def get_diff_by_ast(mjd0: int=48000, mjd1: int = 63000):
     """
     Get difference in integration of asteroids between JPL and MSE from database. 
     Returns df: Pandas DataFrame with MJD, dq, dq_rel, match_count
     """
     # Wrap arguments to GetAsteroidIntegrationDiffstored procedure
-    sp_name: str = 'KS.GetAsteroidIntegrationDiff'
+    sp_name: str = 'KS.GetAsteroidIntegrationDiffByAst'
+    params = {
+        'mjd0': mjd0,
+        'mjd1': mjd1
+    }
     # Run SQL and return as a DataFrame
-    df = sp2df(sp_name=sp_name)
+    df = sp2df(sp_name=sp_name, params=params)
     return df
 
 # ********************************************************************************************************************* 
@@ -58,7 +74,7 @@ def report_error(df: pd.DataFrame):
     return df
 
 # ********************************************************************************************************************* 
-def plot_errors(df: pd.DataFrame, window: int):
+def plot_errors_by_date(df: pd.DataFrame, window: int):
     """
     Generate plot of relative errors.
     INPUTS:
@@ -107,13 +123,14 @@ def main():
     """Calculate, report and plot error on asteroids integration"""
 
     # Get error
-    df = get_integration_diff()
+    df_dt = get_diff_by_date()
+    df_ast = get_diff_by_ast()
 
     # Report error
-    report_error(df=df)
+    report_error(df=df_dt)
 
     # Generate plots
-    plot_errors(df=df, window=15)
+    plot_errors_by_date(df=df_dt, window=15)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

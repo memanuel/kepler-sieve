@@ -38,14 +38,16 @@ def process_dates(epoch, elt_dates, max_dates: int = None, progbar: bool=False):
     """Process all the orbital elements to the reference epoch"""
     # Save the original input argument to epoch_out
     epoch_out: int = epoch
-    # The first date to process
-    epoch = np.int32(elt_dates.epoch[0])
-    # Get structure of the elements DataFrame, but no rows
-    elts = get_ast_ref_elts_jpl(epoch=0)
-
     # Dates to process
     epochs: np.array = elt_dates.epoch.values
     N_date: int = epochs.shape[0]
+    # The first date to process
+    epoch = np.int32(epochs[0])
+    # Get structure of the elements DataFrame, but no rows
+    elts = get_ast_ref_elts_jpl(epoch=0)
+    # debug
+    elts = elts.iloc[0:2]
+
     # Append the output date to the end of epochs if not already present
     if (N_date == 0) or (epochs[0] < epoch_out):
         epochs = np.append(epochs, epoch_out)
@@ -126,7 +128,7 @@ def calc_ref_elt(sim: rebound.Simulation, progbar: bool=False):
     pomega = np.zeros(N)
 
     # Calculate all orbits with the Sun as primary
-    sim.calculate_orbits(primary=sim.particles[0])
+    orb = sim.calculate_orbits(primary=sim.particles[0])
 
     # Set up asteroid iterator
     ii = list(range(N))
@@ -135,27 +137,25 @@ def calc_ref_elt(sim: rebound.Simulation, progbar: bool=False):
 
     # Loop through asteroids in the simulation
     for i in ii:
-        # The index j in the simulation is offset by number of active particles
-        j: int = N_active + i
-        # The active particle
-        p = sim.particles[j]
+        # The index j in the simulation is offset by number of active particles, minus 1 b/c Sun has no elements
+        j: int = N_active + i - 1
         # Save all the columns out from the particle to the arrays
         # Save angles in the standard interval [0, 2 pi)
         # AsteroidID[i] = np.int32(p.hash)
-        a[i] = p.a
-        e[i] = p.e
-        inc[i] = p.inc
-        Omega_node[i] = p.Omega % tau
-        omega_peri[i] = p.omega % tau
-        f[i] = p.f % tau
-        M[i] = p.M % tau
-        d[i] = p.d 
-        v[i] = p.v
-        h[i] = p.h
-        period[i] = p.P
-        mean_motion[i] = p.n
-        T_peri[i] = p.T
-        pomega[i] = p.pomega % tau
+        a[i] = orb.a
+        e[i] = orb.e
+        inc[i] = orb.inc
+        Omega_node[i] = orb.Omega % tau
+        omega_peri[i] = orb.omega % tau
+        f[i] = orb.f % tau
+        M[i] = orb.M % tau
+        d[i] = orb.d 
+        v[i] = orb.v
+        h[i] = orb.h
+        period[i] = orb.P
+        mean_motion[i] = orb.n
+        T_peri[i] = orb.T
+        pomega[i] = orb.pomega % tau
 
     # Wrap the arrays into a Python dictionary
     data_tbl = {
@@ -192,11 +192,14 @@ def main():
                         help='epoch to which quoted orbital elements are synchronized.')
     parser.add_argument('--batch_size', nargs='?', metavar='BS', type=int, default=256,
                         help='the number of dates to process in each batch')
+    parser.add_argument('--batch_count', nargs='?', metavar='BC', type=int, default=0,
+                        help='the number of batches to run; 0 (default) means all of them')
     args = parser.parse_args()
 
     # Unpack command line arguments
     epoch: int = args.epoch
     batch_size: int = args.batch_size
+    batch_count: int = args.batch_count
 
     # Count the number of dates
     elt_dates = sp2df(sp_name='JPL.GetAsteroidRefElementDates', params={'epoch':epoch})
@@ -205,7 +208,7 @@ def main():
     print(f'Found {date_count} dates to process with {ast_count} asteroids.')
 
     # Set up batches    
-    batch_count: int = int(np.ceil(date_count / batch_size))
+    batch_count = batch_count or int(np.ceil(date_count / batch_size))
     print(f'Running {batch_count} batches of size {batch_size} dates...')
 
     for i in range(batch_count):

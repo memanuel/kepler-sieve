@@ -46,7 +46,7 @@ def get_ast_ref_elts_jpl(epoch: int) -> pd.DataFrame:
     return elts
 
 # ********************************************************************************************************************* 
-def get_ast_ref_elts(epoch: int, n0: int, n1: int, missing: bool=True) -> pd.DataFrame:
+def get_ast_ref_elts(epoch: int, n0: int, n1: int, missing: bool) -> pd.DataFrame:
     """
     Get calculated reference orbital elements as of the given epoch.
     INPUTS:
@@ -128,7 +128,7 @@ def update_asteroid_elements(sim, elts, epoch) -> None:
         epoch: New epoch (after integration) as of which elements are quoted
     """
     # Calculate all orbits; primary is the Sun
-    sim.calculate_orbits(primary=sim.particles[0])
+    orb = sim.calculate_orbits(primary=sim.particles[0])
 
     # Number of asteroids and active particles
     N: int = elts.shape[0]
@@ -139,36 +139,38 @@ def update_asteroid_elements(sim, elts, epoch) -> None:
 
     # Loop through asteroids in the simulation
     for i in range(N):
-        # The index j in the simulation is offset by number of active particles
-        j: int = N_active + i
+        # The index j in the orbits is offset by number of active particles-1; 
+        # the minus 1 is because the primary (sun) has no elements
+        j: int = N_active + i - 1
         # Updated time variables
         elts.loc[i, 'TimeID'] = TimeID
         elts.loc[i, 'epoch'] = epoch
         # Updated orbital elements
-        elts.loc[i, 'a'] = sim.particles[j].a
-        elts.loc[i, 'e'] = sim.particles[j].e
-        elts.loc[i, 'inc'] = sim.particles[j].inc
-        elts.loc[i, 'Omega'] = sim.particles[j].Omega
-        elts.loc[i, 'omega'] = sim.particles[j].omega
-        elts.loc[i, 'f'] = sim.particles[j].f
-        elts.loc[i, 'M'] = sim.particles[j].M
+        elts.loc[i, 'a'] = orb[j].a
+        elts.loc[i, 'e'] = orb[j].e
+        elts.loc[i, 'inc'] = orb[j].inc
+        elts.loc[i, 'Omega'] = orb[j].Omega
+        elts.loc[i, 'omega'] = orb[j].omega
+        elts.loc[i, 'f'] = orb[j].f
+        elts.loc[i, 'M'] = orb[j].M
 
 # ********************************************************************************************************************* 
-def make_sim_asteroids(epoch: int, n0: int, n1: int):
+def make_sim_asteroids(epoch: int, n0: int, n1: int, missing: bool):
     """
     Create a simulation with the planets and a block of asteroids as of an epoch.
     INPUTS:
         epoch:  Epoch as of which the planets and asteroids are initialized
         n0:     n0 - AsteroidID of the first asteroid to add (inclusive)
         n1:     n1 - AsteroidID of the last asteroid to add (exclusive)
+        missing: When true, only add elements for asteroids missing from AsteroidVectors or AsteroidElements
     """
     # Initialize a planets simulation as of epoch
     sim = make_sim_planets(epoch=epoch, load_file=True)
     sim.t = np.float64(epoch)
     sim.N_active = sim.N
 
-    # Get the orbital elements of this slice of asteroids
-    elts = get_ast_ref_elts(epoch=epoch, n0=n0, n1=n1)
+    # Get the orbital elements of this slice of asteroids; only request m
+    elts = get_ast_ref_elts(epoch=epoch, n0=n0, n1=n1, missing=missing)
     # Add these asteroids with their orbital elements
     asteroid_ids = add_asteroid_elts(sim=sim, elts=elts)
 

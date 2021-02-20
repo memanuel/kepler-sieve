@@ -271,11 +271,11 @@ def csv2db(schema: str, table: str, columns: List[str], fname_csv: str):
     # List of column names
     col_list = ','.join(columns)
 
-    # File name for loading
-    Path(os.path.join(dir_csv, 'mariadb-import')).mkdir(parents=True, exist_ok=True)
-    fname_load = os.path.join(dir_csv, 'mariadb-import', f'{table}.csv')
+    # File name for loading; 
+    parent_folder = Path(fname_csv).parent
+    fname_load = os.path.join(parent_folder, f'{table}.csv')
 
-    # Rename this chunk file to AsteroidVectors.csv
+    # Rename this chunk file to <TableName>.csv
     # This is a limitation of mariadb-import; the CSV file name must match the table name exactly
     os.rename(fname_csv, fname_load)
 
@@ -429,10 +429,6 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         print(f'Table {schema}.{table}.')
         print('Columns:\n', columns)
         raise
-
-    # If we reach this point, the whole operation was a success.  
-    # Clean up the now empty directory that previously had the CSV files
-    Path(fname_csv).parent.rmdir()
 
     # Report elapsed time if requested
     t2 = time.time()

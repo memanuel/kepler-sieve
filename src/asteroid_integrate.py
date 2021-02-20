@@ -282,8 +282,8 @@ def main():
     # Set chunk_size for writing out DataFrame to database
     chunk_size: int = 2**19
 
-    # Simulation with initial configuration for planets and selected asteroids
-    sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1)
+    # Simulation with initial configuration for planets and selected asteroids; only take missing ones
+    sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1, missing=True)
   
     # Delegate to appropriate functions depending on the mode
     # We need to integrate the asteroid orbits in either DB or CSV mode, but not in INS mode.
