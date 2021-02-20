@@ -20,7 +20,7 @@ import subprocess
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
-from config import ks_root
+from config import ks_root, mdbi_opt
 from db_utils import find_fnames_csv, clean_empty_dirs, get_columns
 
 # Types
@@ -28,8 +28,6 @@ from typing import List
 
 # Root directory where CSV files are found 
 dir_csv: str = os.path.join(ks_root, 'data', 'df2db')
-# The mariadb-import configuration file
-mdbi_opt: str = os.path.join(ks_root, 'cfg', 'mariadb-import-options.cnf')
 
 # ********************************************************************************************************************* 
 def report_csv_files(fnames_csv, verbose: bool):

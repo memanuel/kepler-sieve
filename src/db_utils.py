@@ -11,8 +11,6 @@ import dask.dataframe
 import sqlalchemy
 
 # Algorithms
-import multiprocessing
-import itertools
 import subprocess
 
 # File system
@@ -26,7 +24,7 @@ import traceback
 import time
 
 # MSE imports
-from config import ks_root
+from config import ks_root, mdbi_opt
 from utils import print_time
 from db_config import db_engine, db_url
 
@@ -44,15 +42,6 @@ pid: int = os.getpid()
 
 # Treat pandas chained assignement as error
 pd.set_option('mode.chained_assignment', 'raise')
-
-# ********************************************************************************************************************* 
-def make_db_engines(single_thread: bool) -> None:
-    """Create a shared set of DB engine objects (global variable).  Used to support multithreading."""
-    global db_engines
-    if single_thread:
-        db_engines = (db_engine,)
-    else:
-        from db_engine_pool import db_engines
 
 # ********************************************************************************************************************* 
 def sp_bind_args(sp_name: str, params: Optional[Dict]):
@@ -295,8 +284,7 @@ def csv2db(schema: str, table: str, columns: List[str], fname_csv: str):
         'mariadb-import',
         f'--defaults-file={mdbi_opt}',
         '--replace',
-        # f'--columns={col_list}',
-        # '--use-threads=1',
+        f'--columns={col_list}',
         '--silent',
         schema, 
         fname_load,
@@ -371,6 +359,9 @@ def csvs2db(schema: str, table: str, columns: List[str], fnames_csv: List[str], 
         fname_csv = fnames_csv[i]
         csv2db(schema=schema, table=table, columns=columns, fname_csv=fname_csv)
 
+    # Now clean up any empty folders
+    clean_empty_dirs(table=table)
+
 # ********************************************************************************************************************* 
 def clean_empty_dirs(table: str):
     """Loop through a list of file names; clean out any folders that are now empty"""
@@ -380,7 +371,7 @@ def clean_empty_dirs(table: str):
 
     # Delete these folders if empty
     for folder in folders:
-        # Better to ask foregiveness
+        # Better to ask forgiveness
         try:
             Path(folder).rmdir()
         except OSError:

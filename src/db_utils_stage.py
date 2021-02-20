@@ -1,12 +1,27 @@
 """
 Attempt to load DB tables in parallel using staging tables.
-This was a failure.  
+This was a FAILURE.  
 Keeping code here for reference in case fragments prove useful in the future.
+In particular, it has a use of parallel processing with a thread pool and starmap is syntactically correct.
+It's just not fast for inserting records into MariaDB tables with LOAD DATA INSERT statements.
 
 Michael S. Emanuel
 2021-02-18
 """
 
+# Algorithms
+import itertools
+import multiprocessing
+
+
+# ********************************************************************************************************************* 
+def make_db_engines(single_thread: bool) -> None:
+    """Create a shared set of DB engine objects (global variable).  Used to support multithreading."""
+    global db_engines
+    if single_thread:
+        db_engines = (db_engine,)
+    else:
+        from db_engine_pool import db_engines
 
 # ********************************************************************************************************************* 
 def staging_table_name(table: str, i: int):

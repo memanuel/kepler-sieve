@@ -30,7 +30,7 @@ from utils import print_stars
 from astro_utils import mjd_to_date
 from asteroid_element import make_sim_asteroids, get_asteroids
 from rebound_integrate import integrate_df
-from db_utils import df2db, df2csv, csvs2db, sp2df
+from db_utils import df2db, df2csv, csvs2db, sp2df, clean_empty_dirs
 
 # Typing
 from typing import List, Tuple
@@ -87,9 +87,10 @@ def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int,
     if progbar:        
         n0: int = sim.asteroid_ids[0] if has_ast else 0
         n1: int = sim.asteroid_ids[-1] if has_ast else 0
+        n_ast: int = len(sim.asteroid_ids)
         print()
         print_stars()
-        print(f'Integrating asteroids {n0:07d}-{n1:07d} from {mjd0} to {mjd1}...')
+        print(f'Integrating {n_ast} asteroids in {n0:07d}-{n1:07d} from {mjd0} to {mjd1}...')
 
     # Run the simulation and save as a DataFrame
     df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
@@ -190,12 +191,8 @@ def insert_csvs(fnames_csv_vec: List[str], fnames_csv_elt: List[str], progbar: b
     csvs2db(schema=schema, table=table_elt, columns=cols_elt_db, fnames_csv=fnames_csv_elt, progbar=progbar)
 
     # If the DB insert is successful, csvs2db deletes the CSV file. Clean up any empty directories now.
-    folders = set(Path(fname_csv).parent for fname_csv in fnames_csv_vec + fnames_csv_elt)
-    for folder in folders:
-        try:
-            folder.rmdir()
-        except OSError:
-            pass
+    clean_empty_dirs(table=table_vec)
+    clean_empty_dirs(table=table_elt)
 
 # ********************************************************************************************************************* 
 def main():
@@ -208,7 +205,7 @@ def main():
                         help='the first asteroid number to process')
     parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
                         help='the number of asteroids to process in this batch'),
-    parser.add_argument('mode', nargs='?', metavar='MODE', type=str, default='CSV',
+    parser.add_argument('mode', nargs='?', metavar='MODE', type=str, default='DB',
                         help='Mode of operation. Three valid choices DB, CSV, and INS. '
                         'DB: insert to DB via CSVs.'
                         'CSV: Calculate and save to CSVs.'
@@ -285,7 +282,7 @@ def main():
     # Set chunk_size for writing out DataFrame to database
     chunk_size: int = 2**19
 
-    # Simulation with initial configuration for planets
+    # Simulation with initial configuration for planets and selected asteroids
     sim = make_sim_asteroids(epoch=epoch, n0=n0, n1=n1)
   
     # Delegate to appropriate functions depending on the mode
@@ -304,7 +301,7 @@ def main():
 
     # If we are in either DB or INS mode, we need to insert the CSV files to the database now
     if mode in ('DB', 'INS'):
-        insert_csvs(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, use_stage=use_stage, progbar=progbar)
+        insert_csvs(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, progbar=progbar)
 
 
 # ********************************************************************************************************************* 
