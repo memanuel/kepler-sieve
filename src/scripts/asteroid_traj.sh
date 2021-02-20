@@ -20,10 +20,13 @@ min_ast_num=$1
 max_ast_num=$2
 # The mode; defaults to DB
 mode=${3:-DB}
+# Additional options, e.g. --run_all
+suffix=$4
 # The number of asteroids processed in each Python program, e.g. 1000
 batch_size=250
 # The number of batches run in parallel in each large job, e.g. 40
-num_batch=80
+num_cpu=$(nproc)
+num_batch=$((num_cpu/2))
 
 # *****************************************************************************
 # Start timer
@@ -39,7 +42,7 @@ echo "Running $num_jobs jobs in $mode mode with batch_size=$batch_size and $num_
 # Delegate to asteroid_traj_batch.sh
 for ((job_num=job_num_min; job_num<=job_num_max; job_num++))
 do
-	bash scripts/asteroid_traj_batch.sh $mode $batch_size $num_batch $max_ast_num $job_num
+	bash scripts/asteroid_traj_batch.sh $mode $batch_size $num_batch $max_ast_num $job_num $suffix
 	# echo "job_num=$job_num"
 done
 

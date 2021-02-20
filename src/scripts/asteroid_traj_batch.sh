@@ -23,6 +23,8 @@ num_batch=$3
 max_ast_num=$4
 # The number of this job, starting from 1
 job_num=$5
+# Suffix for invoking asteroid_integrate
+suffix=$6 
 
 # *****************************************************************************
 # Start timer
@@ -56,9 +58,9 @@ do
 	# run the last job with a progress bar, the rest silently
 	if [ $i -lt $((num_batch-1)) ]
 	then		
-		python asteroid_integrate.py $n $batch_size $mode --quiet &	
+		python asteroid_integrate.py $n $batch_size $mode $suffix --quiet &	
 	else
-		python asteroid_integrate.py $n $batch_size $mode &
+		python asteroid_integrate.py $n $batch_size $mode $suffix &
 	fi
 
 	# Slight pause so the batches will be executed in the specified order

@@ -30,7 +30,8 @@ from typing import List, Tuple, Dict, Set, Optional
 def integrate_numpy(sim_epoch: rebound.Simulation, 
                     mjd0: int, 
                     mjd1: int,
-                    steps_per_day: int, 
+                    interval_p: int,
+                    interval_q: int,
                     save_elements: bool,
                     progbar: bool):
     """
@@ -39,7 +40,10 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
         sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
         mjd0:           the earliest MJD to simulate back to
         mjd1:           the latest MJD to simulate forward to
-        steps_per_day:  the number of time steps per day to save the simulation
+        interval_p:     Numerator of the time interval between steps in days
+        interval_q:     Denominator of the time interval between steps in days
+                        Time steps are saved to output array at multiples of tau = (interval_p / interval_q)
+                        The internal time step of the simulation is adaptive
         save_elements:  flag indicating whether to save orbital elements
         progbar:        flag - whether to display a progress bar
     OUTPUTS:
@@ -74,10 +78,10 @@ def integrate_numpy(sim_epoch: rebound.Simulation,
     sim_back.dt *= -1.0
 
     # Set the times for snapshots in both directions;
-    step_count: int = (mjd1 - mjd0) * steps_per_day
-    time_step: np.float64 = np.float64(1.0 / steps_per_day)
+    step_count: int = ((mjd1 - mjd0)*interval_q) // interval_p
+    time_step: np.float64 = np.float64(interval_p) / np.float64(interval_q)
     ts: np.array = np.arange(step_count+1) * time_step
-    
+
     # Get the index placement for the left vs. right sides.
     # Left side will be integrated backwards from epoch, right side integrated forward from epoch
     idx: int = np.searchsorted(ts, t_epoch, side='left')
@@ -253,7 +257,8 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
 def integrate_df(sim_epoch: rebound.Simulation, 
                  mjd0: int, 
                  mjd1: int, 
-                 steps_per_day: int, 
+                 interval_p: int,
+                 interval_q: int,
                  save_elements: bool,
                  progbar: bool) -> None:
     """
@@ -262,7 +267,8 @@ def integrate_df(sim_epoch: rebound.Simulation,
         sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
         mjd0:           the earliest MJD to simulate back to
         mjd1:           the latest MJD to simulate forward to
-        steps_per_day:  the number of time steps per day to save the simulation
+        interval_p:     Numerator of the time interval between steps in days
+        interval_q:     Denominator of the time interval between steps in days
         save_elements:  flag indiciting whether to save orbital elements
         progbar:        flag - whether to display a progress bar
     OUTPUTS:
@@ -275,8 +281,8 @@ def integrate_df(sim_epoch: rebound.Simulation,
     """
     # Delegate to integrate_numpy
     body_ids, body_names, epochs, q, v, elts = \
-            integrate_numpy(sim_epoch=sim_epoch, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
-            save_elements=save_elements, progbar=progbar)
+            integrate_numpy(sim_epoch=sim_epoch, mjd0=mjd0, mjd1=mjd1, 
+            interval_p=interval_p, interval_q=interval_q, save_elements=save_elements, progbar=progbar)
     # Delegate to integration_np2df
     df = integration_np2df(body_ids=body_ids, body_names=body_names, epochs=epochs, q=q, v=v, elts=elts)
 

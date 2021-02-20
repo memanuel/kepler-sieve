@@ -67,14 +67,14 @@ fname_csv_elt = os.path.join(dir_csv, table_elt, pid_str, f'{table_elt}.csv')
 
 # ********************************************************************************************************************* 
 def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int, 
-                  steps_per_day: int, progbar:bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
+                  interval: int, progbar:bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Integrate a simulation and return two DataFrames with state vectors and orbital elements
     INPUTS:
         sim:            Simulation for the desired collection of bodies as of the start epoch
         mjd0:           First date to process
         mjd1:           Last date to process
-        steps_per_day:  Number of steps to save in output frames per day
+        interval:       Number of days between output frames saved out
         progbar:        Whether to show a progress bar
     """
     # Test whether we have any asteroids at all
@@ -93,7 +93,7 @@ def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int,
         print(f'Integrating {n_ast} asteroids in {n0:07d}-{n1:07d} from {mjd0} to {mjd1}...')
 
     # Run the simulation and save as a DataFrame
-    df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
+    df = integrate_df(sim_epoch=sim, mjd0=mjd0, mjd1=mjd1, interval_p=interval, interval_q=1,
                       save_elements=True, progbar=progbar)
 
     # Mask down to only the asteroids
@@ -124,10 +124,10 @@ def report_csv_files(fnames_csv_vec, fnames_csv_elt, verbose: bool):
         nf_vec = len(fnames_csv_vec)
         nf_elt = len(fnames_csv_elt)
         print(f'CSV files: {nf_vec} vectors and {nf_elt} elements:')
-        if nf_vec > 0:
-            print(fnames_csv_vec[0])
-        if nf_elt > 0:
-            print(fnames_csv_elt[0])
+        # if nf_vec > 0:
+        #     print(fnames_csv_vec[0])
+        # if nf_elt > 0:
+        #     print(fnames_csv_elt[0])
 
 # ********************************************************************************************************************* 
 def save_csvs(df_vec: pd.DataFrame, df_elt: pd.DataFrame, verbose:bool) -> [List[str], List[str]]:
@@ -216,8 +216,8 @@ def main():
                         help='epoch of the first date in the integration, as an MJD.')
     parser.add_argument('--mjd1', nargs='?', metavar='t1', type=int, default=63000, # originally 77600
                         help='epoch of the last date in the integration, as an MJD.')
-    parser.add_argument('--steps_per_day', nargs='?', metavar='SPD', type=int, default=1,
-                        help='the (max) number of steps per day taken by the integrator')
+    parser.add_argument('--interval', nargs='?', metavar='SPD', type=int, default=4,
+                        help='the number of days between frames saved to the database')
     parser.add_argument('--run_all', const=True, default=False, action='store_const',
                         help='when true, run ALL asteroids; default is just to integrate missing ones.')
     parser.add_argument('--quiet', const=True, default=False, action='store_const',
@@ -254,13 +254,13 @@ def main():
     # Date range for integration
     mjd0: int = args.mjd0
     mjd1: int = args.mjd1
-    steps_per_day: int = args.steps_per_day
+    interval: int = args.interval
     # Epoch as a date for reporting
     epoch_dt = mjd_to_date(epoch)
     mjd0_dt = mjd_to_date(mjd0)
     mjd1_dt = mjd_to_date(mjd1)
     width_yrs: float = (mjd1 - mjd0) / 365.25
-    times_saved: int = (mjd1-mjd0) * steps_per_day
+    times_saved: int = np.int32(np.ceil((mjd1-mjd0) / interval))
 
     # Integrator settings
     integrator: str = 'ias15'
@@ -273,7 +273,7 @@ def main():
         print(f'*n1             : {n1:06d}')
         print(f'*epoch          : {epoch} ({epoch_dt})')
         print(f' date range mjd : {mjd0} to {mjd1}')
-        print(f'*steps_per_day  : {steps_per_day}')
+        print(f'*interval       : {interval}')
         print(f' times to save  : {times_saved}')
         print(f'*mode           : {mode}: {mode_description}')
         print(f'*run_all        : {run_all}')
@@ -295,7 +295,7 @@ def main():
     # We also need to save the DataFrame to CSV in these modes.
     if mode in ('DB', 'CSV'):
         # Integrate the asteroids
-        df_vec, df_elt = integrate_ast(sim=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, progbar=progbar)
+        df_vec, df_elt = integrate_ast(sim=sim, mjd0=mjd0, mjd1=mjd1, interval=interval, progbar=progbar)
         # Save the DataFrames to CSV
         fnames_csv_vec, fnames_csv_elt = save_csvs(df_vec=df_vec, df_elt=df_elt, verbose=verbose)
 
