@@ -45,8 +45,6 @@ def process_dates(epoch, elt_dates, max_dates: int = None, progbar: bool=False):
     epoch = np.int32(epochs[0])
     # Get structure of the elements DataFrame, but no rows
     elts = get_ast_ref_elts_jpl(epoch=0)
-    # debug
-    elts = elts.iloc[0:2]
 
     # Append the output date to the end of epochs if not already present
     if (N_date == 0) or (epochs[0] < epoch_out):
@@ -205,10 +203,6 @@ def main():
 
     # Count the number of dates
     elt_dates = sp2df(sp_name='JPL.GetAsteroidRefElementDates', params={'epoch':epoch})
-    # DEBUG
-    mask = (elt_dates.epoch==58600)
-    elt_dates = elt_dates[mask]
-    # END DEBUG
     date_count: int = elt_dates.shape[0]
     ast_count: int = elt_dates.AsteroidCount.sum()
     print(f'Found {date_count} dates to process with {ast_count} asteroids.')
