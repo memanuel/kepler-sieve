@@ -298,44 +298,6 @@ def csv2db(schema: str, table: str, columns: List[str], fname_csv: str):
     os.remove(fname_load)
 
 # ********************************************************************************************************************* 
-def csv2db_ldi(schema: str, table: str, columns: List[str], fname_csv: str, conn: conn_type):
-    """
-    Load one CSV file directly into the named DB table using the Load Data Infile command.
-    This is MUCH SLOWER than using mariadb-import
-    INPUTS:
-        schema:    Schema of the DB table
-        table:     Name of the DB table
-        columns:   List of columns of the DB table
-        fname_csv: Name of the CSV file
-        conn:      DB connection object
-    OUTPUTS:
-        None. Modifies the database table.
-    """
-
-    # Destination table name including schema
-    dest_table = dest_table_name(schema=schema, table=table)
-    # List of column names
-    col_list = '(' + ','.join(columns) + ')'
-
-    # SQL to Load CSV into database into staging table
-    sql_load_csv = \
-        f"""
-        LOAD DATA LOCAL INFILE 
-        '{fname_csv}'
-        REPLACE
-        INTO TABLE {dest_table}
-        FIELDS TERMINATED BY ','
-        LINES TERMINATED BY '\n'
-        IGNORE 1 LINES
-        {col_list}
-        """
-
-    # Load the CSV file
-    conn.execute(sql_load_csv)
-    # Delete the CSV file after it has been successfully loaded
-    os.remove(fname_csv)
-
-# ********************************************************************************************************************* 
 def csvs2db(schema: str, table: str, columns: List[str], fnames_csv: List[str], progbar: bool):
     """
     Directly load a batch of CSV files into the named DB table.
@@ -379,8 +341,7 @@ def clean_empty_dirs(table: str):
 
 # ********************************************************************************************************************* 
 def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None, 
-          chunksize: int=0, single_thread: bool=False, 
-          verbose: bool=False, progbar: bool=True):
+          chunksize: int=0, verbose: bool=False, progbar: bool=True):
     """
     Insert the contents of a Pandas DataFrame into a SQL table.
     INPUTS:
@@ -389,15 +350,10 @@ def df2db(df: pd.DataFrame, schema: str, table: str, columns: List[str]=None,
         table:      The name of the destination DB table
         columns:    List of columns to insert; read from DB metadata if omitted
         chunksize:  Number of rows in each chunk
-        single_thread: Whether to run single threaded
         verbose:    Verbosity of output (true / false)
     OUTPUTS:
         None.  Modifies the DB table on the server.
     """
-    # When running in single_thread mode, chunksize must be zero
-    if single_thread:
-        chunk_size = 0
-
     # Get columns from DB metadata if they were not provided by caller
     if columns is None:
         columns = get_columns(schema=schema, table=table)
