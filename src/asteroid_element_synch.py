@@ -192,14 +192,14 @@ def main():
                         help='epoch to which quoted orbital elements are synchronized.')
     parser.add_argument('--batch_size', nargs='?', metavar='BS', type=int, default=256,
                         help='the number of dates to process in each batch')
-    parser.add_argument('--batch_count', nargs='?', metavar='BC', type=int, default=0,
-                        help='the number of batches to run; 0 (default) means all of them')
+    parser.add_argument('--max_dates', nargs='?', metavar='BC', type=int, default=0,
+                        help='the maximum number of dates to process; 0 (default) means all of them')
     args = parser.parse_args()
 
     # Unpack command line arguments
     epoch: int = args.epoch
     batch_size: int = args.batch_size
-    batch_count: int = args.batch_count
+    max_dates: int = args.max_dates
 
     # Count the number of dates
     elt_dates = sp2df(sp_name='JPL.GetAsteroidRefElementDates', params={'epoch':epoch})
@@ -207,22 +207,35 @@ def main():
     ast_count: int = elt_dates.AsteroidCount.sum()
     print(f'Found {date_count} dates to process with {ast_count} asteroids.')
 
-    # Set up batches    
-    batch_count = batch_count or int(np.ceil(date_count / batch_size))
+    # Set up batches
+    if max_dates == 0:
+        max_dates = date_count
+    batch_count = int(np.ceil(max_dates / batch_size))
     print(f'Running {batch_count} batches of size {batch_size} dates...')
+    # Count dates processed
+    dates_processed: int = 0
 
+    # Iterate over batches
     for i in range(batch_count):
         # Status
         print_stars()
         print(f'Starting batch {i}.')
         # Synchronize the elements
         print(f'Synchronizing orbital elements to epoch {epoch}...')
-        sim, elts = process_dates(epoch=epoch, elt_dates=elt_dates, max_dates=batch_size, progbar=True)
+        max_dates_i: int = min(batch_size, max_dates-dates_processed)
+        # Slice of elt_dates to process
+        i0: int = i * batch_size
+        i1: int = i0 + batch_size
+        elt_dates_i = elt_dates[i0:i1]
+        # Process this slice
+        sim, elts = process_dates(epoch=epoch, elt_dates=elt_dates_i, max_dates=max_dates_i, progbar=True)
         # Extract reference elements DataFrame
         print(f'Extracting reference orbital elements for DB insertion...')
         ref_elts = calc_ref_elt(sim, progbar=True)
         # Insert into KS.AsteroidElement_Ref
-        df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', single_thread=True, verbose=True)
+        df2db(df=ref_elts, schema='KS', table='AsteroidElement_Ref', verbose=True)
+        # Update dates processed
+        dates_processed += batch_size
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

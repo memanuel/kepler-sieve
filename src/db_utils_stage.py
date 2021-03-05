@@ -31,6 +31,44 @@ def staging_table_name(table: str, i: int):
     return staging_table
 
 # ********************************************************************************************************************* 
+def csv2db_ldi(schema: str, table: str, columns: List[str], fname_csv: str, conn: conn_type):
+    """
+    Load one CSV file directly into the named DB table using the Load Data Infile command.
+    This is MUCH SLOWER than using mariadb-import
+    INPUTS:
+        schema:    Schema of the DB table
+        table:     Name of the DB table
+        columns:   List of columns of the DB table
+        fname_csv: Name of the CSV file
+        conn:      DB connection object
+    OUTPUTS:
+        None. Modifies the database table.
+    """
+
+    # Destination table name including schema
+    dest_table = dest_table_name(schema=schema, table=table)
+    # List of column names
+    col_list = '(' + ','.join(columns) + ')'
+
+    # SQL to Load CSV into database into staging table
+    sql_load_csv = \
+        f"""
+        LOAD DATA LOCAL INFILE 
+        '{fname_csv}'
+        REPLACE
+        INTO TABLE {dest_table}
+        FIELDS TERMINATED BY ','
+        LINES TERMINATED BY '\n'
+        IGNORE 1 LINES
+        {col_list}
+        """
+
+    # Load the CSV file
+    conn.execute(sql_load_csv)
+    # Delete the CSV file after it has been successfully loaded
+    os.remove(fname_csv)
+
+# ********************************************************************************************************************* 
 def csv2db_stage(schema: str, table: str, columns: List[str], cols_to_drop: List[str],
                  fname_csv: str, i: int, conn: conn_type):
     """

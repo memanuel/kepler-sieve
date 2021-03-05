@@ -25,7 +25,6 @@ SELECT
 	elt.inc,
 	elt.Omega_node AS Omega,
 	elt.omega_peri AS omega,
-	-- elt.f,
 	elt.M,
 	b.BodyID,
 	b.BodyName

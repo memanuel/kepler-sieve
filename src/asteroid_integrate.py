@@ -30,7 +30,7 @@ from utils import print_stars
 from astro_utils import mjd_to_date
 from asteroid_element import make_sim_asteroids, get_asteroids
 from rebound_integrate import integrate_df
-from db_utils import df2db, df2csv, csvs2db, sp2df, clean_empty_dirs
+from db_utils import df2csv, csvs2db, sp2df, clean_empty_dirs
 
 # Typing
 from typing import List, Tuple
@@ -307,7 +307,6 @@ def main():
     # If we are in either DB or INS mode, we need to insert the CSV files to the database now
     if mode in ('DB', 'INS'):
         insert_csvs(fnames_csv_vec=fnames_csv_vec, fnames_csv_elt=fnames_csv_elt, progbar=progbar)
-
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

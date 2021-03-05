@@ -1,0 +1,1 @@
+SELECT * FROM JPL.AsteroidElement WHERE epoch = 52342;
