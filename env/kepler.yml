@@ -385,6 +385,7 @@ dependencies:
     - grpcio==1.32.0
     - keras-preprocessing==1.1.2
     - opt-einsum==3.3.0
+    - psycopg2-binary==2.8.6
     - rebound==3.14.0
     - sqlalchemy==1.4.0b1
     - tensorboard==2.4.0
