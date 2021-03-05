@@ -22,10 +22,10 @@ CREATE OR REPLACE TABLE KS.AsteroidVectors(
 		COMMENT "Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame",
 	-- Keys and constraints
 	PRIMARY KEY (TimeID, AsteroidID)
-		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance."
+		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
 	UNIQUE KEY UNQ_AsteroidID_TimeID(AsteroidID, TimeID)
         COMMENT "Allow fast search keyed first by AsteroidID.",
-	CONSTRAINT FK_AsteroidVectors_TimeID FOREIGN KEY (TimeID) REFERENCES KS.DailyTime(TimeID)
+	CONSTRAINT FK_AsteroidVectors_TimeID FOREIGN KEY (TimeID) REFERENCES KS.DailyTime(TimeID),
 	CONSTRAINT FK_AsteroidVectors_BodyID	FOREIGN KEY (AsteroidID) REFERENCES KS.Asteroid(AsteroidID)
 )
 ENGINE='Aria' TRANSACTIONAL=0

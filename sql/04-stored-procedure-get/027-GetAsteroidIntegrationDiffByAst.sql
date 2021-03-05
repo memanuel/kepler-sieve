@@ -2,10 +2,17 @@ DELIMITER $$
 
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE KS.GetAsteroidIntegrationDiff()
+PROCEDURE KS.GetAsteroidIntegrationDiffByAst(
+	IN mjd0 int,
+	IN mjd1 int
+)
 COMMENT "Get the difference between the MSE asteroid integration and Horizons state vectors."
 
 BEGIN 
+
+-- Compute TimeID from mjd
+SET @TimeID_0 = mjd0 * 24 * 60;
+SET @TimeID_1 = mjd1 * 24 * 60;
 
 -- t1 is pairs of position vectors between MSE and JPL
 WITH t1 AS (
@@ -28,6 +35,8 @@ FROM
 	INNER JOIN JPL.HorizonsVectors AS hv ON
 		hv.TimeID = dt.TimeID AND 
 		hv.HorizonsBodyID = hb.HorizonsBodyID
+WHERE
+	dt.TimeID BETWEEN @TimeID_0 AND @TimeID_1
 ), 
 -- t2 computes the distance between the MSE and JPL position of each asteroid time snap
 -- pick up the semimajor axis a as a proxy for relative error denominator
@@ -43,14 +52,13 @@ FROM
 )
 -- Calculate the average absolute and relative difference by date
 SELECT
-	t2.MJD,
+	t2.AsteroidID,
 	avg(t2.dq) AS dq,
-	avg(t2.dq / a) AS dq_rel,
-	count(t2.AsteroidID) AS match_count
+	avg(t2.dq / a) AS dq_rel
 FROM
 	t2
-GROUP BY t2.MJD
-ORDER BY t2.MJD;
+GROUP BY t2.AsteroidID
+ORDER BY t2.AsteroidID;
 
 END
 $$
