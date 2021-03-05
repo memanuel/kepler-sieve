@@ -270,7 +270,7 @@ dependencies:
   - pyjwt=1.7.1=py38_0
   - pylint=2.7.1=py38h06a4308_1
   - pyls-black=0.4.6=hd3eb1b0_0
-  - pyls-spyder=0.3.0=pyhd3eb1b0_0
+  - pyls-spyder=0.3.2=pyhd3eb1b0_0
   - pymysql=1.0.2=py38h06a4308_1
   - pyodbc=4.0.30=py38he6710b0_0
   - pyopenssl=20.0.1=pyhd3eb1b0_1
