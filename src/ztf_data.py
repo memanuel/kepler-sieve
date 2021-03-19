@@ -15,23 +15,19 @@ import sqlalchemy
 import numpy as np
 import pandas as pd
 
-# # Astronomy related
-# from astropy.units import deg
+# Astronomy related
+from astropy.units import deg
 # from scipy.interpolate import CubicSpline
 
-# # Utility
-# import os
-# import datetime
-# from datetime import date
-# from tqdm.auto import tqdm
+# Utility
+import os
+from tqdm.auto import tqdm
 
-# # MSE imports
+# MSE imports
 # from utils import range_inc
 # from astro_utils import date_to_mjd, deg2dist, dist2deg, dist2sec
-# from ra_dec import radec2dir
-
-# # Typing
-# from typing import Optional, Dict
+from ra_dec import radec2dir
+from db_utils import csv2db
 
 # ********************************************************************************************************************* 
 # Global variables
@@ -51,6 +47,20 @@ def make_db_engine():
 # Connect to ZTF2 database; this is a shared resource, just one for the module
 db_engine: sqlalchemy.engine = make_db_engine()
 
+# Location to save CSV files
+data_dir = '../data/ztf'
+
+# Columns for tables extracted
+columns_class = ['ClassID', 'ClassName']
+
+columns_object = \
+        ['ObjectCD', 'ObservationCount', 'MeanRA', 'MeanDEC', 
+          'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'AsteroidProb']
+
+columns_detection = \
+    ['DetectionID', 'ObjectCD', 'mjd', 'RA', 'DEC', 
+    'MagPSF', 'MagApp', 'MagNR', 'Sigma_RA', 'Sigma_DEC', 'AsteroidProb']
+
 # ********************************************************************************************************************* 
 def load_ztf_classes():
     """Load contents of the ZTF class table"""
@@ -62,7 +72,7 @@ def load_ztf_classes():
         cls.name AS ClassName
     FROM 
         public.class AS cls
-    ORDER BY cls.id;
+    ORDER BY ClassID;
     """
 
     # Run query and return DataFrame
@@ -70,12 +80,8 @@ def load_ztf_classes():
         df = pd.read_sql(sql_stmt, conn)
 
     # Map column names (ZTF database has case insensitive column names)
-    cols = ['ClassID', 'ClassName']
-    mapper = {col.lower() : col for col in cols}
+    mapper = {col.lower() : col for col in columns_class}
     df.rename(mapper=mapper, axis='columns', inplace=True)
-
-    # Convert ObjectCD column from object to string data type
-    df['ClassName'] = df['ClassName'].astype('|S')
 
     return df
 
@@ -114,7 +120,7 @@ def load_ztf_objects(n0: int, sz: int):
         obj.nobs > 2 AND
         -- With at least 0.95 probability of being asteroids
         obj.pclassearly > 0.95
-    ORDER BY obj.oid
+    ORDER BY ObjectCD
     LIMIT %(limit)s OFFSET %(offset)s;
     """
 
@@ -126,18 +132,13 @@ def load_ztf_objects(n0: int, sz: int):
         df = pd.read_sql(sql_stmt, conn, params=params)
 
     # Map column names (ZTF database has case insensitive column names)
-    cols = ['ObjectCD', 'ObservationCount', 'MeanRA', 'MeanDEC', 
-            'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'AsteroidProb']
-    mapper = {col.lower() : col for col in cols}
+    mapper = {col.lower() : col for col in columns_object}
     df.rename(mapper=mapper, axis='columns', inplace=True)
-
-    # Convert ObjectCD column from object to string data type
-    df['ObjectCD'] = df['ObjectCD'].astype('|S')
 
     return df
 
 # ********************************************************************************************************************* 
-def load_ztf_det(n0: int, sz: int):
+def load_ztf_detections(n0: int, sz: int):
     """
     Load all the ZTF detections classified as asteroids in a date range.
     INPUTS:
@@ -146,13 +147,13 @@ def load_ztf_det(n0: int, sz: int):
     RETURNS:
         df: Pandas DataFrame of detections.  Includes columns ObjectID, CandidateID, mjd, ra, dec, asteroid_prob
     """
-    
+
     # SQL with parameters
-    sql = \
+    sql_stmt = \
     """
-    select
-        obj.oid as ObjectID,
-        det.candid as CandidateID,
+    SELECT
+        det.candid as DetectionID,
+        obj.oid as ObjectCD,
         det.mjd,
         det.ra as RA,
         det.dec as DEC,
@@ -162,42 +163,37 @@ def load_ztf_det(n0: int, sz: int):
         det.sigmara as Sigma_RA,
         det.sigmadec as Sigma_DEC,
         obj.pclassearly as AsteroidProb
-    from 
-        detections as det
-        inner join objects as obj on obj.oid = det.oid
-    where
-        %(mjd0)s <= det.mjd and det.mjd < %(mjd1)s and
-        obj.classearly = %(asteroid_class)s
+    FROM
+        public.detections as det
+        INNER JOIN public.objects AS obj ON obj.oid = det.oid
+    ORDER BY DetectionID
+    LIMIT %(limit)s OFFSET %(offset)s;
     """
-    
+
     # Set up parameters
     params = {'limit':sz, 'offset':n0}
-    
-    # Run query and return DataFrame
-    df = pd.read_sql_query(sql=sql, con=conn, params=params)
 
-    # Create new ObjectID column, with dtype Pandas string ('|S') rather than object
-    df.insert(loc=0, column='ObjectID', value=df.objectid.astype('|S'))
-    # Drop old objectid column, which is now redundant
-    df.drop(columns='objectid', inplace=True)
-    
-    # Create new CandidateID column, with dtype Pandas np.int64 rather than object
-    df.insert(loc=1, column='CandidateID', value=df.candidateid.astype(np.int64))
-    # Drop old candidateid column, which is now redundant
-    df.drop(columns='candidateid', inplace=True)
+    # Run query and return DataFrame
+    with db_engine.connect() as conn:
+        df = pd.read_sql(sql_stmt, conn, params=params)
+
+    # Map column names (ZTF database has case insensitive column names)
+    mapper = {col.lower() : col for col in columns_detection}
+    df.rename(mapper=mapper, axis='columns', inplace=True)
+
+    # Convert CandidateID column from object to np.int64
+    df['CandidateID'] = df['CandidateID'].astype(np.int64)
 
     return df
 
 # ********************************************************************************************************************* 
-def ztf_det_add_dir(df: pd.DataFrame, file_name: str, dir_name: str='../data/ztf'):
+def ztf_detection_add_dir(df: pd.DataFrame):
     """
     Add calculated directions to DataFrame of ZTF observations
     INPUTS:
         df: DataFrame of ZTF observations including ra, dec and mjd columns
-        file_name: Name to save DataFrame on disk, e.g. 'ztf-detections.h5'
-        dir_name:  Directory to save DataFrame on disk, e.g. '../data/ztf'
     OUTPUTS:
-        Modifies df in place and saves it to disk.
+        Modifies df in place.
     """
     # Extract mjd, ra, and dec as vectors of astropy angles
     mjd = df.mjd.values
@@ -208,67 +204,30 @@ def ztf_det_add_dir(df: pd.DataFrame, file_name: str, dir_name: str='../data/ztf
     u = radec2dir(ra=ra, dec=dec, obstime_mjd=mjd)    
 
     # Add these directions to the DataFrame in three columns after dec
-    col_num_dec = df.columns.get_loc('dec')
+    col_num_dec = df.columns.get_loc('DEC')
     df.insert(loc=col_num_dec+1, column='ux', value=u[0])
     df.insert(loc=col_num_dec+2, column='uy', value=u[1])
     df.insert(loc=col_num_dec+3, column='uz', value=u[2])
 
-    # Save modified DataFrame to disk
-    path: str = os.path.join(dir_name, file_name)
-    df.to_hdf(path, key='df', mode='w')
+# ********************************************************************************************************************* 
+def main():
+    """
+    Main routine for console program
+    """
+    # Schema for permanent DB
+    schema = 'ZTF'
+    
+    # File names for output
+    fname_class = os.path.join(data_dir, 'ObjectClass.csv')
+
+    # Column names for each type
+    columns_class = ['']
+
+    # Extract the object classes from Alerce's ZTF database, save as CSV, and insert into MSE database
+    df_cls = load_ztf_classes()
+    df_cls.to_csv(fname_class, index=False)
+    csv2db(schema=schema, table='ObjectClass', columns=columns_class, fname_csv=fname_class)
 
 # ********************************************************************************************************************* 
-def load_ztf_det_all(verbose: bool = False):
-    """
-    Load all available ZTF detections
-    INPUTS:
-        verbose:  Whether to print status messages to console
-    RETURNS:
-        df: Pandas DataFrame of detections.  Includes columns ObjectID, CandidateID, mjd, ra, dec, asteroid_prob
-    """
-    # Check if file already exists.  If so, load it from memory and return early
-    save_dir = '../data/ztf'
-    file_path = os.path.join(save_dir, f'ztf-detections.h5')
-    try:
-        df = pd.read_hdf(file_path)
-        if verbose:
-            print(f'Loaded {file_path} from disk.')
-        # Generate the unique times
-        mjd_unq = np.unique(df.mjd.values)
-        return df, mjd_unq
-    except:
-        if verbose:
-            print(f'Assembling {file_name} from ZTF detections by year...')   
-        # Load data for all years with available data
-        dfs = []
-        year0 = 2018  # first year of ZTF2 data
-        year1 = datetime.datetime.today().year
-        for year in range_inc(year0, year1):
-            df = load_ztf_det_year(year=year)
-            dfs.append(df)
-
-        # Combine frames into one DataFrame
-        df = pd.concat(dfs)
-        # Reindex the combined DataFrame; otherwise will have duplicated indices
-        df = ztf_reindex(df)
-        # Add calculated directions; save file to disk; and return it
-        ztf_det_add_dir(df=df, file_name='ztf-detections.h5', dir_name='../data/ztf')
-
-    # Drop the superfluous magnitude columns to avoid confusion
-    df.drop(columns=['mag_psf', 'mag_nr'], inplace=True)
-    # Rename the column 'mag_app' to 'mag'
-    df.rename(columns={'mag_app':'mag'})
-
-    # Generate the TimeStampID column.  This is integer key counting the unique times of observations.
-    mjd_unq, time_stamp_id = np.unique(df.mjd.values, return_inverse=True)
-    # Convert time_stamp_id to 32 bit integer
-    time_stamp_id = time_stamp_id.astype(np.int32)
-    # Add TimeStampID to the DataFrame
-    col_num_ts = df.columns.get_loc('CandidateID') + 1
-    df.insert(loc=col_num_ts, column='TimeStampID', value=time_stamp_id)
-
-    # Save assembled DataFrame to disk
-    df.to_hdf(file_path, key='ztf', mode='w')
-
-    # Return the DataFrame of observations and vector of unique observation times
-    return df, mjd_unq
+if __name__ == '__main__':
+    main()

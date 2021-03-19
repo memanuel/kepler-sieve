@@ -269,11 +269,6 @@ def main():
     process_sim(sim=sim, collection_cd=collection_cd, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day, 
                 save_elements=save_elements, truncate=truncate)
 
-    # Regenerate IntegrationDiff table if requested
-    # if regen_diff:
-    #     print(f'\nRegenerating table KS.Integration_Diff...')
-    #     sp2df(sp_name='KS.MakeTable_IntegrationDiff', params=dict())
-
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     main()
