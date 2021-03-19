@@ -1,5 +1,5 @@
 [mariadb-import]
-host = Thor
+host = Thor.elliptic.loc
 user = kepler
 password = kepler
 local = true

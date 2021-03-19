@@ -226,7 +226,7 @@ def main():
     # Extract the object classes from Alerce's ZTF database, save as CSV, and insert into MSE database
     df_cls = load_ztf_classes()
     df_cls.to_csv(fname_class, index=False)
-    csv2db(schema=schema, table='ObjectClass', columns=columns_class, fname_csv=fname_class)
+    # csv2db(schema=schema, table='ObjectClass', columns=columns_class, fname_csv=fname_class)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
