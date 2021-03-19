@@ -8,141 +8,56 @@ Michael S. Emanuel
 """
 
 # Libraries for getting Alerce data out of ZTF2 database
-# import psycopg2
-import sqlalchemy
+import json
+import psycopg2
+from alerce.api import AlerceAPI
 
 # Standard libraries
 import numpy as np
 import pandas as pd
 
-# # Astronomy related
-# from astropy.units import deg
-# from scipy.interpolate import CubicSpline
+# Astronomy related
+from astropy.units import deg
+from scipy.interpolate import CubicSpline
 
-# # Utility
-# import os
-# import datetime
-# from datetime import date
-# from tqdm.auto import tqdm
+# Utility
+import os
+import datetime
+from datetime import date
+from tqdm.auto import tqdm
 
-# # MSE imports
-# from utils import range_inc
-# from astro_utils import date_to_mjd, deg2dist, dist2deg, dist2sec
-# from ra_dec import radec2dir
+# MSE imports
+from utils import range_inc
+from astro_utils import date_to_mjd, deg2dist, dist2deg, dist2sec
+from ra_dec import radec2dir
+from asteroid_dataframe import calc_ast_data, spline_ast_vec_df, calc_ast_dir, spline_ast_vec_dir
+from ztf_ast import load_ztf_nearest_ast
 
-# # Typing
-# from typing import Optional, Dict
+# Typing
+from typing import Optional, Dict
 
 # ********************************************************************************************************************* 
 # Global variables
 
-# Create database engine for ZTF2
-def make_db_engine():
-    # Credentials for ZTF2 connection
-    username = 'alerceread'
-    password = 'alerce2019'
-    hostname = 'db.alerce.online:5432'
-    dbname = 'ztf_v2'
-    # Build DB url and build the DB engine
-    db_url: str = f'postgresql+psycopg2://{username}:{password}@{hostname}/{dbname}'
-    db_engine: sqlalchemy.engine = sqlalchemy.create_engine(db_url, pool_size=32)
-    return db_engine
+# Credentials for ZTF2 connection
+credentials_file = "../alerce/alercereaduser.json"
+with open(credentials_file) as fh:
+    cred = json.load(fh)["params"]
 
 # Connect to ZTF2 database; this is a shared resource, just one for the module
-db_engine: sqlalchemy.engine = make_db_engine()
+try:
+    conn = psycopg2.connect(dbname=cred['dbname'], user=cred['user'], host=cred['host'], password=cred['password'])
+except:
+    print(f'Unable to get ZTF2 connection.')
+    conn = None
 
 # ********************************************************************************************************************* 
-def load_ztf_classes():
-    """Load contents of the ZTF class table"""
-    # SQL statement
-    sql_stmt = \
-    """
-    SELECT
-        cls.id AS ClassID,
-        cls.name AS ClassName
-    FROM 
-        public.class AS cls
-    ORDER BY cls.id;
-    """
-
-    # Run query and return DataFrame
-    with db_engine.connect() as conn:
-        df = pd.read_sql(sql_stmt, conn)
-
-    # Map column names (ZTF database has case insensitive column names)
-    cols = ['ClassID', 'ClassName']
-    mapper = {col.lower() : col for col in cols}
-    df.rename(mapper=mapper, axis='columns', inplace=True)
-
-    # Convert ObjectCD column from object to string data type
-    df['ClassName'] = df['ClassName'].astype('|S')
-
-    return df
-
-# ********************************************************************************************************************* 
-def load_ztf_objects(n0: int, sz: int):
-    """
-    Load entries from ZTF objects table
-    INPUTS:
-        n0: Start of batch
-        sz: Number of records to load
-    
-    RETURNS:
-        Pandas DataFrame of the objects.
-    """
-    # SQL statement
-    sql_stmt = \
-    """
-    SELECT
-        obj.oid AS ObjectCD,
-        obj.nobs AS ObservationCount,
-        obj.firstmjd AS mjd0,
-        obj.lastmjd AS mjd1,
-        obj.meanra AS MeanRA,
-        obj.meandec AS MeanDEC,
-        obj.mean_magap_g AS MeanMag_g,	
-        obj.mean_magap_r AS MeanMag_r,	
-        obj.mean_magpsf_g AS MeanMagPSF_g,	
-        obj.mean_magpsf_r AS MeanMagPSF_r,	
-        obj.pclassearly AS AsteroidProb
-    FROM 
-        public.objects AS obj
-    WHERE
-        -- Objects classified as asteroids
-        obj.classearly=21 AND
-        -- with at least 2 observations
-        obj.nobs > 2 AND
-        -- With at least 0.95 probability of being asteroids
-        obj.pclassearly > 0.95
-    ORDER BY obj.oid
-    LIMIT %(limit)s OFFSET %(offset)s;
-    """
-
-    # Set up parameters
-    params = {'limit':sz, 'offset':n0}
-
-    # Run query and return DataFrame
-    with db_engine.connect() as conn:
-        df = pd.read_sql(sql_stmt, conn, params=params)
-
-    # Map column names (ZTF database has case insensitive column names)
-    cols = ['ObjectCD', 'ObservationCount', 'MeanRA', 'MeanDEC', 
-            'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'AsteroidProb']
-    mapper = {col.lower() : col for col in cols}
-    df.rename(mapper=mapper, axis='columns', inplace=True)
-
-    # Convert ObjectCD column from object to string data type
-    df['ObjectCD'] = df['ObjectCD'].astype('|S')
-
-    return df
-
-# ********************************************************************************************************************* 
-def load_ztf_det(n0: int, sz: int):
+def load_ztf_det(mjd0: float, mjd1: float):
     """
     Load all the ZTF detections classified as asteroids in a date range.
     INPUTS:
-        n0: Start of batch
-        sz: Number of records to load
+        mjd0: Modified Julian Date (mjd) to start processing, e.g. 55197.0 for 2010-01-01
+        mjd1: Modified Julian Date (mjd) to end processing, e.g. 55197.0+7.0 for one week
     RETURNS:
         df: Pandas DataFrame of detections.  Includes columns ObjectID, CandidateID, mjd, ra, dec, asteroid_prob
     """
@@ -154,14 +69,14 @@ def load_ztf_det(n0: int, sz: int):
         obj.oid as ObjectID,
         det.candid as CandidateID,
         det.mjd,
-        det.ra as RA,
-        det.dec as DEC,
-        det.magpsf as MagPSF,
-        det.magap as MagApp,
-        det.magnr as MagNR,
-        det.sigmara as Sigma_RA,
-        det.sigmadec as Sigma_DEC,
-        obj.pclassearly as AsteroidProb
+        det.ra,
+        det.dec,
+        det.magpsf as mag_psf,
+        det.magap as mag_app,
+        det.magnr as nag_nr,
+        det.sigmara as sigma_ra,
+        det.sigmadec as sigma_dec,
+        obj.pclassearly as asteroid_prob
     from 
         detections as det
         inner join objects as obj on obj.oid = det.oid
@@ -171,21 +86,94 @@ def load_ztf_det(n0: int, sz: int):
     """
     
     # Set up parameters
-    params = {'limit':sz, 'offset':n0}
+    params = {'mjd0':mjd0, 'mjd1':mjd1, 'asteroid_class':21}
     
     # Run query and return DataFrame
     df = pd.read_sql_query(sql=sql, con=conn, params=params)
 
     # Create new ObjectID column, with dtype Pandas string ('|S') rather than object
-    df.insert(loc=0, column='ObjectID', value=df.objectid.astype('|S'))
+    df.insert(loc=0, column='ObjectID', value=df.objectid.astype('|S'))    
     # Drop old objectid column, which is now redundant
     df.drop(columns='objectid', inplace=True)
     
     # Create new CandidateID column, with dtype Pandas np.int64 rather than object
-    df.insert(loc=1, column='CandidateID', value=df.candidateid.astype(np.int64))
+    df.insert(loc=1, column='CandidateID', value=df.candidateid.astype(np.int64))    
     # Drop old candidateid column, which is now redundant
     df.drop(columns='candidateid', inplace=True)
 
+    return df
+
+
+# ********************************************************************************************************************* 
+def ztf_reindex(ztf: pd.DataFrame, offset: np.int32 = 0) -> pd.DataFrame:
+    """Reindex a ZTF DataFrame so it is sorted by (mjd, CandidateID)"""
+    # Extract the two columns used for the sort: mjd and candidate_id
+    mjd = ztf.mjd.values
+    candidate_id = ztf.CandidateID.values
+    # Perform a lexical sort: first by mjd, then by candidate_id
+    index = np.lexsort(keys=(mjd, candidate_id))
+    # Need to reset the index because there may be duplicates in the input
+    ztf.reset_index(drop=True, inplace=True)
+    # Reindex the dataframe
+    ztf = ztf.reindex(index=index)
+    # Sort the dataframe in place by the new index
+    ztf.sort_index(inplace=True)
+    # Add the offset to the index
+    if offset != 0:
+        ztf.index += offset
+    # Return the sorted DataFrame
+    return ztf
+
+# ********************************************************************************************************************* 
+def load_ztf_det_year(year: int, save_dir: str = '../data/ztf'):
+    """
+    Load all ZTF detections in a year
+    INPUTS:
+        year: the year to be processed, e.g. 2019
+        save_dir: directory to save the DataFrame
+    OUTPUTS:
+        df:   one combined DataFrame with all ZTF2 asteroid detections in this year
+              same columns as load_ztf_det.
+    """
+    # Check if file already exists.  If so, load it from memory and return early
+    file_name = os.path.join(save_dir, f'ztf-detections-{year}.h5')
+    try:
+        df = pd.read_hdf(file_name)
+        print(f'Loaded {file_name} from disk.')
+        return df
+    except:
+        print(f'Querying ZTF2 for data...')
+    
+    # Start and end date
+    mjd0 = date_to_mjd(date(year,1,1))
+    mjd1 = date_to_mjd(date(year+1,1,1))
+
+    # Sample dates at weekly intervals, with one long "week" at the end
+    mjd = np.arange(mjd0, mjd1, 7, dtype=np.float64)
+    mjd[-1] = mjd1
+    # Number of weeks (will be 52)
+    n: int = len(mjd)-1
+
+    # Array of DataFrames
+    df_list = np.empty(shape=n, dtype=np.object)
+    
+    # Process one week at a time
+    for i in tqdm(range(n)):
+        # Start and end of week i
+        mjd0_week, mjd1_week = mjd[i:i+2]
+        # print(f'i={i}; mjd0={mjd0_week}, mjd1={mjd1_week}')
+        # Process this week
+        df_i = load_ztf_det(mjd0=mjd0_week, mjd1=mjd1_week)
+        df_list[i] = df_i
+        # Save this week into the HDF5; append mode adds one week at a time
+        # df_i.to_hdf(file_name, key='df', mode='a', append=True)
+        
+    # Assemble the weeks into one DataFrame
+    df = pd.concat(df_list)
+    # Reindex the DataFrame
+    df = ztf_reindex(df)
+    # Save the combined DataFrame into an HDF5 file
+    df.to_hdf(file_name, key='df', mode='w')
     return df
 
 # ********************************************************************************************************************* 
