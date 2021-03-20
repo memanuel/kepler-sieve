@@ -21,13 +21,14 @@ from astropy.units import deg
 
 # Utility
 import os
+from itertools import count
 from tqdm.auto import tqdm
 
 # MSE imports
 # from utils import range_inc
 # from astro_utils import date_to_mjd, deg2dist, dist2deg, dist2sec
 from ra_dec import radec2dir
-from db_utils import csv2db
+from db_utils import csv2db, sp2df
 
 # ********************************************************************************************************************* 
 # Global variables
@@ -51,15 +52,14 @@ db_engine: sqlalchemy.engine = make_db_engine()
 data_dir = '../data/ztf'
 
 # Columns for tables extracted
-columns_class = ['ClassID', 'ClassName']
+columns_cls = ['ObjectClassID', 'ObjectClassName']
 
-columns_object = \
-        ['ObjectCD', 'ObservationCount', 'MeanRA', 'MeanDEC', 
+columns_obj = \
+        ['ObjectCD', 'ObservationCount', 'mjd0', 'mjd1', 'MeanRA', 'MeanDEC', 
           'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'AsteroidProb']
 
-columns_detection = \
-    ['DetectionID', 'ObjectCD', 'mjd', 'RA', 'DEC', 
-    'MagPSF', 'MagApp', 'MagNR', 'Sigma_RA', 'Sigma_DEC', 'AsteroidProb']
+columns_det = \
+    ['DetectionID', 'ObjectCD', 'mjd', 'RA', 'DEC', 'MagPSF', 'MagApp', 'MagNR', 'Sigma_RA', 'Sigma_DEC']
 
 # ********************************************************************************************************************* 
 def load_ztf_classes():
@@ -68,11 +68,11 @@ def load_ztf_classes():
     sql_stmt = \
     """
     SELECT
-        cls.id AS ClassID,
-        cls.name AS ClassName
+        cls.id AS ObjectClassID,
+        cls.name AS ObjectClassName
     FROM 
         public.class AS cls
-    ORDER BY ClassID;
+    ORDER BY ObjectClassID;
     """
 
     # Run query and return DataFrame
@@ -80,22 +80,23 @@ def load_ztf_classes():
         df = pd.read_sql(sql_stmt, conn)
 
     # Map column names (ZTF database has case insensitive column names)
-    mapper = {col.lower() : col for col in columns_class}
+    mapper = {col.lower() : col for col in columns_cls}
     df.rename(mapper=mapper, axis='columns', inplace=True)
 
     return df
 
 # ********************************************************************************************************************* 
-def load_ztf_objects(n0: int, sz: int):
+def load_ztf_objects(n0: int, sz: int, min_object_cd: str):
     """
     Load entries from ZTF objects table
     INPUTS:
         n0: Start of batch
         sz: Number of records to load
-    
+        min_object_cd: Minimum object code 
     RETURNS:
         Pandas DataFrame of the objects.
     """
+
     # SQL statement
     sql_stmt = \
     """
@@ -106,10 +107,10 @@ def load_ztf_objects(n0: int, sz: int):
         obj.lastmjd AS mjd1,
         obj.meanra AS MeanRA,
         obj.meandec AS MeanDEC,
-        obj.mean_magap_g AS MeanMag_g,	
-        obj.mean_magap_r AS MeanMag_r,	
-        obj.mean_magpsf_g AS MeanMagPSF_g,	
-        obj.mean_magpsf_r AS MeanMagPSF_r,	
+        COALESCE(obj.mean_magap_g, -1.0) AS MeanMag_g,	
+        COALESCE(obj.mean_magap_r, -1.0) AS MeanMag_r,	
+        COALESCE(obj.mean_magpsf_g, -1.0) AS MeanMagPSF_g,	
+        COALESCE(obj.mean_magpsf_r, -1.0) AS MeanMagPSF_r,	
         obj.pclassearly AS AsteroidProb
     FROM 
         public.objects AS obj
@@ -119,31 +120,34 @@ def load_ztf_objects(n0: int, sz: int):
         -- with at least 2 observations
         obj.nobs > 2 AND
         -- With at least 0.95 probability of being asteroids
-        obj.pclassearly > 0.95
+        obj.pclassearly > 0.95 AND
+        -- Only those greater than the last object code before we started this batch
+        obj.oid > %(min_object_cd)s
     ORDER BY ObjectCD
     LIMIT %(limit)s OFFSET %(offset)s;
     """
 
     # Set up parameters
-    params = {'limit':sz, 'offset':n0}
+    params = {'limit':sz, 'offset':n0, 'min_object_cd':min_object_cd}
 
     # Run query and return DataFrame
     with db_engine.connect() as conn:
         df = pd.read_sql(sql_stmt, conn, params=params)
 
     # Map column names (ZTF database has case insensitive column names)
-    mapper = {col.lower() : col for col in columns_object}
+    mapper = {col.lower() : col for col in columns_obj}
     df.rename(mapper=mapper, axis='columns', inplace=True)
 
     return df
 
 # ********************************************************************************************************************* 
-def load_ztf_detections(n0: int, sz: int):
+def load_ztf_detections(n0: int, sz: int, min_detection_id: int):
     """
     Load all the ZTF detections classified as asteroids in a date range.
     INPUTS:
         n0: Start of batch
         sz: Number of records to load
+        min_object_id: Minimum detection ID
     RETURNS:
         df: Pandas DataFrame of detections.  Includes columns ObjectID, CandidateID, mjd, ra, dec, asteroid_prob
     """
@@ -157,32 +161,36 @@ def load_ztf_detections(n0: int, sz: int):
         det.mjd,
         det.ra as RA,
         det.dec as DEC,
-        det.magpsf as MagPSF,
-        det.magap as MagApp,
-        det.magnr as MagNR,
+        COALESCE(det.magpsf, -1.0) as MagPSF,
+        COALESCE(det.magap,  -1.0) as MagApp,
+        COALESCE(det.magnr, -1.0) as MagNR,
         det.sigmara as Sigma_RA,
-        det.sigmadec as Sigma_DEC,
-        obj.pclassearly as AsteroidProb
+        det.sigmadec as Sigma_DEC
     FROM
         public.detections as det
         INNER JOIN public.objects AS obj ON obj.oid = det.oid
+    WHERE
+        -- With at least 0.95 probability of being asteroids
+        obj.pclassearly > 0.95 AND
+        -- Only detections after the last one we've already loaded
+        det.candid > %(min_detection_id)s
     ORDER BY DetectionID
     LIMIT %(limit)s OFFSET %(offset)s;
     """
 
     # Set up parameters
-    params = {'limit':sz, 'offset':n0}
+    params = {'limit':sz, 'offset':n0, 'min_detection_id':min_detection_id}
 
     # Run query and return DataFrame
     with db_engine.connect() as conn:
         df = pd.read_sql(sql_stmt, conn, params=params)
 
     # Map column names (ZTF database has case insensitive column names)
-    mapper = {col.lower() : col for col in columns_detection}
+    mapper = {col.lower() : col for col in columns_det}
     df.rename(mapper=mapper, axis='columns', inplace=True)
 
     # Convert CandidateID column from object to np.int64
-    df['CandidateID'] = df['CandidateID'].astype(np.int64)
+    df['DetectionID'] = df['DetectionID'].astype(np.int64)
 
     return df
 
@@ -218,15 +226,49 @@ def main():
     schema = 'ZTF'
     
     # File names for output
-    fname_class = os.path.join(data_dir, 'ObjectClass.csv')
+    fname_cls = os.path.join(data_dir, 'ObjectClass.csv')
+    fname_obj = os.path.join(data_dir, 'Object.csv')
+    fname_det = os.path.join(data_dir, 'Detection.csv')
 
-    # Column names for each type
-    columns_class = ['']
+    # For each table, three tasks:
+    # (1) Extract the data
+    # (2) Save as CSV file(s)
+    # (3) Insert into KeplerDB.ZTF database schema
 
-    # Extract the object classes from Alerce's ZTF database, save as CSV, and insert into MSE database
+    # Process ObjectClass table
     df_cls = load_ztf_classes()
-    df_cls.to_csv(fname_class, index=False)
-    # csv2db(schema=schema, table='ObjectClass', columns=columns_class, fname_csv=fname_class)
+    df_cls.to_csv(fname_cls, index=False)
+    csv2db(schema=schema, table='ObjectClass', columns=columns_cls, fname_csv=fname_cls)
+
+    # The last object code already in the DB
+    min_object_cd = str(sp2df('ZTF.GetObjectLast').LastObjectCD[0])
+    print(f'Last ObjectCD found in ZTF.Object = {min_object_cd}.  Processing new objects...')
+
+    # Process Object table in batches
+    sz_obj = 1000
+    nMax_obj: int = 100000
+    for n0 in tqdm(range(0, nMax_obj, sz_obj)):
+        df_obj = load_ztf_objects(n0=n0, sz=sz_obj, min_object_cd=min_object_cd)
+        df_obj.to_csv(fname_obj, index=False)
+        csv2db(schema=schema, table='Object', columns=columns_obj, fname_csv=fname_obj)
+        # Quit early if no rows in resultset
+        if df_obj.shape[0] == 0:
+            break
+
+    # The last object code already in the DB
+    min_detection_id= int(sp2df('ZTF.GetDetectionLast').LastDetectionID[0])
+    print(f'Last DetectionID found in ZTF.Detection = {min_detection_id}.  Processing new objects...')
+
+    # Process Detection table in batches
+    sz_det = 1000
+    nMax_det: int = 100000
+    for n0 in tqdm(range(0, nMax_det, sz_det)):
+        df_det = load_ztf_detections(n0=n0, sz=sz_det, min_detection_id=min_detection_id)
+        df_det.to_csv(fname_det, index=False)
+        csv2db(schema=schema, table='Detection', columns=columns_det, fname_csv=fname_det)
+        # Quit early if no rows in resultset
+        if df_det.shape[0] == 0:
+            break
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
