@@ -56,7 +56,7 @@ columns_cls = ['ObjectClassID', 'ObjectClassName']
 
 columns_obj = \
         ['ObjectCD', 'ObservationCount', 'mjd0', 'mjd1', 'MeanRA', 'MeanDEC', 
-          'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'AsteroidProb']
+         'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'ObjectClassID', 'ClassificationProb']
 
 columns_det = \
     ['DetectionID', 'ObjectCD', 'mjd', 'RA', 'DEC', 'MagPSF', 'MagApp', 'MagNR', 'Sigma_RA', 'Sigma_DEC']
@@ -107,20 +107,15 @@ def load_ztf_objects(n0: int, sz: int, min_object_cd: str):
         obj.lastmjd AS mjd1,
         obj.meanra AS MeanRA,
         obj.meandec AS MeanDEC,
-        COALESCE(obj.mean_magap_g, -1.0) AS MeanMag_g,	
-        COALESCE(obj.mean_magap_r, -1.0) AS MeanMag_r,	
-        COALESCE(obj.mean_magpsf_g, -1.0) AS MeanMagPSF_g,	
-        COALESCE(obj.mean_magpsf_r, -1.0) AS MeanMagPSF_r,	
-        obj.pclassearly AS AsteroidProb
+        obj.mean_magap_g AS MeanMag_g,	
+        obj.mean_magap_r AS MeanMag_r,	
+        obj.mean_magpsf_g AS MeanMagPSF_g,	
+        obj.mean_magpsf_r AS MeanMagPSF_r,
+        obj.classearly AS ObjectClassID,
+        obj.pclassearly AS ClassificationProb        
     FROM 
         public.objects AS obj
     WHERE
-        -- Objects classified as asteroids
-        obj.classearly=21 AND
-        -- with at least 2 observations
-        obj.nobs > 2 AND
-        -- With at least 0.95 probability of being asteroids
-        obj.pclassearly > 0.95 AND
         -- Only those greater than the last object code before we started this batch
         obj.oid > %(min_object_cd)s
     ORDER BY ObjectCD
@@ -132,7 +127,7 @@ def load_ztf_objects(n0: int, sz: int, min_object_cd: str):
 
     # Run query and return DataFrame
     with db_engine.connect() as conn:
-        df = pd.read_sql(sql_stmt, conn, params=params)
+        df = pd.read_sql(sql_stmt, conn, params=params).fillna(-1.0)
 
     # Map column names (ZTF database has case insensitive column names)
     mapper = {col.lower() : col for col in columns_obj}
@@ -157,24 +152,21 @@ def load_ztf_detections(n0: int, sz: int, min_detection_id: int):
     """
     SELECT
         det.candid as DetectionID,
-        obj.oid as ObjectCD,
+        det.oid as ObjectCD,
         det.mjd,
         det.ra as RA,
         det.dec as DEC,
-        COALESCE(det.magpsf, -1.0) as MagPSF,
-        COALESCE(det.magap,  -1.0) as MagApp,
-        COALESCE(det.magnr, -1.0) as MagNR,
+        det.magpsf as MagPSF,
+        det.magap as MagApp,
+        det.magnr as MagNR,
         det.sigmara as Sigma_RA,
         det.sigmadec as Sigma_DEC
     FROM
         public.detections as det
-        INNER JOIN public.objects AS obj ON obj.oid = det.oid
     WHERE
-        -- With at least 0.95 probability of being asteroids
-        obj.pclassearly > 0.95 AND
         -- Only detections after the last one we've already loaded
         det.candid > %(min_detection_id)s
-    ORDER BY DetectionID
+    ORDER BY DetectionID        
     LIMIT %(limit)s OFFSET %(offset)s;
     """
 
@@ -183,7 +175,7 @@ def load_ztf_detections(n0: int, sz: int, min_detection_id: int):
 
     # Run query and return DataFrame
     with db_engine.connect() as conn:
-        df = pd.read_sql(sql_stmt, conn, params=params)
+        df = pd.read_sql(sql_stmt, conn, params=params).fillna(-1.0)
 
     # Map column names (ZTF database has case insensitive column names)
     mapper = {col.lower() : col for col in columns_det}
@@ -245,8 +237,10 @@ def main():
     print(f'Last ObjectCD found in ZTF.Object = {min_object_cd}.  Processing new objects...')
 
     # Process Object table in batches
-    sz_obj = 1000
-    nMax_obj: int = 100000
+    sz_obj = 100000
+    nMax_obj: int = sz_obj
+    # There are about 53.3 million objects according to the DB statistics
+    # nMax_obj: int = 55000000
     for n0 in tqdm(range(0, nMax_obj, sz_obj)):
         df_obj = load_ztf_objects(n0=n0, sz=sz_obj, min_object_cd=min_object_cd)
         df_obj.to_csv(fname_obj, index=False)
@@ -260,8 +254,10 @@ def main():
     print(f'Last DetectionID found in ZTF.Detection = {min_detection_id}.  Processing new objects...')
 
     # Process Detection table in batches
-    sz_det = 1000
-    nMax_det: int = 100000
+    sz_det = 100000
+    nMax_det = sz_det
+    # There are about 146.3 million detections according to the DB statistics
+    # nMax_det: int = 147000000
     for n0 in tqdm(range(0, nMax_det, sz_det)):
         df_det = load_ztf_detections(n0=n0, sz=sz_det, min_detection_id=min_detection_id)
         df_det.to_csv(fname_det, index=False)
