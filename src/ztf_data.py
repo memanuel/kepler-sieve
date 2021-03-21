@@ -238,11 +238,12 @@ def main():
 
     # Process Object table in batches
     sz_obj = 100000
-    nMax_obj: int = sz_obj
     # There are about 53.3 million objects according to the DB statistics
-    # nMax_obj: int = 55000000
+    nMax_obj: int = 55000000
     for n0 in tqdm(range(0, nMax_obj, sz_obj)):
-        df_obj = load_ztf_objects(n0=n0, sz=sz_obj, min_object_cd=min_object_cd)
+        # df_obj = load_ztf_objects(n0=n0, sz=sz_obj, min_object_cd=min_object_cd)
+        min_object_cd = str(sp2df('ZTF.GetObjectLast').LastObjectCD[0])
+        df_obj = load_ztf_objects(n0=0, sz=sz_obj, min_object_cd=min_object_cd)
         df_obj.to_csv(fname_obj, index=False)
         csv2db(schema=schema, table='Object', columns=columns_obj, fname_csv=fname_obj)
         # Quit early if no rows in resultset
@@ -255,11 +256,12 @@ def main():
 
     # Process Detection table in batches
     sz_det = 100000
-    nMax_det = sz_det
     # There are about 146.3 million detections according to the DB statistics
-    # nMax_det: int = 147000000
+    nMax_det: int = 147000000
     for n0 in tqdm(range(0, nMax_det, sz_det)):
-        df_det = load_ztf_detections(n0=n0, sz=sz_det, min_detection_id=min_detection_id)
+        # df_det = load_ztf_detections(n0=n0, sz=sz_det, min_detection_id=min_detection_id)
+        min_detection_id= int(sp2df('ZTF.GetDetectionLast').LastDetectionID[0])
+        df_det = load_ztf_detections(n0=0, sz=sz_det, min_detection_id=min_detection_id)
         df_det.to_csv(fname_det, index=False)
         csv2db(schema=schema, table='Detection', columns=columns_det, fname_csv=fname_det)
         # Quit early if no rows in resultset
