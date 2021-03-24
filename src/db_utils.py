@@ -268,8 +268,9 @@ def csv2db(schema: str, table: str, columns: List[str], fname_csv: str):
     OUTPUTS:
         None. Modifies the database table.
     """
-    # List of column names
-    col_list = ','.join(columns)
+    # List of column names with quoted identifiers
+    columns_qi = [f'`{c:s}`' for c in columns]
+    col_list = ','.join(columns_qi)
 
     # File name for loading; 
     parent_folder = Path(fname_csv).parent
