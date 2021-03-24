@@ -1,5 +1,4 @@
 """
-Harvard IACS Masters Thesis
 Astronomy: Transformation of Right Ascension & Declination (RA/DEC) to Ecliptic Directions
 
 Michael S. Emanuel

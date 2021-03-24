@@ -1,7 +1,6 @@
 """
-Harvard IACS Masters Thesis
-ZTF Data
-Utilities for acquiring data from the ZTF2 database using the Alerce data broker.
+ZTF Data Load
+Load data from the ZTF2 database using the Alerce data broker into MSE database.
 
 Michael S. Emanuel
 27-Feb-2020
@@ -267,6 +266,9 @@ def main():
         # Quit early if no rows in resultset
         if df_det.shape[0] == 0:
             break
+
+    # Call SQL procedure to add new rows to ZTF.DetectionTime from ZTF.Detection
+    sp_run('ZTF.MakeTable_DetectionTime')    
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

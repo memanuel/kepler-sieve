@@ -93,7 +93,7 @@ def plot_errors(dfd_p: pd.DataFrame, dfd_d: pd.DataFrame, window: int):
     """
 
     # Array of dates from MJDs
-    dt = np.array([mjd_to_date(mjd) for mjd in dfd_p.MJD])
+    dt = np.array([mjd_to_date(mjd) for mjd in dfd_p['MJD']])
 
     # Set window for rolling average
     half_window: int = window // 2
@@ -103,7 +103,7 @@ def plot_errors(dfd_p: pd.DataFrame, dfd_d: pd.DataFrame, window: int):
     # Generate moving average error
     plot_x = dt[half_window:n-half_window]
     plot_y_p = dfd_p.dq_rel.rolling(window).mean()[window:]
-    plot_y_d = dfd_d.dq_rel.rolling(window).mean()[window:]
+    # plot_y_d = dfd_d.dq_rel.rolling(window).mean()[window:]
 
     # Plot position error
     fig, ax = plt.subplots(figsize=[16,10])
@@ -112,7 +112,7 @@ def plot_errors(dfd_p: pd.DataFrame, dfd_d: pd.DataFrame, window: int):
     ax.set_xlabel(f'End Date ({window} day moving average)')
     ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0,))
     ax.plot(plot_x, plot_y_p, label='Planets', color='blue')
-    ax.plot(plot_x, plot_y_d, label='DE435', color='red')
+    # ax.plot(plot_x, plot_y_d, label='DE435', color='red')
     ax.grid()
     ax.legend()
     fig.savefig(fname='../figs/integration_test/planets/pos_error.png', bbox_inches='tight')    
@@ -161,10 +161,10 @@ def main():
     df_p, dfd_p, dfd_xm_p = report_error(body_collection='Planets', mjd0=mjd0, mjd1=mjd1)
 
     # Run error on DE435
-    df_d, dfd_d, dfd_xm_d = report_error(body_collection='DE435', mjd0=mjd0, mjd1=mjd1)
+    # df_d, dfd_d, dfd_xm_d = report_error(body_collection='DE435', mjd0=mjd0, mjd1=mjd1)
 
     # Generate plots
-    plot_errors(dfd_p=dfd_p, dfd_d=dfd_d, window=180)
+    plot_errors(dfd_p=dfd_p, dfd_d=dfd_p, window=180)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
