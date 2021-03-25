@@ -44,7 +44,7 @@ def integrate_mjds(sim_epoch: rebound.Simulation, mjds: np.array, save_elements:
     """
     # Look up the epoch from the base simulation
     epoch: float = float(sim_epoch.epoch)
-    print(f'epoch={epoch}')
+    # print(f'epoch={epoch}')
 
     # Look up body IDs and names
     body_ids: np.ndarray = sim_epoch.body_ids
@@ -317,5 +317,30 @@ def integrate_df(sim_epoch: rebound.Simulation,
             interval_p=interval_p, interval_q=interval_q, save_elements=save_elements, progbar=progbar)
     # Delegate to integration_np2df
     df = integration_np2df(body_ids=body_ids, body_names=body_names, epochs=epochs, q=q, v=v, elts=elts)
+
+    return df
+
+# ********************************************************************************************************************* 
+def integrate_mjds_df(sim_epoch: rebound.Simulation, mjds: np.array, save_elements: bool, progbar: bool) -> None:
+    """
+    Perform an integration in rebound to a specific set of MJDs and save to Pandas DataFrame.
+    INPUTS:
+        sim_epoch:      rebound simulation object as of the epoch time; to be integrated in both directions
+        mjds:           array of MJDs on which to write simulation outputs
+        save_elements:  flag indicating whether to save orbital elements
+        progbar:        flag - whether to display a progress bar
+    OUTPUTS:
+        df: DataFrame with columns
+        BodyID:       N integer body IDs of the bodies that were integrated
+        BodyName:     N body names
+        MJD:          M times as of which the integration was saved; MJDs
+        qx, qy, qx:   Positions in AU in the BME
+        vx, vy, vz:   Velocities in AU / day
+    """
+    # Delegate to integrate_numpy
+    body_ids, body_names, q, v, elts = \
+            integrate_mjds(sim_epoch=sim_epoch, mjds=mjds, save_elements=save_elements, progbar=progbar)
+    # Delegate to integration_np2df
+    df = integration_np2df(body_ids=body_ids, body_names=body_names, epochs=mjds, q=q, v=v, elts=elts)
 
     return df

@@ -162,7 +162,7 @@ def main():
                         help='epoch of the first date in the integration, as an MJD.')
     parser.add_argument('--mjd1', nargs='?', metavar='t1', type=int, default=62650,
                         help='epoch of the last date in the integration, as an MJD.')
-    parser.add_argument('--test', dest='test', action='store_const', const=True, default=False,
+    parser.add_argument('--live', dest='live', action='store_const', const=True, default=False,
                         help='Quick test of a live integration, then quit.')
     args = parser.parse_args()
 
@@ -191,7 +191,7 @@ def main():
     print(f'full width     : {width_yrs:3.1f} years')
 
     # First check if we are doing a live test
-    if args.test:
+    if args.live:
         print('\nPerforming live integration test on planets:')
         sim_epoch = make_sim_planets(epoch=epoch)
         df: pd.DataFrame = \

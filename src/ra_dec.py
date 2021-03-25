@@ -150,7 +150,6 @@ def infer_shape(q):
         space_axis: the index of the axis for the 3 space dimensions, e.g. 1 when data is Nx3
         shape: the shape of the vectors, e.g. (-1, 3) when data is Nx3
     """
-    # 
     if q.shape[0] == 3:
         data_axis, space_axis = 1, 0
         shape = (3, -1)
@@ -158,7 +157,7 @@ def infer_shape(q):
         data_axis, space_axis = 0, 1
         shape = (-1, 3)
     else:
-        raise ValueError(f'Bad data shape! q_earth has shape {q_earth.shape}, shoulde by Nx3 or 3xN.')
+        raise ValueError(f'Bad data shape! q_earth has shape {q_earth.shape}, should by Nx3 or 3xN.')
 
     return data_axis, space_axis, shape
 
@@ -192,9 +191,6 @@ def calc_topos_impl(obstime_mjd: np.ndarray, obsgeoloc: EarthLocation) -> np.nda
     dv_topos = dv_topos.to(au/day)
 
     return dq_topos, dv_topos
-
-# TODO: build a spline of topos adjustments for palomar, for speed; rename this calc_topos_impl
-# and have calc_topos just do a lookup from the spline
 
 # ********************************************************************************************************************* 
 def calc_topos(obstime_mjd, site_name: str):
@@ -237,7 +233,7 @@ def calc_topos(obstime_mjd, site_name: str):
         # default is to use geocenter if obstime and geoloc are not passed
         dq_topos = np.zeros(3) * au
         dv_topos = np.zeros(3) * au/day
-    return dq_topos
+    return dq_topos, dv_topos
 
 # ********************************************************************************************************************* 
 def astrometric_dir(q_body: np.ndarray, v_body: np.ndarray, q_obs: np.ndarray):
@@ -296,7 +292,7 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
                    obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
     """
     # compute the correction due to the observatory of obstime_mjd and site_name are passed
-    dq_topos = calc_topos(obstime_mjd=obstime_mjd, site_name=site_name)
+    dq_topos, _ = calc_topos(obstime_mjd=obstime_mjd, site_name=site_name)
 
     # reshape dq_topos to match q_earth
     data_axis, space_axis, shape = infer_shape(q_earth)
