@@ -13,8 +13,11 @@ import pandas as pd
 # Astronomy related
 from astropy.units import deg
 
+# UI
+from tqdm.auto import tqdm as tqdm_auto
+
 # MSE imports
-from db_utils import df2db, sp2df
+from db_utils import df2db, sp2df, sp_run
 from astro_utils import mjd_to_datetime
 from ra_dec import radec2dir, calc_topos
 from rebound_sim import make_sim_planets
@@ -66,6 +69,19 @@ def calc_ztf_detection_times():
     df2db(df=df, schema='KS', table='DetectionTime', verbose=False, progbar=False)
 
 # ********************************************************************************************************************* 
+def ztf_raw_detections(sz: int = 1000000):
+    """Populate missing rows of table KS.RawDetections from ZTF.Detections"""
+    # Get the number of missing rows
+    rMax = sp2df('KS.MakeTable_RawDetection_ZTF_RowCount').RowCount[0]
+    iMax: int = rMax // sz + 1
+    idx = tqdm_auto(np.arange(iMax))
+    params={'sz':sz}
+    print(f'KS.RawDetections missing {rMax} rows from ZTF.Detections. Processing now...')
+
+    for i in idx:
+        sp_run('KS.MakeTable_RawDetection_ZTF', params=params)
+
+# ********************************************************************************************************************* 
 def ztf_detection_add_dir(df: pd.DataFrame):
     """
     Add calculated directions to DataFrame of ZTF observations
@@ -93,8 +109,6 @@ def main():
     """
     Main routine for console program
     """
-    # Schema for permanent DB
-    schema = 'ZTF'
 
     # Call SQL procedure to add new rows to ZTF.DetectionTime from ZTF.Detection
     sp_run('ZTF.MakeTable_DetectionTime')    
