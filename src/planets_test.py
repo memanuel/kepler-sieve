@@ -15,6 +15,7 @@ import pandas as pd
 
 # Utility
 import argparse
+import sys
 
 # Plotting
 import matplotlib.pyplot as plt
@@ -22,6 +23,8 @@ import matplotlib.pyplot as plt
 # MSE imports
 from utils import plot_style, print_stars
 from astro_utils import mjd_to_date
+from rebound_sim import make_sim_planets
+from rebound_integrate import integrate_df
 from db_utils import sp2df
 
 # ********************************************************************************************************************* 
@@ -53,6 +56,34 @@ def get_integration_diff(body_collection: str, mjd0: int, mjd1: int, by_date: bo
     # Run SQL and return as a DataFrame
     df = sp2df(sp_name=sp_name, params=params)
     return df
+
+# ********************************************************************************************************************* 
+def live_integration_diff(df: pd.DataFrame):
+    """Test an integration data frame against Horizons"""
+    # Test this integration on the last epoch in the DataFrame
+    epoch = np.max(df.MJD)
+
+    # Mask the data frame to match the desired epoch
+    mask = (df.TimeID == epoch*24*60)
+    # Extract this date and the fields to test
+    df_k = df[mask][['BodyID', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']]
+    # The position according to the live integration
+    q1 = df_k[['qx', 'qy', 'qz']].values
+
+    
+    # Look up the configuration on Horizons
+    params={'BodyCollectionName': 'Planets', 'epoch': epoch}
+    df_h = sp2df('JPL.GetHorizonsStateCollection', params)
+    # Filter down to just the relevant columns
+    df_h[['BodyID', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']]
+    # The position according to Horizons
+    q2 = df_h[['qx', 'qy', 'qz']].values
+
+    # Return the mean relative position error
+    dq = np.linalg.norm(q1-q2, axis=1)
+    dq_rel = dq / np.linalg.norm(q1, axis=1)
+    mean_dq_rel = np.mean(dq_rel)
+    return mean_dq_rel
 
 # ********************************************************************************************************************* 
 def report_error(body_collection: str, mjd0: int, mjd1: int):
@@ -131,6 +162,8 @@ def main():
                         help='epoch of the first date in the integration, as an MJD.')
     parser.add_argument('--mjd1', nargs='?', metavar='t1', type=int, default=62650,
                         help='epoch of the last date in the integration, as an MJD.')
+    parser.add_argument('--test', dest='test', action='store_const', const=True, default=False,
+                        help='Quick test of a live integration, then quit.')
     args = parser.parse_args()
 
     # Unpack command line arguments
@@ -156,6 +189,20 @@ def main():
     print(f'date range mjd : {mjd0} to {mjd1}')
     print(f'date range     : {mjd0_dt} to {mjd1_dt}')
     print(f'full width     : {width_yrs:3.1f} years')
+
+    # First check if we are doing a live test
+    if args.test:
+        print('\nPerforming live integration test on planets:')
+        sim_epoch = make_sim_planets(epoch=epoch)
+        df: pd.DataFrame = \
+            integrate_df(sim_epoch=sim_epoch, mjd0=mjd0, mjd1=mjd1, interval_p=5, interval_q=1, 
+                         save_elements=False, progbar=True)
+        mean_dq_rel: float = live_integration_diff(df)
+        isOK: bool = mean_dq_rel < 1.0E-5
+        print(f'\nMean relative position error on epoch {mjd1}: {mean_dq_rel:5.3e}')
+        msg = 'PASS' if isOK else 'FAIL'
+        print(f'***** {msg} *****')
+        sys.exit()
 
     # Run error on Planets
     df_p, dfd_p, dfd_xm_p = report_error(body_collection='Planets', mjd0=mjd0, mjd1=mjd1)
