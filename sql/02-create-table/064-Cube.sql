@@ -113,13 +113,19 @@ CREATE OR REPLACE TABLE KS.CubeFace(
     j2 TINYINT NOT NULL
     	COMMENT "Index of the second axis that is varying on this face, e.g. j2=2 for y on Z+",
     ci DOUBLE NOT NULL
-    	COMMENT "Constant value of axis i on this face; one of -1 and +1; e.g. ci=+1 on Z+"
+    	COMMENT "Constant value of axis i on this face; one of -1 and +1; e.g. ci=+1 on Z+",
+    alpha CHAR(1) NOT NULL
+    	COMMENT "The first axis name that varies on this face; corresponds to j1",
+    beta CHAR(1) NOT NULL
+    	COMMENT "The second axis name that varies on this face; corresponds to j2",
+    gamma CHAR(1) NOT NULL
+    	COMMENT "The axis name that is +/- 1 on this face; corresponds to i"    	
 )
 ENGINE='Aria' TRANSACTIONAL=1
 COMMENT = "The six faces of a cube described as the index of the constant axis and its value.";
 
 INSERT INTO KS.CubeFace
-(CubeFaceID, CubeFaceCD, i, j1, j2, ci)
+(CubeFaceID, CubeFaceCD, i, j1, j2, ci, alpha, beta, gamma)
 WITH t1 AS(
 SELECT
 	(i._+1) AS i,
@@ -133,12 +139,18 @@ WHERE
 	i._ < 3
 )
 SELECT
+	-- Integer and string ID
 	row_number() OVER (ORDER BY t1.i*t1.c DESC) AS CubeFaceID,
 	CONCAT(CHAR(ASCII('X')+t1.i-1), IF(c>0, '+', '-')) AS CubeFaceCD,
+	-- Index numbers for the axes and constant value on face
 	t1.i,
 	t1.j1,
 	t1.j2,
-	t1.c AS ci
+	t1.c AS ci,
+	-- Names of the three axes
+	CHAR(ASCII('W')+t1.j1) AS alpha,
+	CHAR(ASCII('W')+t1.j2) AS beta,
+	CHAR(ASCII('W')+t1.i) AS gamma	
 FROM
 	t1
 ORDER BY (t1.i*t1.c) DESC;

@@ -120,3 +120,29 @@ FROM
 	INNER JOIN KS.CubeFace AS f_j1_hi ON f_j1_hi.i=f.j1 AND f_j1_hi.ci=1
 	INNER JOIN KS.CubeFace AS f_j2_lo ON f_j2_lo.i=f.j2 AND f_j2_lo.ci=-1
 	INNER JOIN KS.CubeFace AS f_j2_hi ON f_j2_hi.i=f.j2 AND f_j2_hi.ci=1;
+
+-- ************************************************************************************************
+-- Relate Cube face to its four neighbors by orientation
+CREATE OR REPLACE TABLE KS.CubeFacePair(
+	CubeFaceID_1 TINYINT NOT NULL
+		COMMENT "The first cube face in this pair",
+	CubeFaceID_2 TINYINT NOT NULL
+		COMMENT "The second cube face in this pair",
+	CubeEdgeID TINYINT NOT NULL
+		COMMENT "The edge connecting these two faces",
+	PRIMARY KEY (CubeFaceID_1, CubeFaceID_2)
+)
+ENGINE='Aria' TRANSACTIONAL=1
+COMMENT = "Each pair of distinct cube faces that are connected by an edge";
+
+INSERT INTO KS.CubeFacePair
+(CubeFaceID_1, CubeFaceID_2, CubeEdgeID)
+SELECT
+	cfe1.CubeFaceID AS CubeFaceID_1,
+	cfe2.CubeFaceID AS CubeFaceID_2,
+	cfe1.CubeEdgeID
+FROM
+	KS.CubeFaceEdge AS cfe1
+	INNER JOIN KS.CubeFaceEdge AS cfe2 ON 
+		cfe2.CubeEdgeID=cfe1.CubeEdgeID AND
+		cfe2.CubeFaceID <> cfe1.CubeFaceID;
