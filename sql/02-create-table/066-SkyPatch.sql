@@ -39,14 +39,14 @@ CREATE OR REPLACE TABLE KS.SkyPatchGrid(
     v11 DOUBLE NOT NULL COMMENT "Upper right corner, v",
     w11 DOUBLE NOT NULL COMMENT "Upper right corner, w",
     -- Lower and upper bounds on u
-    uMin double NOT NULL COMMENT "Lower bound on u",
-    uMax double NOT NULL COMMENT "Upper bound on u",
+--     uMin double NOT NULL COMMENT "Lower bound on u",
+--     uMax double NOT NULL COMMENT "Upper bound on u",
     -- Lower and upper bounds on v
-    vMin double NOT NULL COMMENT "Lower bound on v",
-    vMax double NOT NULL COMMENT "Upper bound on v",
+--     vMin double NOT NULL COMMENT "Lower bound on v",
+--     vMax double NOT NULL COMMENT "Upper bound on v",
     -- Lower and upper bounds on w
-    wMin double NOT NULL COMMENT "Lower bound on w",
-    wMax double NOT NULL COMMENT "Upper bound on w",
+--     wMin double NOT NULL COMMENT "Lower bound on w",
+--     wMax double NOT NULL COMMENT "Upper bound on w",
     -- Unique key
     PRIMARY KEY (i,j)
     	COMMENT "The pair (i,j) uniquely determines one grid cell of a major face",
@@ -57,8 +57,7 @@ COMMENT = "SkyPatchGrid describes the 4N^2 square grid cells on one major face";
 
 -- Populate the 4N^2 grid cells on each major face
 INSERT INTO KS.SkyPatchGrid
-(i, j, k, u, v, w, u00, v00, w00, u01, v01, w01, u10, v10, w10, u11, v11, w11,
- uMin, uMax, vMin, vMax, wMin, wMax)
+(i, j, k, u, v, w, u00, v00, w00, u01, v01, w01, u10, v10, w10, u11, v11, w11)
 WITH t1 AS (
 SELECT
 	-- Integer face coordinates (i,j)
@@ -129,26 +128,19 @@ SELECT
 	-- Upper right corner (u11, v11, w11)
 	t2.a1/t2.r11 AS u11,
 	t2.b1/t2.r11 AS v11,
-	t2.c/t2.r11 AS w11,
-	-- Placeholder for the lower and upper bounds
-	0.0 AS uMin,
-	0.0 AS uMax,
-	0.0 AS vMin,
-	0.0 AS vMax,
-	0.0 AS wMin,
-	0.0 AS wMax	
+	t2.c/t2.r11 AS w11
 FROM
 	t2;
 
 -- Set the bounds on u, v, w
-UPDATE KS.SkyPatchGrid
-SET
-	uMin = LEAST(u00, u01, u10, u11),
-	uMax = GREATEST(u00, u01, u10, u11),
-	vMin = LEAST(v00, v01, v10, v11),
-	vMax = GREATEST(v00, v01, v10, v11),
-	wMin = LEAST(w00, w01, w10, w11),
-	wMax = GREATEST(w00, w01, w10, w11);
+-- UPDATE KS.SkyPatchGrid
+-- SET
+-- 	uMin = LEAST(u00, u01, u10, u11),
+-- 	uMax = GREATEST(u00, u01, u10, u11),
+-- 	vMin = LEAST(v00, v01, v10, v11),
+-- 	vMax = GREATEST(v00, v01, v10, v11),
+-- 	wMin = LEAST(w00, w01, w10, w11),
+-- 	wMax = GREATEST(w00, w01, w10, w11);
 
 -- ************************************************************************************************
 -- The whole SkyPatch table; six major faces
@@ -320,23 +312,3 @@ CREATE OR REPLACE TABLE KS.SkyPatchDistance(
 	PRIMARY KEY (SkyPatchID_1, SkyPatchID_2)
 )
 COMMENT "Distance bewteen two SkyPatch cells; only cataloged for neighbors that are reasonably close.";
-
--- Most of the neighbors are on the same major cube face
-INSERT INTO KS.SkyPatchDistance
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
-SELECT
-	-- The two SkyPatch cells in this pair
-	p1.SkyPatchID AS SkyPatchID_1,
-	p2.SkyPatchID AS SkyPatchID_2,
-	-- The midpoint and minimum distance
-	gd.dr_mid,
-	gd.dr_min
-FROM
-	-- The starting SkyPatch
-	KS.SkyPatch AS p1
-	-- All the neighbors of this grid cell
-	INNER JOIN KS.SkyPatchGridDistance AS gd ON
-		gd.i1=p1.i AND gd.j1=p1.j
-	-- The second SkyPatch
-	INNER JOIN KS.SkyPatch AS p2 ON
-		p2.i=gd.i2 AND p2.j=gd.j2;
