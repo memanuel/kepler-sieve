@@ -161,19 +161,26 @@ CREATE OR REPLACE TABLE KS.SkyPatch(
         COMMENT "Counter for the first Cartesian coordinate on this CubeFace, which is named alpha on the CubeFace table",
     j SMALLINT NOT NULL
         COMMENT "Counter for the second Cartesian coordinate on this CubeFace, which is named beta on the CubeFace table",
-    -- Center point
-    x DOUBLE NOT NULL COMMENT "Midpoint of x",
-    y DOUBLE NOT NULL COMMENT "Midpoint of y",
-    z DOUBLE NOT NULL COMMENT "Midpoint of z",
-    -- Bound on x
-    x0 DOUBLE NOT NULL COMMENT "Lower bound on x",
-    x1 DOUBLE NOT NULL COMMENT "Upper bound on x",
-    -- Bound on y
-    y0 DOUBLE NOT NULL COMMENT "Lower bound on y",
-    y1 DOUBLE NOT NULL COMMENT "Upper bound on y",
-    -- Bound on z
-    z0 DOUBLE NOT NULL COMMENT "Lower bound on z",
-    z1 DOUBLE NOT NULL COMMENT "Upper bound on z",
+    -- Center point (x, y, z)
+    x DOUBLE NOT NULL COMMENT "SkyPatch midpoint: x",
+    y DOUBLE NOT NULL COMMENT "SkyPatch midpoint: y",
+    z DOUBLE NOT NULL COMMENT "SkyPatch midpoint: z",
+    -- Coordinates of lower left grid cell (x00, y00, z00)
+    x00 DOUBLE NOT NULL COMMENT "SkyPatch lower left corner (00): x",
+    y00 DOUBLE NOT NULL COMMENT "SkyPatch lower left corner (00): y",
+    z00 DOUBLE NOT NULL COMMENT "SkyPatch lower left corner (00): z",
+    -- Coordinates of upper left grid cell (x01, y01, z01)
+    x01 DOUBLE NOT NULL COMMENT "SkyPatch upper left corner (01): x",
+    y01 DOUBLE NOT NULL COMMENT "SkyPatch upper left corner (01): y",
+    z01 DOUBLE NOT NULL COMMENT "SkyPatch upper left corner (01): z",
+    -- Coordinates of lower right grid cell (x10, y10, z10)
+    x10 DOUBLE NOT NULL COMMENT "SkyPatch lower right corner (10): x",
+    y10 DOUBLE NOT NULL COMMENT "SkyPatch lower right corner (10): y",
+    z10 DOUBLE NOT NULL COMMENT "SkyPatch lower right corner (10): z",
+    -- Coordinates of lower upper right cell (x11, y11, z11)
+    x11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): x",
+    y11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): y",
+    z11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): z",
     -- Unique key
     UNIQUE KEY UNQ_SkyPatch_CubeFaceID_i_j(CubeFaceID, i, j)
     	COMMENT "The pair (i,j) determines one small patch on a major face; the trio (f,i,j) is unique"
@@ -185,7 +192,7 @@ COMMENT "Collection of discrete patches of the sky corresponding to a cube in wh
 
 -- SELECT * FROM KS.SkyPatch;
 INSERT INTO KS.SkyPatch
-(SkyPatchID, CubeFaceID, i, j, x, y, z, x0, x1, y0, y1, z0, z1)
+(SkyPatchID, CubeFaceID, i, j, x, y, z, x00, y00, z00, x01, y01, z01, x10, y10, z10, x11, y11, z11)
 SELECT
 	-- Integer IDs
 	(cf.CubeFaceID-1)*@M + 2*gr.i*@N + j AS SkyPatchID,
@@ -194,18 +201,25 @@ SELECT
 	gr.i,
 	gr.j,
 	-- Coordinates of midpoint (x, y, z)
-	IF(cf.alpha='X', gr.u, 0.0) + IF(cf.beta='X', gr.v, 0.0) + IF(cf.gamma='X', gr.w, 0.0) AS x,
-	IF(cf.alpha='Y', gr.u, 0.0) + IF(cf.beta='Y', gr.v, 0.0) + IF(cf.gamma='Y', gr.w, 0.0) AS y,
-	IF(cf.alpha='Z', gr.u, 0.0) + IF(cf.beta='Z', gr.v, 0.0) + IF(cf.gamma='Z', gr.w, 0.0) AS z,
-	-- Bounds on x
-	IF(cf.alpha='X', gr.uMin, 0.0) + IF(cf.beta='X', gr.vMin, 0.0) + IF(cf.gamma='X', gr.wMin, 0.0) AS x0,	
-	IF(cf.alpha='X', gr.uMax, 0.0) + IF(cf.beta='X', gr.vMax, 0.0) + IF(cf.gamma='X', gr.wMax, 0.0) AS x1,
-	-- Bounds on y
-	IF(cf.alpha='Y', gr.uMin, 0.0) + IF(cf.beta='Y', gr.vMin, 0.0) + IF(cf.gamma='Y', gr.wMin, 0.0) AS y0,	
-	IF(cf.alpha='Y', gr.uMax, 0.0) + IF(cf.beta='Y', gr.vMax, 0.0) + IF(cf.gamma='Y', gr.wMax, 0.0) AS y1,
-	-- Bounds on z
-	IF(cf.alpha='Z', gr.uMin, 0.0) + IF(cf.beta='Z', gr.vMin, 0.0) + IF(cf.gamma='Z', gr.wMin, 0.0) AS z0,	
-	IF(cf.alpha='Z', gr.uMax, 0.0) + IF(cf.beta='Z', gr.vMax, 0.0) + IF(cf.gamma='Z', gr.wMax, 0.0) AS z1
+	IF(cf.alpha='X', gr.u, 0.0) + IF(cf.beta='X', gr.v, 0.0) + IF(cf.gamma='X', gr.w*cf.ci, 0.0) AS x,
+	IF(cf.alpha='Y', gr.u, 0.0) + IF(cf.beta='Y', gr.v, 0.0) + IF(cf.gamma='Y', gr.w*cf.ci, 0.0) AS y,
+	IF(cf.alpha='Z', gr.u, 0.0) + IF(cf.beta='Z', gr.v, 0.0) + IF(cf.gamma='Z', gr.w*cf.ci, 0.0) AS z,
+	-- Coordinates of lower left corner (x00, y00, z00)
+	IF(cf.alpha='X', gr.u00, 0.0) + IF(cf.beta='X', gr.v00, 0.0) + IF(cf.gamma='X', gr.w00*cf.ci, 0.0) AS x00,
+	IF(cf.alpha='Y', gr.u00, 0.0) + IF(cf.beta='Y', gr.v00, 0.0) + IF(cf.gamma='Y', gr.w00*cf.ci, 0.0) AS y00,
+	IF(cf.alpha='Z', gr.u00, 0.0) + IF(cf.beta='Z', gr.v00, 0.0) + IF(cf.gamma='Z', gr.w00*cf.ci, 0.0) AS z00,
+	-- Coordinates of upper left corner (x01, y01, z01)
+	IF(cf.alpha='X', gr.u01, 0.0) + IF(cf.beta='X', gr.v01, 0.0) + IF(cf.gamma='X', gr.w01*cf.ci, 0.0) AS x01,
+	IF(cf.alpha='Y', gr.u01, 0.0) + IF(cf.beta='Y', gr.v01, 0.0) + IF(cf.gamma='Y', gr.w01*cf.ci, 0.0) AS y01,
+	IF(cf.alpha='Z', gr.u01, 0.0) + IF(cf.beta='Z', gr.v01, 0.0) + IF(cf.gamma='Z', gr.w01*cf.ci, 0.0) AS z01,
+	-- Coordinates of lower right corner (x10, y10, z10)
+	IF(cf.alpha='X', gr.u10, 0.0) + IF(cf.beta='X', gr.v10, 0.0) + IF(cf.gamma='X', gr.w10*cf.ci, 0.0) AS x10,
+	IF(cf.alpha='Y', gr.u10, 0.0) + IF(cf.beta='Y', gr.v10, 0.0) + IF(cf.gamma='Y', gr.w10*cf.ci, 0.0) AS y10,
+	IF(cf.alpha='Z', gr.u10, 0.0) + IF(cf.beta='Z', gr.v10, 0.0) + IF(cf.gamma='Z', gr.w10*cf.ci, 0.0) AS z10,
+	-- Coordinates of upper right corner (x11, y11, z11)
+	IF(cf.alpha='X', gr.u11, 0.0) + IF(cf.beta='X', gr.v11, 0.0) + IF(cf.gamma='X', gr.w11*cf.ci, 0.0) AS x11,
+	IF(cf.alpha='Y', gr.u11, 0.0) + IF(cf.beta='Y', gr.v11, 0.0) + IF(cf.gamma='Y', gr.w11*cf.ci, 0.0) AS y11,
+	IF(cf.alpha='Z', gr.u11, 0.0) + IF(cf.beta='Z', gr.v11, 0.0) + IF(cf.gamma='Z', gr.w11*cf.ci, 0.0) AS z11
 FROM
 	KS.CubeFace AS cf,
 	KS.SkyPatchGrid AS gr
@@ -306,3 +320,23 @@ CREATE OR REPLACE TABLE KS.SkyPatchDistance(
 	PRIMARY KEY (SkyPatchID_1, SkyPatchID_2)
 )
 COMMENT "Distance bewteen two SkyPatch cells; only cataloged for neighbors that are reasonably close.";
+
+-- Most of the neighbors are on the same major cube face
+INSERT INTO KS.SkyPatchDistance
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+SELECT
+	-- The two SkyPatch cells in this pair
+	p1.SkyPatchID AS SkyPatchID_1,
+	p2.SkyPatchID AS SkyPatchID_2,
+	-- The midpoint and minimum distance
+	gd.dr_mid,
+	gd.dr_min
+FROM
+	-- The starting SkyPatch
+	KS.SkyPatch AS p1
+	-- All the neighbors of this grid cell
+	INNER JOIN KS.SkyPatchGridDistance AS gd ON
+		gd.i1=p1.i AND gd.j1=p1.j
+	-- The second SkyPatch
+	INNER JOIN KS.SkyPatch AS p2 ON
+		p2.i=gd.i2 AND p2.j=gd.j2;
