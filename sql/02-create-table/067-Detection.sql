@@ -19,6 +19,9 @@ CREATE OR REPLACE TABLE KS.Detection(
         COMMENT "Unit direction (y coordinate) in the barcycentric mean ecliptic frame",
     uz DOUBLE NOT NULL
         COMMENT "Unit direction (z coordinate) in the barcycentric mean ecliptic frame",
+    -- The apparent magnitude
+    mag DOUBLE NOT NULL
+    	COMMENT "Apparent magnitude (brightness) of this detection",
     -- Primary key
     PRIMARY KEY (DetectionTimeID, SkyPatchID, k)
     	COMMENT "Primary key optimized for spatial searching",
