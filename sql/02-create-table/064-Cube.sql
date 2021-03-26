@@ -4,7 +4,8 @@ CREATE OR REPLACE TABLE KS.CubeVertex(
     CubeVertexID TINYINT NOT NULL PRIMARY KEY,
     x DOUBLE NOT NULL,
     y DOUBLE NOT NULL,
-    z DOUBLE NOT NULL
+    z DOUBLE NOT NULL,
+    UNIQUE KEY UNQ_CubeVertex_x_y_z (x, y, z)
 )
 ENGINE='Aria' TRANSACTIONAL=1
 COMMENT = "The eight vertices of a cube where each coordinate is at +/- 1.";
@@ -37,15 +38,15 @@ CREATE OR REPLACE TABLE KS.CubeEdge(
     i TINYINT NOT NULL,
     j1 TINYINT NOT NULL,
     j2 TINYINT NOT NULL,
-    c1 DOUBLE NOT NULL,
-    c2 DOUBLE NOT NULL,
+    cj1 DOUBLE NOT NULL,
+    cj2 DOUBLE NOT NULL,
 	UNIQUE KEY UNQ_CubeEdge_CubeVertexID_Pair (CubeVertexID_1, CubeVertexID_2)
 )
 ENGINE='Aria' TRANSACTIONAL=1
 COMMENT = "The 12 edges of a cube characterized by the pair of vertices sorted in ascending order.";
 
 INSERT INTO KS.CubeEdge
-(CubeEdgeID, CubeVertexID_1, CubeVertexID_2, i, j1, j2, c1, c2)
+(CubeEdgeID, CubeVertexID_1, CubeVertexID_2, i, j1, j2, cj1, cj2)
 WITH t1 AS(
 SELECT
 	(i._+1) AS i,
@@ -78,19 +79,19 @@ FROM
 	t1
 )
 SELECT
-	row_number() OVER (ORDER BY i, j1, j2, c1, c2) AS CubeEdgeID,
+	row_number() OVER (ORDER BY i, j1, j2, cj1, cj2) AS CubeEdgeID,
 	cv1.CubeVertexID AS CubeVertexID_1,
 	cv2.CubeVertexID AS CubeVertexID_2,
 	t2.i,
 	t2.j1,
 	t2.j2,
-	t2.c1,
-	t2.c2
+	t2.c1 AS cj1,
+	t2.c2 AS cj2
 FROM
 	t2
 	INNER JOIN KS.CubeVertex AS cv1 ON cv1.x = t2.x1 AND cv1.y= t2.y1 AND cv1.z=t2.z1
 	INNER JOIN KS.CubeVertex AS cv2 ON cv2.x = t2.x2 AND cv2.y= t2.y2 AND cv2.z=t2.z2
-ORDER BY i, j1, j2, c1, c2;
+ORDER BY i, j1, j2, cj1, cj2;
 
 -- ************************************************************************************************
 -- The six faces of a cube
@@ -101,14 +102,14 @@ CREATE OR REPLACE TABLE KS.CubeFace(
     	COMMENT "Index of the axis that is constant on this face, e.g. i=3 is for the face z=c",
     j1 TINYINT NOT NULL,
     j2 TINYINT NOT NULL,
-    c DOUBLE NOT NULL
+    ci DOUBLE NOT NULL
     	COMMENT "Constant value of axis i on this face; one of -1 and +1"
 )
 ENGINE='Aria' TRANSACTIONAL=1
 COMMENT = "The six faces of a cube described as the index of the constant axis and its value.";
 
 INSERT INTO KS.CubeFace
-(CubeFaceID, CubeFaceCD, i, j1, j2, c)
+(CubeFaceID, CubeFaceCD, i, j1, j2, ci)
 WITH t1 AS(
 SELECT
 	(i._+1) AS i,
@@ -127,7 +128,7 @@ SELECT
 	t1.i,
 	t1.j1,
 	t1.j2,
-	t1.c
+	t1.c AS ci
 FROM
 	t1
 ORDER BY (t1.i*t1.c) DESC;
@@ -141,3 +142,75 @@ CREATE OR REPLACE TABLE KS.CubeEdgeVertex(
 )
 ENGINE='Aria' TRANSACTIONAL=1
 COMMENT = "Relate a cube edge to a cube vertex if the vertex is one end of the edge.";
+
+INSERT INTO KS.CubeEdgeVertex
+(CubeEdgeID, CubeVertexID)
+SELECT
+	e.CubeEdgeID,
+	cv.CubeVertexID
+FROM
+	KS.CubeEdge AS e
+	INNER JOIN KS.CubeVertex AS cv ON cv.CubeVertexID = e.CubeVertexID_1
+UNION
+SELECT
+	e.CubeEdgeID,
+	cv.CubeVertexID
+FROM
+	KS.CubeEdge AS e
+	INNER JOIN KS.CubeVertex AS cv ON cv.CubeVertexID = e.CubeVertexID_2;
+
+-- ************************************************************************************************
+-- Relate Cube face to edge
+CREATE OR REPLACE TABLE KS.CubeFaceEdge(
+	CubeFaceID TINYINT NOT NULL,
+    CubeEdgeID TINYINT NOT NULL,
+    CubeVertexID_1 TINYINT NOT NULL,
+    CubeVertexID_2 TINYINT NOT NULL,
+    PRIMARY KEY (CubeFaceID, CubeEdgeID),
+    UNIQUE KEY UNQ_CubeFaceEdge_EdgeID_FaceID (CubeEdgeID, CubeFaceID)
+)
+ENGINE='Aria' TRANSACTIONAL=1
+COMMENT = "Relate a cube face to a cube edge if the edge is on the perimeter of the face.";
+
+INSERT INTO KS.CubeFaceEdge
+(CubeFaceID, CubeEdgeID, CubeVertexID_1, CubeVertexID_2)
+WITH t1 AS (
+SELECT
+	f.CubeFaceID,
+	f.CubeFaceCD,
+	f.i,
+	f.j1,
+	f.j2,
+	f.ci,
+	s1._ AS s1,
+	s2._ AS s2,
+	IF(f.i=1, f.ci, 0) + IF(f.j1=1, s1._, 0) + IF(f.j2=1, s2._, 0) AS x,
+	IF(f.i=2, f.ci, 0) + IF(f.j1=2, s1._, 0) + IF(f.j2=2, s2._, 0) AS y,
+	IF(f.i=3, f.ci, 0) + IF(f.j1=3, s1._, 0) + IF(f.j2=3, s2._, 0) AS z
+FROM
+	KS.CubeFace AS f
+	INNER JOIN KS.CounterSigned AS s1 ON s1._ IN (-1, 1) 
+	INNER JOIN KS.CounterSigned AS s2 ON s2._ IN (-1, 1)
+), t2 AS (
+SELECT
+	t1.CubeFaceID,
+	v.CubeVertexID
+FROM
+	t1
+INNER JOIN KS.CubeVertex AS v ON v.x=t1.x AND v.y=t1.y AND v.z=t1.z
+)
+SELECT
+	f.CubeFaceID,
+	e.CubeEdgeID,
+	e.CubeVertexID_1,
+	e.CubeVertexID_2
+FROM
+	KS.CubeFace AS f
+	INNER JOIN t2 AS v1 ON v1.CubeFaceID=f.CubeFaceID
+	INNER JOIN t2 AS v2 ON v2.CubeFaceID=f.CubeFaceID
+	INNER JOIN KS.CubeEdge AS e ON
+		e.CubeVertexID_1 = v1.CubeVertexID AND
+		e.CubeVertexID_2 = v2.CubeVertexID
+WHERE
+	v1.CubeVertexID <> v2.CubeVertexID
+ORDER BY CubeFaceID, CubeEdgeID;
