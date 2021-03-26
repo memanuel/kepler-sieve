@@ -1,11 +1,13 @@
 -- ************************************************************************************************
 -- Global variables used at bottom to build the tables
 -- Set the variable N
-SET @N = 4;
+SET @N = 8;
 -- SET @N = POW(2,9);
 
 -- Maximum distance for SkyPatchGridDistance
 SET @dr_max = 0.25;
+-- SET @dr_max = 1.0 / 64.0;
+
 
 -- *********************************************************************************
 DELIMITER $$
@@ -105,18 +107,6 @@ SELECT
 	t2.c/t2.r11 AS w11
 FROM
 	t2;
-
--- Set the bounds on u, v, w
--- UPDATE KS.SkyPatchGrid
--- SET
--- 	uMin = LEAST(u00, u01, u10, u11),
--- 	uMax = GREATEST(u00, u01, u10, u11),
--- 	vMin = LEAST(v00, v01, v10, v11),
--- 	vMax = GREATEST(v00, v01, v10, v11),
--- 	wMin = LEAST(w00, w01, w10, w11),
--- 	wMax = GREATEST(w00, w01, w10, w11);
--- Populate SkyPatchGridDistance by querying over 16 possible pairs of points
--- Compare 4 corners on p1 with 4 corners on p2 and take the minimum
 
 INSERT INTO KS.SkyPatchGridDistance
 (i1, j1, i2, j2, dr_mid, dr_min)
@@ -236,55 +226,14 @@ END $$
 -- *********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE KS.MakeTable_SkyPatchDistance_bf(
+PROCEDURE KS.MakeTable_SkyPatchDistance_face(
 	IN dr_max DOUBLE)
-COMMENT "Populate the KS.SkyPatchDistance table"
-BEGIN 
-
--- Brute force approach - does not scale, but useful for checking with small N
-INSERT INTO KS.SkyPatchDistance
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_max)
-WITH t1 AS (
-SELECT
-	p1.SkyPatchID AS SkyPatchID_1,
-	p2.SkyPatchID AS SkyPatchID_2,
-	SQRT(POW(p2.x-p1.x,2)+POW(p2.y-p1.y,2)+POW(p2.z-p1.z,2)) AS dr_mid
-FROM
-	KS.SkyPatch AS p1
-	INNER JOIN KS.SkyPatch AS p2 ON
-		p2.CubeFaceID <> p1.CubeFaceID
-)
-SELECT
-	t1.SkyPatchID_1,
-	t1.SkyPatchID_2,
-	t1.dr_mid,
-	t1.dr_mid AS dr_max
-FROM
-	t1
-WHERE 
-	t1.dr_mid < dr_max;
-	
-END $$
-
--- *********************************************************************************
-CREATE OR REPLACE 
-DEFINER = kepler
-PROCEDURE KS.MakeTable_SkyPatchDistance(
-	IN dr_max DOUBLE)
-COMMENT "Populate the KS.SkyPatchDistance table"
+COMMENT "Populate the KS.SkyPatchDistance table with records that are on the same face"
 BEGIN 
 
 -- Empty table first so this procedure can be re-run on demand
 TRUNCATE TABLE KS.SkyPatchDistance;
-
--- Calculate @M and @N
-SELECT 
-	MAX(spg.i)+1 AS M 
-INTO @M 
-FROM KS.SkyPatchGrid AS spg;
-SET @N = (@M DIV 2);
-
--- Most of the neighbors are on the same major cube face
+	
 INSERT INTO KS.SkyPatchDistance
 (SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
 SELECT
@@ -303,7 +252,141 @@ FROM
 	-- The second SkyPatch
 	INNER JOIN KS.SkyPatch AS p2 ON
 		p2.CubeFaceID = p1.CubeFaceID AND
-		p2.i=gd.i2 AND p2.j=gd.j2;
+		p2.i=gd.i2 AND p2.j=gd.j2
+WHERE
+	gd.dr_mid < dr_max;
+
+END $$
+
+-- *********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.MakeTable_SkyPatchDistance_min()
+COMMENT "Calculate the minimum distance field accurately by querying over 4 choices for each corner"
+BEGIN 
+
+-- Staging table for the distances
+CREATE OR REPLACE TEMPORARY TABLE KS.SkyPatchDistance_dist LIKE KS.SkyPatchDistance;
+-- Calculate distances by joining over 4 choices for the corner at each grid point (16 total) and taking the minimum
+INSERT INTO KS.SkyPatchDistance_dist
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+WITH t1 AS (
+SELECT
+	-- The two SkyPatch cells
+	spd.SkyPatchID_1,
+	spd.SkyPatchID_2,
+	-- Midpoint distance
+	SQRT(POW(p2.x-p1.x, 2)+POW(p2.y-p1.y, 2)+POW(p2.z-p1.z, 2)) AS dr_mid,
+ 	-- Selected corner from SkyPatch 1
+ 	CASE cr1._ WHEN 0 THEN p1.x00 WHEN 1 THEN p1.x01 WHEN 2 THEN p1.x10	WHEN 3 THEN p1.x11 END AS x1,
+ 	CASE cr1._ WHEN 0 THEN p1.y00 WHEN 1 THEN p1.y01 WHEN 2 THEN p1.y10	WHEN 3 THEN p1.y11 END AS y1,
+ 	CASE cr1._ WHEN 0 THEN p1.z00 WHEN 1 THEN p1.z01 WHEN 2 THEN p1.z10	WHEN 3 THEN p1.z11 END AS z1,
+ 	-- Selected corner from SkyPatch 2
+ 	CASE cr2._ WHEN 0 THEN p2.x00 WHEN 1 THEN p2.x01 WHEN 2 THEN p2.x10	WHEN 3 THEN p2.x11 END AS x2,
+ 	CASE cr2._ WHEN 0 THEN p2.y00 WHEN 1 THEN p2.y01 WHEN 2 THEN p2.y10	WHEN 3 THEN p2.y11 END AS y2,
+ 	CASE cr2._ WHEN 0 THEN p2.z00 WHEN 1 THEN p2.z01 WHEN 2 THEN p2.z10	WHEN 3 THEN p2.z11 END AS z2,
+ 	-- The selected corner
+ 	cr1._ AS cr1,
+ 	cr2._ AS cr2
+FROM
+	-- Entries on the distance table that we need compute the distances for
+	KS.SkyPatchDistance AS spd
+	-- The two SkyPatch cells
+	INNER JOIN KS.SkyPatch AS p1 ON p1.SkyPatchID = spd.SkyPatchID_1
+	INNER JOIN KS.SkyPatch AS p2 ON p2.SkyPatchID = spd.SkyPatchID_2
+	-- Counter to choose the corner of grid cell 1
+	INNER JOIN KS.Counter AS cr1 ON cr1._ < 4
+	-- Counter to choose the corner of grid cell 2
+	INNER JOIN KS.Counter AS cr2 ON cr2._ < 4
+WHERE
+	-- Only need to update distance calculations on pairs that span different faces
+	p1.CubeFaceID <> p2.CubeFaceID
+)
+SELECT
+	t1.SkyPatchID_1,
+	t1.SkyPatchID_2,
+	t1.dr_mid,
+	-- The minimum distance is the minimum over all 16 choices of the corners
+	SQRT(MIN(POW(x2-x1,2)+POW(y2-y1,2)+POW(z2-z1,2))) AS dr_min
+FROM
+	t1
+GROUP BY t1.SkyPatchID_1, t1.SkyPatchID_2
+ORDER BY dr_min desc;
+
+-- Apply the distances to the main table now
+UPDATE
+	KS.SkyPatchDistance AS spd
+	INNER JOIN KS.SkyPatchDistance_dist AS spdd ON
+		spdd.SkyPatchID_1 = spd.SkyPatchID_1 AND
+		spdd.SkyPatchID_2 = spd.SkyPatchID_2
+SET
+	spd.dr_mid = spdd.dr_mid,
+	spd.dr_min = spdd.dr_min;
+
+DROP TEMPORARY TABLE KS.SkyPatchDistance_dist;
+	
+END $$
+
+-- *********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.MakeTable_SkyPatchDistance_bf(
+	IN dr_max DOUBLE)
+COMMENT "Populate records on the KS.SkyPatchDistance table spanning across faces using brute force"
+BEGIN 
+
+-- Most of the neighbors are on the same major cube face
+CALL KS.MakeTable_SkyPatchDistance_face(dr_max);
+
+-- Brute force approach for distance on pairs that span two different faces
+-- This does not scale, but useful for checking with small N
+INSERT INTO KS.SkyPatchDistance
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+WITH t1 AS (
+SELECT
+	p1.SkyPatchID AS SkyPatchID_1,
+	p2.SkyPatchID AS SkyPatchID_2,
+	SQRT(POW(p2.x-p1.x,2)+POW(p2.y-p1.y,2)+POW(p2.z-p1.z,2)) AS dr_mid
+FROM
+	KS.SkyPatch AS p1
+	INNER JOIN KS.SkyPatch AS p2 ON
+		p2.CubeFaceID <> p1.CubeFaceID
+)
+SELECT
+	t1.SkyPatchID_1,
+	t1.SkyPatchID_2,
+	t1.dr_mid,
+	-1.0 AS dr_min
+FROM
+	t1
+WHERE 
+	t1.dr_mid < dr_max;
+
+-- Calculate the minimum distance
+CALL KS.MakeTable_SkyPatchDistance_min();
+	
+END $$
+
+-- *********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.MakeTable_SkyPatchDistance(
+	IN dr_max DOUBLE)
+COMMENT "Populate the KS.SkyPatchDistance table"
+BEGIN 
+
+-- Empty table first so this procedure can be re-run on demand
+TRUNCATE TABLE KS.SkyPatchDistance;
+
+-- Most of the neighbors are on the same major cube face
+CALL KS.MakeTable_SkyPatchDistance_face(dr_max);
+
+-- Calculate @M and @N
+SELECT 
+	MAX(spg.i)+1 AS M 
+INTO @M 
+FROM KS.SkyPatchGrid AS spg;
+SET @N = (@M DIV 2);
 
 -- Insert a second batch that are neighbors across different faces
 -- dr_min is currently a placeholder.  
@@ -372,12 +455,12 @@ WHERE
 SELECT
 	t1.SkyPatchID_1,
 	t1.SkyPatchID_2,
-	t1.dr_mid AS dr_min,
-	t1.dr_mid
+	t1.dr_mid,
+	-1.0 AS dr_min
 FROM
 	t1
 WHERE
-	t1.dr_mid < (1.0 / @N);
+	t1.dr_mid < LEAST(1.0 / @N, dr_max);
 
 -- Create a third batch by searching along both grid faces; save in a temp table
 CREATE OR REPLACE TEMPORARY TABLE KS.SkyPatchDistance_batch LIKE KS.SkyPatchDistance;
@@ -432,64 +515,31 @@ FROM
 		p2.CubeFaceID = p2a.CubeFaceID AND
 		p2.i = gd2.i2 AND p2.j = gd2.j2;
 
-/*
-INSERT INTO KS.SkyPatchDistance_batch
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
-WITH t1 AS(
-SELECT
-	p1.SkyPatchID AS SkyPatchID_1,
-	p2.SkyPatchID AS SkyPatchID_2,
-	SQRT(POW(p2.x-p1.x,2)+POW(p2.y-p1.y,2)+POW(p2.z-p1.Z,2)) AS dr_mid
-FROM
-	-- Start with entries on the distance table
-	KS.SkyPatchDistance AS spd
-	-- Join the two SkyPatch cells
-	INNER JOIN KS.SkyPatch AS p1_anchor ON p1_anchor.SkyPatchID = spd.SkyPatchID_1
-	INNER JOIN KS.SkyPatch AS p2_anchor ON p2_anchor.SkyPatchID = spd.SkyPatchID_2
-	-- Search for additional nearby connections on cube face 1
-	INNER JOIN KS.CounterSigned AS di1 ON di1._ BETWEEN -@grid_width AND @grid_width
-	INNER JOIN KS.CounterSigned AS dj1 ON dj1._ BETWEEN -@grid_width AND @grid_width
-	INNER JOIN KS.SkyPatch AS p1 ON
-		p1.CubeFaceID = p1_anchor.CubeFaceID AND
-		p1.i = p1.i + di1._ AND p1.j = p1_anchor.j + dj1._
-	-- Search for additional nearby connections on cube face 2
-	INNER JOIN KS.CounterSigned AS di2 ON di2._ BETWEEN -@grid_width AND @grid_width
-	INNER JOIN KS.CounterSigned AS dj2 ON dj2._ BETWEEN -@grid_width AND @grid_width
-	INNER JOIN KS.SkyPatch AS p2 ON
-		p2.CubeFaceID = p2_anchor.CubeFaceID AND
-		p2.i = p2.i + di2._ AND p2.j = p2_anchor.j + dj2._
-WHERE
-	-- Only take pairs spanning different cube faces
-	p1_anchor.CubeFaceID <> p2_anchor.CubeFaceID
-)
-SELECT
-	t1.SkyPatchID_1,
-	t1.SkyPatchID_2,
-	t1.dr_mid,
-	t1.dr_mid AS dr_min
-FROM
-	t1;
-
--- Insert the third batch into the distance table
--- Only insert rows not already present, and no duplicates
+-- Insert this batch provisionally
 INSERT INTO KS.SkyPatchDistance
 (SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
-SELECT 
-	spdb.SkyPatchID_1,
+SELECT
+	spdb.SkyPatchID_1, 
 	spdb.SkyPatchID_2,
-	spdb.dr_mid,
-	spdb.dr_min
-FROM 
+	-1.0 AS dr_mid,
+	-1.0 AS dr_min
+FROM
 	KS.SkyPatchDistance_batch AS spdb
-WHERE NOT EXISTS (
-	SELECT spd.SkyPatchID_1	
+WHERE 
+	NOT EXISTS(
+	SELECT spd.SkyPatchID_1
 	FROM KS.SkyPatchDistance AS spd
 	WHERE 
-		spd.SkyPatchID_1 = spdb.SkyPatchID_1 AND 
+		spd.SkyPatchID_1 = spdb.SkyPatchID_1 AND
 		spd.SkyPatchID_2 = spdb.SkyPatchID_2
-)
+	)
 GROUP BY spdb.SkyPatchID_1, spdb.SkyPatchID_2;
-*/
+
+-- Calculate the correct midpoint and minimum distance
+CALL KS.MakeTable_SkyPatchDistance_min();
+
+-- Clean up the temporary tables
+DROP TEMPORARY TABLE KS.SkyPatchDistance_batch;
 
 END
 $$
@@ -501,4 +551,5 @@ DELIMITER ;
 -- ************************************************************************************************
 CALL KS.MakeTable_SkyPatchGrid(@N, @dr_max);
 CALL KS.MakeTable_SkyPatch();
-CALL KS.MakeTable_SkyPatchDistance(@dr_max);
+CALL KS.MakeTable_SkyPatchDistance_face(@dr_max);
+-- CALL KS.MakeTable_SkyPatchDistance(@dr_max);
