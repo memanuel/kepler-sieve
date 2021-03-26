@@ -1,11 +1,11 @@
 -- ************************************************************************************************
 -- Global variables used at bottom to build the tables
 -- Set the variable N
-SET @N = 64;
--- SET @N = POW(2,9);
+-- SET @N = 16;
+SET @N = POW(2,10);
 
 -- Maximum distance for SkyPatchGridDistance
-SET @dr_max = 1.0 / 64.0;
+SET @dr_max = GREATEST(1.0 / @N, 1.0/360);
 
 -- *********************************************************************************
 DELIMITER $$
@@ -233,14 +233,15 @@ BEGIN
 TRUNCATE TABLE KS.SkyPatchDistance;
 	
 INSERT INTO KS.SkyPatchDistance
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min, IsCrossFace)
 SELECT
 	-- The two SkyPatch cells in this pair
 	p1.SkyPatchID AS SkyPatchID_1,
 	p2.SkyPatchID AS SkyPatchID_2,
 	-- The midpoint and minimum distance
 	gd.dr_mid,
-	gd.dr_min
+	gd.dr_min,
+	FALSE AS IsCrossFace
 FROM
 	-- The starting SkyPatch
 	KS.SkyPatch AS p1
@@ -267,7 +268,7 @@ BEGIN
 CREATE OR REPLACE TEMPORARY TABLE KS.SkyPatchDistance_dist LIKE KS.SkyPatchDistance;
 -- Calculate distances by joining over 4 choices for the corner at each grid point (16 total) and taking the minimum
 INSERT INTO KS.SkyPatchDistance_dist
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min, IsCrossFace)
 WITH t1 AS (
 SELECT
 	-- The two SkyPatch cells
@@ -298,14 +299,15 @@ FROM
 	INNER JOIN KS.Counter AS cr2 ON cr2._ < 4
 WHERE
 	-- Only need to update distance calculations on pairs that span different faces
-	p1.CubeFaceID <> p2.CubeFaceID
+	spd.IsCrossFace=True
 )
 SELECT
 	t1.SkyPatchID_1,
 	t1.SkyPatchID_2,
 	t1.dr_mid,
 	-- The minimum distance is the minimum over all 16 choices of the corners
-	SQRT(MIN(POW(x2-x1,2)+POW(y2-y1,2)+POW(z2-z1,2))) AS dr_min
+	SQRT(MIN(POW(x2-x1,2)+POW(y2-y1,2)+POW(z2-z1,2))) AS dr_min,
+	TRUE AS IsCrossFace
 FROM
 	t1
 GROUP BY t1.SkyPatchID_1, t1.SkyPatchID_2
@@ -342,7 +344,7 @@ CALL KS.MakeTable_SkyPatchDistance_face(dr_max);
 -- Brute force approach for distance on pairs that span two different faces
 -- This does not scale, but useful for checking with small N
 INSERT INTO KS.SkyPatchDistance
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min, IsCrossFace)
 WITH t1 AS (
 SELECT
 	p1.SkyPatchID AS SkyPatchID_1,
@@ -357,7 +359,8 @@ SELECT
 	t1.SkyPatchID_1,
 	t1.SkyPatchID_2,
 	t1.dr_mid,
-	-1.0 AS dr_min
+	-1.0 AS dr_min,
+	TRUE AS IsCrossFace
 FROM
 	t1
 WHERE 
@@ -395,6 +398,7 @@ CREATE OR REPLACE TEMPORARY TABLE KS.SkyPatchDistance_batch LIKE KS.SkyPatchDist
 ALTER TABLE KS.SkyPatchDistance_batch DROP PRIMARY KEY;
 ALTER TABLE KS.SkyPatchDistance_batch DROP dr_mid;
 ALTER TABLE KS.SkyPatchDistance_batch DROP dr_min;
+ALTER TABLE KS.SkyPatchDistance_batch DROP IsCrossFace;
 -- Upper bound on dr_mid
 ALTER TABLE KS.SkyPatchDistance_batch ADD COLUMN dr_mid_ub DOUBLE NOT NULL;
 
@@ -458,12 +462,13 @@ WHERE
 
 -- Insert this batch provisionally
 INSERT INTO KS.SkyPatchDistance
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min, IsCrossFace)
 SELECT
 	spdb.SkyPatchID_1, 
 	spdb.SkyPatchID_2,
 	spdb.dr_mid_ub AS dr_mid,
-	-1.0 AS dr_min
+	-1.0 AS dr_min,
+	TRUE AS IsCrossFace
 FROM
 	KS.SkyPatchDistance_batch AS spdb
 GROUP BY spdb.SkyPatchID_1, spdb.SkyPatchID_2;
@@ -516,12 +521,13 @@ FROM
 
 -- Insert this batch provisionally
 INSERT INTO KS.SkyPatchDistance
-(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min)
+(SkyPatchID_1, SkyPatchID_2, dr_mid, dr_min, IsCrossFace)
 SELECT
 	spdb.SkyPatchID_1, 
 	spdb.SkyPatchID_2,
 	-1.0 AS dr_mid,
-	-1.0 AS dr_min
+	-1.0 AS dr_min,
+	TRUE AS IsCrossFace
 FROM
 	KS.SkyPatchDistance_batch AS spdb
 WHERE 
@@ -555,5 +561,4 @@ DELIMITER ;
 -- ************************************************************************************************
 CALL KS.MakeTable_SkyPatchGrid(@N, @dr_max);
 CALL KS.MakeTable_SkyPatch();
--- CALL KS.MakeTable_SkyPatchDistance_face(@dr_max);
 CALL KS.MakeTable_SkyPatchDistance(@dr_max);
