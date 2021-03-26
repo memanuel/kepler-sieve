@@ -1,3 +1,13 @@
+-- ************************************************************************************************
+-- Global variables used at bottom to build the tables
+-- Set the variable N
+SET @N = 4;
+-- SET @N = POW(2,9);
+
+-- Maximum distance for SkyPatchGridDistance
+SET @dr_max = 0.25;
+
+-- *********************************************************************************
 DELIMITER $$
 
 -- *********************************************************************************
@@ -168,8 +178,6 @@ FROM
 WHERE
 	dr_min < dr_max;
 
-
-
 END $$
 
 -- *********************************************************************************
@@ -193,7 +201,7 @@ INSERT INTO KS.SkyPatch
 (SkyPatchID, CubeFaceID, i, j, x, y, z, x00, y00, z00, x01, y01, z01, x10, y10, z10, x11, y11, z11)
 SELECT
 	-- Integer IDs
-	(cf.CubeFaceID-1)*@M*@M + 2*gr.i*@N + j AS SkyPatchID,
+	(cf.CubeFaceID-1)*@M*@M + gr.i*@M + j AS SkyPatchID,
 	cf.CubeFaceID,
 	-- Local grid coordinates (i, j) on the major face
 	gr.i,
@@ -262,7 +270,7 @@ END $$
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.MakeTable_SkyPatchDistance(
-	IN gw INT)
+	IN dr_max DOUBLE)
 COMMENT "Populate the KS.SkyPatchDistance table"
 BEGIN 
 
@@ -487,3 +495,10 @@ END
 $$
 
 DELIMITER ;
+
+-- *********************************************************************************
+-- Build all the tables
+-- ************************************************************************************************
+CALL KS.MakeTable_SkyPatchGrid(@N, @dr_max);
+CALL KS.MakeTable_SkyPatch();
+CALL KS.MakeTable_SkyPatchDistance(@dr_max);

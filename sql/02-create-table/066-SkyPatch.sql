@@ -1,15 +1,4 @@
 -- ************************************************************************************************
--- Set the variable N
--- SET @N = POW(2,9);
-SET @N = 4;
-
--- The size of each grid is 2Nx2N with 4N^2 entries
-SET @M = 4 * @N * @N;
-
--- Width for populating the SkyPatchGridNeighbor table
-SET @grid_width = 5;
-
--- ************************************************************************************************
 -- SkyPatchGridCell describes the 4N^2 square grid cells on one major face
 CREATE OR REPLACE TABLE KS.SkyPatchGrid(
     i SMALLINT NOT NULL
@@ -87,39 +76,7 @@ ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "Collection of discrete patches of the sky corresponding to a cube in which the unit sphere is inscribed.";
 
 -- SELECT * FROM KS.SkyPatch;
-INSERT INTO KS.SkyPatch
-(SkyPatchID, CubeFaceID, i, j, x, y, z, x00, y00, z00, x01, y01, z01, x10, y10, z10, x11, y11, z11)
-SELECT
-	-- Integer IDs
-	(cf.CubeFaceID-1)*@M + 2*gr.i*@N + j AS SkyPatchID,
-	cf.CubeFaceID,
-	-- Local grid coordinates (i, j) on the major face
-	gr.i,
-	gr.j,
-	-- Coordinates of midpoint (x, y, z)
-	IF(cf.alpha='X', gr.u, 0.0) + IF(cf.beta='X', gr.v, 0.0) + IF(cf.gamma='X', gr.w*cf.ci, 0.0) AS x,
-	IF(cf.alpha='Y', gr.u, 0.0) + IF(cf.beta='Y', gr.v, 0.0) + IF(cf.gamma='Y', gr.w*cf.ci, 0.0) AS y,
-	IF(cf.alpha='Z', gr.u, 0.0) + IF(cf.beta='Z', gr.v, 0.0) + IF(cf.gamma='Z', gr.w*cf.ci, 0.0) AS z,
-	-- Coordinates of lower left corner (x00, y00, z00)
-	IF(cf.alpha='X', gr.u00, 0.0) + IF(cf.beta='X', gr.v00, 0.0) + IF(cf.gamma='X', gr.w00*cf.ci, 0.0) AS x00,
-	IF(cf.alpha='Y', gr.u00, 0.0) + IF(cf.beta='Y', gr.v00, 0.0) + IF(cf.gamma='Y', gr.w00*cf.ci, 0.0) AS y00,
-	IF(cf.alpha='Z', gr.u00, 0.0) + IF(cf.beta='Z', gr.v00, 0.0) + IF(cf.gamma='Z', gr.w00*cf.ci, 0.0) AS z00,
-	-- Coordinates of upper left corner (x01, y01, z01)
-	IF(cf.alpha='X', gr.u01, 0.0) + IF(cf.beta='X', gr.v01, 0.0) + IF(cf.gamma='X', gr.w01*cf.ci, 0.0) AS x01,
-	IF(cf.alpha='Y', gr.u01, 0.0) + IF(cf.beta='Y', gr.v01, 0.0) + IF(cf.gamma='Y', gr.w01*cf.ci, 0.0) AS y01,
-	IF(cf.alpha='Z', gr.u01, 0.0) + IF(cf.beta='Z', gr.v01, 0.0) + IF(cf.gamma='Z', gr.w01*cf.ci, 0.0) AS z01,
-	-- Coordinates of lower right corner (x10, y10, z10)
-	IF(cf.alpha='X', gr.u10, 0.0) + IF(cf.beta='X', gr.v10, 0.0) + IF(cf.gamma='X', gr.w10*cf.ci, 0.0) AS x10,
-	IF(cf.alpha='Y', gr.u10, 0.0) + IF(cf.beta='Y', gr.v10, 0.0) + IF(cf.gamma='Y', gr.w10*cf.ci, 0.0) AS y10,
-	IF(cf.alpha='Z', gr.u10, 0.0) + IF(cf.beta='Z', gr.v10, 0.0) + IF(cf.gamma='Z', gr.w10*cf.ci, 0.0) AS z10,
-	-- Coordinates of upper right corner (x11, y11, z11)
-	IF(cf.alpha='X', gr.u11, 0.0) + IF(cf.beta='X', gr.v11, 0.0) + IF(cf.gamma='X', gr.w11*cf.ci, 0.0) AS x11,
-	IF(cf.alpha='Y', gr.u11, 0.0) + IF(cf.beta='Y', gr.v11, 0.0) + IF(cf.gamma='Y', gr.w11*cf.ci, 0.0) AS y11,
-	IF(cf.alpha='Z', gr.u11, 0.0) + IF(cf.beta='Z', gr.v11, 0.0) + IF(cf.gamma='Z', gr.w11*cf.ci, 0.0) AS z11
-FROM
-	KS.CubeFace AS cf,
-	KS.SkyPatchGrid AS gr
-ORDER BY SkyPatchID;
+
 
 -- ************************************************************************************************
 -- Neighbor distance on the SkyPatchGrid table
