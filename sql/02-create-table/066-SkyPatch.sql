@@ -1,9 +1,13 @@
 -- ************************************************************************************************
 -- Set the variable N
--- SET @N = POW(2,8);
+-- SET @N = POW(2,9);
 SET @N = 4;
+
 -- The size of each grid is 2Nx2N with 4N^2 entries
 SET @M = 4 * @N * @N;
+
+-- Width for populating the SkyPatchGridNeighbor table
+SET @grid_width = 5;
 
 -- ************************************************************************************************
 -- SkyPatchGridCell describes the 4N^2 square grid cells on one major face
@@ -209,7 +213,8 @@ ORDER BY SkyPatchID;
 
 -- ************************************************************************************************
 -- Neighbor distance on the SkyPatchGrid table
-CREATE OR REPLACE TABLE KS.SkyPatchGridNeighbor(
+CREATE OR REPLACE TABLE KS.SkyPatchGridDistance(
+	-- Keys for the two grid cells being connected
 	i1 INT NOT NULL
         COMMENT "i coordinate of the first SkyPatchGrid cell",
 	j1 INT NOT NULL
@@ -217,76 +222,87 @@ CREATE OR REPLACE TABLE KS.SkyPatchGridNeighbor(
 	i2 INT NOT NULL
         COMMENT "i coordinate of the second SkyPatchGrid cell",
 	j2 INT NOT NULL
-        COMMENT "ji coordinate of the second SkyPatchGrid cell",
-	dr DOUBLE NOT NULL
+        COMMENT "j coordinate of the second SkyPatchGrid cell",
+    -- Distances: midpoint and minimum
+	dr_mid DOUBLE NOT NULL
 		COMMENT "Distance from center point to center point",
 	dr_min DOUBLE NOT NULL
 		COMMENT "Estimated minimum distance based on getting closer by up to half the width on each end",
+	-- Keys
 	PRIMARY KEY (i1, j1, i2, j2)
 )
 ENGINE='Aria' TRANSACTIONAL=0
-COMMENT "Catalog neighbor interactions on SkyPatchGrid table.";
+COMMENT "Distance bewteen two SkyPatchGrid cells; only cataloged for neighbors that are reasonably close.";
 
--- Width for populating the SkyPatchGridNeighbor table
-SET @dw = 5;
-
-INSERT INTO KS.SkyPatchGridNeighbor
-(i1, j1, i2, j2, dr, dr_min)
-WITH t1 as(
+INSERT INTO KS.SkyPatchGridDistance
+(i1, j1, i2, j2, dr_mid, dr_min)
+WITH t1 AS (
 SELECT
 	g1.i AS i1,
 	g1.j AS j1,
 	g2.i AS i2,
 	g2.j AS j2,
-	-- The distance along each coordinate from center to center
- 	ABS(g2.u-g1.u) AS du,
- 	ABS(g2.v-g1.v) AS dv,
- 	ABS(g2.w-g1.w) AS dw,
- 	-- Estimated distance improvement by traveling from the center to the nearest boundary
- 	((g1.uMax-g1.uMin)+(g2.uMax-g2.uMin))/2 AS wu,
- 	((g1.vMax-g1.vMin)+(g2.vMax-g2.vMin))/2 AS wv,
- 	((g1.wMax-g1.wMin)+(g2.wMax-g2.wMin))/2 AS ww
+	-- Distance at midpoint
+	SQRT(POW(g2.u-g1.u,2)+POW(g2.v-g1.v,2)+POW(g2.w-g1.w,2)) AS dr_mid,
+ 	-- Selected corners
+ 	cr1._ AS cr1,
+ 	cr2._ AS cr2,
+ 	-- Selected corner from grid cell 1
+ 	CASE cr1._ WHEN 0 THEN g1.u00 WHEN 1 THEN g1.u01 WHEN 2 THEN g1.u10	WHEN 3 THEN g1.u11 END AS u1,
+ 	CASE cr1._ WHEN 0 THEN g1.v00 WHEN 1 THEN g1.v01 WHEN 2 THEN g1.v10	WHEN 3 THEN g1.v11 END AS v1,
+ 	CASE cr1._ WHEN 0 THEN g1.w00 WHEN 1 THEN g1.w01 WHEN 2 THEN g1.w10	WHEN 3 THEN g1.w11 END AS w1,
+ 	-- Selected corner from grid cell 2
+ 	CASE cr2._ WHEN 0 THEN g2.u00 WHEN 1 THEN g2.u01 WHEN 2 THEN g2.u10	WHEN 3 THEN g2.u11 END AS u2,
+ 	CASE cr2._ WHEN 0 THEN g2.v00 WHEN 1 THEN g2.v01 WHEN 2 THEN g2.v10	WHEN 3 THEN g2.v11 END AS v2,
+ 	CASE cr2._ WHEN 0 THEN g2.w00 WHEN 1 THEN g2.w01 WHEN 2 THEN g2.w10	WHEN 3 THEN g2.w11 END AS w2
 FROM
+	-- The starting grid cell
 	KS.SkyPatchGrid AS g1
+	-- The change in i and j
+	INNER JOIN KS.CounterSigned AS di ON di._ BETWEEN - @grid_width AND @grid_width
+	INNER JOIN KS.CounterSigned AS dj ON dj._ BETWEEN - @grid_width AND @grid_width
 	INNER JOIN KS.SkyPatchGrid AS g2 ON 
-		(g2.i BETWEEN g1.i-@dw AND g1.i+@dw) AND
-		(g2.j BETWEEN g1.j-@dw AND g1.j+@dw)
+		g2.i = g1.i + di._ AND
+		g2.j = g1.j + dj._
+	-- Counter to choose the corner of grid cell 1
+	INNER JOIN KS.Counter AS cr1 ON cr1._ < 4
+	-- Counter to choose the corner of grid cell 2
+	INNER JOIN KS.Counter AS cr2 ON cr2._ < 4
 ), t2 AS(
 SELECT
 	t1.i1,
 	t1.j1,
 	t1.i2,
 	t1.j2,
-	t1.du,
-	t1.dv,
-	t1.dw,
-	GREATEST(t1.du - t1.wu, 0.0) AS du_min,
-	GREATEST(t1.dv - t1.wv, 0.0) AS dv_min,
-	GREATEST(t1.dw - t1.ww, 0.0) AS dw_min
+	t1.cr1,
+	t1.cr2,
+	t1.dr_mid,
+	SQRT(MIN(POW(u2-u1,2)+POW(v2-v1,2)+POW(w2-w1,2))) AS dr_min
 FROM
 	t1
+GROUP BY t1.i1, t1.j1, t1.i2, t1.j2
 )
 SELECT
 	t2.i1,
 	t2.j1,
 	t2.i2,
 	t2.j2,
-	SQRT(POW(du,2)+POW(dv,2) + POW(dw,2)) AS dr,
-	SQRT(POW(du_min,2)+POW(dv_min,2) + POW(dw_min,2)) AS dr_min
+	dr_mid,
+	t2.dr_min
 FROM
 	t2;
 
 -- ************************************************************************************************
 -- Neighbor distance on the SkyPatch table
-CREATE OR REPLACE TABLE KS.SkyPatchNeighbor(
+CREATE OR REPLACE TABLE KS.SkyPatchDistance(
 	SkyPatchID_1 INT NOT NULL
         COMMENT "The first SkyPatchID",
 	SkyPatchID_2 INT NOT NULL
         COMMENT "The second SkyPatchID",
-	dr DOUBLE NOT NULL
+	dr_mid DOUBLE NOT NULL
 		COMMENT "Distance from center point to center point",
 	dr_min DOUBLE NOT NULL
 		COMMENT "Estimated minimum distance based on getting closer by up to half the width on each end",
 	PRIMARY KEY (SkyPatchID_1, SkyPatchID_2)
 )
-COMMENT "Catalog neighbor interactions on SkyPatch table.";
+COMMENT "Distance bewteen two SkyPatch cells; only cataloged for neighbors that are reasonably close.";
