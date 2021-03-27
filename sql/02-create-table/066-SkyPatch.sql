@@ -68,15 +68,14 @@ CREATE OR REPLACE TABLE KS.SkyPatch(
     z11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): z",
     -- Unique key
     UNIQUE KEY UNQ_SkyPatch_CubeFaceID_i_j(CubeFaceID, i, j)
-    	COMMENT "The pair (i,j) determines one small patch on a major face; the trio (f,i,j) is unique"
+    	COMMENT "The pair (i,j) determines one small patch on a major face; the trio (f,i,j) is unique",
+    UNIQUE KEY UNQ_SkyPatch_CubeFaceID_j_i(CubeFaceID, j, i)
+    	COMMENT "also support searching when f and j are known but not i",
     -- Foreign key
-    -- CONSTRAINT FK_SkyPatch_CubeFaceID FOREIGN KEY (CubeFaceID) REFERENCES CubeFace(CubeFaceID)
+    CONSTRAINT FK_SkyPatch_CubeFaceID FOREIGN KEY (CubeFaceID) REFERENCES CubeFace(CubeFaceID)
 )
 ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "Collection of discrete patches of the sky corresponding to a cube in which the unit sphere is inscribed.";
-
--- SELECT * FROM KS.SkyPatch;
-
 
 -- ************************************************************************************************
 -- Neighbor distance on the SkyPatchGrid table
@@ -96,7 +95,8 @@ CREATE OR REPLACE TABLE KS.SkyPatchGridDistance(
 	dr_min DOUBLE NOT NULL
 		COMMENT "Estimated minimum distance based on getting closer by up to half the width on each end",
 	-- Keys
-	PRIMARY KEY (i1, j1, i2, j2)
+	PRIMARY KEY (i1, j1, i2, j2),
+	INDEX IDX_i1_j1_dr_min (i1, j1, dr_min)
 )
 ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "Distance bewteen two SkyPatchGrid cells; only cataloged for neighbors that are reasonably close.";
@@ -113,6 +113,11 @@ CREATE OR REPLACE TABLE KS.SkyPatchDistance(
 		COMMENT "Distance from center point to center point",
 	dr_min DOUBLE NOT NULL
 		COMMENT "Estimated minimum distance based on getting closer by up to half the width on each end",
-	PRIMARY KEY (SkyPatchID_1, SkyPatchID_2)
+	IsCrossFace BOOL,
+	-- Keys
+	PRIMARY KEY (SkyPatchID_1, SkyPatchID_2),
+	INDEX (SkyPatchID_1, dr_min)
+		COMMENT "Support searching for all SkyPatch cells within a distance of SkyPatchID_1",
+	INDEX IDX_SkyPatchDistance_IsCrossFace (IsCrossFace)	
 )
 COMMENT "Distance bewteen two SkyPatch cells; only cataloged for neighbors that are reasonably close.";
