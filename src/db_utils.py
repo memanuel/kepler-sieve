@@ -80,7 +80,7 @@ def sp2df(sp_name: str, params: Dict=dict()):
     return df
 
 # ********************************************************************************************************************* 
-def sp_run(sp_name: str, params: Optional[Dict]=None) -> None:
+def sp_run(sp_name: str, params: Dict=dict()) -> None:
     """
     Execute a SQL stored procedure.
     INPUTS:

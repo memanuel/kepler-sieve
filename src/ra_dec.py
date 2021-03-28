@@ -25,6 +25,7 @@ from datetime import date, datetime
 # MSE imports
 from utils import range_inc
 from astro_utils import jd_to_mjd, mjd_to_jd, date_to_mjd
+from db_utils import sp2df
 
 # Typing
 from typing import Tuple, Optional
@@ -429,3 +430,56 @@ def skyfield_observe(observer_sf, body_sf, obstime_sf):
     
     # Return ra, dec, delta as astropy arrays
     return (ra, dec, delta)
+
+# ********************************************************************************************************************
+# Load one copy of the Cube DataFrame into memory
+cf = sp2df('KS.GetCubeFace')
+
+# ********************************************************************************************************************
+def dir2SkyPatchID(dir: np.array, N: int):
+    """
+    Compute a vector of SkyPatchIDs from a 3 vectors of direction components
+    INPUTS:
+        dir: An array [ux, uy, uz] of directions on the unit sphere in the ecliptic frame; shape N_row x 3
+        N: Grid size for SkyPatch
+    """
+
+    # Nx3 array of directions
+    dir = np.stack([x, y, z]).T
+    # Unpack components of directions
+    x = dir[:,0]
+    y = dir[:,1]
+    z = dir[:,2]
+
+    # The search array for k is ordered z, y, x, -x, -y, -z
+    sa = np.stack([z, y, x, -x, -y, -z]).T
+
+    # The index of of the largest element; zero based.  CubeFaceID = f+1
+    f = np.argmax(sa, axis=1)
+
+    # Row indexer for 2D array indexing
+    N_row: = sa.shape[0]
+    row_idx = np.arange(N_row)
+
+    # Indices for axes corresponding to u and v and w
+    idx_j1 = cf.j1[f].values-1
+    idx_j2 = cf.j2[f].values-1
+    idx_i = cf.i[f].values-1
+
+    # Index of direction in the regular order
+    k = (3-f) % 3
+
+    # The projection of the direction onto the cube
+    a = t*dir[row_idx, idx_j1]
+    b = t*dir[row_idx, idx_j2]
+    c = t*dir[row_idx, idx_i]
+
+    # Compute the integer entries (i, j)
+    i = np.floor(N * (1.0 + a))
+    j = np.floor(N * (1.0 + b))
+
+    # Caclulate SkyPatchID
+    M: int = (2*N)
+    M2: int = M*M
+    SkyPatchID = f*M2 + i*M + j
+    return SkyPatchID

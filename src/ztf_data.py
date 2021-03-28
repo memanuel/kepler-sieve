@@ -73,11 +73,12 @@ def ztf_raw_detections(sz: int = 1000000):
     """Populate missing rows of table KS.RawDetections from ZTF.Detections"""
     # Get the number of missing rows
     rMax = sp2df('KS.MakeTable_RawDetection_ZTF_RowCount').RowCount[0]
+    # Set up a tqdm index counter to process the rows in chunks of sz at a time
     iMax: int = rMax // sz + 1
     idx = tqdm_auto(np.arange(iMax))
-    params={'sz':sz}
+    # Process the rows in chunks of sz
+    params={'sz':sz}    
     print(f'KS.RawDetections missing {rMax} rows from ZTF.Detections. Processing now...')
-
     for i in idx:
         sp_run('KS.MakeTable_RawDetection_ZTF', params=params)
 
@@ -99,7 +100,7 @@ def ztf_detection_add_dir(df: pd.DataFrame):
     u = radec2dir(ra=ra, dec=dec, obstime_mjd=mjd)    
 
     # Add these directions to the DataFrame in three columns after dec
-    col_num_dec = df.columns.get_loc('DEC')
+    col_num_dec = df.columns.get_loc('dec')
     df.insert(loc=col_num_dec+1, column='ux', value=u[0])
     df.insert(loc=col_num_dec+2, column='uy', value=u[1])
     df.insert(loc=col_num_dec+3, column='uz', value=u[2])
