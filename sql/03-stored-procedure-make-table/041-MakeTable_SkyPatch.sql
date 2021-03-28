@@ -108,81 +108,38 @@ SELECT
 FROM
 	t2;
 
-/*
-INSERT INTO KS.SkyPatchGridDistance
-(i1, j1, i2, j2, dr_mid, dr_min)
-WITH t1 AS (
-SELECT
-	g1.i AS i1,
-	g1.j AS j1,
-	g2.i AS i2,
-	g2.j AS j2,
-	-- Distance at midpoint
-	SQRT(POW(g2.u-g1.u,2)+POW(g2.v-g1.v,2)+POW(g2.w-g1.w,2)) AS dr_mid,
- 	-- Selected corners
- 	cr1._ AS cr1,
- 	cr2._ AS cr2,
- 	-- Selected corner from grid cell 1
- 	CASE cr1._ WHEN 0 THEN g1.u00 WHEN 1 THEN g1.u01 WHEN 2 THEN g1.u10	WHEN 3 THEN g1.u11 END AS u1,
- 	CASE cr1._ WHEN 0 THEN g1.v00 WHEN 1 THEN g1.v01 WHEN 2 THEN g1.v10	WHEN 3 THEN g1.v11 END AS v1,
- 	CASE cr1._ WHEN 0 THEN g1.w00 WHEN 1 THEN g1.w01 WHEN 2 THEN g1.w10	WHEN 3 THEN g1.w11 END AS w1,
- 	-- Selected corner from grid cell 2
- 	CASE cr2._ WHEN 0 THEN g2.u00 WHEN 1 THEN g2.u01 WHEN 2 THEN g2.u10	WHEN 3 THEN g2.u11 END AS u2,
- 	CASE cr2._ WHEN 0 THEN g2.v00 WHEN 1 THEN g2.v01 WHEN 2 THEN g2.v10	WHEN 3 THEN g2.v11 END AS v2,
- 	CASE cr2._ WHEN 0 THEN g2.w00 WHEN 1 THEN g2.w01 WHEN 2 THEN g2.w10	WHEN 3 THEN g2.w11 END AS w2
-FROM
-	-- The starting grid cell
-	KS.SkyPatchGrid AS g1
-	-- The change in i and j
-	INNER JOIN KS.CounterSigned AS di ON di._ BETWEEN - @gw AND @gw
-	INNER JOIN KS.CounterSigned AS dj ON dj._ BETWEEN - @gw AND @gw
-	INNER JOIN KS.SkyPatchGrid AS g2 ON 
-		g2.i = g1.i + di._ AND
-		g2.j = g1.j + dj._
-	-- Counter to choose the corner of grid cell 1
-	INNER JOIN KS.Counter AS cr1 ON cr1._ < 4
-	-- Counter to choose the corner of grid cell 2
-	INNER JOIN KS.Counter AS cr2 ON cr2._ < 4
-), t2 AS(
-SELECT
-	t1.i1,
-	t1.j1,
-	t1.i2,
-	t1.j2,
-	t1.cr1,
-	t1.cr2,
-	t1.dr_mid,
-	SQRT(MIN(POW(u2-u1,2)+POW(v2-v1,2)+POW(w2-w1,2))) AS dr_min
-FROM
-	t1
-GROUP BY t1.i1, t1.j1, t1.i2, t1.j2
-)
-SELECT
-	t2.i1,
-	t2.j1,
-	t2.i2,
-	t2.j2,
-	dr_mid,
-	t2.dr_min
-FROM
-	t2
-WHERE
-	dr_min < dr_max;
-*/
-
 -- Populate SkyPatchGridDistance; just pairs of points less than dr_max apart
 -- Step 1: get the coordinates of each candidate pair of corners
-CREATE TEMPORARY TABLE t1
+CREATE TEMPORARY TABLE t1(
+	i1 INT NOT NULL,
+	j1 INT NOT NULL,
+	i2 INT NOT NULL,
+	j2 INT NOT NULL,
+	cr1 TINYINT NOT NULL,
+	cr2 TINYINT NOT NULL,
+	u1 DOUBLE NOT NULL,
+	v1 DOUBLE NOT NULL,
+	w1 DOUBLE NOT NULL,
+	u2 DOUBLE NOT NULL,
+	v2 DOUBLE NOT NULL,
+	w2 DOUBLE NOT NULL,
+	dr_mid DOUBLE NOT NULL,
+	dr_min DOUBLE NOT NULL,
+	PRIMARY KEY (i1, j1, i2, j2, cr1, cr2)
+);
+
+INSERT INTO t1
+(i1, j1, i2, j2, cr1, cr2, dr_mid, u1, v1, w1, u2, v2, w2)
 SELECT
 	g1.i AS i1,
 	g1.j AS j1,
 	g2.i AS i2,
 	g2.j AS j2,
-	-- Distance at midpoint
-	SQRT(POW(g2.u-g1.u,2)+POW(g2.v-g1.v,2)+POW(g2.w-g1.w,2)) AS dr_mid,
  	-- Selected corners
  	cr1._ AS cr1,
  	cr2._ AS cr2,
+	-- Distance at midpoint
+	SQRT(POW(g2.u-g1.u,2)+POW(g2.v-g1.v,2)+POW(g2.w-g1.w,2)) AS dr_mid,
  	-- Selected corner from grid cell 1
  	CASE cr1._ WHEN 0 THEN g1.u00 WHEN 1 THEN g1.u01 WHEN 2 THEN g1.u10	WHEN 3 THEN g1.u11 END AS u1,
  	CASE cr1._ WHEN 0 THEN g1.v00 WHEN 1 THEN g1.v01 WHEN 2 THEN g1.v10	WHEN 3 THEN g1.v11 END AS v1,
@@ -206,8 +163,7 @@ FROM
 	INNER JOIN KS.Counter AS cr2 ON cr2._ < 2
 WHERE
 	-- Only pairs that are feasibly short
-	POW(cr1._, 2) + POW(cr2._, 2) < @gw2
-)
+	POW(cr1._, 2) + POW(cr2._, 2) < @gw2;
 
 -- Step 2: group by the pair of candidate grid points
 CREATE TEMPORARY TABLE t2(
@@ -221,6 +177,7 @@ CREATE TEMPORARY TABLE t2(
 	dr_min DOUBLE NOT NULL,
 	PRIMARY KEY (i1, j1, i2, j2)
 );
+
 INSERT INTO t2
 (i1, j1, i2, j2, cr1, cr2, dr_mid, dr_min)
 SELECT
@@ -258,7 +215,7 @@ END $$
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.MakeTable_SkyPatch()
-COMMENT "Populate the KS.SkyPatchGrid and KS.SkyPatchGridDistance tables"
+COMMENT "Populate the KS.SkyPatch table"
 BEGIN 
 
 -- Calculate @M and @N
