@@ -26,7 +26,7 @@ SET @Nf = CAST(N AS DOUBLE);
 SET @gw = CAST(1 + CEILING(dr_max*N) AS INT);
 
 -- Calculate maximum sum of squares of di^2 + dj^2 based on dr_max
-SET @gw2 = CAST(CEILING(1+POW(dr_max*N,2)) AS INT);
+-- SET @gw2 = CAST(CEILING(1+POW(dr_max*N,2)) AS INT);
 
 -- Empty both tables
 TRUNCATE TABLE KS.SkyPatchGrid;
@@ -110,7 +110,7 @@ FROM
 
 -- Populate SkyPatchGridDistance; just pairs of points less than dr_max apart
 -- Step 1: get the coordinates of each candidate pair of corners
-CREATE TEMPORARY TABLE t1(
+CREATE OR REPLACE TEMPORARY TABLE t1(
 	i1 INT NOT NULL,
 	j1 INT NOT NULL,
 	i2 INT NOT NULL,
@@ -124,12 +124,13 @@ CREATE TEMPORARY TABLE t1(
 	v2 DOUBLE NOT NULL,
 	w2 DOUBLE NOT NULL,
 	dr_mid DOUBLE NOT NULL,
-	dr_min DOUBLE NOT NULL,
+	dr_corner DOUBLE NOT NULL,
+	-- This temp table keyed by the grid points and choice of corners
 	PRIMARY KEY (i1, j1, i2, j2, cr1, cr2)
 );
 
 INSERT INTO t1
-(i1, j1, i2, j2, cr1, cr2, dr_mid, u1, v1, w1, u2, v2, w2)
+(i1, j1, i2, j2, cr1, cr2, u1, v1, w1, u2, v2, w2, dr_mid, dr_corner)
 SELECT
 	g1.i AS i1,
 	g1.j AS j1,
@@ -138,8 +139,6 @@ SELECT
  	-- Selected corners
  	cr1._ AS cr1,
  	cr2._ AS cr2,
-	-- Distance at midpoint
-	SQRT(POW(g2.u-g1.u,2)+POW(g2.v-g1.v,2)+POW(g2.w-g1.w,2)) AS dr_mid,
  	-- Selected corner from grid cell 1
  	CASE cr1._ WHEN 0 THEN g1.u00 WHEN 1 THEN g1.u01 WHEN 2 THEN g1.u10	WHEN 3 THEN g1.u11 END AS u1,
  	CASE cr1._ WHEN 0 THEN g1.v00 WHEN 1 THEN g1.v01 WHEN 2 THEN g1.v10	WHEN 3 THEN g1.v11 END AS v1,
@@ -147,7 +146,10 @@ SELECT
  	-- Selected corner from grid cell 2
  	CASE cr2._ WHEN 0 THEN g2.u00 WHEN 1 THEN g2.u01 WHEN 2 THEN g2.u10	WHEN 3 THEN g2.u11 END AS u2,
  	CASE cr2._ WHEN 0 THEN g2.v00 WHEN 1 THEN g2.v01 WHEN 2 THEN g2.v10	WHEN 3 THEN g2.v11 END AS v2,
- 	CASE cr2._ WHEN 0 THEN g2.w00 WHEN 1 THEN g2.w01 WHEN 2 THEN g2.w10	WHEN 3 THEN g2.w11 END AS w2
+ 	CASE cr2._ WHEN 0 THEN g2.w00 WHEN 1 THEN g2.w01 WHEN 2 THEN g2.w10	WHEN 3 THEN g2.w11 END AS w2,
+	-- Distance at midpoint
+	SQRT(POW(g2.u-g1.u,2) + POW(g2.v-g1.v,2) + POW(g2.w-g1.w,2)) AS dr_mid,
+	0.0 AS dr_corner
 FROM
 	-- The starting grid cell
 	KS.SkyPatchGrid AS g1
@@ -160,35 +162,31 @@ FROM
 	-- Counter to choose the corner of grid cell 1
 	INNER JOIN KS.Counter AS cr1 ON cr1._ < 2
 	-- Counter to choose the corner of grid cell 2
-	INNER JOIN KS.Counter AS cr2 ON cr2._ < 2
-WHERE
-	-- Only pairs that are feasibly short
-	POW(cr1._, 2) + POW(cr2._, 2) < @gw2;
+	INNER JOIN KS.Counter AS cr2 ON cr2._ < 2;
+
+-- Calculate distance on the corners
+UPDATE t1 SET dr_corner = SQRT( POW(u2-u1,2) + POW(v2-v1,2) + POW(w2-w1,2));
 
 -- Step 2: group by the pair of candidate grid points
-CREATE TEMPORARY TABLE t2(
+CREATE OR REPLACE TEMPORARY TABLE t2(
 	i1 INT NOT NULL,
 	j1 INT NOT NULL,
 	i2 INT NOT NULL,
 	j2 INT NOT NULL,
-	cr1 TINYINT NOT NULL,
-	cr2 TINYINT NOT NULL,
 	dr_mid DOUBLE NOT NULL,
 	dr_min DOUBLE NOT NULL,
 	PRIMARY KEY (i1, j1, i2, j2)
 );
 
 INSERT INTO t2
-(i1, j1, i2, j2, cr1, cr2, dr_mid, dr_min)
+(i1, j1, i2, j2, dr_mid, dr_min)
 SELECT
 	t1.i1,
 	t1.j1,
 	t1.i2,
 	t1.j2,
-	t1.cr1,
-	t1.cr2,
 	MIN(t1.dr_mid) AS dr_mid,
-	SQRT(MIN(POW(u2-u1,2)+POW(v2-v1,2)+POW(w2-w1,2))) AS dr_min
+	MIN(t1.dr_corner) AS dr_min
 FROM
 	t1
 -- Group by the pair of points so we take only the minimum distance between grid points
@@ -202,12 +200,16 @@ SELECT
 	t2.j1,
 	t2.i2,
 	t2.j2,
-	dr_mid,
+	t2.dr_mid,
 	t2.dr_min
 FROM
 	t2
 WHERE
-	dr_min < dr_max;
+	t2.dr_min < dr_max;
+
+-- Clean up temporary tables
+-- DROP TEMPORARY TABLE t1;
+-- DROP TEMPORARY TABLE t2;
 
 END $$
 
