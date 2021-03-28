@@ -120,4 +120,5 @@ CREATE OR REPLACE TABLE KS.SkyPatchDistance(
 		COMMENT "Support searching for all SkyPatch cells within a distance of SkyPatchID_1",
 	INDEX IDX_SkyPatchDistance_IsCrossFace (IsCrossFace)	
 )
+ENGINE='Aria' TRANSACTIONAL=0
 COMMENT "Distance bewteen two SkyPatch cells; only cataloged for neighbors that are reasonably close.";

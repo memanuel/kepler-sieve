@@ -1,6 +1,31 @@
+-- ************************************************************************************************
+-- drop tables in reverse dependency order
+
+-- ************************************************************************************************
+CREATE OR REPLACE TABLE KS.DetectionTimeSlice(
+	DetectionTimeSliceID INT NOT NULL PRIMARY KEY
+        COMMENT "Integer ID for a slice of detection times",
+    IntegrationTimeID INT NOT NULL
+    	COMMENT "The last IntegrationTime prior to or equal to the start of the time slice",
+    MJD DOUBLE NOT NULL UNIQUE
+        COMMENT "The Modified Julian Date of the midpoint of this time slice",
+    MJD0 DOUBLE NOT NULL UNIQUE
+        COMMENT "The Modified Julian Date of the start of this time slice (inclusive)",
+    MJD1 DOUBLE NOT NULL UNIQUE
+        COMMENT "The Modified Julian Date of the end of this time slice (exclusive)",
+    -- Keys
+    UNIQUE KEY UNQ_MJD0_MJD1 (MJD0, MJD1),
+    INDEX IDX_IntegrationTimeID (IntegrationTimeID)
+)
+ENGINE='Aria' TRANSACTIONAL=0
+COMMENT "Time at which one or more detections were made an observatory.  Cartesian position and velocity includes topos adjustment.";
+
+-- ************************************************************************************************
 CREATE OR REPLACE TABLE KS.DetectionTime(
 	DetectionTimeID INT NOT NULL PRIMARY KEY
         COMMENT "Integer ID for this detection time",
+    DetectionTimeSliceID INT NOT NULL
+    	COMMENT "The time slice; foreign key to DetectionTimeSlice",
     MJD DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of this detection time in the TDB (barycentric dynamical time) frame",
 	CalendarDateTime DATETIME(6) NOT NULL UNIQUE

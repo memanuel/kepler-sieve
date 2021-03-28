@@ -9,9 +9,12 @@ BEGIN
 
 SELECT
 	dt.DetectionTimeID,
-	dt.MJD
+	dt.MJD,
+	dts.DetectionTimeSliceID
 FROM
 	ZTF.DetectionTime AS dt
+	INNER JOIN KS.DetectionTimeSlice AS dts ON
+		dts.DetectionTimeSliceID = floor(dt.MJD*24*60)
 ORDER BY dt.DetectionTimeID;
 
 END
