@@ -444,8 +444,6 @@ def dir2SkyPatchID(dir: np.array, N: int):
         N: Grid size for SkyPatch
     """
 
-    # Nx3 array of directions
-    dir = np.stack([x, y, z]).T
     # Unpack components of directions
     x = dir[:,0]
     y = dir[:,1]
@@ -455,10 +453,10 @@ def dir2SkyPatchID(dir: np.array, N: int):
     sa = np.stack([z, y, x, -x, -y, -z]).T
 
     # The index of of the largest element; zero based.  CubeFaceID = f+1
-    f = np.argmax(sa, axis=1)
+    f = np.int32(np.argmax(sa, axis=1))
 
     # Row indexer for 2D array indexing
-    N_row: = sa.shape[0]
+    N_row: int = sa.shape[0]
     row_idx = np.arange(N_row)
 
     # Indices for axes corresponding to u and v and w
@@ -466,20 +464,26 @@ def dir2SkyPatchID(dir: np.array, N: int):
     idx_j2 = cf.j2[f].values-1
     idx_i = cf.i[f].values-1
 
-    # Index of direction in the regular order
-    k = (3-f) % 3
+    # Calculate three components (u, v, w) on unit sphere
+    u = dir[row_idx, idx_j1]
+    v = dir[row_idx, idx_j2]
+    w = dir[row_idx, idx_i]
+
+    # The factor t required to dilate (u, v, w) to the nearest cube face
+    t = 1.0 / np.abs(w)
 
     # The projection of the direction onto the cube
-    a = t*dir[row_idx, idx_j1]
-    b = t*dir[row_idx, idx_j2]
-    c = t*dir[row_idx, idx_i]
+    a = t*u
+    b = t*v
+    # c = t*w
 
     # Compute the integer entries (i, j)
-    i = np.floor(N * (1.0 + a))
-    j = np.floor(N * (1.0 + b))
+    i = np.int32(np.floor(N * (1.0 + a)))
+    j = np.int32(np.floor(N * (1.0 + b)))
 
     # Caclulate SkyPatchID
-    M: int = (2*N)
-    M2: int = M*M
+    M: int = np.int32(2*N)
+    M2: int = np.int32(M*M)
     SkyPatchID = f*M2 + i*M + j
+
     return SkyPatchID
