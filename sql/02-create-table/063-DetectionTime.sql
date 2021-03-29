@@ -7,14 +7,14 @@ CREATE OR REPLACE TABLE KS.DetectionTimeSlice(
         COMMENT "Integer ID for a slice of detection times",
     IntegrationTimeID INT NOT NULL
     	COMMENT "The last IntegrationTime prior to or equal to the start of the time slice",
-    MJD DOUBLE NOT NULL UNIQUE
+    mjd DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of the midpoint of this time slice",
-    MJD0 DOUBLE NOT NULL UNIQUE
+    mjd0 DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of the start of this time slice (inclusive)",
-    MJD1 DOUBLE NOT NULL UNIQUE
+    mjd1 DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of the end of this time slice (exclusive)",
     -- Keys
-    UNIQUE KEY UNQ_MJD0_MJD1 (MJD0, MJD1),
+    UNIQUE KEY UNQ_mjd0_mjd1 (mjd0, mjd1),
     INDEX IDX_IntegrationTimeID (IntegrationTimeID)
 )
 ENGINE='Aria' TRANSACTIONAL=0
@@ -26,7 +26,7 @@ CREATE OR REPLACE TABLE KS.DetectionTime(
         COMMENT "Integer ID for this detection time",
     DetectionTimeSliceID INT NOT NULL
     	COMMENT "The time slice; foreign key to DetectionTimeSlice",
-    MJD DOUBLE NOT NULL UNIQUE
+    mjd DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of this detection time in the TDB (barycentric dynamical time) frame",
 	CalendarDateTime DATETIME(6) NOT NULL UNIQUE
 		COMMENT "The date and time on the Gregorian calendar in the TDB frame of this detection",

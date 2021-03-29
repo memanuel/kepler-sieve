@@ -5,7 +5,7 @@ CREATE OR REPLACE TABLE KS.StateVectors_Planets(
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
 	BodyID INT NOT NULL
 		COMMENT "The Body whose state vectors are described; FK to JS.Body",
-	MJD DOUBLE NOT NULL
+	mjd DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from IntegrationTimeID but included for performance.",
 	-- Position q = [qx, qy, qz]
 	qx DOUBLE NOT NULL

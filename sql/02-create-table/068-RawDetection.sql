@@ -12,10 +12,10 @@ CREATE OR REPLACE TABLE KS.RawDetection(
     SourceDetectionID BIGINT NOT NULL
     	COMMENT "Integer ID for this detection according to its data source, e.g. ZTF.Detection.DetectionID for ZTF detections",
     -- Astrometric direction
-    -- MJD DOUBLE NOT NULL,
-    RA DOUBLE NOT NULL
+    -- mjd DOUBLE NOT NULL,
+    ra DOUBLE NOT NULL
         COMMENT "Right Ascension in degrees",
-    `DEC` DOUBLE NOT NULL
+    `dec` DOUBLE NOT NULL
         COMMENT "Declination in degrees",
     -- Unique keys
     UNIQUE KEY UNQ_RawDetection_DataSourceID_SourceDetectionID(DataSourceID, SourceDetectionID)

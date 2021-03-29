@@ -35,14 +35,14 @@ BEGIN
 CREATE OR REPLACE TEMPORARY TABLE KS.RawDetectionInsert LIKE KS.RawDetection;
 
 INSERT INTO KS.RawDetectionInsert
-(DataSourceID, ObservatoryID, DetectionTimeID, SourceDetectionID, RA, `DEC`)
+(DataSourceID, ObservatoryID, DetectionTimeID, SourceDetectionID, ra, `dec`)
 SELECT
 	ds.DataSourceID,
 	obs.ObservatoryID,
 	dt.DetectionTimeID,
 	det.DetectionID AS SourceDetectionID,
-	det.RA,
-	det.`DEC`
+	det.ra,
+	det.`dec`
 FROM
 	-- Start with all ZTF detections
 	ZTF.Detection AS det
@@ -50,7 +50,7 @@ FROM
 	INNER JOIN KS.DataSource AS ds ON ds.DataSourceCD = 'ZTF'
 	INNER JOIN KS.Observatory AS obs ON obs.ObservatoryID = ds.ObservatoryID
 	-- Get the DetectionTime by joining on MJD
-	INNER JOIN KS.DetectionTime AS dt ON dt.MJD = det.MJD
+	INNER JOIN KS.DetectionTime AS dt ON dt.mjd = det.mjd
 WHERE
 	-- Only take rows that aren't already in KS.RawDetection
 	NOT EXISTS (
@@ -64,9 +64,9 @@ ORDER BY det.DetectionID
 LIMIT sz;
 
 INSERT INTO KS.RawDetection
-(DataSourceID, ObservatoryID, DetectionTimeID, SourceDetectionID, RA, `DEC`)
+(DataSourceID, ObservatoryID, DetectionTimeID, SourceDetectionID, ra, `dec`)
 SELECT
-DataSourceID, ObservatoryID, DetectionTimeID, SourceDetectionID, RA, `DEC`
+DataSourceID, ObservatoryID, DetectionTimeID, SourceDetectionID, ra, `dec`
 FROM KS.RawDetectionInsert
 ORDER BY DetectionID;
 

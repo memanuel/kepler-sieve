@@ -10,7 +10,7 @@ CREATE OR REPLACE TABLE KS.Detection(
     DetectionID INT NOT NULL
     	COMMENT "Foreign key to the RawDetection table",
     -- Data payload
-    MJD DOUBLE NOT NULL
+    mjd DOUBLE NOT NULL
         COMMENT "The Modified Julian Date of this detection in the TDB (barycentric dynamical time) frame",
 	-- Unit direction u = [ux, uy, uz] in mean ecliptic frame
     ux DOUBLE NOT NULL

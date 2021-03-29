@@ -8,10 +8,10 @@ BEGIN
 
 -- Populate IntegrationTime from HorizonsTime by joining pairs of dates to a minutes offset
 INSERT INTO KS.IntegrationTime
-(TimeID, MJD, CalendarDate, CalendarDateTime, delta_T)
+(TimeID, mjd, CalendarDate, CalendarDateTime, delta_T)
 SELECT 
 	ht.TimeID + minutes._ AS TimeID,
-	ht.MJD + minutes.mjd_offset AS MJD,
+	ht.mjd + minutes.mjd_offset AS mjd,
 	ht.CalendarDate,
 	DATE_ADD(ht.CalendarDateTime, INTERVAL minutes._ MINUTE) AS CalendarDateTime,
 	(minutes.wt0 * ht.delta_T) + (minutes.wt1 * ht1.delta_T) AS delta_T
@@ -26,10 +26,10 @@ FROM
 
 -- Handle the last record in HorizonsTime
 INSERT INTO KS.IntegrationTime
-(TimeID, MJD, CalendarDate, CalendarDateTime, delta_T)
+(TimeID, mjd, CalendarDate, CalendarDateTime, delta_T)
 SELECT 
 	ht.TimeID,
-	ht.MJD,
+	ht.mjd,
 	ht.CalendarDate,
 	ht.CalendarDateTime,
 	ht.delta_T

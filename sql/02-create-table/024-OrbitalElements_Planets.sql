@@ -4,7 +4,7 @@ CREATE OR REPLACE TABLE KS.OrbitalElements_Planets(
 		COMMENT "Integer ID for the timestamp of these orbital elements; FK to KS.IntegrationTime",
 	BodyID INT NOT NULL
 		COMMENT "The Body whose orbital elements are described; FK to KS.Body",
-	MJD DOUBLE NOT NULL
+	mjd DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from IntegrationTimeID but included for performance.",
 	a DOUBLE NOT NULL COMMENT "The semimajor axis in AU",
 	e DOUBLE NOT NULL COMMENT "The eccentricity; dimensionless",

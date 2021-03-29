@@ -18,7 +18,7 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 WITH id AS(
 SELECT
 	dt.TimeID,
-	dt.MJD,
+	dt.mjd,
 	b.BodyID,
 	SQRT(POW(sv.qx - hv.qx, 2) + POW(sv.qy - hv.qy, 2) + POW(sv.qz - hv.qz, 2)) AS dq,
 	SQRT(POW(sv.vx - hv.vx, 2) + POW(sv.vy - hv.vy, 2) + POW(sv.vz - hv.vz, 2)) AS dv
@@ -45,7 +45,7 @@ WHERE
 )
 SELECT
 	id.TimeID,
-	id.MJD,
+	id.mjd,
 	AVG(id.dq) AS dq,
 	AVG(id.dv) AS dv,
 	AVG((id.dq / bv.sd_q)) AS dq_rel,

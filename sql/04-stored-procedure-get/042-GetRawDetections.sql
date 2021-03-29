@@ -13,15 +13,15 @@ BEGIN
 SELECT
 	rd.DetectionTimeID,
 	rd.DetectionID,
-	dt.MJD AS mjd,
-	rd.RA AS ra,
-	rd.`DEC` AS `dec`,
-	rd.Mag AS mag
+	dt.mjd,
+	rd.ra,
+	rd.`dec`,
+	rd.mag
 FROM
 	KS.RawDetection AS rd
 	INNER JOIN KS.DetectionTime AS dt ON dt.DetectionTimeID = rd.DetectionTimeID
 WHERE
-	mjd0 <= dt.MJD AND dt.MJD < mjd1;
+	mjd0 <= dt.mjd AND dt.mjd < mjd1;
 
 END
 $$

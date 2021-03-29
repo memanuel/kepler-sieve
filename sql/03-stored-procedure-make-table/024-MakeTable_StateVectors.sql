@@ -15,11 +15,11 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 
 -- Select from StateVectors_Planets into StateVectors
 REPLACE INTO KS.StateVectors
-(TimeID, BodyID, MJD, qx, qy, qz, vx, vy, vz)
+(TimeID, BodyID, mjd, qx, qy, qz, vx, vy, vz)
 SELECT
     sv.TimeID,
     sv.BodyID,
-    sv.MJD,
+    sv.mjd,
     sv.qx,
     sv.qy,
     sv.qz,

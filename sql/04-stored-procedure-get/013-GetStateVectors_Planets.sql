@@ -17,7 +17,7 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 SELECT
 	sv.TimeID,
 	sv.BodyID,
-	sv.MJD,
+	sv.mjd,
 	sv.qx,
 	sv.qy,
 	sv.qz,

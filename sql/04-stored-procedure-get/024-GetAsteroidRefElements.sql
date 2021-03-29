@@ -38,31 +38,6 @@ WHERE
     (elt.TimeID = @TimeID)
 ORDER BY elt.AsteroidID;
 
-/*
-SELECT
-	ast.AsteroidID,	
-	dt.TimeID,
-	ast.AsteroidName,
-	elt.epoch,
-	elt.a,
-	elt.e,
-	elt.inc,
-	elt.Omega_node AS Omega,
-	elt.omega_peri AS omega,
-	elt.M AS M,
-	b.BodyID,
-	b.BodyName
-FROM
-	JPL.AsteroidElement AS elt
-	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber = elt.AsteroidNumber
-	INNER JOIN KS.Body AS b ON b.BodyID = ast.BodyID
-	INNER JOIN KS.DailyTime AS dt ON dt.MJD = elt.epoch
-WHERE
-	dt.TimeID = @TimeID AND
-	n0 <= ast.AsteroidID AND ast.AsteroidID < n1
-ORDER BY ast.AsteroidID;
-*/
-
 END
 $$
 

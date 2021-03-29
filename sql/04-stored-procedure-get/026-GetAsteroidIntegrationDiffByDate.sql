@@ -12,7 +12,7 @@ WITH t1 AS (
 SELECT
 	av.AsteroidID,
 	ast.AsteroidNumber,
-	av.MJD,
+	av.mjd,
 	(av.qx - hv.qx) AS dx,
 	(av.qy - hv.qy) AS dy,
 	(av.qz - hv.qz) AS dz
@@ -34,7 +34,7 @@ FROM
 t2 AS (
 SELECT
 	t1.AsteroidID,
-	t1.MJD,
+	t1.mjd,
 	sqrt(power(t1.dx,2) + power(t1.dy,2) + power(t1.dz,2)) AS dq,
 	elt.a
 FROM
@@ -43,14 +43,14 @@ FROM
 )
 -- Calculate the average absolute and relative difference by date
 SELECT
-	t2.MJD,
+	t2.mjd,
 	avg(t2.dq) AS dq,
 	avg(t2.dq / a) AS dq_rel,
 	count(t2.AsteroidID) AS match_count
 FROM
 	t2
-GROUP BY t2.MJD
-ORDER BY t2.MJD;
+GROUP BY t2.mjd
+ORDER BY t2.mjd;
 
 END
 $$

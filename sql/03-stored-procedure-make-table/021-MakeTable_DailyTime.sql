@@ -8,10 +8,10 @@ BEGIN
 
 -- Populate IntegrationTime from HorizonsTime by joining pairs of dates to a minutes offset
 INSERT INTO KS.DailyTime
-(TimeID, MJD, CalendarDate, CalendarDateTime, delta_T)
+(TimeID, mjd, CalendarDate, CalendarDateTime, delta_T)
 SELECT
 	ht.TimeID,
-	ht.MJD,
+	ht.mjd,
 	ht.CalendarDate,
 	DATE_ADD(ht.CalendarDateTime, INTERVAL 0 MINUTE) AS CalendarDateTime,
 	ht.delta_T 	

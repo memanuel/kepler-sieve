@@ -4,7 +4,7 @@ CREATE OR REPLACE TABLE KS.AsteroidElements(
 		COMMENT "Integer ID for the timestamp of these orbital elements; FK to KS.DailyTime",
 	AsteroidID INT NOT NULL
 		COMMENT "The asteroid whose orbital elements are described; FK to KS.Asteroid",
-	MJD DOUBLE NOT NULL
+	mjd DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from IntegrationTimeID but included for performance.",
 	a DOUBLE NOT NULL COMMENT "The semimajor axis in AU",
 	e DOUBLE NOT NULL COMMENT "The eccentricity; dimensionless",

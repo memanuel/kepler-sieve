@@ -5,9 +5,9 @@ CREATE OR REPLACE TABLE ZTF.Detection(
     	COMMENT "String ID for the object this detection was associated with by Alerce",
     mjd DOUBLE NOT NULL
     	COMMENT "Time (mjd) of this detection",
-   	RA DOUBLE NOT NULL
+   	ra DOUBLE NOT NULL
 	   	COMMENT "Right Ascension (RA) of this detection",
-   	`DEC` DOUBLE NOT NULL
+   	`dec` DOUBLE NOT NULL
 	   	COMMENT "Declination (DEC) of this detection",
 	MagPSF DOUBLE NOT NULL
 		COMMENT "Magnitude of the PSF of this detection",

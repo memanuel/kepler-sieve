@@ -4,7 +4,7 @@ CREATE OR REPLACE TABLE KS.AsteroidVectors(
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
 	AsteroidID INT NOT NULL
 		COMMENT "The asteroid whose state vectors are described; FK to KS.Asteroid",
-	MJD DOUBLE NOT NULL
+	mjd DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from TimeID but included for performance.",
 	-- Position q = [qx, qy, qz]
 	qx DOUBLE NOT NULL

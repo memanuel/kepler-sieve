@@ -7,11 +7,11 @@ COMMENT "Populate the HorizonsVectors table from HorizonsImport"
 BEGIN 
 
 INSERT IGNORE INTO JPL.HorizonsVectors 
-(TimeID, HorizonsBodyID, MJD, qx, qy, qz, vx, vy, vz)
+(TimeID, HorizonsBodyID, mjd, qx, qy, qz, vx, vy, vz)
 SELECT 
 	ht.TimeID,
 	hb.HorizonsBodyID,
-	ht.MJD,
+	ht.mjd,
 	hi.qx,
 	hi.qy,
 	hi.qz,

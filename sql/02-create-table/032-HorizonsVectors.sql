@@ -4,7 +4,7 @@ CREATE OR REPLACE TABLE JPL.HorizonsVectors(
 		COMMENT "Integer ID for the timestamp of these state vectors; FK to JPL.HorizonsTime",
 	HorizonsBodyID INT NOT NULL
 		COMMENT "The HorizonsBody whose state vectors are described; FK to JPL.HorizonsBody",
-	MJD DOUBLE NOT NULL
+	mjd DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from HorizonsTimeID but included for performance.",
 	qx DOUBLE NOT NULL
 		COMMENT "Position of body (x coordinate) in AU in the barcycentric mean ecliptic frame",

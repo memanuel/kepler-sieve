@@ -15,11 +15,11 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 
 -- Insert EMB into StateVectors_Planets
 REPLACE INTO KS.StateVectors
-(TimeID, BodyID, MJD, qx, qy, qz, vx, vy, vz)
+(TimeID, BodyID, mjd, qx, qy, qz, vx, vy, vz)
 SELECT
 	sv.TimeID,
 	sv.BodyID,
-	sv.MJD,
+	sv.mjd,
 	SUM(bw.Weight*sv.qx) AS qx,
 	SUM(bw.Weight*sv.qy) AS qy,
 	SUM(bw.Weight*sv.qz) AS qz,

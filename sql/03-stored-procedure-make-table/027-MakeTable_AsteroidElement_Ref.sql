@@ -32,7 +32,7 @@ FROM
 	JPL.AsteroidElement AS elt
 	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber=elt.AsteroidNumber
     -- The time as of which the elements were quoted
-    INNER JOIN KS.DailyTime AS dt ON dt.MJD = elt.epoch
+    INNER JOIN KS.DailyTime AS dt ON dt.mjd = elt.epoch
 WHERE
     -- Only match the desired epoch
 	elt.epoch = epoch_;

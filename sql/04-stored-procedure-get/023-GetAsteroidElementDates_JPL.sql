@@ -15,7 +15,7 @@ SET @TimeID = epoch * 24 * 60;
 -- Select all distinct dates with orbital elements available
 SELECT
 	dt0.TimeID,
-	dt0.MJD AS epoch,
+	dt0.mjd AS epoch,
 	COUNT(elt_jpl.AsteroidNumber) AS AsteroidCount
 FROM
 	-- Start with JPL reference elements
@@ -24,7 +24,7 @@ FROM
 	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber = elt_jpl.AsteroidNumber
 	INNER JOIN KS.Body AS b ON b.BodyID = ast.BodyID
 	-- The epoch when the elements are quoted
-	INNER JOIN KS.DailyTime AS dt0 ON dt0.MJD = elt_jpl.epoch
+	INNER JOIN KS.DailyTime AS dt0 ON dt0.mjd = elt_jpl.epoch
 	-- The epoch as of which we want the results
 	INNER JOIN KS.DailyTime AS dt1 ON dt1.TimeID = @TimeID
 	-- Try to join AsteroidElement_Ref on the date we want, dt1

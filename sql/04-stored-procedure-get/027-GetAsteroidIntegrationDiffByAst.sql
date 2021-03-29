@@ -10,7 +10,7 @@ COMMENT "Get the difference between the MSE asteroid integration and Horizons st
 
 BEGIN 
 
--- Compute TimeID from mjd
+-- Compute TimeID from MJD
 SET @TimeID_0 = mjd0 * 24 * 60;
 SET @TimeID_1 = mjd1 * 24 * 60;
 
@@ -19,7 +19,7 @@ WITH t1 AS (
 SELECT
 	av.AsteroidID,
 	ast.AsteroidNumber,
-	av.MJD,
+	av.mjd,
 	(av.qx - hv.qx) AS dx,
 	(av.qy - hv.qy) AS dy,
 	(av.qz - hv.qz) AS dz
@@ -43,7 +43,7 @@ WHERE
 t2 AS (
 SELECT
 	t1.AsteroidID,
-	t1.MJD,
+	t1.mjd,
 	sqrt(power(t1.dx,2) + power(t1.dy,2) + power(t1.dz,2)) AS dq,
 	elt.a
 FROM

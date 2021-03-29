@@ -4,7 +4,7 @@ SELECT
 FROM
 	JPL.AsteroidElement AS elt_jpl
 	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber = elt_jpl.asteroidNumber
-	INNER JOIN KS.DailyTime AS dt ON dt.MJD = 59000
+	INNER JOIN KS.DailyTime AS dt ON dt.mjd = 59000
 	INNER JOIN KS.AsteroidElement_Ref AS elt_ks ON
 		elt_ks.AsteroidID = ast.AsteroidID AND
 		elt_ks.TimeID = dt.TimeID
@@ -27,7 +27,7 @@ SELECT
 FROM
 	JPL.AsteroidElement AS elt_jpl
 	INNER JOIN KS.Asteroid AS ast ON ast.AsteroidNumber = elt_jpl.asteroidNumber
-	INNER JOIN KS.DailyTime AS dt ON dt.MJD = 59000
+	INNER JOIN KS.DailyTime AS dt ON dt.mjd = 59000
 	INNER JOIN KS.AsteroidElement_Ref AS elt_ks ON
 		elt_ks.AsteroidID = ast.AsteroidID AND
 		elt_ks.TimeID = dt.TimeID
