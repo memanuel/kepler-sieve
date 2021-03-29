@@ -50,11 +50,11 @@ data_dir = '../data/ztf'
 columns_cls = ['ObjectClassID', 'ObjectClassName']
 
 columns_obj = \
-        ['ObjectCD', 'ObservationCount', 'mjd0', 'mjd1', 'MeanRA', 'MeanDEC', 
-         'MeanMag_g', 'MeanMag_r', 'MeanMagPSF_g', 'MeanMagPSF_r', 'ObjectClassID', 'ClassificationProb']
+        ['ObjectCD', 'ObservationCount', 'mjd0', 'mjd1', 'mean_ra', 'mean_dec', 
+         'mean_mag_g', 'mean_mag_r', 'mean_mag_psf_g', 'mean_mag_psf_r', 'ObjectClassID', 'ClassificationProb']
 
 columns_det = \
-    ['DetectionID', 'ObjectCD', 'mjd', 'RA', 'DEC', 'MagPSF', 'MagApp', 'MagNR', 'Sigma_RA', 'Sigma_DEC']
+    ['DetectionID', 'ObjectCD', 'mjd', 'ra', 'dec', 'mag_psf', 'mag_app', 'mag_nr', 'sigma_ra', 'sigma_dec']
 
 # ********************************************************************************************************************* 
 def load_ztf_classes():
@@ -100,12 +100,12 @@ def load_ztf_objects(n0: int, sz: int, min_object_cd: str):
         obj.nobs AS ObservationCount,
         obj.firstmjd AS mjd0,
         obj.lastmjd AS mjd1,
-        obj.meanra AS MeanRA,
-        obj.meandec AS MeanDEC,
-        obj.mean_magap_g AS MeanMag_g,	
-        obj.mean_magap_r AS MeanMag_r,	
-        obj.mean_magpsf_g AS MeanMagPSF_g,	
-        obj.mean_magpsf_r AS MeanMagPSF_r,
+        obj.meanra AS mean_ra,
+        obj.meandec AS mean_dec,
+        obj.mean_magap_g AS mean_mag_g,	
+        obj.mean_magap_r AS mean_mag_r,	
+        obj.mean_magpsf_g AS mean_mag_psf_g,	
+        obj.mean_magpsf_r AS mean_mag_psf_r,
         obj.classearly AS ObjectClassID,
         obj.pclassearly AS ClassificationProb        
     FROM 
@@ -149,13 +149,13 @@ def load_ztf_detections(n0: int, sz: int, min_detection_id: int):
         det.candid as DetectionID,
         det.oid as ObjectCD,
         det.mjd,
-        det.ra as RA,
-        det.dec as DEC,
-        det.magpsf as MagPSF,
-        det.magap as MagApp,
-        det.magnr as MagNR,
-        det.sigmara as Sigma_RA,
-        det.sigmadec as Sigma_DEC
+        det.ra,
+        det.dec,
+        det.magpsf as mag_psf,
+        det.magap as mag_app,
+        det.magnr as mag_nr,
+        det.sigmara as sigma_ra,
+        det.sigmadec as sigma_dec
     FROM
         public.detections as det
     WHERE

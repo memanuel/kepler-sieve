@@ -9,7 +9,7 @@ import glob
 dir_csv = '/ssd1/Harvard/kepler-sieve/data/df2db'
 
 # Columns for orbital elements
-columns = ['TimeID', 'AsteroidID', 'MJD', 'a', 'e', 'inc', 'Omega_node', 'omega_peri', 'f', 'M']
+columns = ['TimeID', 'AsteroidID', 'mjd', 'a', 'e', 'inc', 'Omega_node', 'omega_peri', 'f', 'M']
 
 # Import orbital elements
 import_table(mysql_import=util.import_table, table='AsteroidElements', threads=20, columns=columns)

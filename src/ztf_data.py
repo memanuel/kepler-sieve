@@ -29,7 +29,7 @@ def calc_ztf_detection_times():
     # Distinct ZTF detection times
     df = sp2df('ZTF.GetDetectionTimes')
     # Array of observations times as MJDs
-    mjds = df['MJD'].values
+    mjds = df['mjd'].values
     # Populate the CalendarDateTime field
     df['CalendarDateTime'] = np.array([mjd_to_datetime(mjd) for mjd in mjds])
     

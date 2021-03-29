@@ -57,8 +57,8 @@ def process_sim(sim, collection_cd: str, mjd0: int, mjd1: int, steps_per_day: in
         truncate:       Flag indicating whether to truncate DB tables
     """
     # Columns for state vectors and orbital element frames
-    cols_vec = ['TimeID', 'BodyID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
-    cols_elt = ['TimeID', 'BodyID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+    cols_vec = ['TimeID', 'BodyID', 'mjd', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+    cols_elt = ['TimeID', 'BodyID', 'mjd', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
 
     # Mapping to rename columns to match DB; MariaDB has case insensitive column names :(
     elt_col_map = {

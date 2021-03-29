@@ -230,7 +230,7 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
         df: DataFrame with columns
         BodyID:       N integer body IDs of the bodies that were integrated
         BodyName:     N body names
-        MJD:          M times as of which the integration was saved; MJDs
+        mjd:          M times as of which the integration was saved; MJDs
         qx, qy, qx:   Positions in AU in the BME
         vx, vy, vz:   Velocities in AU / day
         a, e, inc, Omega, omega, f, M: orbital elements when included
@@ -240,8 +240,8 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
     N: int = body_ids.shape[0]
 
     # The time stamps
-    MJD = epochs.repeat(N)
-    TimeID = np.rint(MJD*24*60).astype(np.int32)
+    mjd = epochs.repeat(N)
+    TimeID = np.rint(mjd*24*60).astype(np.int32)
 
     # The ID and name of each body
     BodyID = np.tile(body_ids, M)
@@ -262,7 +262,7 @@ def integration_np2df(body_ids: np.array, body_names: np.array, epochs: np.array
         'TimeID': TimeID,
         'BodyID': BodyID,
         # 'BodyName': BodyName,
-        'MJD': MJD,
+        'mjd': mjd,
         'qx': qx,
         'qy': qy,
         'qz': qz,
@@ -307,7 +307,7 @@ def integrate_df(sim_epoch: rebound.Simulation,
         df: DataFrame with columns
         BodyID:       N integer body IDs of the bodies that were integrated
         BodyName:     N body names
-        MJD:          M times as of which the integration was saved; MJDs
+        mjd:          M times as of which the integration was saved; MJDs
         qx, qy, qx:   Positions in AU in the BME
         vx, vy, vz:   Velocities in AU / day
     """
@@ -333,7 +333,7 @@ def integrate_mjds_df(sim_epoch: rebound.Simulation, mjds: np.array, save_elemen
         df: DataFrame with columns
         BodyID:       N integer body IDs of the bodies that were integrated
         BodyName:     N body names
-        MJD:          M times as of which the integration was saved; MJDs
+        mjd:          M times as of which the integration was saved; MJDs
         qx, qy, qx:   Positions in AU in the BME
         vx, vy, vz:   Velocities in AU / day
     """

@@ -41,7 +41,7 @@ def get_integration_diff(body_collection: str, mjd0: int, mjd1: int, by_date: bo
         mjd1: Last date in range
         by_date: Flag; true to get summary by date, false for detail by planet
     OUTPUTS:
-        df:   Pandas DataFrame with TimeID, MJD, dq_rel, dv_rel
+        df:   Pandas DataFrame with TimeID, mjd, dq_rel, dv_rel
     """
 
     # Wrap arguments to GetIntegrationDiffByDate stored procedure
@@ -61,7 +61,7 @@ def get_integration_diff(body_collection: str, mjd0: int, mjd1: int, by_date: bo
 def live_integration_diff(df: pd.DataFrame):
     """Test an integration data frame against Horizons"""
     # Test this integration on the last epoch in the DataFrame
-    epoch = np.max(df.MJD)
+    epoch = np.max(df.mjd)
 
     # Mask the data frame to match the desired epoch
     mask = (df.TimeID == epoch*24*60)
@@ -124,7 +124,7 @@ def plot_errors(dfd_p: pd.DataFrame, dfd_d: pd.DataFrame, window: int):
     """
 
     # Array of dates from MJDs
-    dt = np.array([mjd_to_date(mjd) for mjd in dfd_p['MJD']])
+    dt = np.array([mjd_to_date(mjd) for mjd in dfd_p['mjd']])
 
     # Set window for rolling average
     half_window: int = window // 2

@@ -42,8 +42,8 @@ table_vec = f'AsteroidVectors'
 table_elt = f'AsteroidElements'
 
 # Columns for state vectors and orbital element frames
-cols_vec_df = ['TimeID', 'AsteroidID', 'MJD', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
-cols_elt_df = ['TimeID', 'AsteroidID', 'MJD', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+cols_vec_df = ['TimeID', 'AsteroidID', 'mjd', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+cols_elt_df = ['TimeID', 'AsteroidID', 'mjd', 'a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
 
 # Mapping to rename orbital element columnd names
 # This is necessary because DB column names are case insensitive, causing a name clash between 'Omega' and 'omega'

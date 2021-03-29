@@ -31,7 +31,7 @@ plot_style()
 def get_diff_by_date():
     """
     Get difference in integration of asteroids between JPL and MSE from database. 
-    Returns df: Pandas DataFrame with MJD, dq, dq_rel, match_count
+    Returns df: Pandas DataFrame with mjd, dq, dq_rel, match_count
     """
     # Wrap arguments to stored procedure
     sp_name: str = 'KS.GetAsteroidIntegrationDiffByDate'
@@ -43,7 +43,7 @@ def get_diff_by_date():
 def get_diff_by_ast(mjd0: int=48000, mjd1: int = 63000):
     """
     Get difference in integration of asteroids between JPL and MSE from database. 
-    Returns df: Pandas DataFrame with MJD, dq, dq_rel, match_count
+    Returns df: Pandas DataFrame with mjd, dq, dq_rel, match_count
     """
     # Wrap arguments to GetAsteroidIntegrationDiffstored procedure
     sp_name: str = 'KS.GetAsteroidIntegrationDiffByAst'
@@ -84,7 +84,7 @@ def plot_errors_by_date(df: pd.DataFrame, window: int):
     """
 
     # Array of dates from MJDs
-    dt = np.array([mjd_to_date(mjd) for mjd in df.MJD])
+    dt = np.array([mjd_to_date(mjd_i) for mjd_i in df.mjd])
 
     # Set window for rolling average
     half_window: int = window // 2
