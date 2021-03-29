@@ -2,7 +2,8 @@
 CREATE OR REPLACE TABLE KS.Counter(
     _ INT NOT NULL PRIMARY KEY
 )
-ENGINE='Aria' TRANSACTIONAL=1
+ENGINE='Aria' TRANSACTIONAL=1,
+COMMENT "Utility table - enables a SQL query to emulate a for loop. Data type is signed integer; range is non-negative integers up to 2^24.";
 
 -- Populate counter table up to 2^24 (about 4 million)
 INSERT INTO KS.Counter ( _ )
