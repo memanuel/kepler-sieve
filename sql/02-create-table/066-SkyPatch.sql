@@ -1,12 +1,15 @@
 -- ************************************************************************************************
 -- SkyPatchGridCell describes the 4N^2 square grid cells on one major face
 CREATE OR REPLACE TABLE KS.SkyPatchGrid(
+	-- Two coordinates 
     i SMALLINT NOT NULL
         COMMENT "Counter for the first Cartesian coordinate on this face",
     j SMALLINT NOT NULL
         COMMENT "Counter for the second Cartesian coordinate on this face",
-    k INT NOT NULL
-    	COMMENT "Counter for the entire grid",
+    -- Projection onto cube face
+    a double NOT NULL COMMENT "Projection of u to where it hits the cube face",
+    b double NOT NULL COMMENT "Projection of v to where it hits the cube face",
+    c double NOT NULL COMMENT "Projection of w to where it hits the cube face",
     -- Center point
     u DOUBLE NOT NULL COMMENT "Midpoint of u (coordinate corresponding to i)",
     v DOUBLE NOT NULL COMMENT "Midpoint of v (coordinate corresponding to j)",
@@ -29,8 +32,7 @@ CREATE OR REPLACE TABLE KS.SkyPatchGrid(
     w11 DOUBLE NOT NULL COMMENT "Upper right corner, w",
     -- Unique key
     PRIMARY KEY (i,j)
-    	COMMENT "The pair (i,j) uniquely determines one grid cell of a major face",
-    UNIQUE KEY UNQ_SkyPatchGrid_k (k)
+    	COMMENT "The pair (i,j) uniquely determines one grid cell of a major face"
 )
 ENGINE='Aria' TRANSACTIONAL=0
 COMMENT = "SkyPatchGrid describes the 4N^2 square grid cells on one major face";
@@ -38,14 +40,20 @@ COMMENT = "SkyPatchGrid describes the 4N^2 square grid cells on one major face";
 -- ************************************************************************************************
 -- The whole SkyPatch table; six major faces
 CREATE OR REPLACE TABLE KS.SkyPatch(
+	-- The prinary key is a single integer ID
 	SkyPatchID INT NOT NULL PRIMARY KEY
         COMMENT "Integer ID for this patch of sky; assigned by formula (2N)^2*(f-1) + (2N)i + j",
+    -- The composite unique key
     CubeFaceID TINYINT NOT NULL
         COMMENT "The major face of the cube on which the 2Nx2N grid is inscribed; foreign key to CubeFace",
     i SMALLINT NOT NULL
         COMMENT "Counter for the first Cartesian coordinate on this CubeFace, which is named alpha on the CubeFace table",
     j SMALLINT NOT NULL
         COMMENT "Counter for the second Cartesian coordinate on this CubeFace, which is named beta on the CubeFace table",
+    -- Integer coordinates corresponding to x, y and z
+    kx SMALLINT NOT NULL,
+    ky SMALLINT NOT NULL,
+    kz SMALLINT NOT NULL,
     -- Center point (x, y, z)
     x DOUBLE NOT NULL COMMENT "SkyPatch midpoint: x",
     y DOUBLE NOT NULL COMMENT "SkyPatch midpoint: y",
@@ -66,11 +74,14 @@ CREATE OR REPLACE TABLE KS.SkyPatch(
     x11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): x",
     y11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): y",
     z11 DOUBLE NOT NULL COMMENT "SkyPatch upper right corner (11): z",
-    -- Unique key
-    UNIQUE KEY UNQ_SkyPatch_CubeFaceID_i_j(CubeFaceID, i, j)
+    -- Unique keys
+    UNIQUE KEY UNQ_CubeFaceID_i_j(CubeFaceID, i, j)
     	COMMENT "The pair (i,j) determines one small patch on a major face; the trio (f,i,j) is unique",
     UNIQUE KEY UNQ_SkyPatch_CubeFaceID_j_i(CubeFaceID, j, i)
     	COMMENT "also support searching when f and j are known but not i",
+    -- Indexes
+    INDEX IDX_SkyPatch_kx_ky_kz(kx, ky, kz)
+    	COMMENT "The trio of integer indices on x, y, z is *not* unique because two edge faces are different but can share the same mini-cube",
     -- Foreign key
     CONSTRAINT FK_SkyPatch_CubeFaceID FOREIGN KEY (CubeFaceID) REFERENCES CubeFace(CubeFaceID)
 )

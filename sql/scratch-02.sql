@@ -1,11 +1,6 @@
-SELECT * FROM KS.SkyPatchDistance_cand;
-SELECT * FROM KS.SkyPatchDistance_cand ORDER BY dr_mid desc;
+SET @N = 16;
+SET @dr_max = GREATEST(1.0/@N, 0.5 / 360.0);
 
-SELECT max(dr_mid) AS dr_max FROM KS.SkyPatchDistance_cand;
-SELECT count(*) AS dr_max FROM KS.SkyPatchDistance_cand AS cand_count;
+CALL KS.MakeTable_SkyPatchGrid(@N, @dr_max);
 
-SELECT max (dr_mid) AS dr_max FROM KS.SkyPatchGridDistance;
-
-SELECT 0.0041431949*360.0 AS dr_max_deg;
-
-DELETE FROM KS.SkyPatchGridDistance WHERE dr_min > (1.0 / 360.0);
+SELECT * FROM KS.SkyPatchGridDistance WHERE dr_mid < dr_min;

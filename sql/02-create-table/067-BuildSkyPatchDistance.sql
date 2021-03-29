@@ -4,7 +4,7 @@
 SET @N = 16;
 
 -- Maximum distance for SkyPatchGridDistance and SkyPatchDistance
-SET @dr_max = GREATEST(1.0/@N, 0.5 / 360.0);
+SET @dr_max = GREATEST(2.0/@N, 0.5 / 360.0);
 
 -- ************************************************************************************************
 -- Build all the tables in the SkyPatch distance family
@@ -17,4 +17,3 @@ CALL KS.MakeTable_SkyPatchDistance(@dr_max);
 -- CALL KS.MakeTable_SkyPatchDistance_extend(@dr_max);
 -- CALL KS.MakeTable_SkyPatchDistance_min();
 -- DELETE FROM KS.SkyPatchDistance WHERE dr_min >=dr_max;
-
