@@ -110,7 +110,7 @@ FROM
 
 -- Populate SkyPatchGridDistance; just pairs of points less than dr_max apart
 -- Step 1: get the coordinates of each candidate pair of corners
-CREATE OR REPLACE TEMPORARY TABLE t1(
+CREATE OR REPLACE TEMPORARY TABLE SkyPatchGridDistance_corners(
 	-- Coordinates of the two grid points
 	i1 INT NOT NULL,
 	j1 INT NOT NULL,
@@ -135,7 +135,7 @@ CREATE OR REPLACE TEMPORARY TABLE t1(
 	PRIMARY KEY (i1, j1, i2, j2, cr1, cr2)
 );
 
-INSERT INTO t1
+INSERT INTO SkyPatchGridDistance_corners
 (i1, j1, i2, j2, cr1, cr2, u1, v1, w1, u2, v2, w2, dr_mid, dr_corner)
 SELECT
 	-- Coordinates of the two grid points
@@ -173,10 +173,10 @@ FROM
 	INNER JOIN KS.Counter AS cr2 ON cr2._ < 4;
 
 -- Calculate distance on the corners
-UPDATE t1 SET dr_corner = SQRT( POW(u2-u1,2) + POW(v2-v1,2) + POW(w2-w1,2));
+UPDATE SkyPatchGridDistance_corners SET dr_corner = SQRT( POW(u2-u1,2) + POW(v2-v1,2) + POW(w2-w1,2));
 
 -- Step 2: group by the pair of candidate grid points
-CREATE OR REPLACE TEMPORARY TABLE t2(
+CREATE OR REPLACE TEMPORARY TABLE SkyPatchGridDistance_batch(
 	i1 INT NOT NULL,
 	j1 INT NOT NULL,
 	i2 INT NOT NULL,
@@ -186,7 +186,7 @@ CREATE OR REPLACE TEMPORARY TABLE t2(
 	PRIMARY KEY (i1, j1, i2, j2)
 );
 
-INSERT INTO t2
+INSERT INTO SkyPatchGridDistance_batch
 (i1, j1, i2, j2, dr_mid, dr_min)
 SELECT
 	t1.i1,
@@ -196,7 +196,7 @@ SELECT
 	MIN(t1.dr_mid) AS dr_mid,
 	MIN(t1.dr_corner) AS dr_min
 FROM
-	t1
+	SkyPatchGridDistance_corners AS t1
 -- Group by the pair of points so we take only the minimum distance between grid points
 GROUP BY t1.i1, t1.j1, t1.i2, t1.j2;
 
@@ -211,13 +211,13 @@ SELECT
 	t2.dr_mid,
 	t2.dr_min
 FROM
-	t2
+	SkyPatchGridDistance_batch AS t2
 WHERE
 	t2.dr_min < dr_max;
 
 -- Clean up temporary tables
-DROP TEMPORARY TABLE t1;
-DROP TEMPORARY TABLE t2;
+DROP TEMPORARY TABLE SkyPatchGridDistance_corners;
+DROP TEMPORARY TABLE SkyPatchGridDistance_batch;
 
 END $$
 

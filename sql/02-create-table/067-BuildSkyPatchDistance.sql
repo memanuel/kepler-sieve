@@ -1,7 +1,7 @@
 -- ************************************************************************************************
 -- Global variables to build the tables
 -- Set the grid size N
-SET @N = 16;
+SET @N = 1024;
 
 -- Maximum distance for SkyPatchGridDistance and SkyPatchDistance
 SET @dr_max = GREATEST(2.0/@N, 0.5 / 360.0);
