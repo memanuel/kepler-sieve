@@ -24,6 +24,8 @@ SET @Nf = CAST(N AS DOUBLE);
 
 -- Calculate grid_width based on dr_max
 SET @gw = CAST(1 + CEILING(dr_max*N) AS INT);
+-- SET @gw2 = CAST(2 + CEILING(dr_max*N)^2 AS INT);
+
 
 -- Empty both tables
 TRUNCATE TABLE KS.SkyPatchGrid;
@@ -110,7 +112,7 @@ FROM
 
 -- Populate SkyPatchGridDistance; just pairs of points less than dr_max apart
 -- Step 1: get the coordinates of each candidate pair of corners
-CREATE OR REPLACE TEMPORARY TABLE SkyPatchGridDistance_corners(
+CREATE OR REPLACE TABLE SkyPatchGridDistance_corners(
 	-- Coordinates of the two grid points
 	i1 INT NOT NULL,
 	j1 INT NOT NULL,
@@ -134,6 +136,20 @@ CREATE OR REPLACE TEMPORARY TABLE SkyPatchGridDistance_corners(
 	-- This temp table keyed by the grid points and choice of corners
 	PRIMARY KEY (i1, j1, i2, j2, cr1, cr2)
 );
+
+-- Four possible corners
+CREATE OR REPLACE TABLE KS.Corner(
+	_ TINYINT NOT NULL PRIMARY KEY,
+	di smallint NOT NULL,
+	dj smallint NOT NULL
+);
+
+INSERT INTO KS.Corner 
+VALUES
+(0, -1, -1),
+(1, -1, 1),
+(2, 1, -1),
+(3, 1, 1);
 
 INSERT INTO SkyPatchGridDistance_corners
 (i1, j1, i2, j2, cr1, cr2, u1, v1, w1, u2, v2, w2, dr_mid, dr_corner)
@@ -167,16 +183,21 @@ FROM
 	-- The second grid cell based on the selected offsets di and dj
 	INNER JOIN KS.SkyPatchGrid AS g2 ON 
 		g2.i = g1.i + di._ AND g2.j = g1.j + dj._
-	-- Counter to choose the corner of grid cell 1
-	INNER JOIN KS.Counter AS cr1 ON cr1._ < 4
+	-- Counter to choose the corner of grid cell 1; 
+	-- only choose corners where the shift from the center is not moving against the shift (di, dj) (would increase distance)
+	INNER JOIN KS.Corner AS cr1 ON (cr1.di * di._ >= 0) AND (cr1.dj * dj._ >= 0)
 	-- Counter to choose the corner of grid cell 2
-	INNER JOIN KS.Counter AS cr2 ON cr2._ < 4;
+	-- only choose corners where the shift from the center is not moving with the shift (di, dj) (would increase distance)
+	INNER JOIN KS.Corner AS cr2 ON (cr2.di * di._ <= 0) AND (cr2.dj * dj._ <= 0)
+-- Only grid offsets that are feasibly short
+-- WHERE POW(di._,2)+pow(dj._,2) < @gw2
+;
 
 -- Calculate distance on the corners
 UPDATE SkyPatchGridDistance_corners SET dr_corner = SQRT( POW(u2-u1,2) + POW(v2-v1,2) + POW(w2-w1,2));
 
 -- Step 2: group by the pair of candidate grid points
-CREATE OR REPLACE TEMPORARY TABLE SkyPatchGridDistance_batch(
+CREATE OR REPLACE TABLE SkyPatchGridDistance_batch(
 	i1 INT NOT NULL,
 	j1 INT NOT NULL,
 	i2 INT NOT NULL,
@@ -216,9 +237,10 @@ WHERE
 	t2.dr_min < dr_max;
 
 -- Clean up temporary tables
-DROP TEMPORARY TABLE SkyPatchGridDistance_corners;
-DROP TEMPORARY TABLE SkyPatchGridDistance_batch;
-
+/*
+DROP TABLE SkyPatchGridDistance_corners;
+DROP TABLE SkyPatchGridDistance_batch;
+*/
 END $$
 
 -- *********************************************************************************

@@ -4,7 +4,7 @@
 SET @N = 1024;
 
 -- Maximum distance for SkyPatchGridDistance and SkyPatchDistance
-SET @dr_max = GREATEST(2.0/@N, 0.5 / 360.0);
+SET @dr_max = GREATEST(1.0/@N, 1.0 / 360.0);
 
 -- ************************************************************************************************
 -- Build all the tables in the SkyPatch distance family
