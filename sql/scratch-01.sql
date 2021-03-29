@@ -6,3 +6,5 @@ FROM
 	information_schema.PROCESSLIST AS ps
 	WHERE ps.Command <> 'Sleep'	
 ORDER BY ps.Id;
+
+

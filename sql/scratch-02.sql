@@ -1,6 +1,21 @@
-SET @N = 16;
-SET @dr_max = GREATEST(1.0/@N, 0.5 / 360.0);
+SELECT
+	COUNT(spgd.dr_min) as num,
+	MIN(spgd.dr_min*360) AS dr_min,
+	AVG(spgd.dr_min*360) AS dr_avg,
+	MAX(spgd.dr_min*360) AS dr_max
+FROM KS.SkyPatchGridDistance AS spgd
+where spgd.dr_min > 0;
 
-CALL KS.MakeTable_SkyPatchGrid(@N, @dr_max);
+SELECT
+	COUNT(spd.dr_min) as num,
+	MIN(spd.dr_min*360) AS dr_min,
+	AVG(spd.dr_min*360) AS dr_avg,
+	MAX(spd.dr_min*360) AS dr_max
+FROM KS.SkyPatchDistance AS spd
+where spd.dr_min > 0;
 
-SELECT * FROM KS.SkyPatchGridDistance WHERE dr_mid < dr_min;
+select * from KS.SkyPatchGridDistance;
+select * from KS.SkyPatchDistance;
+
+
+select * from KS.Corner;
