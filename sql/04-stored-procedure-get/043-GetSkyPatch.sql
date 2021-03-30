@@ -9,9 +9,9 @@ BEGIN
 
 SELECT
 	sp.SkyPatchID,
-	sp.CubeFaceID-1 AS f,	
-	sp.i,
-	sp.j,
+--	sp.CubeFaceID-1 AS f,	
+--	sp.i,
+--	sp.j,
 	sp.x,
 	sp.y,
 	sp.z
