@@ -114,6 +114,17 @@ COMMENT "Distance bewteen two SkyPatchGrid cells; only cataloged for neighbors t
 
 
 -- ************************************************************************************************
+-- Pairs of SkyPatch objects that are neighbors
+CREATE OR REPLACE TABLE KS.SkyPatchNeighbor(
+	SkyPatchID_1 INT NOT NULL,
+	SkyPatchID_2 INT NOT NULL,
+	dr_mid DOUBLE NOT NULL,
+	PRIMARY KEY (SkyPatchID_1, SkyPatchID_2)
+) 
+ENGINE='Aria' TRANSACTIONAL=0
+COMMENT "Pairs of SkyPatch grid cells that are neighbors";
+
+-- ************************************************************************************************
 -- Neighbor distance on the SkyPatch table
 CREATE OR REPLACE TABLE KS.SkyPatchDistance(
 	SkyPatchID_1 INT NOT NULL
