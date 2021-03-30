@@ -101,7 +101,6 @@ def main():
 
     # Loop through dates
     sz: int = 10
-    mjd_width= sz
     for i in tqdm_auto(range(0, mjd_width, sz)):
         # Date range for this loop
         mjd0 = mjd0_all + i * sz
@@ -109,7 +108,7 @@ def main():
         # Calculate the detections
         df = calc_detections(mjd0=mjd0, mjd1=mjd1, N_sky_patch=N_sky_patch)
         # Insert into DB table
-        df2db(df=df, schema='KS', table='Detection', columns=columns)
+        df2db(df=df, schema='KS', table='Detection', columns=columns, progbar=False)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
