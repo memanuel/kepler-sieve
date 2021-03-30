@@ -83,29 +83,6 @@ def ztf_raw_detections(sz: int = 1000000):
         sp_run('KS.MakeTable_RawDetection_ZTF', params=params)
 
 # ********************************************************************************************************************* 
-def ztf_detection_add_dir(df: pd.DataFrame):
-    """
-    Add calculated directions to DataFrame of ZTF observations
-    INPUTS:
-        df: DataFrame of ZTF observations including ra, dec and mjd columns
-    OUTPUTS:
-        Modifies df in place.
-    """
-    # Extract mjd, ra, and dec as vectors of astropy angles
-    mjd = df.mjd.values
-    ra = df.ra.values * deg
-    dec = df.dec.values * deg
-
-    # Compute the directions using radec2dir()
-    u = radec2dir(ra=ra, dec=dec, obstime_mjd=mjd)    
-
-    # Add these directions to the DataFrame in three columns after dec
-    col_num_dec = df.columns.get_loc('dec')
-    df.insert(loc=col_num_dec+1, column='ux', value=u[0])
-    df.insert(loc=col_num_dec+2, column='uy', value=u[1])
-    df.insert(loc=col_num_dec+3, column='uz', value=u[2])
-
-# ********************************************************************************************************************* 
 def main():
     """
     Main routine for console program

@@ -188,10 +188,7 @@ FROM
 	INNER JOIN KS.Corner AS cr1 ON (cr1.di * di._ >= 0) AND (cr1.dj * dj._ >= 0)
 	-- Counter to choose the corner of grid cell 2
 	-- only choose corners where the shift from the center is not moving with the shift (di, dj) (would increase distance)
-	INNER JOIN KS.Corner AS cr2 ON (cr2.di * di._ <= 0) AND (cr2.dj * dj._ <= 0)
--- Only grid offsets that are feasibly short
--- WHERE POW(di._,2)+pow(dj._,2) < @gw2
-;
+	INNER JOIN KS.Corner AS cr2 ON (cr2.di * di._ <= 0) AND (cr2.dj * dj._ <= 0);
 
 -- Calculate distance on the corners
 UPDATE SkyPatchGridDistance_corners SET dr_corner = SQRT( POW(u2-u1,2) + POW(v2-v1,2) + POW(w2-w1,2));
@@ -237,10 +234,10 @@ WHERE
 	t2.dr_min < dr_max;
 
 -- Clean up temporary tables
-/*
-DROP TABLE SkyPatchGridDistance_corners;
-DROP TABLE SkyPatchGridDistance_batch;
-*/
+DROP TABLE IF EXISTS KS.Corner;
+DROP TABLE IF EXISTS KS.SkyPatchGridDistance_corners;
+DROP TABLE IF EXISTS KS.SkyPatchGridDistance_batch;
+
 END $$
 
 -- *********************************************************************************
@@ -498,11 +495,9 @@ FROM
 	KS.SkyPatchDistance_cand AS spdc;
 
 -- Clean up the temporary tables
-/*
-DROP TABLE KS.SkyPatchNeighbors;
-DROP TABLE KS.SkyPatchDistance_batch;
-DROP TABLE KS.SkyPatchDistance_cand;
-*/
+DROP TABLE IF EXISTS KS.SkyPatchNeighbors;
+DROP TABLE IF EXISTS KS.SkyPatchDistance_batch;
+DROP TABLE IF EXISTS KS.SkyPatchDistance_cand;
 
 END
 $$

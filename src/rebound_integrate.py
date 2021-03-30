@@ -17,7 +17,7 @@ import rebound
 from datetime import datetime, timedelta
 
 # UI
-from tqdm.auto import tqdm as tqdm_auto
+# from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
 from astro_utils import mjd_to_datetime
