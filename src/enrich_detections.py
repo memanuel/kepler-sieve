@@ -63,6 +63,10 @@ def calc_detections(mjd0: int, mjd1: int, N_sky_patch: int):
     params = {'mjd0':mjd0, 'mjd1': mjd1}
     df = sp2df('KS.GetRawDetections', params)
 
+    # Handle edge case where there are no rows
+    if df.shape[0]==0:
+        return pd.DataFrame(columns = list(df.columns) + ['ux', 'uy', 'uz', 'SkyPatchID', 'k'])
+
     # Calculate direction
     detection_add_dir(df)
 
