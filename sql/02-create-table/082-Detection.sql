@@ -4,7 +4,7 @@ CREATE OR REPLACE TABLE KS.Detection(
         COMMENT "The time of this detection as a foreign key to the DetectionTime table",
     SkyPatchID INT NOT NULL
     	COMMENT "Foreign key to SkyPatch table",
-    k SMALLINT NOT NULL
+    k TINYINT UNSIGNED NOT NULL
     	COMMENT "Counter over all the detections sharing this sky patch",
     -- Foreign key fields
     DetectionID INT NOT NULL
