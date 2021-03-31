@@ -2,10 +2,16 @@ DELIMITER $$
 
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE KS.MakeTable_DetectionTimePair()
+PROCEDURE KS.MakeTable_DetectionTimePair(
+	IN width INT)
 COMMENT "Populate the KS.DetectionTimePair table from KS.DetectionTime"
 BEGIN 
 
+-- Number of minutes in one day
+SET @mpd = CAST(24*60 AS INT);
+-- Convert width to a number of MJDs
+SET @window_width = CAST(width / @mpd AS DOUBLE);
+	
 -- Populate KS.MakeTable_DetectionTimePair with pairs at most one minute apart
 INSERT IGNORE INTO KS.DetectionTimePair
 (DetectionTimeID_1, DetectionTimeID_2, DataSourceID, mjd1, mjd2, mjd, dt)
@@ -25,11 +31,10 @@ SELECT
 FROM
 	KS.DetectionTime AS dt1
 	INNER JOIN KS.DetectionTime AS dt2 ON 
-		dt1.mjd < dt2.mjd AND dt2.mjd < dt1.mjd + 1.0 / (24*60) AND
+		dt1.mjd < dt2.mjd AND dt2.mjd < dt1.mjd + @window_width AND
         -- Only a pair of detection times from the same source
 		dt2.DataSourceID = dt1.DataSourceID;
 
-END
-$$
+END $$
 
 DELIMITER ;

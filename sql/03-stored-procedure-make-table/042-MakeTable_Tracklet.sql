@@ -11,8 +11,7 @@ COMMENT "Get the number of rows missing from KS.RawDetection"
 BEGIN 
 
 -- Temporary table for inserting into Tracklet
--- CREATE OR REPLACE TEMPORARY TABLE KS.TrackletBatch LIKE KS.Tracklet;
-CREATE OR REPLACE TABLE KS.TrackletBatch LIKE KS.Tracklet;
+CREATE OR REPLACE TEMPORARY TABLE KS.TrackletBatch LIKE KS.Tracklet;
 ALTER TABLE KS.TrackletBatch 
 	ADD COLUMN r DOUBLE NOT NULL DEFAULT 0.0,
 	ADD COLUMN x0 DOUBLE NOT NULL,
@@ -98,6 +97,9 @@ WHERE
 	(tb.ux BETWEEN tb.x0*tb.r AND tb.x1*tb.r) AND
 	(tb.uy BETWEEN tb.y0*tb.r AND tb.y1*tb.r) AND
 	(tb.uz BETWEEN tb.z0*tb.r AND tb.z1*tb.r);
+
+-- Clean up temp table
+DROP TEMPORARY TABLE KS.TrackletBatch;
 
 END $$
 

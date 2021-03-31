@@ -9,18 +9,24 @@ CREATE OR REPLACE TABLE KS.DetectionTimePair(
     DataSourceID TINYINT NOT NULL
         COMMENT "The data source for this pair of detections; foreign key to DetectionTime table",
     -- The two times
-    mjd1 DOUBLE NOT NULL UNIQUE
+    mjd1 DOUBLE NOT NULL
         COMMENT "The Modified Julian Date of the first detection time",
-    mjd2 DOUBLE NOT NULL UNIQUE
+    mjd2 DOUBLE NOT NULL
         COMMENT "The Modified Julian Date of the second detection time",
     -- Mean detection time
-    mjd double NOT NULL UNIQUE
+    mjd DOUBLE NOT NULL
     	COMMENT "The Modified Julian Date of the mean detection time",
     -- Difference in two detection times
-    dt double NOT NULL
+    dt DOUBLE NOT NULL
     	COMMENT "Difference in the two detection times as an mjd",
     -- Primary key
     PRIMARY KEY (DetectionTimeID_1, DetectionTimeID_2), 
+    -- Unique key
+    UNIQUE KEY UNQ_DetectionTimePair_mjd1_mjd2(mjd1, mjd2)
+    	COMMENT "The pair of detection times is unique",
+    -- Index
+    INDEX IDX_DetectionTimePair_mjd(mjd)
+    	COMMENT "Regular index on mean detection time; empirically found that mean detection time was not unique",
     -- Foreign keys
     CONSTRAINT FK_DetectionTimePair_DetectionTimeID_1
         FOREIGN KEY (DetectionTimeID_1) REFERENCES KS.DetectionTime(DetectionTimeID),
