@@ -89,7 +89,9 @@ def main():
     """
 
     # Call SQL procedure to add new rows to ZTF.DetectionTime from ZTF.Detection
-    sp_run('ZTF.MakeTable_DetectionTime')    
+    sp_run('ZTF.MakeTable_DetectionTime')
+    # Call SQL procedure to insert new records to DetectionTimeSlice
+    CALL KS.MakeTable_DetectionTimeSlice(30);
 
     # Rebuild the KS.DetectionTime entries coming from ZTF
     calc_ztf_detection_times()
