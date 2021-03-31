@@ -30,10 +30,11 @@ SELECT
 	(dt2.mjd - dt1.mjd) AS dt
 FROM
 	KS.DetectionTime AS dt1
-	INNER JOIN KS.DetectionTime AS dt2 ON 
-		dt1.mjd < dt2.mjd AND dt2.mjd < dt1.mjd + @window_width AND
-        -- Only a pair of detection times from the same source
-		dt2.DataSourceID = dt1.DataSourceID;
+INNER JOIN KS.DetectionTime AS dt2 ON 
+	dt1.mjd < dt2.mjd AND dt2.mjd < dt1.mjd + @window_width AND
+    -- Only a pair of detection times from the same source
+	dt2.DataSourceID = dt1.DataSourceID
+ORDER BY dt1.DetectionTimeID, dt2.DetectionTimeID;
 
 END $$
 

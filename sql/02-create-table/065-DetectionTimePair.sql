@@ -1,5 +1,8 @@
 -- ************************************************************************************************
 CREATE OR REPLACE TABLE KS.DetectionTimePair(
+	-- Single integer key on pairs of times
+	DetectionTimePairID INT NOT NULL AUTO_INCREMENT PRIMARY KEY
+		COMMENT "Pair of detection times is a logical key, but a single integer ID on pairs helps performance building Tracklet table",
     -- The pair of detection times
 	DetectionTimeID_1 INT NOT NULL
         COMMENT "First detection time in this pair of times; foreign key to DetectionTime table",
@@ -14,15 +17,16 @@ CREATE OR REPLACE TABLE KS.DetectionTimePair(
     mjd2 DOUBLE NOT NULL
         COMMENT "The Modified Julian Date of the second detection time",
     -- Mean detection time
-    mjd DOUBLE NOT NULL
+    mjd_bar DOUBLE NOT NULL
     	COMMENT "The Modified Julian Date of the mean detection time",
     -- Difference in two detection times
     dt DOUBLE NOT NULL
     	COMMENT "Difference in the two detection times as an mjd",
     -- Primary key
-    PRIMARY KEY (DetectionTimeID_1, DetectionTimeID_2), 
     -- Unique key
-    UNIQUE KEY UNQ_DetectionTimePair_mjd1_mjd2(mjd1, mjd2)
+    UNIQUE KEY UNQ_DetectionTimePair_DetectionID_1_2(DetectionTimeID_1, DetectionTimeID_2)
+    	COMMENT "The pair of detection Time IDs is unique", 
+    UNIQUE KEY UNQ_DetectionTimePair_mjd_12(mjd1, mjd2)
     	COMMENT "The pair of detection times is unique",
     -- Index
     INDEX IDX_DetectionTimePair_mjd(mjd)
