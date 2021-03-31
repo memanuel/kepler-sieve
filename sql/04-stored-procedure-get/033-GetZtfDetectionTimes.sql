@@ -14,7 +14,7 @@ SELECT
 FROM
 	ZTF.DetectionTime AS dt
 	INNER JOIN KS.DetectionTimeSlice AS dts ON
-		dts.DetectionTimeSliceID = floor(dt.mjd*24*60)
+		dts.mjd0 <= dt.mjd AND dt.mjd < dts.mjd1
 ORDER BY dt.DetectionTimeID;
 
 END

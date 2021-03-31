@@ -12,7 +12,13 @@ CREATE OR REPLACE TABLE KS.DetectionTimePair(
     mjd1 DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of the first detection time",
     mjd2 DOUBLE NOT NULL UNIQUE
-        COMMENT "The Modified Julian Date of the second  detection time",
+        COMMENT "The Modified Julian Date of the second detection time",
+    -- Mean detection time
+    mjd double NOT NULL UNIQUE
+    	COMMENT "The Modified Julian Date of the mean detection time",
+    -- Difference in two detection times
+    dt double NOT NULL
+    	COMMENT "Difference in the two detection times as an mjd",
     -- Primary key
     PRIMARY KEY (DetectionTimeID_1, DetectionTimeID_2), 
     -- Foreign keys
