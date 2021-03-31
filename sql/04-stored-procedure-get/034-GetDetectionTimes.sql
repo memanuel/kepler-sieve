@@ -9,7 +9,7 @@ COMMENT "Get all available detection times."
 BEGIN 
 
 SELECT
-	dt.DetectionID,
+	dt.DetectionTimeID,
 	dt.DetectionTimeSliceID,
 	dt.mjd,
 	dt.DataSourceID,
@@ -22,7 +22,7 @@ SELECT
 	dt.qSun_z	
 FROM
 	KS.DetectionTime AS dt
-ORDER BY dt.DetectionID;
+ORDER BY dt.DetectionTimeID;
 
 END
 $$

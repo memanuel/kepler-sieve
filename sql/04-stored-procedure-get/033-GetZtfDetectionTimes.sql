@@ -17,7 +17,6 @@ FROM
 		dts.mjd0 <= dt.mjd AND dt.mjd < dts.mjd1
 ORDER BY dt.DetectionTimeID;
 
-END
-$$
+END $$
 
 DELIMITER ;

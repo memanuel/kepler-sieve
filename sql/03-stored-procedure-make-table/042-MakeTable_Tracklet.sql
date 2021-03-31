@@ -182,11 +182,9 @@ WHERE
 ORDER BY tb.TrackletID;
 
 -- Clean up temp table
-/*
 DROP TEMPORARY TABLE IF EXISTS KS.DetectionTimePair_present;
 DROP TEMPORARY TABLE IF EXISTS KS.DetectionTimePair_insert;
 DROP TEMPORARY TABLE IF EXISTS KS.TrackletBatch;
-*/
 
 END $$
 
