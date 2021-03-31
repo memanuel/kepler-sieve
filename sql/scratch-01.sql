@@ -7,4 +7,3 @@ FROM
 	WHERE ps.Command <> 'Sleep'	
 ORDER BY ps.Id;
 
-
