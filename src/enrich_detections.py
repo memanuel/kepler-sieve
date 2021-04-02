@@ -120,27 +120,26 @@ def write_detections():
 def write_tracklets(sz: int):
     """Write all tracklets from the KS.Detection table.  Input sz sets batch size."""
 
-    # Get range of DetectionTimeIDs written to KS.Tracklet
-    dtst = sp2df('KS.GetTrackletDetectionTimes')
-    dtid0 = dtst.DetectionTimeID_max[0]+1
-
-    # Get full range of DetectionTimeIDs 
-    dts = sp2df('KS.GetDetectionTimes')
-    dtid1 = dts.DetectionTimeID_max[0]+1
+    # Get range of DetectionTimePairIDs 
+    dtpr = sp2df('KS.GetDetectionTimePairRange')
+    dtp_min = dtpr.DetectionTimePairID_min[0]
+    dtp_max = dtpr.DetectionTimePairID_max[0]
 
     # Status
     print('Rolling up from KS.Detection to KS.Tracklet.')
-    print(f'Processing DetectionTimeIDs from {dtid0} to {dtid1}...')
+    print(f'Processing DetectionTimePairIDs from {dtp_min} to {dtp_max}...')
 
-    # Range of DetectionTimeID
-    dtids = np.arange(dtid0, dtid1, sz, dtype=np.int32)
+    # Range of DetectionTimePairID
+    dtp_ids = np.arange(dtp_min, dtp_max, sz, dtype=np.int32)
 
     # Loop through the batches
-    for DetectionID_0 in tqdm_auto(dtids):
+    for DetectionTimePairID_0 in tqdm_auto(dtp_ids):
         # The second DetectionID for this batch
-        DetectionID_1 = DetectionID_0 + sz
+        DetectionTimePairID_1 = DetectionTimePairID_0 + sz
         # Populate the tracklets by calling the DB stored procedure
-        params = {'DetectionID_0': DetectionID_0, 'DetectionID_1': DetectionID_1}
+        params = {
+            'DetectionTimePairID_0': DetectionTimePairID_0, 
+            'DetectionTimePairID_1': DetectionTimePairID_1}
         sp_run('KS.MakeTable_Tracklet', params)
 
 # ********************************************************************************************************************* 
@@ -153,10 +152,8 @@ def main():
     # write_detections()
 
     # Write from KS.Detection to KS.Tracklet
-    write_tracklets(sz=1000)
+    write_tracklets(sz=10000)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     main()
-
-
