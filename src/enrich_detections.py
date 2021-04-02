@@ -117,13 +117,15 @@ def write_detections():
         df2db(df=df, schema='KS', table='Detection', columns=columns, progbar=False)
         
 # ********************************************************************************************************************* 
-def write_tracklets(sz: int):
+def write_tracklets(sz: int, start: int = 0):
     """Write all tracklets from the KS.Detection table.  Input sz sets batch size."""
 
     # Get range of DetectionTimePairIDs 
     dtpr = sp2df('KS.GetDetectionTimePairRange')
     dtp_min = dtpr.DetectionTimePairID_min[0]
     dtp_max = dtpr.DetectionTimePairID_max[0]
+    # Apply start argument
+    dtp_min = max(dtp_min, start)
 
     # Status
     print('Rolling up from KS.Detection to KS.Tracklet.')
@@ -151,8 +153,12 @@ def main():
     # Write from KS.RawDetection to KS.Detection
     # write_detections()
 
+    # Get last DetectionPairID already loaded onto KS.Tracklet
+    ldtp = sp2df('KS.GetLastTrackletTimePair').LastDetectionTimePairID[0]
+    print(f'Last DetectionTimePairID loaded into KS.Tracklet is {ldtp}.')
+
     # Write from KS.Detection to KS.Tracklet
-    write_tracklets(sz=10000)
+    write_tracklets(sz=500, start=ldtp)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
