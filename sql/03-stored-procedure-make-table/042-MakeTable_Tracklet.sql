@@ -11,7 +11,7 @@ COMMENT "Get the number of rows missing from KS.RawDetection"
 BEGIN 
 
 -- Temporary table for detection time pairs already present in the tracklet table
-CREATE OR REPLACE TEMPORARY TABLE KS.DetectionTimePair_present (
+CREATE OR REPLACE TABLE KS.DetectionTimePair_present (
 	DetectionTimePairID INT NOT NULL PRIMARY KEY
 );
 
@@ -28,7 +28,7 @@ WHERE
 GROUP BY t.DetectionTimePairID;
 
 -- Temporary table for detection time pairs in the selected range we want to insert
-CREATE OR REPLACE TEMPORARY TABLE KS.DetectionTimePair_insert (
+CREATE OR REPLACE TABLE KS.DetectionTimePair_insert (
 	DetectionTimePairID INT NOT NULL PRIMARY KEY
 );
 
@@ -48,7 +48,7 @@ WHERE
 	WHERE dtpp.DetectionTimePairID = dtp.DetectionTimePairID);
 
 -- Temporary table for inserting into Tracklet
-CREATE OR REPLACE TEMPORARY TABLE KS.TrackletBatch LIKE KS.Tracklet;
+CREATE OR REPLACE TABLE KS.TrackletBatch LIKE KS.Tracklet;
 ALTER TABLE KS.TrackletBatch 
 	ADD COLUMN r DOUBLE NOT NULL DEFAULT 0.0,
 	ADD COLUMN x0 DOUBLE NOT NULL,
@@ -57,7 +57,7 @@ ALTER TABLE KS.TrackletBatch
 	ADD COLUMN y1 DOUBLE NOT NULL,
 	ADD COLUMN z0 DOUBLE NOT NULL,
 	ADD COLUMN z1 DOUBLE NOT NULL;
-	
+
 -- Batch of tracklets to insert into KS.Tracklet later
 INSERT INTO KS.TrackletBatch
 (DetectionTimePairID, DetectionID_1, DetectionID_2, SkyPatchID, 
@@ -129,7 +129,7 @@ UPDATE KS.TrackletBatch
 SET 
 	r = SQRT(POW(ux_bar,2)+POW(uy_bar,2)+POW(uz_bar,2)),
 	u_dot = SQRT(POW(ux_dot,2)+POW(uy_dot,2)+POW(uz_dot,2));
-
+/*
 -- Insert this batch into the main table
 INSERT INTO KS.Tracklet
 (DetectionTimePairID, DetectionID_1, DetectionID_2, SkyPatchID, 
@@ -180,11 +180,11 @@ WHERE
 	(tb.uy_bar BETWEEN tb.y0*tb.r AND tb.y1*tb.r) AND
 	(tb.uz_bar BETWEEN tb.z0*tb.r AND tb.z1*tb.r)
 ORDER BY tb.TrackletID;
-
+*/
 -- Clean up temp table
-DROP TEMPORARY TABLE IF EXISTS KS.DetectionTimePair_present;
-DROP TEMPORARY TABLE IF EXISTS KS.DetectionTimePair_insert;
-DROP TEMPORARY TABLE IF EXISTS KS.TrackletBatch;
+-- DROP TABLE IF EXISTS KS.DetectionTimePair_present;
+-- DROP TABLE IF EXISTS KS.DetectionTimePair_insert;
+-- DROP TABLE IF EXISTS KS.TrackletBatch;
 
 END $$
 

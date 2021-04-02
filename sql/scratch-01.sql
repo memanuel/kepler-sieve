@@ -7,3 +7,4 @@ FROM
 	WHERE ps.Command <> 'Sleep'	
 ORDER BY ps.Id;
 
+KILL 1272;
