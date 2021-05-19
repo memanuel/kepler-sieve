@@ -129,7 +129,7 @@ UPDATE KS.TrackletBatch
 SET 
 	r = SQRT(POW(ux_bar,2)+POW(uy_bar,2)+POW(uz_bar,2)),
 	u_dot = SQRT(POW(ux_dot,2)+POW(uy_dot,2)+POW(uz_dot,2));
-/*
+
 -- Insert this batch into the main table
 INSERT INTO KS.Tracklet
 (DetectionTimePairID, DetectionID_1, DetectionID_2, SkyPatchID, 
@@ -180,7 +180,7 @@ WHERE
 	(tb.uy_bar BETWEEN tb.y0*tb.r AND tb.y1*tb.r) AND
 	(tb.uz_bar BETWEEN tb.z0*tb.r AND tb.z1*tb.r)
 ORDER BY tb.TrackletID;
-*/
+
 -- Clean up temp table
 -- DROP TABLE IF EXISTS KS.DetectionTimePair_present;
 -- DROP TABLE IF EXISTS KS.DetectionTimePair_insert;

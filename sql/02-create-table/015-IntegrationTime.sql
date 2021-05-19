@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE KS.IntegrationTime(
+CREATE OR REPLACE TABLE KS.HiResTime(
 	TimeID INT NOT NULL PRIMARY KEY
 		COMMENT "MJD as integer number of minutes, e.g. floor(mjd*24*60)",
 	mjd DOUBLE NOT NULL UNIQUE
@@ -13,4 +13,4 @@ CREATE OR REPLACE TABLE KS.IntegrationTime(
 		COMMENT "The difference between the TDB and terrestial atomic time frames"
 )
 ENGINE='Aria' TRANSACTIONAL=1
-COMMENT "Distinct time stamps at which MSE integrated positions of solar system bodies are available.";
+COMMENT "Distinct time stamps at which MSE integrated positions of solar system bodies are available (every 5 minutes).";

@@ -42,4 +42,19 @@ END
 $$
 
 -- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.GetLastTrackletTimePair()
+COMMENT "Get range detection time pair IDs."
+
+BEGIN 
+
+SELECT 
+	MAX(DetectionTimePairID) AS LastDetectionTimePairID 
+FROM KS.Tracklet;
+
+END
+$$
+
+-- ********************************************************************************
 DELIMITER ;

@@ -1,33 +1,28 @@
--- truncate TABLE KS.Tracklet;
--- CALL KS.MakeTable_Tracklet(7962056, 8923503);
-
-CALL KS.MakeTable_Tracklet(7962056+0, 7962056+875);
-
-CALL KS.MakeTable_Tracklet(7962056+875, 7962056+1000);
-
-SELECT count(*) AS batch_size_times FROM KS.DetectionTimePair_insert;
-SELECT count(*) AS batch_size_rows FROM KS.TrackletBatch;
-
-SELECT * FROM KS.TrackletBatch;
-
-SELECT * FROM KS.Tracklet LIMIT 100;
-SELECT max(DetectionTimePairID) AS maxDetectionTimePairID FROM KS.Tracklet;
-
-
-SELECT * FROM KS.DetectionTimePair_present;
-SELECT * FROM KS.DetectionTimePair_insert;
-
-INSERT INTO KS.DetectionTimePair_insert
-(DetectionTimePairID)
-SELECT
-	dtp.DetectionTimePairID
-FROM
-	KS.DetectionTimePair AS dtp
-WHERE	
-	-- Only tracklets in the delected range of time pairs
-	dtp.DetectionTimePairID BETWEEN DetectionTimePairID_0 AND (DetectionTimePairID_1-1)
-	-- Only those not already present
-	AND NOT EXISTS (
-	SELECT dtpp.DetectionTimePairID
-	FROM KS.DetectionTimePair_present AS dtpp
-	WHERE dtpp.DetectionTimePairID = dtp.DetectionTimePairID);
+-- Create tables for integrated directions from Earth to asteroids
+CREATE OR REPLACE TABLE KS.AsteroidDirections(
+	TimeID INT NOT NULL
+		COMMENT "Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime",
+	AsteroidID INT NOT NULL
+		COMMENT "The asteroid whose state vectors are described; FK to KS.Asteroid",
+	mjd DOUBLE NOT NULL
+		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from TimeID but included for performance.",
+	-- Direction u = [ux, uy, uz]
+	ux DOUBLE NOT NULL
+		COMMENT "Position of body (x coordinate) in AU in the barcycentric mean ecliptic frame",
+	uy DOUBLE NOT NULL
+		COMMENT "Position of body (y coordinate) in AU in the barcycentric mean ecliptic frame",
+	uz DOUBLE NOT NULL
+		COMMENT "Position of body (z coordinate) in AU in the barcycentric mean ecliptic frame",
+	-- Light time
+	LightTime DOUBLE NOT NULL
+		COMMENT "Time for light leaving asteroid to reach Earth",
+	-- Keys and constraints
+	PRIMARY KEY (TimeID, AsteroidID)
+		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
+	UNIQUE KEY UNQ_AsteroidID_TimeID(AsteroidID, TimeID)
+        COMMENT "Allow fast search keyed first by AsteroidID.",
+	CONSTRAINT FK_AsteroidDirections_TimeID FOREIGN KEY (TimeID) REFERENCES KS.DailyTime(TimeID),
+	CONSTRAINT FK_AsteroidDirections_BodyID	FOREIGN KEY (AsteroidID) REFERENCES KS.Asteroid(AsteroidID)
+)
+ENGINE='Aria' TRANSACTIONAL=0
+COMMENT "Directions from Earth to asteroid for all known asteroids computed in rebound using the planets as massive bodies and initial conditions from DE435 at MJD 59000."
