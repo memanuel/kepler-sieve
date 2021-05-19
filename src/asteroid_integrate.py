@@ -130,7 +130,7 @@ def report_csv_files(fnames_csv_vec, fnames_csv_elt, verbose: bool):
         #     print(fnames_csv_elt[0])
 
 # ********************************************************************************************************************* 
-def save_csvs(df_vec: pd.DataFrame, df_elt: pd.DataFrame, verbose:bool) -> [List[str], List[str]]:
+def save_csvs(df_vec: pd.DataFrame, df_elt: pd.DataFrame, verbose:bool) ->Tuple [List[str], List[str]]:
     """
     Save DataFrames to CSV files
     INPUTS:
@@ -236,7 +236,7 @@ def main():
     # Operation mode
     mode: str = args.mode.upper()
     if mode not in ('DB', 'CSV', 'INS'):
-        raise ValueErrror("Mode must be one of 'DB', 'CSV' or 'INS'.")
+        raise ValueError("Mode must be one of 'DB', 'CSV' or 'INS'.")
     mode_description_tbl = {
         'DB':  'Insert to database via CSVs.',
         'CSV': 'Calculate and save to CSVs to disk; must insert them later.',
