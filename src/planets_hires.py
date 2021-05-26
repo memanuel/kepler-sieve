@@ -37,8 +37,8 @@ def process_sim(sim, mjd0: int, mjd1: int, steps_per_day: int):
         mjd1:           Last date to process
     """
     # Convert steps per day to interval_p and interval_q
-    interval_p: int = steps_per_day
-    interval_q: int = 1
+    interval_p: int = 1
+    interval_q: int = steps_per_day
     # Flags for building simulation archive    
     save_elements: bool = False
     progbar: bool = True
@@ -80,6 +80,14 @@ def process_sim(sim, mjd0: int, mjd1: int, steps_per_day: int):
     # Insert to StateVectors_Sun DB table
     df2db(df=df_sun, schema=schema, table=table_name_sun, chunksize=chunksize, verbose=verbose)
 
+    # Save data frames as HDF5 files
+    fname_h5 = '../data/planets/StateVectors_HiRes.h5'
+    key_earth = 'df_earth'
+    key_sun = 'df_sun'
+    print(f'Saving data frames to {fname_h5} with key names {key_earth} and {key_sun}...')
+    df_earth.to_hdf(fname_h5, key=key_earth, mode='w')
+    df_sun.to_hdf(fname_h5, key=key_sun, mode='a')
+
 # ********************************************************************************************************************* 
 def main():
     """Integrate the orbits of the planets and major moons"""
@@ -104,8 +112,7 @@ def main():
     dry_run: bool = args.dry_run
 
     # The steps per day is always consistent with one minute intervals    
-    # steps_per_day: int = 24*60*60
-    steps_per_day: int = 1
+    steps_per_day: int = 24*60
 
     # Date range for testing
     mjd0: int = args.mjd0
