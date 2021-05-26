@@ -80,13 +80,46 @@ def process_sim(sim, mjd0: int, mjd1: int, steps_per_day: int):
     # Insert to StateVectors_Sun DB table
     df2db(df=df_sun, schema=schema, table=table_name_sun, chunksize=chunksize, verbose=verbose)
 
+    return df_earth, df_sun
+
+# ********************************************************************************************************************* 
+def save_hdf5(df_earth: pd.DataFrame, df_sun: pd.DataFrame):
+    """
+    Save DataFrame of earth, sun to HDF5 files on disk
+    INPUTS:
+        df_earth: DataFrame with state vectors for earth at 1 minute resolution
+        df_sun:   DataFrame with state vectors for sun at 1 minute resolution
+    """
     # Save data frames as HDF5 files
-    fname_h5 = '../data/planets/StateVectors_HiRes.h5'
     key_earth = 'df_earth'
     key_sun = 'df_sun'
-    print(f'Saving data frames to {fname_h5} with key names {key_earth} and {key_sun}...')
-    df_earth.to_hdf(fname_h5, key=key_earth, mode='w')
-    df_sun.to_hdf(fname_h5, key=key_sun, mode='a')
+
+    # Save high resolution file (interval = 1 minute)
+    fname_minute = '../data/planets/StateVectors_Minute.h5'
+    print(f'Saving data frames to {fname_minute} with key names {key_earth} and {key_sun}...')
+    df_earth.to_hdf(fname_minute, key=key_earth, mode='w')
+    df_sun.to_hdf(fname_minute, key=key_sun, mode='a')
+
+    # Filter down to different resolutions for better speed
+    TimeID = df_earth.TimeID.values
+    mask_hour = (TimeID % 60) == 0
+    mask_day = (TimeID % 1440) == 0
+
+    # Save medium resolution file (interval = 1 hour)
+    fname_hour = '../data/planets/StateVectors_Hour.h5'
+    print(f'Saving data frames to {fname_hour} with key names {key_earth} and {key_sun}...')
+    df_earth_hour = df_earth[mask_hour]
+    df_sun_hour = df_sun[mask_hour]
+    df_earth_hour.to_hdf(fname_hour, key=key_earth, mode='w')
+    df_sun_hour.to_hdf(fname_hour, key=key_sun, mode='a')
+
+    # Save low resolution file (interval = 1 day)
+    fname_day = '../data/planets/StateVectors_Day.h5'
+    print(f'Saving data frames to {fname_day} with key names {key_earth} and {key_sun}...')
+    df_earth_day = df_earth[mask_day]
+    df_sun_day = df_sun[mask_day]
+    df_earth_day.to_hdf(fname_day, key=key_earth, mode='w')
+    df_sun_day.to_hdf(fname_day, key=key_sun, mode='a')
 
 # ********************************************************************************************************************* 
 def main():
@@ -155,7 +188,10 @@ def main():
     sim = make_sim_planets(epoch=epoch, integrator=integrator, epsilon=epsilon, 
                         steps_per_day=steps_per_day, load_file=False)
     # Delegate to process_sim
-    process_sim(sim=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day)
+    df_earth, df_sun = process_sim(sim=sim, mjd0=mjd0, mjd1=mjd1, steps_per_day=steps_per_day)
+    
+    # Save HDF5 files to disk
+    save_hdf5(df_earth=df_earth, df_sun=df_sun)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

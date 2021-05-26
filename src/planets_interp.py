@@ -15,11 +15,27 @@ import pandas as pd
 dtype_default = np.float64
 
 # ********************************************************************************************************************* 
-def load_earth_sun_vectors(dtype: np.ScalarType = dtype_default):
-    """Load the position and velocity of earth and sun consistent with the asteroid data from an HDF5 data file"""
+def load_earth_sun_vectors(interval: str, dtype: np.ScalarType = dtype_default):
+    """
+    Load the position and velocity of earth and sun consistent with the asteroid data from an HDF5 data file
+    INPUTS:
+        interval: One of 'M' (1 minute), 'H' (1 hour), or 'D' (1 day); interval vectors are saved with
+        dtype:    The data type used; should be one of np.float64 or np.float32
+    """
+
+    # Check interval was valid
+    if interval not in ('M', 'H', 'D'):
+        raise ValueError("Bad interval! Must be one of 'M' (1 minute), 'H' (1 hour) or 'D' (1 day)")
+
     # Name of the HDF5 archive
-    fname_h5: str = '../data/planets/StateVectors_HiRes.h5'
-    
+    suffix_tbl = {
+        'M': 'Minute',
+        'H': 'Hour', 
+        'D': 'Day',
+    }
+    suffix = suffix_tbl[interval]
+    fname_h5: str = f'../data/planets/StateVectors_{suffix}.h5'
+
     # Extract the two data frames
     df_earth = pd.read_hdf(fname_h5, key='df_earth')
     df_sun  = pd.read_hdf(fname_h5, key='df_earth')
@@ -42,7 +58,7 @@ def load_earth_sun_vectors(dtype: np.ScalarType = dtype_default):
 # Create 1D linear interpolator for earth positions; just need one instance for the whole module
 
 # Load position and velocity of earth and sun in barycentric frame at reference dates from file
-ts, q_earth, q_sun, v_earth, v_sun = load_earth_sun_vectors()
+ts, q_earth, q_sun, v_earth, v_sun = load_earth_sun_vectors(interval='H')
 
 # Build interpolator for barycentric position of earth and sun
 earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0)
