@@ -52,6 +52,7 @@ SELECT
 	sv.vz
 FROM
 	KS.StateVectors_Earth AS sv
+-- WHERE (sv.TimeID % 5) = 0
 ORDER BY sv.TimeID;
 
 END
