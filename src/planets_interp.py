@@ -15,8 +15,8 @@ import pandas as pd
 dtype_default = np.float64
 
 # ********************************************************************************************************************* 
-def get_earth_sun_file(dtype: np.ScalarType = dtype_default):
-    """Get the position and velocity of earth and sun consistent with the asteroid data; look up from data file"""
+def load_earth_sun_vectors(dtype: np.ScalarType = dtype_default):
+    """Load the position and velocity of earth and sun consistent with the asteroid data from an HDF5 data file"""
     # Name of the HDF5 archive
     fname_h5: str = '../data/planets/StateVectors_HiRes.h5'
     
@@ -41,8 +41,8 @@ def get_earth_sun_file(dtype: np.ScalarType = dtype_default):
 # ********************************************************************************************************************* 
 # Create 1D linear interpolator for earth positions; just need one instance for the whole module
 
-# Get position and velocity of earth and sun in barycentric frame at reference dates from file
-ts, q_earth, q_sun, v_earth, v_sun = get_earth_sun_file()
+# Load position and velocity of earth and sun in barycentric frame at reference dates from file
+ts, q_earth, q_sun, v_earth, v_sun = load_earth_sun_vectors()
 
 # Build interpolator for barycentric position of earth and sun
 earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0)
@@ -57,7 +57,7 @@ def get_earth_pos(ts: np.ndarray, dtype = dtype_default) -> np.array:
     """
     Get position of earth consistent with asteroid data at the specified times (MJDs) in barycentric frame
     INPUTS:
-        ts: Array of times expressed as MJDs
+        ts: Array of times at which to interpolate expressed as MJDs
         dtype: Desired datatype, e.g. np.float64 or np.float32
     """
     # Compute interpolated position at desired times

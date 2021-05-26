@@ -16,7 +16,6 @@ import rebound
 from rebound_sim import make_sim_planets
 from db_utils import sp2df
 
-
 # ********************************************************************************************************************* 
 def get_asteroids(key_to_body_id: bool=False) -> pd.DataFrame:
     """
