@@ -24,8 +24,8 @@ SELECT
 	ae.a,
 	ae.e,
 	ae.inc,
-	ae.Omega_node,
-	ae.omega_peri,
+	ae.Omega_node AS Omega,
+	ae.omega_peri AS omega,
 	ae.f,
 	ae.M
 FROM
@@ -33,7 +33,7 @@ FROM
 WHERE 
 	ae.TimeID BETWEEN @TimeID_0 AND @TimeID_1 AND
 	ae.AsteroidID BETWEEN n0 AND (n1-1)
-ORDER BY ae.TimeID, ae.AsteroidID;
+ORDER BY ae.AsteroidID, ae.TimeID;
 
 END
 $$
@@ -71,8 +71,8 @@ SELECT
 	ae.a,
 	ae.e,
 	ae.inc,
-	ae.Omega_node,
-	ae.omega_peri,
+	ae.Omega_node AS Omega,
+	ae.omega_peri AS omega,
 	ae.f,
 	ae.M
 FROM
@@ -83,7 +83,7 @@ FROM
 WHERE
 	av.TimeID BETWEEN @TimeID_0 AND @TimeID_1 AND
 	av.AsteroidID BETWEEN n0 AND (n1-1)
-ORDER BY av.TimeID, av.AsteroidID;
+ORDER BY av.AsteroidID, av.TimeID;
 
 END
 $$
