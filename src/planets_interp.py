@@ -55,9 +55,33 @@ def load_earth_sun_vectors(interval: str, dtype: np.ScalarType = dtype_default):
     return ts, q_earth, q_sun, v_earth, v_sun
 
 # ********************************************************************************************************************* 
+def make_earth_sun_interpolators(interval: str, dtype = dtype_default) -> np.array:
+    """
+    Construct interpolators for the earth and sun at the desired interval: minute (M), hour (H), or day (D)
+    INPUTS:
+        interval: One of 'M' (1 minute), 'H' (1 hour), or 'D' (1 day); interval vectors are saved with
+        dtype: Desired datatype, e.g. np.float64 or np.float32
+    OUTPUTS:
+        tuple of four scipy.interpolate instances:
+        earth_interp_q, sun_interp_q, earth_interp_v, sun_interp_v
+    """
+    # Load position and velocity of earth and sun in barycentric frame at hourly intervals from file
+    ts, q_earth, q_sun, v_earth, v_sun = load_earth_sun_vectors(interval=interval)
+
+    # Build interpolator for barycentric position of earth and sun
+    earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0)
+    sun_interp_q = scipy.interpolate.interp1d(x=ts, y=q_sun, kind='cubic', axis=0)
+
+    # Build interpolator for barycentric velocity of earth and sun
+    earth_interp_v = scipy.interpolate.interp1d(x=ts, y=v_earth, kind='cubic', axis=0)
+    sun_interp_v = scipy.interpolate.interp1d(x=ts, y=v_sun, kind='cubic', axis=0)
+
+    return earth_interp_q, sun_interp_q, earth_interp_v, sun_interp_v
+
+# ********************************************************************************************************************* 
 # Create 1D linear interpolator for earth positions; just need one instance for the whole module
 
-# Load position and velocity of earth and sun in barycentric frame at reference dates from file
+# Load position and velocity of earth and sun in barycentric frame at hourly intervals from file
 ts, q_earth, q_sun, v_earth, v_sun = load_earth_sun_vectors(interval='H')
 
 # Build interpolator for barycentric position of earth and sun

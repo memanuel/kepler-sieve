@@ -12,9 +12,8 @@ from scipy.interpolate import CubicSpline
 
 # Astronomy
 import astropy
-from astropy.units import deg, au, km, meter, day, minute, second, arcsec
-from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic, EarthLocation
-import skyfield
+from astropy.units import deg, au, km, meter, day, minute, second
+from astropy.coordinates import SkyCoord, ICRS, BarycentricMeanEcliptic, EarthLocation
 from skyfield.api import Loader as SkyfieldLoader
 from skyfield.toposlib import Topos
 
@@ -23,9 +22,7 @@ import os
 from datetime import date, datetime
 
 # MSE imports
-from utils import range_inc
-from astro_utils import jd_to_mjd, mjd_to_jd, date_to_mjd
-from db_utils import sp2df
+from astro_utils import mjd_to_jd, date_to_mjd
 
 # Typing
 from typing import Tuple, Optional
@@ -60,6 +57,10 @@ except:
 
 # Suppress fake pandas warnings
 pd.options.mode.chained_assignment = None
+
+# *************************************************************************************************
+# Convert between a direction as a RA/DEC and a unit vector (ux, uy, uz) in the B.M.E. frame
+# *************************************************************************************************
 
 # ********************************************************************************************************************* 
 def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
@@ -117,6 +118,10 @@ def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarra
     # Return (ra, dec) as a tuple
     return (ra, dec)
 
+# *************************************************************************************************
+# Handle topos correction: position of observatory on the surface of earth
+# *************************************************************************************************
+
 # ********************************************************************************************************************* 
 def site2geoloc(site_name: str, verbose: bool = False):
     """
@@ -158,7 +163,7 @@ def infer_shape(q):
         data_axis, space_axis = 0, 1
         shape = (-1, 3)
     else:
-        raise ValueError(f'Bad data shape! q_earth has shape {q_earth.shape}, should by Nx3 or 3xN.')
+        raise ValueError(f'Bad data shape! q_earth has shape {q.shape}, should by Nx3 or 3xN.')
 
     return data_axis, space_axis, shape
 
@@ -236,6 +241,10 @@ def calc_topos(obstime_mjd, site_name: str):
         dv_topos = np.zeros(3) * au/day
     return dq_topos, dv_topos
 
+# *************************************************************************************************
+# Calculate direction 
+# *************************************************************************************************
+
 # ********************************************************************************************************************* 
 def astrometric_dir(q_body: np.ndarray, v_body: np.ndarray, q_obs: np.ndarray):
     """
@@ -306,6 +315,10 @@ def qv2dir(q_body: np.ndarray, v_body: np.ndarray, q_earth: np.ndarray,
     u, delta = astrometric_dir(q_body=q_body, v_body=v_body, q_obs=q_obs)
 
     return u, delta
+
+# *************************************************************************************************
+# Functions for testing / comparing these calculations to JPL and SkyField
+# *************************************************************************************************
 
 # *************************************************************************************************
 def direction_diff(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbose: bool=False) -> float:

@@ -17,23 +17,27 @@ from astropy.units import au, day
 
 # Local imports
 from planets_interp import get_earth_pos, get_earth_vectors, get_sun_vectors
-# from ra_dec import qv2dir, dir2radec, calc_topos, astrometric_dir, direction_diff
+
+# Types
+from typing import List
 
 # ********************************************************************************************************************* 
 # Speed of light; express this in AU / day
 light_speed_au_day = astropy.constants.c.to(au / day).value
 
 # ********************************************************************************************************************* 
-def spline_ast_vec(df_ast: pd.DataFrame, mjd: np.ndarray) -> pd.DataFrame:
+def spline_ast_data(df_ast: pd.DataFrame, mjd: np.ndarray, cols_spline: List[str]) -> pd.DataFrame:
     """
     Spline the integrated state vectors of asteroids and earth at the desired times
     INPUTS:
-        df_ast:    DataFrame with asteroid position and velocity
-        mjd:       Array of times at which splined output is desired
+        df_ast:         DataFrame with asteroid position and velocity
+        mjd:            Array of times at which splined output is desired
+        cols_spline:    List of column names to be splined
     OUTPUTS:
-        df_out:    Position & velocity of asteroids in barycentric frame
+        df_out:         New data frame with key columns and splined data columns
     """
-    # distinct asteroids or elements; get the name of the relevant column and array of distinct values
+
+    # Distinct asteroids or elements; get the name of the relevant column and array of distinct values
     id_col = 'AsteroidID' if 'AsteroidID' in df_ast.columns else 'ElementID'
     id_val_in = df_ast[id_col].values
     id_val_unq = np.unique(id_val_in)
@@ -52,14 +56,6 @@ def spline_ast_vec(df_ast: pd.DataFrame, mjd: np.ndarray) -> pd.DataFrame:
 
     # Data to be splined: x axis is time
     x_spline = df_ast.mjd.values[0:N_t_in]
-
-    # Collections of columns
-    cols_cart = ['qx', 'qy', 'qz', 'vx', 'vy', 'vz']
-    # cols_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'f']
-    cols_earth = ['earth_qx', 'earth_qy', 'earth_qz']
-    # cols_sun = ['sun_qx', 'sun_qy', 'sun_qz']
-    # The columns to be splined
-    cols_spline = cols_cart
 
     # the indexing of y_spline is (ast_num, time_step, data_dim) with shape e.g. (16, 3653, 16)
     y_spline = df_ast[cols_spline].values.reshape(N_ast, N_t_in, -1)
@@ -87,8 +83,40 @@ def spline_ast_vec(df_ast: pd.DataFrame, mjd: np.ndarray) -> pd.DataFrame:
     out_dict = dict(**out_dict_keys, **out_dict_splined)
     df_out = pd.DataFrame(out_dict)
 
-    # Add the splined earth position to df_out
-    q_earth = get_earth_pos(mjd_out)
-    df_out[cols_earth] = q_earth
-    
+    return df_out
+
+# ********************************************************************************************************************* 
+def spline_ast_vec(df_ast: pd.DataFrame, mjd: np.ndarray) -> pd.DataFrame:
+    """
+    Spline the integrated state vectors of asteroids and earth at the desired times
+    INPUTS:
+        df_ast:    DataFrame with asteroid position and velocity
+        mjd:       Array of times at which splined output is desired
+    OUTPUTS:
+        df_out:    Position & velocity of asteroids in barycentric frame
+    """
+    # The columns to spline - six cartesian coordinates
+    cols_spline = ['qx', 'qy', 'qz', 'vx', 'vy', 'vz']
+
+    # Spline these output columns
+    df_out = spline_ast_data(df_ast=df_ast, mjd=mjd, cols_spline=cols_spline)
+
+    return df_out
+
+# ********************************************************************************************************************* 
+def spline_ast_elt(df_ast: pd.DataFrame, mjd: np.ndarray) -> pd.DataFrame:
+    """
+    Spline the integrated state vectors of asteroids and earth at the desired times
+    INPUTS:
+        df_ast:    DataFrame with asteroid orbital elements
+        mjd:       Array of times at which splined output is desired
+    OUTPUTS:
+        df_out:    Position & velocity of asteroids in barycentric frame
+    """
+    # The columns to spline - six cartesian coordinates
+    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+
+    # Spline these output columns
+    df_out = spline_ast_data(df_ast=df_ast, mjd=mjd, cols_spline=cols_spline)
+
     return df_out
