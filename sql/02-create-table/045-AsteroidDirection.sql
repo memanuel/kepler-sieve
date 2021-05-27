@@ -15,7 +15,7 @@ CREATE OR REPLACE TABLE KS.AsteroidDirections(
 		COMMENT "Position of body (z coordinate) in AU in the barcycentric mean ecliptic frame",
 	-- Light time
 	LightTime DOUBLE NOT NULL
-		COMMENT "Time for light leaving asteroid to reach Earth in days.",
+		COMMENT "Time for light leaving asteroid to reach Earth in MINUTES not days.",
 	-- Keys and constraints
 	PRIMARY KEY (TimeID, AsteroidID)
 		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
