@@ -31,6 +31,11 @@ def get_asteroids(key_to_body_id: bool=False) -> pd.DataFrame:
     return ast
 
 # ********************************************************************************************************************* 
+# Work with reference orbital elements for asteroids as of one date provided by JPL
+# Enrich them to calculated orbital elements on many dates that are saved in the database
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
 def get_ast_ref_elts_jpl(epoch: int) -> pd.DataFrame:
     """
     Get reference orbital elements, as quoted by JPL, on the given epoch.
@@ -80,6 +85,22 @@ def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.array:
         asteroid_ids: Numpy array of asteroid IDs from KS.Asteroid table
     Modifies sim in place by adding the desired asteroids.
     """
+    # Does the elements DataFrame include the optional AsteroidName field?
+    # If not, put in dummy asteroid names
+    if 'AsteroidName' not in elts.columns:
+        elts['AsteroidName'] = 'Asteroid.'
+        elts['AsteroidName'] = elts.AsteroidName + elts.AsteroidID.astype(str)
+
+    # Does the elements DataFrame include the optional BodyID field?
+    # If not, populate it
+    if 'BodyID' not in elts.columns:
+        elts['BodyID'] = elts.AsteroidID + 1000000
+
+    # Does the elements DataFrame include the optional BodyName field?
+    # If not, put in dummy body names
+    if 'BodyName' not in elts.columns:
+        elts['BodyName'] = 'SB.'
+        elts['BodyName'] = elts.BodyName + elts.AsteroidName
 
     # Add the asteroids one at a time
     ast_count: int = elts.shape[0]
@@ -96,8 +117,6 @@ def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.array:
         primary = sim.particles['Sun']
         # Add the new asteroid
         sim.add(m=0.0, a=a, e=e, inc=inc, Omega=Omega, omega=omega, M=M, primary=primary)
-        # Set the hash to the asteroid's AsteroidID
-        # sim.particles[-1].hash = int(elts.AsteroidID[i])
         # Save the name of this asteroid to the particle entry (hack)
         sim.particles[-1].name = elts.AsteroidName[i]
 
@@ -105,8 +124,6 @@ def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.array:
     asteroid_ids = elts.AsteroidID.values
     body_ids = elts.BodyID.values
     body_names = elts.BodyName.values
-    # body_ids = ast.loc[asteroid_ids, 'BodyID']
-    # body_names = ast.loc[asteroid_ids, 'BodyName']
 
     # Save the asteroid IDs
     sim.asteroid_ids = asteroid_ids
@@ -156,7 +173,7 @@ def update_asteroid_elements(sim, elts, epoch) -> None:
         elts.loc[i, 'M'] = orb.M
 
 # ********************************************************************************************************************* 
-def make_sim_asteroids(epoch: int, n0: int, n1: int, missing: bool):
+def make_sim_asteroids_ref(epoch: int, n0: int, n1: int, missing: bool):
     """
     Create a simulation with the planets and a block of asteroids as of an epoch.
     INPUTS:
@@ -177,3 +194,105 @@ def make_sim_asteroids(epoch: int, n0: int, n1: int, missing: bool):
 
     return sim
     
+# ********************************************************************************************************************* 
+# Use calculated orbital elements
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def get_ast_elts(n0: int, n1: int, epoch: int) -> pd.DataFrame:
+    """
+    Get calculated reference orbital elements as of the given epoch.
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        epoch:      Date on which elements are requested
+    OUTPUTS:
+        elts:       DataFrame with orbital elements from the saved MSE integration
+    """
+    # The back end stored procedure
+    sp_name = 'KS.GetAsteroidElements'
+    # Convert the epoch to a date range that will return just the one date if it's available
+    mjd0: int = epoch
+    mjd1: int = epoch+1
+
+    # Assemble input parameters (same for both stored procedures)
+    params = {
+        'n0': n0,
+        'n1': n1,
+        'mjd0': mjd0,
+        'mjd1': mjd1,
+    }
+    # Get the elements on this epoch from the database
+    elts = sp2df(sp_name=sp_name, params=params)    
+    return elts
+
+# ********************************************************************************************************************* 
+def get_ast_elts_ts(n0: int, n1: int, mjd0: int, mjd1: int) -> pd.DataFrame:
+    """
+    Get calculated reference orbital elements as of the given epoch.
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
+    OUTPUTS:
+        elts:       DataFrame with orbital elements from the saved MSE integration
+    """
+    # The back end stored procedure
+    sp_name = 'KS.GetAsteroidElements'
+    # Assemble input parameters (same for both stored procedures)
+    params = {
+        'n0': n0,
+        'n1': n1,
+        'mjd0': mjd0,
+        'mjd1': mjd1,
+    }
+    # Get the elements in this date range from the database
+    elts = sp2df(sp_name=sp_name, params=params)    
+    return elts
+
+# ********************************************************************************************************************* 
+def make_sim_asteroids(epoch: int, n0: int, n1: int):
+    """
+    Create a simulation with the planets and a block of asteroids as of an epoch.
+    Available dates are in the range mjd= 48000-63000 at multiples of 4.
+    INPUTS:
+        epoch:  Epoch as of which the planets and asteroids are initialized
+        n0:     n0 - AsteroidID of the first asteroid to add (inclusive)
+        n1:     n1 - AsteroidID of the last asteroid to add (exclusive)
+    """
+    # Initialize a planets simulation as of epoch
+    sim = make_sim_planets(epoch=epoch, load_file=True)
+    sim.t = np.float64(epoch)
+    sim.N_active = sim.N
+
+    # Get the orbital elements of this slice of asteroids on the epoch
+    elts = get_ast_elts(n0=n0, n1=n1, epoch=epoch)
+    # Add these asteroids with their orbital elements
+    asteroid_ids = add_asteroid_elts(sim=sim, elts=elts) 
+
+    return sim
+
+# ********************************************************************************************************************* 
+# Test orbital elements - used for testing orbital_element.py
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def make_test_elements():
+    """
+    Return a set of test orbital elements
+    INPUTS:
+        None
+    OUTPUTS:
+        elts:       DataFrame with orbital elements from the saved MSE integration
+    """
+    # Selected range of asteroids and epoch
+    n0=0
+    n1=10000
+    epoch=59000
+    
+    # Build test elements; save them to disk; and return them
+    elts = get_ast_elts(n0=n0, n1=n1, epoch=epoch)
+    fname = '../data/test/asteroid_elements.h5'
+    elts.to_hdf(fname, key='elts')
+    return elts
