@@ -300,24 +300,3 @@ def make_sim_asteroids(epoch: int, n0: int, n1: int):
     asteroid_ids = add_asteroid_elts(sim=sim, elts=elts) 
 
     return sim
-
-# ********************************************************************************************************************* 
-# Test orbital elements - used for testing orbital_element.py
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def make_test_elements(n1: int=10000, epoch: int = 59000):
-    """
-    Return a set of test orbital elements
-    INPUTS:
-        n1:         Last asteroid number to include
-        epoch:      Epoch as of which vectors and elements computed
-                    Should be a multiple of 4 in (48000, 63000)
-    OUTPUTS:
-        elts:       DataFrame with state vectors and orbital elements from the saved MSE integration
-    """
-    # Build test elements; save them to disk; and return them
-    elts = get_ast_data(n0=0, n1=n1, epoch=epoch)
-    fname = '../data/test/asteroid_elements.h5'
-    elts.to_hdf(fname, key='elts')
-    return elts

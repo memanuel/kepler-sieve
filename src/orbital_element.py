@@ -8,7 +8,6 @@ Michael S. Emanuel
 
 # Core
 import numpy as np
-import pandas as pd
 
 # Utility
 from collections import namedtuple
@@ -139,7 +138,7 @@ def anomaly_M2E(M: np.array, e: np.array) -> np.array:
 
 def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array):
     """
-    Convert from orbital elements to state vectors.
+    Convert from orbital elements to position vector.
     See SSD page 51, equation 2.122.
     INPUTS:
         a:          semimajor axis
@@ -150,13 +149,13 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
         f:          true anomaly
     OUTPUTS:
         q:          position; shaped same as elements with one additional axis
+                    This position is relative to the primary, i.e. the sun for heliocentric elements
     """
 
     # Calculate the distance from the center, r; SSD equation 2.20
-    r = a * (1.0 - np.square(e)) / (1 + e * np.cos(f))
+    r = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
 
     # Calculate intermediate results used for angular rotations
-
     # The angle in the elliptic plane, measured from the reference direction
     theta = omega + f 
     # Trigonometric functions of the angles
@@ -197,143 +196,26 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     """
 
     # Calculate the distance from the center, r; SSD equation 2.20
-    r = a * (1.0 - np.square(e)) / (1 + e * np.cos(f))
+    r = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
 
     # Calculate intermediate results used for angular rotations
+    # The angle in the elliptic plane, measured from the reference direction
+    theta = omega + f 
+    # Trigonometric functions of the angles
     cos_inc = np.cos(inc)
     sin_inc = np.sin(inc)
     cos_Omega = np.cos(Omega)
     sin_Omega = np.sin(Omega)
-    cos_omega = np.cos(omega)
-    sin_omega = np.sin(omega)
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+
+    # The cartesian position coordinates; see SSD equation 2.122
+    qx = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
+    qy = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
+    qz = r * (sin_theta*sin_inc)
+    q = np.stack([qx, qy, qz], axis=1)
 
 
 # ********************************************************************************************************************* 
 # Convert from state vectors to orbital elements
 # ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-# Testing
-# ********************************************************************************************************************* 
-
-# ********************************************************************************************************************* 
-def get_test_elements():
-    """
-    Return a set of test orbital elements
-    INPUTS:
-        None
-    OUTPUTS:
-        elts:       DataFrame with orbital elements from the saved MSE integration
-    """
-    fname = '../data/test/asteroid_elements.h5'
-    elts = pd.read_hdf(fname, key='elts')
-    return elts
-
-# ********************************************************************************************************************* 
-def angle_distance(x, y):
-    """
-    Calculate a distance between two angles on the unit sphere
-    This distance 
-    INPUTS:
-        x:      The first angle to be compared
-        y:      The second angle to be compared
-    OUTPUTS:
-        r:      The distance 2 sin( (x-y)/2 )
-    """
-    # The difference in the angles
-    d = np.abs(x - y)
-    # Use sine of the half angle
-    return 2.0 * np.sin(0.5 * d)
-
-# ********************************************************************************************************************* 
-def report_test(err: np.array, test_name: str, thresh: float):
-    """
-    Report results of one test
-    INPUTS:
-        err:            Array of error values
-        test_name:      Name of this test
-    """
-    # Calculate RMS and max error
-    err_rms = np.sqrt(np.mean(np.square(err)))
-    err_max = np.max(err)
-
-    # Is the result a pass?
-    is_ok: bool = err_max < thresh
-    result: str = 'PASS' if is_ok else 'FAIL'
-
-    # Report results
-    print(f'\nTest: {test_name}')
-    print(f'RMS error: {err_rms:5.3e}')
-    print(f'Max error: {err_max:5.3e}')
-    print(f'*** {result} ***')
-
-# ********************************************************************************************************************* 
-def test_E2f():
-    """Test round trip conversion between E and f"""
-    # Get test elements and unpack them
-    elts = get_test_elements()
-    e = elts.e.values
-    f = elts.f.values
-    
-    # Calculate E from f and e
-    E = anomaly_f2E(f=f, e=e)
-    # Recover f from E
-    f2 = anomaly_E2f(E=E, e=e)
-
-    # Calculate the distance between these two angles
-    err = angle_distance(f, f2)
-
-    # Report the results
-    report_test(err=err, test_name='E2f', thresh=1.0E-9)
-
-# ********************************************************************************************************************* 
-def test_E2M():
-    """Test conversion from E to M"""
-    # Get test elements and unpack them
-    elts = get_test_elements()
-    e = elts.e.values
-    f = elts.f.values
-    M = elts.M.values
-    
-    # Calculate E from f and e
-    E = anomaly_f2E(f=f, e=e)
-    # Recover M from E
-    M2 = anomaly_E2M(E=E, e=e)
-
-    # Calculate the distance between these two angles
-    err = angle_distance(M, M2)
-
-    # Report the results
-    report_test(err=err, test_name='E2M', thresh=1.0E-9)
-
-# ********************************************************************************************************************* 
-def test_M2E():
-    """Test conversion from M to E"""
-    # Get test elements and unpack them
-    elts = get_test_elements()
-    e = elts.e.values
-    f = elts.f.values
-    M = elts.M.values
-    
-    # Calculate E from f and e
-    E = anomaly_f2E(f=f, e=e)
-    # Recover E from M
-    E2 = anomaly_M2E(M=M, e=e)
-
-    # Calculate the distance between these two angles
-    err = angle_distance(E, E2)
-
-    # Report the results
-    report_test(err=err, test_name='M2E', thresh=1.0E-9)
-
-# ********************************************************************************************************************* 
-def test_all():
-    """Running test suite on orbital elements"""
-    test_E2f()
-    test_E2M()
-    test_M2E()
-
-# ********************************************************************************************************************* 
-if __name__ == '__main__':
-    print(f'Running test suite on orbital_element.py...')
-    test_all()
