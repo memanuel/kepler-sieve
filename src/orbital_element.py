@@ -134,11 +134,79 @@ def anomaly_M2E(M: np.array, e: np.array) -> np.array:
     return E3
 
 # ********************************************************************************************************************* 
-# Convert from orbital elements to configuration vectors
+# Convert from orbital elements to state vectors
 # ********************************************************************************************************************* 
 
+def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array):
+    """
+    Convert from orbital elements to state vectors.
+    See SSD page 51, equation 2.122.
+    INPUTS:
+        a:          semimajor axis
+        e:          eccentricity
+        inc:        inclination
+        Omega:      longitude of ascending node
+        omega:      argument of percenter
+        f:          true anomaly
+    OUTPUTS:
+        q:          position; shaped same as elements with one additional axis
+    """
+
+    # Calculate the distance from the center, r; SSD equation 2.20
+    r = a * (1.0 - np.square(e)) / (1 + e * np.cos(f))
+
+    # Calculate intermediate results used for angular rotations
+    theta = omega + f # the angle in the elliptic plane, measured from the reference direction
+    cos_inc = np.cos(inc)
+    sin_inc = np.sin(inc)
+    cos_Omega = np.cos(Omega)
+    sin_Omega = np.sin(Omega)
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+
+    # The cartesian position coordinates; see SSD equation 2.122
+    qx = r * (cos_Omega * cos_theta - sin_Omega * sin_theta) * cos_inc
+    qy = r * (sin_Omega * cos_theta - cos_Omega * sin_theta) * cos_inc
+    qz = r * (sin_theta * sin_inc)
+    q = np.stack([qx, qy, qz], axis=1)
+
+    return q
+
 # ********************************************************************************************************************* 
-# Convert from configuration vectors to orbital elements
+def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array):
+    """
+    Convert from orbital elements to state vectors.
+    See SSD page 51, equation 2.122.
+    INPUTS:
+        a:          semimajor axis
+        e:          eccentricity
+        inc:        inclination
+        Omega:      longitude of ascending node
+        omega:      argument of percenter
+        f:          true anomaly
+    OUTPUTS:
+        qx:         position; x
+        qy:         position; y
+        qz:         position; z
+        vx:         velocity; x
+        vy:         velocity; y
+        vz:         velocity; z
+    """
+
+    # Calculate the distance from the center, r; SSD equation 2.20
+    r = a * (1.0 - np.square(e)) / (1 + e * np.cos(f))
+
+    # Calculate intermediate results used for angular rotations
+    cos_inc = np.cos(inc)
+    sin_inc = np.sin(inc)
+    cos_Omega = np.cos(Omega)
+    sin_Omega = np.sin(Omega)
+    cos_omega = np.cos(omega)
+    sin_omega = np.sin(omega)
+
+
+# ********************************************************************************************************************* 
+# Convert from state vectors to orbital elements
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 

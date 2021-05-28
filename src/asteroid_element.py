@@ -195,7 +195,7 @@ def make_sim_asteroids_ref(epoch: int, n0: int, n1: int, missing: bool):
     return sim
     
 # ********************************************************************************************************************* 
-# Use calculated orbital elements
+# Get calculated orbital elements and wrap them into a simulation
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
@@ -229,7 +229,7 @@ def get_ast_elts(n0: int, n1: int, epoch: int) -> pd.DataFrame:
 # ********************************************************************************************************************* 
 def get_ast_elts_ts(n0: int, n1: int, mjd0: int, mjd1: int) -> pd.DataFrame:
     """
-    Get calculated reference orbital elements as of the given epoch.
+    Get calculated orbital elements as of the given epoch.
     INPUTS:
         n0:         First asteroid number to return (inclusive)
         n1:         Last asteroid number to return (exclusive)
@@ -248,6 +248,34 @@ def get_ast_elts_ts(n0: int, n1: int, mjd0: int, mjd1: int) -> pd.DataFrame:
         'mjd1': mjd1,
     }
     # Get the elements in this date range from the database
+    elts = sp2df(sp_name=sp_name, params=params)    
+    return elts
+
+# ********************************************************************************************************************* 
+def get_ast_data(n0: int, n1: int, epoch: int) -> pd.DataFrame:
+    """
+    Get both calculated state vectors and orbital elements as of the given epoch.
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        epoch:      Date on which elements are requested
+    OUTPUTS:
+        elts:       DataFrame with both state vectors and orbital elements from the saved MSE integration
+    """
+    # The back end stored procedure
+    sp_name = 'KS.GetAsteroidData'
+    # Convert the epoch to a date range that will return just the one date if it's available
+    mjd0: int = epoch
+    mjd1: int = epoch+1
+
+    # Assemble input parameters (same for both stored procedures)
+    params = {
+        'n0': n0,
+        'n1': n1,
+        'mjd0': mjd0,
+        'mjd1': mjd1,
+    }
+    # Get the elements on this epoch from the database
     elts = sp2df(sp_name=sp_name, params=params)    
     return elts
 
@@ -278,21 +306,18 @@ def make_sim_asteroids(epoch: int, n0: int, n1: int):
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def make_test_elements():
+def make_test_elements(n1: int=10000, epoch: int = 59000):
     """
     Return a set of test orbital elements
     INPUTS:
-        None
+        n1:         Last asteroid number to include
+        epoch:      Epoch as of which vectors and elements computed
+                    Should be a multiple of 4 in (48000, 63000)
     OUTPUTS:
-        elts:       DataFrame with orbital elements from the saved MSE integration
+        elts:       DataFrame with state vectors and orbital elements from the saved MSE integration
     """
-    # Selected range of asteroids and epoch
-    n0=0
-    n1=10000
-    epoch=59000
-    
     # Build test elements; save them to disk; and return them
-    elts = get_ast_elts(n0=n0, n1=n1, epoch=epoch)
+    elts = get_ast_data(n0=0, n1=n1, epoch=epoch)
     fname = '../data/test/asteroid_elements.h5'
     elts.to_hdf(fname, key='elts')
     return elts
