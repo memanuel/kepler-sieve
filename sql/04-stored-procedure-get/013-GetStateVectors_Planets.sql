@@ -4,9 +4,10 @@ CREATE OR REPLACE
 DEFINER = kepler
 PROCEDURE KS.GetStateVectors_Planets(
     IN mjd0 INT,
-    IN mjd1 INT
+    IN mjd1 INT,
+    IN stride INT
 )
-COMMENT "Get the state vectors for the massive bodies used in the Planets integration in a date range."
+COMMENT "Get the state vectors for the massive bodies used in the Planets integration in a date range. Stride can be a multiple of 5 minutes."
 
 BEGIN 
 
@@ -28,6 +29,7 @@ FROM
 	KS.StateVectors_Planets AS sv
 WHERE 
 	sv.TimeID BETWEEN @TimeID_0 AND @TimeID_1
+	AND (sv.TimeID % stride) = 0
 ORDER BY sv.TimeID, sv.BodyID;
 
 END
