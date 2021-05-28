@@ -8,9 +8,13 @@ Michael S. Emanuel
 
 # Core
 import numpy as np
+from scipy import interpolate
 
 # Utility
 from collections import namedtuple
+
+# Typing
+from typing import Optional
 
 # ********************************************************************************************************************* 
 # Named tuple data type for orbital elements with just the six 
@@ -20,6 +24,14 @@ OrbitalElement_aeiOof = namedtuple('OrbitalElement', 'a e inc Omega omega f')
 # Named tuple data type for orbital elements that includes the mean anomaly M
 # a, e, inc, Omega, omega, f, M
 OrbitalElement_aeiOofM = namedtuple('OrbitalElement', 'a e inc Omega omega f M')
+
+# Name the constant for radians in a circle (two pi)
+tau = 2.0 * np.pi
+
+# The gravitational constant in unit system (years, AU, Msun)
+# numerical value close to 4 pi^2; see rebound documentation for exact value        
+G_ = 39.476926421373
+mu = G_ * 1.0
 
 # ********************************************************************************************************************* 
 # Functions for converting between anomalies: mean, true, and eccentric
@@ -115,7 +127,7 @@ def danby_guess(M: np.array, e: np.array) -> np.array:
     return E0
 
 # ********************************************************************************************************************* 
-def anomaly_M2E(M: np.array, e: np.array) -> np.array:
+def anomaly_M2E_danby(M: np.array, e: np.array, n: int=3) -> np.array:
     """
     Convert the mean anomaly M to the eccentric anomaly E using Danby iterations
     INPUTS:
@@ -125,12 +137,26 @@ def anomaly_M2E(M: np.array, e: np.array) -> np.array:
         E: The eccentric anomaly
     """
     # The initial guess
-    E0 = danby_guess(M=M, e=e)
-    # Three iterations of Danby algorithm
-    E1 = danby_iteration(M=M, e=e, E=E0)
-    E2 = danby_iteration(M=M, e=e, E=E1)
-    E3 = danby_iteration(M=M, e=e, E=E2)
-    return E3
+    E = danby_guess(M=M, e=e)
+    # n iterations of Danby algorithm
+    for k in range(n):
+        E = danby_iteration(M=M, e=e, E=E)
+    return E
+
+# ********************************************************************************************************************* 
+def anomaly_M2E(M: np.array, e: np.array) -> np.array:
+    """
+    Convert the mean anomaly M to the eccentric anomaly E.
+    Implemention can be changed behind the scenes later.
+    INPUTS:
+        M: The mean anomaly
+        e: The eccentricity
+    OUTPUTS:
+        E: The eccentric anomaly
+    """
+    # Delegate to anomaly_M2E_danby with n=3
+    E = anomaly_M2E_danby(M=M, e=e, n=3)
+    return E
 
 # ********************************************************************************************************************* 
 # Convert from orbital elements to state vectors
@@ -153,24 +179,24 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     """
 
     # Calculate the distance from the center, r; SSD equation 2.20
-    r = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
+    r: np.array = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
 
     # Calculate intermediate results used for angular rotations
     # The angle in the elliptic plane, measured from the reference direction
-    theta = omega + f 
+    theta: np.array = omega + f 
     # Trigonometric functions of the angles
-    cos_inc = np.cos(inc)
-    sin_inc = np.sin(inc)
-    cos_Omega = np.cos(Omega)
-    sin_Omega = np.sin(Omega)
-    cos_theta = np.cos(theta)
-    sin_theta = np.sin(theta)
+    cos_inc: np.array = np.cos(inc)
+    sin_inc: np.array = np.sin(inc)
+    cos_Omega: np.array = np.cos(Omega)
+    sin_Omega: np.array = np.sin(Omega)
+    cos_theta: np.array = np.cos(theta)
+    sin_theta: np.array = np.sin(theta)
 
     # The cartesian position coordinates; see SSD equation 2.122
-    qx = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
-    qy = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
-    qz = r * (sin_theta*sin_inc)
-    q = np.stack([qx, qy, qz], axis=1)
+    qx: np.array = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
+    qy: np.array = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
+    qz: np.array = r * (sin_theta*sin_inc)
+    q: np.array = np.stack([qx, qy, qz], axis=1)
 
     return q
 
@@ -195,26 +221,58 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
         vz:         velocity; z
     """
 
-    # Calculate the distance from the center, r; SSD equation 2.20
-    r = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
+    # sine and cosine of the angles inc, Omega, omega, and f
+    ci = np.cos(inc)
+    si = np.sin(inc)
+    cO = np.cos(Omega)
+    sO = np.sin(Omega)
+    co = np.cos(omega)
+    so = np.sin(omega)
+    cf = np.cos(f)
+    sf = np.sin(f)
 
-    # Calculate intermediate results used for angular rotations
-    # The angle in the elliptic plane, measured from the reference direction
-    theta = omega + f 
-    # Trigonometric functions of the angles
-    cos_inc = np.cos(inc)
-    sin_inc = np.sin(inc)
-    cos_Omega = np.cos(Omega)
-    sin_Omega = np.sin(Omega)
-    cos_theta = np.cos(theta)
-    sin_theta = np.sin(theta)
+    # Distance from center
+    one_minus_e2 = 1.0 - np.square(e)
+    one_plus_e_cos_f = 1.0 + e * np.cos(f)
+    r = a * one_minus_e2 / one_plus_e_cos_f
+    
+    # Current speed
+    v0 = np.sqrt(mu / a / one_minus_e2)
 
-    # The cartesian position coordinates; see SSD equation 2.122
-    qx = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
-    qy = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
-    qz = r * (sin_theta*sin_inc)
-    q = np.stack([qx, qy, qz], axis=1)
+    # Position
+    # qx = r*(cO*(co*cf-so*sf) - sO*(so*cf+co*sf)*ci)
+    # qy = r*(sO*(co*cf-so*sf) + cO*(so*cf+co*sf)*ci)
+    # qz = r*(so*cf+co*sf)*si
+    # the term cos_omega*cos_f - sin_omega*sin_f appears 2 times
+    # the term sin_omega*cos_f + cos_omega*sin_f appears 3 times
+    cocf_sosf = co*cf-so*sf
+    socf_cosf = so*cf+co*sf
+    qx = r*(cO*cocf_sosf - sO*socf_cosf*ci)
+    qy = r*(sO*cocf_sosf + cO*socf_cosf*ci)
+    qz = r*socf_cosf*si
+    
+    # Velocity
+    # vx = v0*((e+cf)*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO))
+    # vy = v0*((e+cf)*(ci*co*cO - sO*so)  - sf*(co*sO + ci*so*cO))
+    # vz = v0*((e+cf)*co*si - sf*si*so)
+    # The term e+cf appears three times
+    epcf = e + cf
+    # vx = v0*(epcf*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO))
+    # vy = v0*(epcf*(ci*co*cO - sO*so)  - sf*(co*sO + ci*so*cO))
+    # vz = v0*(epcf*co*si - sf*si*so)
+    # The term cocO appears twice
+    cocO = co * cO
+    # The term cosO appears twice
+    cosO = co * sO
+    # The term so*sO appears twice
+    sosO = so * sO
+    # The terms socO appears twice
+    socO = so*cO
 
+    # Simplified expression for velocity with substitutions
+    vx = v0*(epcf*(-ci*cosO - socO) - sf*(cocO - ci*sosO))
+    vy = v0*(epcf*(ci*cocO - sosO)  - sf*(cosO + ci*socO))
+    vz = v0*(epcf*co*si - sf*si*so)
 
 # ********************************************************************************************************************* 
 # Convert from state vectors to orbital elements

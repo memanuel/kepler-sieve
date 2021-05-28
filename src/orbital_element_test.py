@@ -13,7 +13,8 @@ import pandas as pd
 # Local imports
 from asteroid_element import get_ast_data
 from asteroid_data import ast_add_sun_vectors
-from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E, elt2pos
+from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E_danby, anomaly_M2E, elt2pos
+from orbital_element_table import anomaly_M2E_table
 
 # ********************************************************************************************************************* 
 def make_test_elements(n1: int=10000, epoch: int = 59000):
@@ -57,7 +58,10 @@ def angle_distance(x, y):
         r:      The distance 2 sin( (x-y)/2 )
     """
     # The difference in the angles
-    d = np.abs(x - y)
+    tau = 2.0 * np.pi 
+    d1 = (x - y) % tau
+    d2 = (y - x) % tau
+    d = np.minimum(d1, d2)
     # Use sine of the half angle
     return 2.0 * np.sin(0.5 * d)
 
@@ -123,6 +127,46 @@ def test_E2M():
     report_test(err=err, test_name='E2M', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
+def test_M2E_danby():
+    """Test conversion from M to E using Danby iteration method"""
+    # Get test elements and unpack them
+    elts = get_test_elements()
+    e = elts.e.values
+    f = elts.f.values
+    M = elts.M.values
+    
+    # Calculate E from f and e
+    E = anomaly_f2E(f=f, e=e)
+    # Recover E from M
+    E2 = anomaly_M2E_danby(M=M, e=e)
+
+    # Calculate the distance between these two angles
+    err = angle_distance(E, E2)
+
+    # Report the results
+    report_test(err=err, test_name='M2E (Danby, 3 iterations)', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
+def test_M2E_table():
+    """Test conversion from M to E using interpolation table"""
+    # Get test elements and unpack them
+    elts = get_test_elements()
+    e = elts.e.values
+    f = elts.f.values
+    M = elts.M.values
+    
+    # Calculate E from f and e
+    E = anomaly_f2E(f=f, e=e)
+    # Recover E from M
+    E2 = anomaly_M2E_table(M=M, e=e)
+
+    # Calculate the distance between these two angles
+    err = angle_distance(E, E2)
+
+    # Report the results
+    report_test(err=err, test_name='M2E (interpolation table; then 2 iterations of Danby)', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
 def test_M2E():
     """Test conversion from M to E"""
     # Get test elements and unpack them
@@ -150,30 +194,30 @@ def test_elt2pos():
 
     # The position according to the integration
     cols_q = ['qx', 'qy', 'qz']
-    q = elts[cols_q].values
+    q: np.array = elts[cols_q].values
 
     # Unpack orbital elements
-    a = elts.a.values
-    e = elts.e.values
-    inc = elts.inc.values
-    Omega = elts.Omega.values
-    omega = elts.omega.values
-    f = elts.f.values
+    a: np.array = elts.a.values
+    e: np.array = elts.e.values
+    inc: np.array = elts.inc.values
+    Omega: np.array = elts.Omega.values
+    omega: np.array = elts.omega.values
+    f: np.array = elts.f.values
     
     # Add sun vectors; need this later to convert q from heliocentric to barycentric
     ast_add_sun_vectors(elts)
     # Compute q in the heliocentric frame
-    q_hel = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
+    q_hel: np.array = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
     # Position of the sun
     cols_q_sun = ['sun_qx', 'sun_qy', 'sun_qz']
-    q_sun = elts[cols_q_sun].values
+    q_sun: np.array = elts[cols_q_sun].values
 
     # The recovered position of the asteroid
-    q2 = q_hel + q_sun
+    q2: np.array = q_hel + q_sun
 
     # Position reconstruction error
-    dq = q2 - q
-    err = np.sqrt(np.sum(np.square(dq), axis=1))
+    dq: np.array = q2 - q
+    err: np.array = np.sqrt(np.sum(np.square(dq), axis=1))
     # Report the results
     report_test(err=err, test_name='elt2pos', thresh=1.0E-9)
 
@@ -182,6 +226,8 @@ def test_all():
     """Running test suite on orbital elements"""
     test_E2f()
     test_E2M()
+    # test_M2E_danby()
+    # test_M2E_table()
     test_M2E()
     test_elt2pos()
 
