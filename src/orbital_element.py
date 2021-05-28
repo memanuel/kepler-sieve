@@ -156,7 +156,10 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     r = a * (1.0 - np.square(e)) / (1 + e * np.cos(f))
 
     # Calculate intermediate results used for angular rotations
-    theta = omega + f # the angle in the elliptic plane, measured from the reference direction
+
+    # The angle in the elliptic plane, measured from the reference direction
+    theta = omega + f 
+    # Trigonometric functions of the angles
     cos_inc = np.cos(inc)
     sin_inc = np.sin(inc)
     cos_Omega = np.cos(Omega)
@@ -165,9 +168,9 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     sin_theta = np.sin(theta)
 
     # The cartesian position coordinates; see SSD equation 2.122
-    qx = r * (cos_Omega * cos_theta - sin_Omega * sin_theta) * cos_inc
-    qy = r * (sin_Omega * cos_theta - cos_Omega * sin_theta) * cos_inc
-    qz = r * (sin_theta * sin_inc)
+    qx = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
+    qy = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
+    qz = r * (sin_theta*sin_inc)
     q = np.stack([qx, qy, qz], axis=1)
 
     return q

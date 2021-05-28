@@ -15,7 +15,7 @@ import pandas as pd
 
 # Local imports
 from db_utils import sp2df
-from planets_interp import get_earth_pos, get_earth_vectors, get_sun_vectors
+from planets_interp import get_earth_pos, get_earth_vectors, get_earth_elt, get_sun_vectors
 
 # Type names
 from typing import Tuple
@@ -121,9 +121,9 @@ def ast_add_earth_pos(df_ast: pd.DataFrame) -> None:
     df_ast[cols] = q_earth
 
 # ********************************************************************************************************************* 
-def ast_add_earth_vectors(df_ast: pd.DataFrame) -> None:
+def ast_add_earth_elt(df_ast: pd.DataFrame) -> None:
     """
-    Add the splined earth position and velocity vectors to an asteroids DataFrame
+    Add the splined earth orbital elements to an asteroids DataFrame
     INPUTS:
         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
     OUTPUTS:
@@ -131,14 +131,31 @@ def ast_add_earth_vectors(df_ast: pd.DataFrame) -> None:
     """
     # Spline earth and sun vectors
     ts = df_ast.mjd.values
-    q_earth, v_earth = get_earth_vectors(ts)
-
-    # Stack vectors
-    qv_earth = np.hstack([q_earth, v_earth])
+    elt_earth = get_earth_elt(ts)
 
     # Add new colums to DataFrame
-    cols_earth = ['earth_qx', 'earth_qy', 'earth_qz', 'earth_vx', 'earth_vy', 'earth_vz']
-    df_ast[cols_earth] = qv_earth
+    cols = ['earth_a', 'earth_e', 'earth_inc', 'earth_Omega', 'earth_omega', 'earth_f', 'earth_M']
+    df_ast[cols] = elt_earth
+
+# # ********************************************************************************************************************* 
+# def ast_add_earth_vectors(df_ast: pd.DataFrame) -> None:
+#     """
+#     Add the splined earth position and velocity vectors to an asteroids DataFrame
+#     INPUTS:
+#         df_ast:   Position & velocity of asteroids in barycentric frame; heliocentric orbital elements
+#     OUTPUTS:
+#         None.  Modifies df_ast in place
+#     """
+#     # Spline earth and sun vectors
+#     ts = df_ast.mjd.values
+#     q_earth, v_earth = get_earth_vectors(ts)
+
+#     # Stack vectors
+#     qv_earth = np.hstack([q_earth, v_earth])
+
+#     # Add new colums to DataFrame
+#     cols_earth = ['earth_qx', 'earth_qy', 'earth_qz', 'earth_vx', 'earth_vy', 'earth_vz']
+#     df_ast[cols_earth] = qv_earth
 
 # ********************************************************************************************************************* 
 def ast_add_sun_vectors(df_ast: pd.DataFrame) -> None:
