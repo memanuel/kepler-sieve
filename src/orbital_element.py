@@ -72,18 +72,66 @@ def anomaly_E2M(E: np.array, e: np.array) -> np.array:
     return M
 
 # ********************************************************************************************************************* 
+def danby_iteration(M: np.array, e: np.array, E: np.array) -> np.array:
+    """
+    Perform one iteration of the Danby algorithm for computing E from M
+    See SSD equation 2.62 on page 36
+    INPUTS:
+        M:      The mean anomaly
+        e:      The eccentricity
+        E:      The current estimate of the eccentric anomaly E
+    OUTPUTS:
+        E_next: The improved estimate of the eccentric anomaly E
+
+    """
+    # The objective function that is set to zero using Newton-Raphson is
+    # f(E) = E - e Sin E - M
+    
+    # Save two intermediate arrays that are reused
+    eSinE = e * np.sin(E)
+    eCosE = e * np.cos(E)
+    
+    # Save the value of the function and its first three derivatives
+    f0 = E - eSinE - M
+    f1 = 1.0 - eCosE
+    f2 = eSinE
+    f3 = eCosE
+
+    # The three delta adjustments; see SSD Equation 2.62
+    d1 = -f0 / f1
+    d2 = -f0 / (f1 + 0.5*d1 * f2)
+    d3 = -f0 / (f1 + 0.5*d2 * f2 + (1.0/6.0)*np.square(d2)*f3)
+        
+    E_next = E + d3
+    return E_next
+
+# ********************************************************************************************************************* 
+def danby_guess(M: np.array, e: np.array) -> np.array:
+    """
+    Initial guess E0 for iterative calculation of E from M
+    See SSD equation 2.64 on page 36
+    """
+    k = 0.85
+    E0 = M + np.sign(np.sin(M))*k*e
+    return E0
+
+# ********************************************************************************************************************* 
 def anomaly_M2E(M: np.array, e: np.array) -> np.array:
     """
-    Convert the mean anomaly M to the eccentric anomaly E
+    Convert the mean anomaly M to the eccentric anomaly E using Danby iterations
     INPUTS:
         M: The mean anomaly
         e: The eccentricity
     OUTPUTS:
         E: The eccentric anomaly
     """
-    # SSD equation 2.63
-    # TODO: implement this
-    raise NotImplementedError
+    # The initial guess
+    E0 = danby_guess(M=M, e=e)
+    # Three iterations of Danby algorithm
+    E1 = danby_iteration(M=M, e=e, E=E0)
+    E2 = danby_iteration(M=M, e=e, E=E1)
+    E3 = danby_iteration(M=M, e=e, E=E2)
+    return E3
 
 # ********************************************************************************************************************* 
 # Convert from orbital elements to configuration vectors
@@ -113,19 +161,18 @@ def get_test_elements():
 # ********************************************************************************************************************* 
 def angle_distance(x, y):
     """
-    Calculate a distance between two angles using one minus the cosine as a metric
-    This distance is 0.0 for angles on top of each other (up to 2 pi) 
-    and a maximum of 2 for angles that are opposite (pi apart)
+    Calculate a distance between two angles on the unit sphere
+    This distance 
     INPUTS:
         x:      The first angle to be compared
         y:      The second angle to be compared
     OUTPUTS:
-        r:      The distance 1 - cos(x-y)
+        r:      The distance 2 sin( (x-y)/2 )
     """
     # The difference in the angles
-    d = x - y
-    # Use one minus cosine
-    return 1.0 - np.cos(d)
+    d = np.abs(x - y)
+    # Use sine of the half angle
+    return 2.0 * np.sin(0.5 * d)
 
 # ********************************************************************************************************************* 
 def report_test(err: np.array, test_name: str, thresh: float):
@@ -144,7 +191,7 @@ def report_test(err: np.array, test_name: str, thresh: float):
     result: str = 'PASS' if is_ok else 'FAIL'
 
     # Report results
-    print(f'Test: {test_name}')
+    print(f'\nTest: {test_name}')
     print(f'RMS error: {err_rms:5.3e}')
     print(f'Max error: {err_max:5.3e}')
     print(f'*** {result} ***')
@@ -167,3 +214,55 @@ def test_E2f():
 
     # Report the results
     report_test(err=err, test_name='E2f', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
+def test_E2M():
+    """Test conversion from E to M"""
+    # Get test elements and unpack them
+    elts = get_test_elements()
+    e = elts.e.values
+    f = elts.f.values
+    M = elts.M.values
+    
+    # Calculate E from f and e
+    E = anomaly_f2E(f=f, e=e)
+    # Recover M from E
+    M2 = anomaly_E2M(E=E, e=e)
+
+    # Calculate the distance between these two angles
+    err = angle_distance(M, M2)
+
+    # Report the results
+    report_test(err=err, test_name='E2M', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
+def test_M2E():
+    """Test conversion from M to E"""
+    # Get test elements and unpack them
+    elts = get_test_elements()
+    e = elts.e.values
+    f = elts.f.values
+    M = elts.M.values
+    
+    # Calculate E from f and e
+    E = anomaly_f2E(f=f, e=e)
+    # Recover E from M
+    E2 = anomaly_M2E(M=M, e=e)
+
+    # Calculate the distance between these two angles
+    err = angle_distance(E, E2)
+
+    # Report the results
+    report_test(err=err, test_name='M2E', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
+def test_all():
+    """Running test suite on orbital elements"""
+    test_E2f()
+    test_E2M()
+    test_M2E()
+
+# ********************************************************************************************************************* 
+if __name__ == '__main__':
+    print(f'Running test suite on orbital_element.py...')
+    test_all()
