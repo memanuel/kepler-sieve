@@ -212,7 +212,7 @@ def get_sun_vectors(ts: np.ndarray, dtype = dtype_default) -> np.array:
     return q_sun, v_sun
 
 # ********************************************************************************************************************* 
-def get_earth_elt(ts: np.ndarray, dtype = dtype_default) -> np.array:
+def get_earth_elts(ts: np.ndarray, dtype = dtype_default) -> np.array:
     """
     Get heliocentric orbital elements of earth at the specified times (MJDs)
     INPUTS:

@@ -15,7 +15,7 @@ import pandas as pd
 
 # Local imports
 from db_utils import sp2df
-from planets_interp import get_earth_pos, get_earth_vectors, get_earth_elt, get_sun_vectors
+from planets_interp import get_earth_pos, get_earth_vectors, get_earth_elts, get_sun_vectors
 
 # Type names
 from typing import Tuple
@@ -121,7 +121,7 @@ def ast_add_earth_pos(df_ast: pd.DataFrame) -> None:
     df_ast[cols] = q_earth
 
 # ********************************************************************************************************************* 
-def ast_add_earth_elt(df_ast: pd.DataFrame) -> None:
+def ast_add_earth_elts(df_ast: pd.DataFrame) -> None:
     """
     Add the splined earth orbital elements to an asteroids DataFrame
     INPUTS:
@@ -131,7 +131,7 @@ def ast_add_earth_elt(df_ast: pd.DataFrame) -> None:
     """
     # Spline earth and sun vectors
     ts = df_ast.mjd.values
-    elt_earth = get_earth_elt(ts)
+    elt_earth = get_earth_elts(ts)
 
     # Add new colums to DataFrame
     cols = ['earth_a', 'earth_e', 'earth_inc', 'earth_Omega', 'earth_omega', 'earth_f', 'earth_M']
@@ -171,7 +171,7 @@ def ast_add_sun_vectors(df_ast: pd.DataFrame) -> None:
     q_sun, v_sun= get_sun_vectors(ts)
 
     # Stack vectors
-    qv_sun= np.hstack([q_sun, v_sun])
+    qv_sun = np.hstack([q_sun, v_sun])
 
     # Add new colums to DataFrame
     cols_sun = ['sun_qx', 'sun_qy', 'sun_qz', 'sun_vx', 'sun_vy', 'sun_vz']

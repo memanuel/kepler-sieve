@@ -39,6 +39,36 @@ G_ = 2.959122082855910945e-04
 mu = G_ * 1.0
 
 # ********************************************************************************************************************* 
+# Pack and unpack arrays
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def unpack_elt_df(df: np.array) -> Tuple[np.array, np.array, np.array, np.array, np.array, np.array]:
+    """
+    Unpack a DataFrame of orbital elements
+    INPUTS:
+        df:     A DataFrame of orbital elements
+                Must include columns named a, e, inc, Omega, omega, f
+    OUTPUTS:
+        Tuple of 6 numpy arrays for these elements.
+    """
+    a = df.a.values
+    e = df.e.values
+    inc = df.inc.values
+    Omega = df.Omega.values
+    omega = df.omega.values
+    f = df.f.values
+    return a, e, inc, Omega, omega, f
+
+# ********************************************************************************************************************* 
+def unpack_vector(v: np.array) -> Tuple[np.array, np.array, np.array]:
+    """Unpack three spatial indices of a vector"""
+    vx = v[:, 0]
+    vy = v[:, 1]
+    vz = v[:, 2]
+    return vx, vy, vz
+
+# ********************************************************************************************************************* 
 # Functions for converting between anomalies: mean, true, and eccentric
 # ********************************************************************************************************************* 
 
@@ -164,6 +194,23 @@ def anomaly_M2E(M: np.array, e: np.array) -> np.array:
     # Delegate to anomaly_M2E_danby with n=3
     E = anomaly_M2E_danby(M=M, e=e, n=3)
     return E
+
+# ********************************************************************************************************************* 
+def anomaly_M2f(M: np.array, e: np.array) -> np.array:
+    """
+    Convert the mean anomaly M to the true anomaly f.
+    Done by converting first to E, then to f.
+    INPUTS:
+        M: The mean anomaly
+        e: The eccentricity
+    OUTPUTS:
+        E: The eccentric anomaly
+    """
+    # Delegate to anomaly_M2E
+    E = anomaly_M2E(M=M, e=e)
+    # Delegate to anomaly_M2f
+    f = anomaly_E2f(E=E, e=e)
+    return f
 
 # ********************************************************************************************************************* 
 # Convert from orbital elements to state vectors

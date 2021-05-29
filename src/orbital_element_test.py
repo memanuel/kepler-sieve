@@ -13,9 +13,8 @@ import pandas as pd
 # Local imports
 from asteroid_element import get_ast_data
 from planets_interp import get_sun_vectors
-from asteroid_data import ast_add_sun_vectors
+from orbital_element import unpack_elt_df, elt2pos, elt2vec
 from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E_danby, anomaly_M2E
-from orbital_element import elt2pos, elt2vec
 from orbital_element_table import anomaly_M2E_table
 
 # ********************************************************************************************************************* 
@@ -68,7 +67,7 @@ def angle_distance(x, y):
     return 2.0 * np.sin(0.5 * d)
 
 # ********************************************************************************************************************* 
-def report_test(err: np.array, test_name: str, thresh: float):
+def report_test(err: np.array, test_name: str, thresh: float) -> bool:
     """
     Report results of one test
     INPUTS:
@@ -88,9 +87,10 @@ def report_test(err: np.array, test_name: str, thresh: float):
     print(f'RMS error: {err_rms:5.3e}')
     print(f'Max error: {err_max:5.3e}')
     print(f'*** {result} ***')
+    return is_ok
 
 # ********************************************************************************************************************* 
-def test_E2f():
+def test_E2f() -> bool:
     """Test round trip conversion between E and f"""
     # Get test elements and unpack them
     elts = get_test_elements()
@@ -106,7 +106,7 @@ def test_E2f():
     err = angle_distance(f, f2)
 
     # Report the results
-    report_test(err=err, test_name='E2f', thresh=1.0E-9)
+    return report_test(err=err, test_name='E2f', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_E2M():
@@ -126,7 +126,7 @@ def test_E2M():
     err = angle_distance(M, M2)
 
     # Report the results
-    report_test(err=err, test_name='E2M', thresh=1.0E-9)
+    return report_test(err=err, test_name='E2M', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_M2E_danby():
@@ -146,7 +146,7 @@ def test_M2E_danby():
     err = angle_distance(E, E2)
 
     # Report the results
-    report_test(err=err, test_name='M2E (Danby, 3 iterations)', thresh=1.0E-9)
+    return report_test(err=err, test_name='M2E (Danby, 3 iterations)', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_M2E_table():
@@ -166,7 +166,7 @@ def test_M2E_table():
     err = angle_distance(E, E2)
 
     # Report the results
-    report_test(err=err, test_name='M2E (interpolation table; then 2 iterations of Danby)', thresh=1.0E-9)
+    return report_test(err=err, test_name='M2E (interpolation table; then 2 iterations of Danby)', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_M2E():
@@ -186,7 +186,7 @@ def test_M2E():
     err = angle_distance(E, E2)
 
     # Report the results
-    report_test(err=err, test_name='M2E', thresh=1.0E-9)
+    return report_test(err=err, test_name='M2E', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_elt2pos():
@@ -199,12 +199,7 @@ def test_elt2pos():
     q: np.array = elts[cols_q].values
 
     # Unpack orbital elements
-    a: np.array = elts.a.values
-    e: np.array = elts.e.values
-    inc: np.array = elts.inc.values
-    Omega: np.array = elts.Omega.values
-    omega: np.array = elts.omega.values
-    f: np.array = elts.f.values
+    a, e, inc, Omega, omega, f = unpack_elt_df(elts)
     
     # Compute q in the heliocentric frame
     q_hel: np.array = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
@@ -220,7 +215,7 @@ def test_elt2pos():
     dq: np.array = q2 - q
     err: np.array = np.sqrt(np.sum(np.square(dq), axis=1))
     # Report the results
-    report_test(err=err, test_name='elt2pos', thresh=1.0E-9)
+    return report_test(err=err, test_name='elt2pos', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_elt2vec():
@@ -235,12 +230,7 @@ def test_elt2vec():
     v: np.array = elts[cols_v].values
 
     # Unpack orbital elements
-    a: np.array = elts.a.values
-    e: np.array = elts.e.values
-    inc: np.array = elts.inc.values
-    Omega: np.array = elts.Omega.values
-    omega: np.array = elts.omega.values
-    f: np.array = elts.f.values
+    a, e, inc, Omega, omega, f = unpack_elt_df(elts)
 
     # Compute q and v in the heliocentric frame
     q_hel, v_hel = elt2vec(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
@@ -260,19 +250,30 @@ def test_elt2vec():
     err_v: np.array = np.sqrt(np.sum(np.square(dv), axis=-1))
 
     # Report the results
-    report_test(err=err_q, test_name='elt2vec (position q)', thresh=1.0E-9)
-    report_test(err=err_v, test_name='elt2vec (velocity v)', thresh=1.0E-9)
+    is_ok_q = report_test(err=err_q, test_name='elt2vec (position q)', thresh=1.0E-9)
+    is_ok_v = report_test(err=err_v, test_name='elt2vec (velocity v)', thresh=1.0E-9)
+    return (is_ok_q and is_ok_v)
 
 # ********************************************************************************************************************* 
 def test_all():
     """Running test suite on orbital elements"""
-    test_E2f()
-    test_E2M()
-    # test_M2E_danby()
-    # test_M2E_table()
-    test_M2E()
-    test_elt2pos()
-    test_elt2vec()
+    # Maintain overall flag with result
+    is_ok: bool = True
+
+    # Run all tests 
+    is_ok &= test_E2f()
+    is_ok &= test_E2M()
+    # is_ok &= test_M2E_danby()
+    # is_ok &= test_M2E_table()
+    is_ok &= test_M2E()
+    is_ok &= test_elt2pos()
+    is_ok &= test_elt2vec()
+
+    # Report results
+    result: str = 'PASS' if is_ok else 'FAIL'
+    print(f'\nOverall results for orbital elements:')
+    print(f'*** {result} ***')
+    return is_ok
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
