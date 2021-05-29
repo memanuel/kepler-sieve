@@ -12,10 +12,6 @@ Michael S. Emanuel
 2021-01-13
 """
 
-# Core
-import numpy as np
-import pandas as pd
-
 # Utility
 import argparse
 import sys
@@ -25,7 +21,7 @@ from utils import print_stars
 from astro_utils import mjd_to_date
 from rebound_sim import make_sim_planets, make_sim_de435
 from rebound_integrate import integrate_df
-from db_utils import df2db, csvs2db, sp2df, truncate_table
+from db_utils import df2db, csvs2db
 
 # Typing
 from typing import List
@@ -149,7 +145,7 @@ def load_csv_batches(collection_cd: str, save_elements: bool):
     # Status
     print()
     print_stars()
-    print(f'Loading CSVs for calculation types {calc_type_cds} and data collections {collection_cds}.')
+    print(f'Loading CSVs for calculation types {calc_type_cds} and data collections {collection_cd}.')
 
     # Iterate over desired calculation type
     for calc_type_cd in calc_type_cds:
@@ -238,7 +234,6 @@ def main():
     print(f'*skip_elements  : {not save_elements}')
     print(f'*load_csv       : {load_csv}')
     print(f'*truncate       : {truncate}')
-    # print(f'regen int diff : {regen_diff}')
     print(f'*dry_run        : {dry_run}')
 
     # Quit early if it was a dry run
@@ -248,6 +243,8 @@ def main():
 
     # If we are just loading CSVs, don't to the integration, just try to reload them into DB and quit
     if load_csv:
+        run_planets: bool = (collection_cd == 'P')
+        run_de435: bool = (collection_cd == 'D')
         load_csv_batches(save_elements=save_elements, run_planets=run_planets, run_de435=run_de435)
         # Now quit early after the CSVs are loaded
         sys.exit()

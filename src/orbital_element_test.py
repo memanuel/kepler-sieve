@@ -12,8 +12,10 @@ import pandas as pd
 
 # Local imports
 from asteroid_element import get_ast_data
+from planets_interp import get_sun_vectors
 from asteroid_data import ast_add_sun_vectors
-from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E_danby, anomaly_M2E, elt2pos
+from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E_danby, anomaly_M2E
+from orbital_element import elt2pos, elt2vec
 from orbital_element_table import anomaly_M2E_table
 
 # ********************************************************************************************************************* 
@@ -204,13 +206,12 @@ def test_elt2pos():
     omega: np.array = elts.omega.values
     f: np.array = elts.f.values
     
-    # Add sun vectors; need this later to convert q from heliocentric to barycentric
-    ast_add_sun_vectors(elts)
     # Compute q in the heliocentric frame
     q_hel: np.array = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
+
     # Position of the sun
-    cols_q_sun = ['sun_qx', 'sun_qy', 'sun_qz']
-    q_sun: np.array = elts[cols_q_sun].values
+    ts = elts.mjd.values
+    q_sun, v_sun = get_sun_vectors(ts)
 
     # The recovered position of the asteroid
     q2: np.array = q_hel + q_sun
@@ -222,6 +223,47 @@ def test_elt2pos():
     report_test(err=err, test_name='elt2pos', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
+def test_elt2vec():
+    """Test conversion from orbital elements to state vectors"""
+    # Get test elements and unpack them
+    elts = get_test_elements()
+
+    # The state vectors according to the integration
+    cols_q = ['qx', 'qy', 'qz']
+    cols_v = ['vx', 'vy', 'vz']
+    q: np.array = elts[cols_q].values
+    v: np.array = elts[cols_v].values
+
+    # Unpack orbital elements
+    a: np.array = elts.a.values
+    e: np.array = elts.e.values
+    inc: np.array = elts.inc.values
+    Omega: np.array = elts.Omega.values
+    omega: np.array = elts.omega.values
+    f: np.array = elts.f.values
+
+    # Compute q and v in the heliocentric frame
+    q_hel, v_hel = elt2vec(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
+
+    # Position and velocity of the sun
+    ts = elts.mjd.values
+    q_sun, v_sun = get_sun_vectors(ts)
+
+    # The recovered position and velocity of the asteroid
+    q2: np.array = q_hel + q_sun
+    v2: np.array = v_hel + v_sun
+
+    # Position reconstruction error
+    dq: np.array = q2 - q
+    dv: np.array = v2 - v
+    err_q: np.array = np.sqrt(np.sum(np.square(dq), axis=-1))
+    err_v: np.array = np.sqrt(np.sum(np.square(dv), axis=-1))
+
+    # Report the results
+    report_test(err=err_q, test_name='elt2vec (position q)', thresh=1.0E-9)
+    report_test(err=err_v, test_name='elt2vec (velocity v)', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
 def test_all():
     """Running test suite on orbital elements"""
     test_E2f()
@@ -230,6 +272,7 @@ def test_all():
     # test_M2E_table()
     test_M2E()
     test_elt2pos()
+    test_elt2vec()
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

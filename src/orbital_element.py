@@ -14,7 +14,7 @@ from scipy import interpolate
 from collections import namedtuple
 
 # Typing
-from typing import Optional
+from typing import Tuple
 
 # ********************************************************************************************************************* 
 # Named tuple data type for orbital elements with just the six 
@@ -28,9 +28,14 @@ OrbitalElement_aeiOofM = namedtuple('OrbitalElement', 'a e inc Omega omega f M')
 # Name the constant for radians in a circle (two pi)
 tau = 2.0 * np.pi
 
-# The gravitational constant in unit system (years, AU, Msun)
-# numerical value close to 4 pi^2; see rebound documentation for exact value        
-G_ = 39.476926421373
+# The gravitational constant in unit system (days, AU, Msun)
+# see rebound documentation for exact value        
+# sim = make_sim_planets(epoch=59000)
+# G_ = sim.G_
+G_ = 2.959122082855910945e-04
+
+# mu is the gravitational field strength: mu = G * (m0 + m1)
+# here m0 = 1.0 (Sun) and we assume m1 is light, i.e. m0 = 0.0
 mu = G_ * 1.0
 
 # ********************************************************************************************************************* 
@@ -47,7 +52,7 @@ def anomaly_E2f(E: np.array, e: np.array) -> np.array:
     OUTPUTS:
         f: The true anomaly
     """
-    # SSD equation 2.46
+    # SSD equation 2.46; solve for f in terms of E
     tan_half_f: np.array = np.sqrt((1.0 + e) / (1.0 - e)) * np.tan(E/2.0)
     f: np.array = np.arctan(tan_half_f) * 2.0
     return f
@@ -62,7 +67,7 @@ def anomaly_f2E(f: np.array, e: np.array) -> np.array:
     OUTPUTS:
         E: The eccentric anomaly
     """
-    # SSD equation 2.46
+    # SSD equation 2.46; solve for E in terms of f
     tan_half_f: np.array = np.tan(f * 0.5)
     tan_half_E: np.array = tan_half_f / np.sqrt((1.0 + e) / (1.0 - e))
     E: np.array = np.arctan(tan_half_E) * 2.0
@@ -78,7 +83,7 @@ def anomaly_E2M(E: np.array, e: np.array) -> np.array:
     OUTPUTS:
         M: The mean anomaly
     """
-    # SSD equation 2.52
+    # SSD equation 2.52; this is Kepler's Equation
     M: np.array = E - e * np.sin(E)
     return M
 
@@ -96,6 +101,8 @@ def danby_iteration(M: np.array, e: np.array, E: np.array) -> np.array:
 
     """
     # The objective function that is set to zero using Newton-Raphson is
+    # This is just the error term if we take Kepler's Equation and subtract M from both sides
+    # This function will be zero at the correct value of E
     # f(E) = E - e Sin E - M
     
     # Save two intermediate arrays that are reused
@@ -162,7 +169,7 @@ def anomaly_M2E(M: np.array, e: np.array) -> np.array:
 # Convert from orbital elements to state vectors
 # ********************************************************************************************************************* 
 
-def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array):
+def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array) -> np.array:
     """
     Convert from orbital elements to position vector.
     See SSD page 51, equation 2.122.
@@ -175,7 +182,7 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
         f:          true anomaly
     OUTPUTS:
         q:          position; shaped same as elements with one additional axis
-                    This position is relative to the primary, i.e. the sun for heliocentric elements
+    The position q is relative to the primary, i.e. the sun for heliocentric elements
     """
 
     # Calculate the distance from the center, r; SSD equation 2.20
@@ -196,12 +203,13 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     qx: np.array = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
     qy: np.array = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
     qz: np.array = r * (sin_theta*sin_inc)
-    q: np.array = np.stack([qx, qy, qz], axis=1)
+    q: np.array = np.stack([qx, qy, qz], axis=-1)
 
     return q
 
 # ********************************************************************************************************************* 
-def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array):
+def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array) \
+            -> Tuple[np.array, np.array]:
     """
     Convert from orbital elements to state vectors.
     See SSD page 51, equation 2.122.
@@ -213,13 +221,15 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
         omega:      argument of percenter
         f:          true anomaly
     OUTPUTS:
-        qx:         position; x
-        qy:         position; y
-        qz:         position; z
-        vx:         velocity; x
-        vy:         velocity; y
-        vz:         velocity; z
+        q:          position; shaped same as elements with one additional axis
+        v:          velocity; shaped same as elements with one additional axis
+    Both q and v are relative to the primary;
+    So for heliocentric elements, they give RELATIVE position and velocity to the sun.
     """
+
+    # The equations used here were taken from the rebound library
+    # The position calculations are equivalent to the ones above from SSD.
+    # The velocity calculations are a bit more involved, and I did not see them with explicit equations in SSD.
 
     # sine and cosine of the angles inc, Omega, omega, and f
     ci = np.cos(inc)
@@ -233,9 +243,9 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
 
     # Distance from center
     one_minus_e2 = 1.0 - np.square(e)
-    one_plus_e_cos_f = 1.0 + e * np.cos(f)
+    one_plus_e_cos_f = 1.0 + e*np.cos(f)
     r = a * one_minus_e2 / one_plus_e_cos_f
-    
+
     # Current speed
     v0 = np.sqrt(mu / a / one_minus_e2)
 
@@ -245,11 +255,13 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     # qz = r*(so*cf+co*sf)*si
     # the term cos_omega*cos_f - sin_omega*sin_f appears 2 times
     # the term sin_omega*cos_f + cos_omega*sin_f appears 3 times
-    cocf_sosf = co*cf-so*sf
-    socf_cosf = so*cf+co*sf
+    cocf_sosf = co*cf - so*sf
+    socf_cosf = so*cf + co*sf
     qx = r*(cO*cocf_sosf - sO*socf_cosf*ci)
     qy = r*(sO*cocf_sosf + cO*socf_cosf*ci)
-    qz = r*socf_cosf*si
+    qz = r*(socf_cosf*si)
+    # Wrap the position vector
+    q: np.array = np.stack([qx, qy, qz], axis=-1)
     
     # Velocity
     # vx = v0*((e+cf)*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO))
@@ -257,15 +269,12 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     # vz = v0*((e+cf)*co*si - sf*si*so)
     # The term e+cf appears three times
     epcf = e + cf
-    # vx = v0*(epcf*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO))
-    # vy = v0*(epcf*(ci*co*cO - sO*so)  - sf*(co*sO + ci*so*cO))
-    # vz = v0*(epcf*co*si - sf*si*so)
     # The term cocO appears twice
-    cocO = co * cO
+    cocO = co*cO
     # The term cosO appears twice
-    cosO = co * sO
+    cosO = co*sO
     # The term so*sO appears twice
-    sosO = so * sO
+    sosO = so*sO
     # The terms socO appears twice
     socO = so*cO
 
@@ -273,6 +282,11 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     vx = v0*(epcf*(-ci*cosO - socO) - sf*(cocO - ci*sosO))
     vy = v0*(epcf*(ci*cocO - sosO)  - sf*(cosO + ci*socO))
     vz = v0*(epcf*co*si - sf*si*so)
+    # Wrap the velocity vector
+    v: np.array = np.stack([vx, vy, vz], axis=-1)
+
+    # Return tuple of position and velocity
+    return q, v
 
 # ********************************************************************************************************************* 
 # Convert from state vectors to orbital elements
