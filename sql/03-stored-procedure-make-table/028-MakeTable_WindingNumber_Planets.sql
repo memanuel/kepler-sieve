@@ -52,6 +52,27 @@ UPDATE
 		wn.TimeID = elts.TimeID
 SET
 	elts.WindingNumber = wn.WindingNumber;
+
+-- Previous join only handles times in between a pair of winding times
+-- Do one last update for times on or after the last winding    
+CREATE OR REPLACE TEMPORARY TABLE KS.t1 AS
+SELECT
+	wn.BodyID,
+	max(wn.TimeID) AS TimeID,
+	max(wn.WindingNumber) AS WindingNumber
+FROM
+	KS.WindingNumber_Planets AS wn
+GROUP BY wn.BodyID;
+
+UPDATE
+	KS.OrbitalElements_Planets AS el
+	INNER JOIN KS.t1 ON t1.BodyID = el.BodyID 
+SET
+	el.WindingNumber = t1.WindingNumber
+WHERE
+	el.TimeID >= t1.TimeID;
+
+DROP TEMPORARY TABLE IF EXISTS KS.t1;
   
 END
 $$

@@ -15,6 +15,9 @@ BEGIN
 SET @TimeID_0 = mjd0 * 24 * 60;
 SET @TimeID_1 = mjd1 * 24 * 60;
 
+# tau = radians in one circle (2pi)
+SET @tau = 2.0 * PI();
+
 SELECT
 	el.TimeID,
 	el.BodyID,
@@ -24,8 +27,9 @@ SELECT
 	el.inc,
 	el.Omega_node AS Omega,
 	el.omega_peri AS omega,
-	el.f,
-	el.M
+	-- Adjust f and M for the winding number
+	el.f + el.WindingNumber  * @tau AS f,
+	el.M + el.WindingNumber  * @tau AS M
 FROM
 	KS.OrbitalElements_Planets AS el
 WHERE 

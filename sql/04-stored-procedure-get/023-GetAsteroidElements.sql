@@ -9,7 +9,7 @@ PROCEDURE KS.GetAsteroidElements(
     IN mjd0 INT,
     IN mjd1 INT
 )
-COMMENT "Get the state vectors for a block of asteroids."
+COMMENT "Get the orbital elements for a block of asteroids."
 
 BEGIN 
 
@@ -17,6 +17,9 @@ BEGIN
 SET @TimeID_0 = mjd0 * 24 * 60;
 SET @TimeID_1 = mjd1 * 24 * 60;
 	
+# tau = radians in one circle (2pi)
+SET @tau = 2.0 * PI();
+
 SELECT
 	ae.TimeID,
     ae.AsteroidID,
@@ -26,8 +29,10 @@ SELECT
 	ae.inc,
 	ae.Omega_node AS Omega,
 	ae.omega_peri AS omega,
-	ae.f,
-	ae.M
+	-- Adjust f and M for the winding number
+	ae.f + ae.WindingNumber*@tau AS f,
+	ae.M + ae.WindingNumber*@tau AS M,
+	ae.WindingNumber
 FROM
 	KS.AsteroidElements AS ae
 WHERE 
@@ -55,6 +60,9 @@ BEGIN
 SET @TimeID_0 = mjd0 * 24 * 60;
 SET @TimeID_1 = mjd1 * 24 * 60;
 	
+# tau = radians in one circle (2pi)
+SET @tau = 2.0 * PI();
+
 SELECT
 	-- Key fields and time
 	av.TimeID,
@@ -73,8 +81,10 @@ SELECT
 	ae.inc,
 	ae.Omega_node AS Omega,
 	ae.omega_peri AS omega,
-	ae.f,
-	ae.M
+	-- Adjust f and M for the winding number
+	ae.f + ae.WindingNumber*@tau AS f,
+	ae.M + ae.WindingNumber*@tau AS M,
+	ae.WindingNumber
 FROM
 	KS.AsteroidVectors AS av 
 	INNER JOIN KS.AsteroidElements AS ae ON
