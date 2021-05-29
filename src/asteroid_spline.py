@@ -18,15 +18,138 @@ from astropy.units import au, day
 # Local imports
 from planets_interp import get_earth_elts, get_sun_vectors
 from asteroid_data import load_ast_data
-from orbital_element import unpack_elt_df, elt2vec, elt2pos, anomaly_M2f
+from orbital_element import unpack_elt_df, elt2vec, elt2pos, anomaly_f2M
 from orbital_element_test import report_test
 
 # Types
-from typing import List
+from typing import List, Tuple, Optional
 
 # ********************************************************************************************************************* 
 # Speed of light; express this in AU / day
 light_speed_au_day = astropy.constants.c.to(au / day).value
+
+# ********************************************************************************************************************* 
+# Back end for building splines from DataFrames - general
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def get_df_shape(df: pd.DataFrame, id_col: str) -> Tuple[int, int]:
+    """
+    Get the shape of a DataFrame used to build a spline
+    INPUTS:
+        df:             DataFrame with key column, time column, and data columns to be splined
+        id_col:         Name of the column identifying entities (e.g. AsteroidID)
+    OUTPUTS:
+        N_obj:          Number of distinct objects in input DataFrame (e.g. asteroids)
+        N_t_in:         Number of time snaps for each object
+    """
+    # The ID values and the unique set of values
+    id_val_in = df[id_col].values
+    id_val_unq = np.unique(id_val_in)
+
+    # Number of objects (e.g. asteroids)
+    N_obj = id_val_unq.size
+
+    # Number of rows in input and splined output
+    N_row_in = df.shape[0]
+
+    # Calculated number of times in input
+    N_t_in = N_row_in // N_obj
+
+    return N_obj, N_t_in
+
+# ********************************************************************************************************************* 
+def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
+                   id_col: Optional[str]=None, time_col: Optional[str]=None) -> pd.DataFrame:
+    """
+    Build a splining interpolator from a DataFrame
+    INPUTS:
+        df:             DataFrame with key column, time column, and data columns to be splined
+        cols_spline:    List of column names to be splined
+        id_col:         Name of the column identifying entities (e.g. AsteroidID)
+        time_col:       Name of the column with the spline times
+    OUTPUTS:
+        spline_func:    New data frame with key columns and splined data columns
+    """
+    # If the id column was not provided, default to the first column
+    id_col = id_col or df.columns[0]
+    # If the time column was not provided, default to the second column
+    time_col = time_col or df.columns[1]
+
+    # Get the size of the input DataFrame
+    N_obj, N_t_in = get_df_shape(df=df, id_col=id_col)
+
+    # Data to be splined: x axis is time; column name in the asteroids DataFrame is mjd
+    x_spline = df[time_col].values[0:N_t_in]
+
+    # the indexing of y_spline is (ast_num, time_step, data_dim) with shape e.g. (16, 3653, 16)
+    y_spline = df[cols_spline].values.reshape(N_obj, N_t_in, -1)
+
+    # splining function for the splined columns
+    spline_func = CubicSpline(x=x_spline, y=y_spline, axis=1)
+
+    return spline_func
+
+# ********************************************************************************************************************* 
+def spline_data(df: pd.DataFrame, ts: np.ndarray, cols_spline: List[str], 
+                id_col: Optional[str]=None, time_col: Optional[str]=None) -> pd.DataFrame:
+    """
+    Build a splining interpolator from a DataFrame
+    INPUTS:
+        df:             DataFrame with key column, time column, and data columns to be splined
+        ts:             Array of times at which splined output is desired
+        cols_spline:    List of column names to be splined
+        id_col:         Name of the column identifying entities (e.g. AsteroidID)
+        time_col:       Name of the column with the spline times
+    OUTPUTS:
+        df_out:         New data frame with key columns and splined data columns
+    """
+    # If the id column was not provided, default to the first column
+    id_col = id_col or df.columns[0]
+    # If the time column was not provided, default to the second column
+    time_col = time_col or df.columns[1]
+
+    # Get the size of the input DataFrame
+    N_obj, N_t_in = get_df_shape(df=df, id_col=id_col)
+
+    # The ID values and the unique set of values
+    id_val_in = df[id_col].values
+    id_val_unq = np.unique(id_val_in)
+
+    # Number of times in the output
+    N_t_out = ts.shape[0]
+
+    # Number of rows in input and splined output
+    N_row_out = N_obj * N_t_out
+
+    # Delegate to make_spline_df to build an interpolating spline
+    spline_func = make_spline_df(df=df, cols_spline=cols_spline, id_col=id_col, time_col=time_col)
+
+    # Splined output
+    spline_data = spline_func(ts)
+
+    # ID column (asteroid_num or element_id) corresponding to splined output
+    id_val = np.repeat(id_val_unq, N_t_out)
+
+    # Key fields in the output (splined) DataFrame
+    ts_out = np.tile(ts, N_obj)
+    out_dict_keys = {
+        id_col: id_val,
+        time_col: ts_out
+    }
+
+    # The splined asteroid state vectos
+    out_dict_splined = {col:spline_data[:,:,k].reshape(N_row_out) for k, col in enumerate(cols_spline)}
+    
+    # Wrap the output arrays into one dictionary and DataFrame
+    out_dict = dict(**out_dict_keys, **out_dict_splined)
+    df_out = pd.DataFrame(out_dict)
+
+    return df_out
+
+# ********************************************************************************************************************* 
+# Specialize splines for asteroids - either directly spline state vectors or spline elements, then transform them
+# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def spline_ast_data(df_ast: pd.DataFrame, ts: np.ndarray, cols_spline: List[str]) -> pd.DataFrame:
@@ -40,52 +163,10 @@ def spline_ast_data(df_ast: pd.DataFrame, ts: np.ndarray, cols_spline: List[str]
         df_out:         New data frame with key columns and splined data columns
     """
 
-    # Distinct asteroids or elements; get the name of the relevant column and array of distinct values
-    id_col = 'AsteroidID' if 'AsteroidID' in df_ast.columns else 'ElementID'
-    id_val_in = df_ast[id_col].values
-    id_val_unq = np.unique(id_val_in)
-
-    # Number of asteroids or elements
-    N_ast = id_val_unq.size
-    # Number of times in splined output
-    N_t_out = ts.shape[0]
-
-    # Number of rows in input and splined output
-    N_row_in = df_ast.shape[0]
-    N_row_out = N_ast * N_t_out
-
-    # Calculated number of times in input
-    N_t_in = N_row_in // N_ast
-
-    # Data to be splined: x axis is time; column name in the asteroids DataFrame is mjd
-    x_spline = df_ast.mjd.values[0:N_t_in]
-
-    # the indexing of y_spline is (ast_num, time_step, data_dim) with shape e.g. (16, 3653, 16)
-    y_spline = df_ast[cols_spline].values.reshape(N_ast, N_t_in, -1)
-
-    # splining function for the splined columns
-    spline_func = CubicSpline(x=x_spline, y=y_spline, axis=1)
-
-    # splined output
-    spline_data = spline_func(ts)
-
-    # ID column (asteroid_num or element_id) corresponding to splined output
-    id_val = np.repeat(id_val_unq, N_t_out)
-
-    # Key fields in the output (splined) DataFrame
-    mjd_out = np.tile(ts, N_ast)
-    out_dict_keys = {
-        id_col: id_val,
-        'mjd': mjd_out
-    }
-
-    # The splined asteroid state vectos
-    out_dict_splined = {col:spline_data[:,:,k].reshape(N_row_out) for k, col in enumerate(cols_spline)}
-    
-    # Wrap the output arrays into one dictionary and DataFrame
-    out_dict = dict(**out_dict_keys, **out_dict_splined)
-    df_out = pd.DataFrame(out_dict)
-
+    # Delegate to spline_data
+    id_col = 'AsteroidID'
+    time_col = 'mjd'
+    df_out = spline_data(df=df_ast, ts=ts, cols_spline=cols_spline, id_col=id_col, time_col=time_col)
     return df_out
 
 # ********************************************************************************************************************* 
@@ -117,20 +198,20 @@ def spline_ast_elt(elt: pd.DataFrame, ts: np.ndarray) -> pd.DataFrame:
     OUTPUTS:
         df_out:    Position & velocity of asteroids in barycentric frame
     """
-    # The columns to spline
-    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'Mx', 'My']
+    # Compute cosine and sine of f for splining
+    f_in = elt.f.values
+    elt['fx'] = np.cos(f_in)
+    elt['fy'] = np.sin(f_in)
 
-    # Compute cosine and sine of M for splining
-    M_in = elt.M.values
-    elt['Mx'] = np.cos(M_in)
-    elt['My'] = np.sin(M_in)
+    # The columns to spline
+    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'fx', 'fy']
 
     # Spline these output columns
     elt_out = spline_ast_data(df_ast=elt, ts=ts, cols_spline=cols_spline)
-    # Compute the splined M using atan2
-    elt_out['M'] = np.arctan2(elt_out.My, elt_out.Mx)
-    # Compute the splined f from M
-    elt_out['f'] = anomaly_M2f(M=elt_out.M, e=elt_out.e)
+    # Compute the splined f using atan2
+    elt_out['f'] = np.arctan2(elt_out.fy, elt_out.fx)
+    # Compute the splined M from f
+    elt_out['M'] = anomaly_f2M(f=elt_out.f, e=elt_out.e)
 
     # Array of output times including repeated times for each asteroid
     ts_out = elt_out.mjd.values

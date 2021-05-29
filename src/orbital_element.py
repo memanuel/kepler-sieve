@@ -118,6 +118,22 @@ def anomaly_E2M(E: np.array, e: np.array) -> np.array:
     return M
 
 # ********************************************************************************************************************* 
+def anomaly_f2N(f: np.array, e: np.array) -> np.array:
+    """
+    Convert the true anomaly f to the mean anomaly M
+    INPUTS:
+        f: The true anomaly
+        e: The eccentricity
+    OUTPUTS:
+        E: The eccentric anomaly
+    """
+    # Delegate to anomaly_f2E
+    E = anomaly_f2E(f=f, e=e)
+    # Delegate to anomaly_E2M
+    M = anomaly_E2M(E=E, e=e)
+    return M
+
+# ********************************************************************************************************************* 
 def danby_iteration(M: np.array, e: np.array, E: np.array) -> np.array:
     """
     Perform one iteration of the Danby algorithm for computing E from M
