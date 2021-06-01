@@ -87,7 +87,7 @@ def get_ast_ref_elts(epoch: int, n0: int, n1: int, missing: bool) -> pd.DataFram
     return elts
 
 # ********************************************************************************************************************* 
-def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.array:
+def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.ndarray:
     """
     Add asteroids with the provided orbital elements to a simulation.
     INPUTS:

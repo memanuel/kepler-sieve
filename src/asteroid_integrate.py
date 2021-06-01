@@ -84,7 +84,7 @@ def integrate_ast(sim: rebound.Simulation, mjd0: int, mjd1: int,
         mjd1 = mjd0
 
     # Status
-    if progbar:        
+    if progbar:
         n0: int = sim.asteroid_ids[0] if has_ast else 0
         n1: int = sim.asteroid_ids[-1] if has_ast else 0
         n_ast: int = len(sim.asteroid_ids)

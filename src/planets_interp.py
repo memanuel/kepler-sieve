@@ -137,22 +137,22 @@ if __name__ == '__main__':
 ts, q_earth, q_sun, v_earth, v_sun, elt_earth = load_earth_sun_vectors(interval='H')
 
 # Build interpolator for barycentric position of earth and sun
-earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0)
-sun_interp_q = scipy.interpolate.interp1d(x=ts, y=q_sun, kind='cubic', axis=0)
+earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0, fill_value="extrapolate")
+sun_interp_q = scipy.interpolate.interp1d(x=ts, y=q_sun, kind='cubic', axis=0, fill_value="extrapolate")
 
 # Build interpolator for barycentric velocity of earth and sun
-earth_interp_v = scipy.interpolate.interp1d(x=ts, y=v_earth, kind='cubic', axis=0)
-sun_interp_v = scipy.interpolate.interp1d(x=ts, y=v_sun, kind='cubic', axis=0)
+earth_interp_v = scipy.interpolate.interp1d(x=ts, y=v_earth, kind='cubic', axis=0, fill_value="extrapolate")
+sun_interp_v = scipy.interpolate.interp1d(x=ts, y=v_sun, kind='cubic', axis=0, fill_value="extrapolate")
 
 # Build interpolator for orbital elements of earth
-earth_interp_elt = scipy.interpolate.interp1d(x=ts, y=elt_earth, kind='cubic', axis=0)
+earth_interp_elt = scipy.interpolate.interp1d(x=ts, y=elt_earth, kind='cubic', axis=0, fill_value="extrapolate")
 
 # ********************************************************************************************************************* 
 # Build interpolation functions using the module level variables above
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def make_earth_sun_interpolators(interval: str, dtype = dtype_default) -> np.array:
+def make_earth_sun_interpolators(interval: str, dtype = dtype_default) -> np.ndarray:
     """
     Construct interpolators for the earth and sun at the desired interval: minute (M), hour (H), or day (D)
     INPUTS:
@@ -166,17 +166,17 @@ def make_earth_sun_interpolators(interval: str, dtype = dtype_default) -> np.arr
     ts, q_earth, q_sun, v_earth, v_sun = load_earth_sun_vectors(interval=interval)
 
     # Build interpolator for barycentric position of earth and sun
-    earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0)
-    sun_interp_q = scipy.interpolate.interp1d(x=ts, y=q_sun, kind='cubic', axis=0)
+    earth_interp_q = scipy.interpolate.interp1d(x=ts, y=q_earth, kind='cubic', axis=0, fill_value="extrapolate")
+    sun_interp_q = scipy.interpolate.interp1d(x=ts, y=q_sun, kind='cubic', axis=0, fill_value="extrapolate")
 
     # Build interpolator for barycentric velocity of earth and sun
-    earth_interp_v = scipy.interpolate.interp1d(x=ts, y=v_earth, kind='cubic', axis=0)
-    sun_interp_v = scipy.interpolate.interp1d(x=ts, y=v_sun, kind='cubic', axis=0)
+    earth_interp_v = scipy.interpolate.interp1d(x=ts, y=v_earth, kind='cubic', axis=0, fill_value="extrapolate")
+    sun_interp_v = scipy.interpolate.interp1d(x=ts, y=v_sun, kind='cubic', axis=0, fill_value="extrapolate")
 
     return earth_interp_q, sun_interp_q, earth_interp_v, sun_interp_v
 
 # ********************************************************************************************************************* 
-def get_earth_pos(ts: np.ndarray, dtype = dtype_default) -> np.array:
+def get_earth_pos(ts: np.ndarray, dtype = dtype_default) -> np.ndarray:
     """
     Get position of earth consistent with asteroid data at the specified times (MJDs) in barycentric frame
     INPUTS:
@@ -189,7 +189,7 @@ def get_earth_pos(ts: np.ndarray, dtype = dtype_default) -> np.array:
     return q_earth
 
 # ********************************************************************************************************************* 
-def get_sun_pos(ts: np.ndarray, dtype = dtype_default) -> np.array:
+def get_sun_pos(ts: np.ndarray, dtype = dtype_default) -> np.ndarray:
     """
     Get position of sun consistent with asteroid data at the specified times (MJDs) in barycentric frame
     INPUTS:
@@ -202,7 +202,7 @@ def get_sun_pos(ts: np.ndarray, dtype = dtype_default) -> np.array:
     return q_sun
 
 # ********************************************************************************************************************* 
-def get_earth_vectors(ts: np.ndarray, dtype = dtype_default) -> np.array:
+def get_earth_vectors(ts: np.ndarray, dtype = dtype_default) -> np.ndarray:
     """
     Get barycentric position and velocity of earth consistent with asteroid data at the specified times (MJDs)
     INPUTS:
@@ -215,7 +215,7 @@ def get_earth_vectors(ts: np.ndarray, dtype = dtype_default) -> np.array:
     return q_earth, v_earth
 
 # ********************************************************************************************************************* 
-def get_sun_vectors(ts: np.ndarray, dtype = dtype_default) -> np.array:
+def get_sun_vectors(ts: np.ndarray, dtype = dtype_default) -> np.ndarray:
     """
     Get barycentric position and velocity of sun consistent with asteroid data at the specified times (MJDs)
     INPUTS:
@@ -228,7 +228,7 @@ def get_sun_vectors(ts: np.ndarray, dtype = dtype_default) -> np.array:
     return q_sun, v_sun
 
 # ********************************************************************************************************************* 
-def get_earth_elts(ts: np.ndarray, dtype = dtype_default) -> np.array:
+def get_earth_elts(ts: np.ndarray, dtype = dtype_default) -> np.ndarray:
     """
     Get heliocentric orbital elements of earth at the specified times (MJDs)
     INPUTS:

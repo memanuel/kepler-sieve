@@ -23,7 +23,7 @@ import pandas as pd
 
 # Local imports
 from db_utils import sp2df
-from planets_interp import get_earth_pos, get_earth_vectors, get_earth_elts, get_sun_vectors
+from planets_interp import get_earth_pos, get_earth_elts, get_sun_vectors
 
 # Type names
 from typing import Tuple

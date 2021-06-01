@@ -235,8 +235,8 @@ def spline_ast_elt(elt: pd.DataFrame, ts: np.ndarray) -> pd.DataFrame:
     q_sun, v_sun = get_sun_vectors(ts=ts_out)
 
     # The recovered position and velocity of the asteroid in the barycentric frame
-    q: np.array = q_hel + q_sun
-    v: np.array = v_hel + v_sun
+    q: np.ndarray = q_hel + q_sun
+    v: np.ndarray = v_hel + v_sun
 
     # Build output state vectors; the two key columns in the output are AsteroidID and mjd
     key_cols = elt_out.columns[0:2]
@@ -288,13 +288,13 @@ def test_ast_spline_elt():
     v1 = df_elt[cols_v].values
 
     # Reconstruction error
-    dq1: np.array = q1 - q0
-    dq2: np.array = q2 - q0
-    # dv1: np.array = v1 - v0
-    # dv1: np.array = v2 - v0
-    err_q1: np.array = np.sqrt(np.sum(np.square(dq1), axis=-1))
-    err_q2: np.array = np.sqrt(np.sum(np.square(dq2), axis=-1))   
-    # err_v1: np.array = np.sqrt(np.sum(np.square(dv), axis=-1))
+    dq1: np.ndarray = q1 - q0
+    dq2: np.ndarray = q2 - q0
+    # dv1: np.ndarray = v1 - v0
+    # dv1: np.ndarray = v2 - v0
+    err_q1: np.ndarray = np.sqrt(np.sum(np.square(dq1), axis=-1))
+    err_q2: np.ndarray = np.sqrt(np.sum(np.square(dq2), axis=-1))   
+    # err_v1: np.ndarray = np.sqrt(np.sum(np.square(dv), axis=-1))
 
     # Report the results
     print(f'Splined position using orbital elements; first 10 asteroids.')
