@@ -1,3 +1,1 @@
-CALL KS.GetStateVectors_Earth(59000, 59001);
-CALL KS.GetAsteroids();
-
+CALL KS.GetAsteroidElements(1, 11, 59000, 59001)

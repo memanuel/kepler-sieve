@@ -83,8 +83,7 @@ SELECT
 	ae.omega_peri AS omega,
 	-- Adjust f and M for the winding number
 	ae.f + ae.WindingNumber*@tau AS f,
-	ae.M + ae.WindingNumber*@tau AS M,
-	ae.WindingNumber
+	ae.M + ae.WindingNumber*@tau AS M
 FROM
 	KS.AsteroidVectors AS av 
 	INNER JOIN KS.AsteroidElements AS ae ON

@@ -1,4 +1,2 @@
-SELECT * FROM KS.StateVectors_Planets LIMIT 20;
-SELECT * FROM KS.StateVectors_Planets WHERE TimeID = 59000*24*60;
-SELECT * FROM KS.StateVectors_Planets WHERE TimeID > 59000*24*60 GROUP BY TimeID LIMIT 100 ;
-
+ALTER TABLE OrbitalElements_Planets
+ADD COLUMN WindingNumber INT NOT NULL DEFAULT 0 AFTER EA;
