@@ -23,6 +23,9 @@ from astropy.units import au, minute
 # Commandline arguments
 import argparse
 
+# Utility
+from tqdm.auto import tqdm
+
 # Local imports
 from asteroid_data import load_ast_vectors
 from planets_interp import get_earth_pos
@@ -156,7 +159,7 @@ def insert_dir_ast2obs(df: pd.DataFrame):
     columns = ['AsteroidID', 'TimeID', 'mjd', 'ux', 'uy', 'uz', 'LightTime']
     chunksize = 2**19
     verbose = False
-    progbar = True
+    progbar = False
 
     # Dispatch to df2db
     df2db(df=df, schema=schema, table=table, columns=columns, chunksize=chunksize, verbose=verbose, progbar=progbar)
@@ -170,23 +173,29 @@ def main():
     'implied by rebound integration.  Populates DB table KS.AsteroidDirections.')
     parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
                         help='the first asteroid number to process')
-    parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
-                        help='the number of asteroids to process in this batch'),
+    parser.add_argument('n1', nargs='?', metavar='n1', type=int, default=1000,
+                        help='the first asteroid number to process')
+    # parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
+    #                     help='the number of asteroids to process in this batch'),
     
     # Unpack command line arguments
     args = parser.parse_args()
     
-    # Block of asteroids to integrate and epoch
+    # Block of asteroids to integrate
     n0: int = args.n0
-    n1: int = n0 + args.n_ast
+    n1: int = args.n1
+    # n1: int = n0 + args.n_ast
 
     # Report arguments
     print(f'Processing asteroid directions for asteroid number {n0} <= AsteroidID < {n1}...')
-
-    # Calculate the direction and light time
-    df = calc_dir_ast2obs(n0=n0, n1=n1)
-    # Insert results to database
-    insert_dir_ast2obs(df=df)
+    # Set the batch size
+    b: int = 200
+    for k0 in tqdm(range(n0, n1, b)):
+        k1: int = k0 + b
+        # Calculate the direction and light time
+        df = calc_dir_ast2obs(n0=k0, n1=k1)
+        # Insert results to database
+        insert_dir_ast2obs(df=df)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
