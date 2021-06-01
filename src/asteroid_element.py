@@ -1,6 +1,18 @@
 """
 Tools for working with asteroid orbital elements.
 
+Functions in this module:
+get_asteroids(key_to_body_id)
+get_ast_ref_elts_jpl(epoch)
+get_ast_ref_elts(epoch, n0, n1, missing)
+add_asteroid_elts(sim, elts)
+update_asteroid_elements(sim, elts, epoch)
+make_sim_asteroids_ref(epoch, n0, n1, missing)
+get_ast_elts(n0, n1, epoch)
+get_ast_elts_ts(n0, n1, mjd0, mjd1)
+get_ast_data(n0, n1, epoch)
+make_sim_asteroids(epoch, n0, n1)
+
 Michael S. Emanuel
 2021-02-10
 """
@@ -135,7 +147,7 @@ def add_asteroid_elts(sim: rebound.Simulation, elts: pd.DataFrame) -> np.array:
     return asteroid_ids
 
 # ********************************************************************************************************************* 
-def update_asteroid_elements(sim, elts, epoch) -> None:
+def update_asteroid_elements(sim: rebound.Simulation, elts: pd.DataFrame, epoch: int) -> None:
     """
     Get updated orbital elements from sim and apply them to elts DataFrame.
     INPUTS:

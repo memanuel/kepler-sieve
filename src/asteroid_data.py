@@ -2,6 +2,14 @@
 Load integrated asteroid trajectories as Pandas DataFrames.
 Add earth or sun position / state vectors to asteroid DataFrame.
 
+Functions in this module:
+load_ast_vectors(n0, n1, mjd0, mjd1)
+load_ast_elements(n0, n1, mjd0, mjd1)
+load_ast_data(n0, n1, mjd0, mjd1)
+ast_add_earth_pos(df_ast)
+ast_add_earth_elts(df_ast)
+ast_add_sun_vectors(df_ast)
+
 Michael S. Emanuel
 Sat Sep 21 10:38:38 2019
 """
@@ -22,6 +30,7 @@ from typing import Tuple
 
 # ********************************************************************************************************************* 
 # Last date of calculated data; filtering for mjd <= this date will include everything
+# The *real* last date is mjd=63000.  This is meant to be a future proof dummy "big" date (DB won't accept infinity).
 mjd_last: np.float64 = np.float64(2.0**20)
 
 # ********************************************************************************************************************* 

@@ -118,7 +118,7 @@ def anomaly_E2M(E: np.array, e: np.array) -> np.array:
     return M
 
 # ********************************************************************************************************************* 
-def anomaly_f2N(f: np.array, e: np.array) -> np.array:
+def anomaly_f2M(f: np.array, e: np.array) -> np.array:
     """
     Convert the true anomaly f to the mean anomaly M
     INPUTS:

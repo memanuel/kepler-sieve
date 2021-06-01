@@ -2,6 +2,15 @@
 Load integrated asteroid trajectories as Pandas DataFrames.
 Add earth or sun position / state vectors to asteroid DataFrame.
 
+Functions in this module:
+get_df_shape(df, id_col)
+make_spline_df(df, cols_spline, id_col, time_col)
+spline_data(df, ts, cols_spline, id_col, time_col)
+spline_ast_data(df_ast, ts, cols_spline)
+spline_ast_vec(vec, ts)
+spline_ast_elt(elt, ts)
+test_ast_spline_elt()
+
 Michael S. Emanuel
 Sat Sep 21 10:38:38 2019
 """

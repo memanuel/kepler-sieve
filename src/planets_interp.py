@@ -1,6 +1,22 @@
 """
 Interpolated position of earth and sun.
 
+Functions in this module:
+make_earth_sun_vectors(interval)
+load_earth_sun_vectors(interval, dtype)
+make_earth_sun_interpolators(interval, dtype)
+get_earth_pos(ts, dtype)
+get_sun_pos(ts, dtype)
+get_earth_vectors(ts, dtype)
+get_sun_vectors(ts, dtype)
+get_earth_elts(ts, dtype
+
+Exportable variables in this module:
+earth_interp_q
+sun_interp_q
+earth_interp_v
+sun_interp_v
+
 Michael S. Emanuel
 2021-05-26
 """
