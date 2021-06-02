@@ -31,7 +31,7 @@ FROM
 WHERE
 	av.TimeID BETWEEN @TimeID_0 AND @TimeID_1 AND
 	av.AsteroidID BETWEEN n0 AND (n1-1)
-ORDER BY av.TimeID, av.AsteroidID;
+ORDER BY av.AsteroidID, av.TimeID;
 
 END
 $$

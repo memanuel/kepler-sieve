@@ -1,1 +1,5 @@
-CALL KS.GetAsteroidElements(1, 11, 59000, 59001)
+SELECT
+ad.*
+FROM KS.AsteroidDirections AS ad
+WHERE ad.AsteroidID = 6*50000-1
+LIMIT 100;

@@ -25,7 +25,7 @@ SELECT
 	ad.uz,
     ad.LightTime    
 FROM
-	KS.AsteroidDirections2 AS ad
+	KS.AsteroidDirections AS ad
 WHERE 
 	ad.TimeID BETWEEN @TimeID_0 AND @TimeID_1 AND
 	ad.AsteroidID BETWEEN n0 AND (n1-1)
