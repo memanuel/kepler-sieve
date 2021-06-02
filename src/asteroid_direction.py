@@ -173,25 +173,25 @@ def main():
     'implied by rebound integration.  Populates DB table KS.AsteroidDirections.')
     parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
                         help='the first asteroid number to process')
-    parser.add_argument('n1', nargs='?', metavar='n1', type=int, default=1000,
-                        help='the first asteroid number to process')
-    # parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
-    #                     help='the number of asteroids to process in this batch'),
+    parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
+                        help='the number of asteroids to process in this batch'),
+    # parser.add_argument('n1', nargs='?', metavar='n1', type=int, default=1000,
+    #                     help='the first asteroid number to process')
     
     # Unpack command line arguments
     args = parser.parse_args()
     
     # Block of asteroids to integrate
     n0: int = args.n0
-    n1: int = args.n1
-    # n1: int = n0 + args.n_ast
+    n1: int = n0 + args.n_ast
+    # n1: int = args.n1
 
     # Report arguments
     print(f'Processing asteroid directions for asteroid number {n0} <= AsteroidID < {n1}...')
     # Set the batch size
     b: int = 200
     for k0 in tqdm(range(n0, n1, b)):
-        k1: int = k0 + b
+        k1: int = min(k0 + b, n1)
         # Calculate the direction and light time
         df = calc_dir_ast2obs(n0=k0, n1=k1)
         # Insert results to database
