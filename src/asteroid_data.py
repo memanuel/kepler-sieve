@@ -18,9 +18,6 @@ Sat Sep 21 10:38:38 2019
 import numpy as np
 import pandas as pd
 
-# Utility
-# from tqdm.auto import tqdm
-
 # Local imports
 from db_utils import sp2df
 from planets_interp import get_earth_pos, get_earth_elts, get_sun_vectors
