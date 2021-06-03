@@ -8,7 +8,6 @@ Michael S. Emanuel
 
 # Core
 import numpy as np
-from scipy import interpolate
 
 # Utility
 from collections import namedtuple
