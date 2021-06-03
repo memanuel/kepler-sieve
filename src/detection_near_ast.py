@@ -162,7 +162,16 @@ def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float
     ast_in = get_data_ast_dir(n0=n0, n1=n1)
 
     # Number of distinct asteroids in the input data
-    N_ast = np.unique(ast_in.AsteroidID.values).size
+    ast_unq = np.unique(ast_in.AsteroidID)
+    N_ast = ast_unq.size
+    
+    # Build data frame with index = AsteroidID, payload n (asteroid number in this batch)
+    dfa_tbl = {
+        'AsteroidID': ast_unq,
+        'n': np.arange(N_ast, dtype=np.int)
+    }
+    dfa = pd.DataFrame(dfa_tbl)    
+    dfa.set_index(keys='AsteroidID', drop=False, inplace=True)
 
     # Extract array of detection times
     t_obs = det.tObs.values
@@ -225,8 +234,11 @@ def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float
     dna['LightTime'] = light_time_near
     dna['s'] = s_near
 
+    # Add column with asteroid number in batch
+    dna['n'] = dfa.n[dna.AsteroidID].values
+
     # Reorder columns
-    cols_dna_obs = ['AsteroidID', 'DetectionID', 'tObs'] + cols_u_obs + cols_q_obs
+    cols_dna_obs = ['AsteroidID', 'DetectionID', 'n', 'tObs'] + cols_u_obs + cols_q_obs
     cols_dna_ast = ['tAst', 'LightTime'] + cols_u_ast + ['s'] 
     cols_dna =  cols_dna_obs + cols_dna_ast
     dna = dna.reindex(columns=cols_dna)
@@ -339,8 +351,8 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     t_ast = t_obs - light_time / 1440.0
     dna['tAst'] = t_ast
 
-    # Calculate the asteroid number in this batch, n
-    n = asteroid_id - n0
+    # Extract the asteroid number in this batch, n
+    n = dna['n'].values
 
     # The row number - for indexing into splines
     row_num = dna.index.values
@@ -383,8 +395,8 @@ def asteroid_batch_elt(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     t_ast = t_obs - light_time / 1440.0
     dna['tAst'] = t_ast
 
-    # Calculate the asteroid number in this batch, n
-    n = asteroid_id - n0
+    # Extract the asteroid number in this batch, n
+    n = dna['n'].values
 
     # The row number - for indexing into splines
     row_num = dna.index.values
