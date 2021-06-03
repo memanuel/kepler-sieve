@@ -282,10 +282,10 @@ def test_ast_spline_elt():
     q2 = df_elt[cols_q].values
 
     # Unpack the velocity from same 3 sources
-    cols_v = ['vx', 'vy', 'vz']
-    v0 = df_elt[cols_v].values
-    v1 = df_vec[cols_v].values
-    v1 = df_elt[cols_v].values
+    # cols_v = ['vx', 'vy', 'vz']
+    # v0 = df_elt[cols_v].values
+    # v1 = df_vec[cols_v].values
+    # v1 = df_elt[cols_v].values
 
     # Reconstruction error
     dq1: np.ndarray = q1 - q0
@@ -294,14 +294,14 @@ def test_ast_spline_elt():
     # dv1: np.ndarray = v2 - v0
     err_q1: np.ndarray = np.sqrt(np.sum(np.square(dq1), axis=-1))
     err_q2: np.ndarray = np.sqrt(np.sum(np.square(dq2), axis=-1))   
-    # err_v1: np.ndarray = np.sqrt(np.sum(np.square(dv), axis=-1))
+    # err_v1: np.ndarray = np.sqrt(np.sum(np.square(dv1), axis=-1))
+    # err_v2: np.ndarray = np.sqrt(np.sum(np.square(dv2), axis=-1))
 
     # Report the results
     print(f'Splined position using orbital elements; first 10 asteroids.')
     print(f'Original data interval is 4 days.  Spline built using interval of 8 days.')
     is_ok_q1 = report_test(err=err_q1, test_name='ast_spline_elt (position q, spline on vectors)', thresh=1.0E-4)
     is_ok_q2 = report_test(err=err_q2, test_name='ast_spline_elt (position q, spline on elements)', thresh=1.0E-4)
-    # is_ok_v = report_test(err=err_v, test_name='ast_spline_elt (velocity v)', thresh=1.0E-6)
     return (is_ok_q1 and is_ok_q2)
 
 # ********************************************************************************************************************* 
