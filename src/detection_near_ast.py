@@ -28,14 +28,16 @@ from astropy.units import au, minute
 import argparse
 
 # Utility
-import sys
 from tqdm.auto import tqdm
+
+# Typing
+from typing import Callable
 
 # Local imports
 from asteroid_data import load_ast_elements, load_ast_vectors
 from asteroid_spline import spline_ast_data, make_spline_df
 from astro_utils import deg2dist
-from orbital_element import elt2pos
+from orbital_element import elt2pos, anomaly_M2f
 from planets_interp import get_sun_pos
 from db_utils import sp2df, df2db
 from utils import print_stars
@@ -176,94 +178,63 @@ def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float
     """
 
     # Get asteroid directions
-    ast_in = get_data_ast_dir(n0=n0, n1=n1)
+    ast_dir = get_data_ast_dir(n0=n0, n1=n1)
 
-    # # Number of distinct asteroids in the input data
-    # ast_unq = np.unique(ast_in.AsteroidID)
-    # N_ast = ast_unq.size
-    
-    # # Build data frame with index = AsteroidID, payload n (asteroid number in this batch)
-    # dfa_tbl = {
-    #     'AsteroidID': ast_unq,
-    #     'n': np.arange(N_ast, dtype=np.int)
-    # }
-    # dfa = pd.DataFrame(dfa_tbl)    
-    # dfa.set_index(keys='AsteroidID', drop=False, inplace=True)
+    # Build DataFrame to map from AsteroidID to asteroid number in batch, n
+    dfa = make_ast_num_df(df=ast_dir)
+    # Array of distinct asteroids
+    asteroid_id_unq = dfa.AsteroidID.values
 
-    # Build table mapping AsteroidID to asteroid number in this batch, n
-    dfa = make_ast_num_df(df=ast_in)
-    # The number of asteroids
+    # Shape of data
+    N_det = det.shape[0]
     N_ast = dfa.shape[0]
 
-    # Extract array of detection times
-    t_obs = det.tObs.values
+    # Build asteroid position spline
+    spline_u_ast = make_spline_df(df=ast_dir, cols_spline=cols_u_ast, time_col='mjd', id_col='AsteroidID')
+    spline_LT = make_spline_df(df=ast_dir, cols_spline=['LightTime'], time_col='mjd', id_col='AsteroidID')
 
-    # Data shape
-    N_det = t_obs.shape[0]
+    # First block  of interactions: tile the detections DataFrame N_ast times
+    da = pd.concat([det] * N_ast)
+    da.reset_index(drop=True, inplace=True)
 
-    # Spline asteroid directions to match these times
-    ast = spline_ast_data(df_ast=ast_in, ts=t_obs, cols_spline=cols_spline_ast)
+    # Add column to dna for AsteroidID
+    da.insert(1, 'AsteroidID', np.tile(asteroid_id_unq, N_det))
 
-    # Add column for the DetectionID, 
-    ast['DetectionID'] = np.tile(det.DetectionID.values, N_ast)
+    # Extract arrays of DetectionID and AsteroidID
+    # detection_id = da.DetectionID.values
+    asteroid_id = da.AsteroidID.values
 
-    # Rename column from mjd to tAst
-    ast.rename(columns={'mjd':'tAst'}, inplace=True)
+    # Extract array of tObs and uObs
+    t_obs = da.tObs.values
+    u_obs = da[cols_u_obs].values
 
-    # Extract detection_id and asteroid_id
-    detection_id = ast.DetectionID.values
-    light_time = ast.LightTime.values
+    # Spline light time
+    light_time = spline_LT(x=t_obs, y=asteroid_id).flatten()
+    # First estimate of asteroid time
+    t_ast = t_obs - light_time / 1440.0    
 
-    # Direction of detections
-    u_obs = det[cols_u_obs].values.reshape((1, N_det, 3))
+    # Spline asteroid directions at the observation times
+    u_ast = spline_u_ast(x=t_obs, y=asteroid_id)
+    # Add columns for tAst and uAst
+    da['tAst'] = t_ast
+    da[cols_u_ast] = u_ast
 
-    # Direction of asteroids at detection times
-    u_ast = ast[cols_u_ast].values.reshape((N_ast, N_det, 3))
-
-    # The squared cartesian distance
-    s2 = np.sum(np.square(u_ast - u_obs), axis=-1)
+    # Calculate cartesian distance and save to DataFrame
+    s = np.sqrt(np.sum(np.square(u_ast - u_obs), axis=-1))
+    da['s'] = s
+    # Save LightTime to DataFrame
+    da['LightTime'] = light_time
 
     # Convert angular threshold to Cartesian distance
     # Add a cushion for preliminary calculation
     arcmin_max_prelim = arcmin_max + arcmin_margin
     deg_max: float = arcmin_max_prelim / 60.0
     s_max: float = deg2dist(deg_max)
-    s2_max = np.square(s_max)
 
     # Build the mask for close interactions
-    mask_2d = (s2 < s2_max)
-    mask = mask_2d.flatten()
+    mask = (s < s_max)
+    dna = da[mask].copy()
 
-    # Arrays of near interactions only
-    detection_id_near = detection_id[mask]
-    light_time_near = light_time[mask]
-
-    # Look up the distance on the 2D table
-    s_near = np.sqrt(s2[mask_2d])
-
-    # Look up detection data at near interactions only
-    t_obs_near = det.loc[detection_id_near, 'tObs'].values
-    u_obs_near = det.loc[detection_id_near, cols_u_obs].values
-    q_obs_near = det.loc[detection_id_near, cols_q_obs].values
-
-    # Copy splined asteroids that are near detections
-    dna = ast[mask].copy()
-
-    # Add columns with data from the detections
-    dna['tObs'] = t_obs_near
-    dna[cols_u_obs] = u_obs_near
-    dna[cols_q_obs] = q_obs_near
-    dna['LightTime'] = light_time_near
-    dna['s'] = s_near
-
-    # Add column with asteroid number in batch
-    dna['n'] = dfa.n[dna.AsteroidID].values
-
-    # Reorder columns
-    cols_dna_obs = ['AsteroidID', 'DetectionID', 'n', 'tObs'] + cols_u_obs + cols_q_obs
-    cols_dna_ast = ['tAst', 'LightTime'] + cols_u_ast + ['s'] 
-    cols_dna =  cols_dna_obs + cols_dna_ast
-    dna = dna.reindex(columns=cols_dna)
     # Reset the index so row_number works as expected downstream
     dna.reset_index(drop=True, inplace=True)
 
@@ -278,7 +249,7 @@ def light_time_adj(df: pd.DataFrame, verbose: bool):
     OUTPUTS:
         t_adj:  Adjustment required to match on light time.
     """
-    # The light time used in this frame
+    # The light time used to build this frame
     light_time_used = (df.tObs.values - df.tAst.values) * 1440.0
 
     # The time of flight for light
@@ -288,7 +259,9 @@ def light_time_adj(df: pd.DataFrame, verbose: bool):
     r = np.sqrt(np.sum(np.square(dq), axis=-1))
     light_time_true = r / c
 
-    # The adjustment required; this should be added to tObs, i.e. df.tObs += t_adj
+    # The adjustment required; this should be added to tAst, i.e. df.tAst += t_adj
+    # Note that adding to tAst will reduce the calculated light time in the next iteration,
+    # hence the sign flip in the formula below.
     t_adj = (light_time_used - light_time_true) / 1440.0
     
     # Report error in minutes if requested
@@ -299,10 +272,13 @@ def light_time_adj(df: pd.DataFrame, verbose: bool):
     return t_adj
     
 # ********************************************************************************************************************* 
-def asteroid_batch_finish(dna: pd.DataFrame, q_ast_func, arcmin_max: float):
+def asteroid_batch_finish(dna: pd.DataFrame, q_ast_func: Callable, arcmin_max: float):
     """
     Complete processing of a batch of detections near asteroids.
     Same whether batch is computed by interpolating state vectors or orbital elements.
+    INPUTS:
+        dna:            DataFrame of detections near asteroids with preliminary calculations.
+        q_ast_func:     Function taking 
     """
     # Unpack arrays
     t_ast = dna.tAst.values
@@ -317,10 +293,6 @@ def asteroid_batch_finish(dna: pd.DataFrame, q_ast_func, arcmin_max: float):
     t_adj = light_time_adj(df=dna, verbose=False)
     dna.tAst += t_adj
 
-    # Save the improved light time
-    light_time = (dna.tObs - dna.tAst)*1440.0
-    dna.LightTime = light_time
-
     # Update the asteroid position at this new time
     q_ast =  q_ast_func(t_ast)
     dna[cols_q_ast] = q_ast
@@ -329,15 +301,15 @@ def asteroid_batch_finish(dna: pd.DataFrame, q_ast_func, arcmin_max: float):
     dq = q_ast - q_obs
     r = np.sqrt(np.sum(np.square(dq), axis=-1, keepdims=True))
 
-    # This time, do NOT update LightTime.
-    # LightTime is basically correct at this point, and it's less confusing to leave it so
-    # we can later recover t_ast = t_obs - light_time / 1440.0
+    # Save the improved light time
+    light_time = r / c
+    dna.LightTime = light_time
 
     # Direction from asteroid to observer
     u_ast = dq / r
     dna[cols_u_ast] = u_ast
 
-    # Calculate distance between two directions, s, and save it to DataFrame
+    # Calculate distance between the two directions, s, and save it to DataFrame
     s = np.sqrt(np.sum(np.square(u_obs - u_ast), axis=-1))
     dna.s = s
 
@@ -364,7 +336,7 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     """
 
     # Unpack DataFrame to numpy arrays
-    # asteroid_id = dna.AsteroidID.values
+    asteroid_id = dna.AsteroidID.values
     t_obs = dna.tObs.values
     t_ast = dna.tAst.values
     light_time = dna.LightTime.values
@@ -372,12 +344,6 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     # Refine estimate of t_ast and write to DataFrame
     t_ast = t_obs - light_time / 1440.0
     dna['tAst'] = t_ast
-
-    # Extract the asteroid number in this batch, n
-    n = dna['n'].values
-
-    # The row number - for indexing into splines
-    row_num = dna.index.values
 
     # Get the asteroid vectors
     ast_vec = load_ast_vectors(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
@@ -388,7 +354,7 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
 
     # Subfunction: get position from splined orbital elements
     def q_ast_func(t_ast: np.ndarray):
-        q_ast =  spline_q_ast(t_ast)[n, row_num]
+        q_ast = spline_q_ast(x=t_ast, y=asteroid_id)
         return q_ast
 
     # Complete the post-processing step
@@ -408,7 +374,7 @@ def asteroid_batch_elt(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     """
 
     # Unpack DataFrame to numpy arrays
-    # asteroid_id = dna.AsteroidID.values
+    asteroid_id = dna.AsteroidID.values
     t_obs = dna.tObs.values
     t_ast = dna.tAst.values
     light_time = dna.LightTime.values
@@ -416,12 +382,6 @@ def asteroid_batch_elt(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     # Refine estimate of t_ast and write to DataFrame
     t_ast = t_obs - light_time / 1440.0
     dna['tAst'] = t_ast
-
-    # Extract the asteroid number in this batch, n
-    n = dna['n'].values
-
-    # The row number - for indexing into splines
-    row_num = dna.index.values
 
     # Get the asteroid vectors
     ast_elt = load_ast_elements(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
@@ -432,24 +392,25 @@ def asteroid_batch_elt(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     ast_elt['fy'] = np.sin(f_in)
 
     # Build asteroid elements spline
-    cols_spline_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'fx', 'fy']
+    cols_spline_elt = ['a', 'e', 'inc', 'Omega', 'omega', 'M']
     spline_elt = make_spline_df(df=ast_elt, id_col='AsteroidID', time_col='mjd', cols_spline=cols_spline_elt)
 
     # Subfunction: get position from splined orbital elements
     def q_ast_func(t_ast: np.ndarray):
         # The splined orbital elements for the selected asteroid and t_ast
         # This is an array of shape (N_pair, 7) with columns matching cols_spline_elt
-        elt =  spline_elt(t_ast)[n, row_num]
+        elt = spline_elt(x=t_ast, y=asteroid_id)
+
         # Unpack the elements from the splined array
         a = elt[:, 0]
         e = elt[:, 1]
         inc = elt[:, 2]
         Omega = elt[:, 3]
         omega = elt[:, 4]
-        fx = elt[:, 5]
-        fy = elt[:, 6]
-        # Compute the splined f using atan2
-        f = np.arctan2(fy, fx)
+        M = elt[:, 5]
+        # Compute f from M and e
+        f = anomaly_M2f(M=M, e=e)
+
         # Compute q in the heliocentric frame
         q_hel = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
         # Position and velocity of the sun

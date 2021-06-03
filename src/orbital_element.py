@@ -42,7 +42,7 @@ mu = G_ * 1.0
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def unpack_elt_df(df: np.array) -> Tuple[np.array, np.array, np.array, np.array, np.array, np.array]:
+def unpack_elt_df(df: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Unpack a DataFrame of orbital elements
     INPUTS:
@@ -60,7 +60,7 @@ def unpack_elt_df(df: np.array) -> Tuple[np.array, np.array, np.array, np.array,
     return a, e, inc, Omega, omega, f
 
 # ********************************************************************************************************************* 
-def unpack_vector(v: np.array) -> Tuple[np.array, np.array, np.array]:
+def unpack_vector(v: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Unpack three spatial indices of a vector"""
     vx = v[:, 0]
     vy = v[:, 1]
@@ -72,7 +72,7 @@ def unpack_vector(v: np.array) -> Tuple[np.array, np.array, np.array]:
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def anomaly_E2f(E: np.array, e: np.array) -> np.array:
+def anomaly_E2f(E: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the eccentric anomaly E to the true anomaly f
     INPUTS:
@@ -82,12 +82,12 @@ def anomaly_E2f(E: np.array, e: np.array) -> np.array:
         f: The true anomaly
     """
     # SSD equation 2.46; solve for f in terms of E
-    tan_half_f: np.array = np.sqrt((1.0 + e) / (1.0 - e)) * np.tan(E/2.0)
-    f: np.array = np.arctan(tan_half_f) * 2.0
+    tan_half_f: np.ndarray = np.sqrt((1.0 + e) / (1.0 - e)) * np.tan(E/2.0)
+    f: np.ndarray = np.arctan(tan_half_f) * 2.0
     return f
 
 # ********************************************************************************************************************* 
-def anomaly_f2E(f: np.array, e: np.array) -> np.array:
+def anomaly_f2E(f: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the true anomaly f to the eccentric anomaly E
     INPUTS:
@@ -97,13 +97,13 @@ def anomaly_f2E(f: np.array, e: np.array) -> np.array:
         E: The eccentric anomaly
     """
     # SSD equation 2.46; solve for E in terms of f
-    tan_half_f: np.array = np.tan(f * 0.5)
-    tan_half_E: np.array = tan_half_f / np.sqrt((1.0 + e) / (1.0 - e))
-    E: np.array = np.arctan(tan_half_E) * 2.0
+    tan_half_f: np.ndarray = np.tan(f * 0.5)
+    tan_half_E: np.ndarray = tan_half_f / np.sqrt((1.0 + e) / (1.0 - e))
+    E: np.ndarray = np.arctan(tan_half_E) * 2.0
     return E
 
 # ********************************************************************************************************************* 
-def anomaly_E2M(E: np.array, e: np.array) -> np.array:
+def anomaly_E2M(E: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the eccentric anomaly E to the mean anomaly M
     INPUTS:
@@ -113,11 +113,11 @@ def anomaly_E2M(E: np.array, e: np.array) -> np.array:
         M: The mean anomaly
     """
     # SSD equation 2.52; this is Kepler's Equation
-    M: np.array = E - e * np.sin(E)
+    M: np.ndarray = E - e * np.sin(E)
     return M
 
 # ********************************************************************************************************************* 
-def anomaly_f2M(f: np.array, e: np.array) -> np.array:
+def anomaly_f2M(f: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the true anomaly f to the mean anomaly M
     INPUTS:
@@ -133,7 +133,7 @@ def anomaly_f2M(f: np.array, e: np.array) -> np.array:
     return M
 
 # ********************************************************************************************************************* 
-def danby_iteration(M: np.array, e: np.array, E: np.array) -> np.array:
+def danby_iteration(M: np.ndarray, e: np.ndarray, E: np.ndarray) -> np.ndarray:
     """
     Perform one iteration of the Danby algorithm for computing E from M
     See SSD equation 2.62 on page 36
@@ -162,14 +162,14 @@ def danby_iteration(M: np.array, e: np.array, E: np.array) -> np.array:
 
     # The three delta adjustments; see SSD Equation 2.62
     d1 = -f0 / f1
-    d2 = -f0 / (f1 + 0.5*d1 * f2)
-    d3 = -f0 / (f1 + 0.5*d2 * f2 + (1.0/6.0)*np.square(d2)*f3)
-        
+    d2 = -f0 / (f1 + 0.5*d1*f2)
+    d3 = -f0 / (f1 + 0.5*d2*f2 + (1.0/6.0)*np.square(d2)*f3)
+
     E_next = E + d3
     return E_next
 
 # ********************************************************************************************************************* 
-def danby_guess(M: np.array, e: np.array) -> np.array:
+def danby_guess(M: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Initial guess E0 for iterative calculation of E from M
     See SSD equation 2.64 on page 36
@@ -179,7 +179,7 @@ def danby_guess(M: np.array, e: np.array) -> np.array:
     return E0
 
 # ********************************************************************************************************************* 
-def anomaly_M2E_danby(M: np.array, e: np.array, n: int=3) -> np.array:
+def anomaly_M2E_danby(M: np.ndarray, e: np.ndarray, n: int=3) -> np.ndarray:
     """
     Convert the mean anomaly M to the eccentric anomaly E using Danby iterations
     INPUTS:
@@ -196,7 +196,7 @@ def anomaly_M2E_danby(M: np.array, e: np.array, n: int=3) -> np.array:
     return E
 
 # ********************************************************************************************************************* 
-def anomaly_M2E(M: np.array, e: np.array) -> np.array:
+def anomaly_M2E(M: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the mean anomaly M to the eccentric anomaly E.
     Implemention can be changed behind the scenes later.
@@ -211,7 +211,7 @@ def anomaly_M2E(M: np.array, e: np.array) -> np.array:
     return E
 
 # ********************************************************************************************************************* 
-def anomaly_M2f(M: np.array, e: np.array) -> np.array:
+def anomaly_M2f(M: np.ndarray, e: np.ndarray) -> np.ndarray:
     """
     Convert the mean anomaly M to the true anomaly f.
     Done by converting first to E, then to f.
@@ -231,7 +231,7 @@ def anomaly_M2f(M: np.array, e: np.array) -> np.array:
 # Convert from orbital elements to state vectors
 # ********************************************************************************************************************* 
 
-def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array) -> np.array:
+def elt2pos(a: np.ndarray, e: np.ndarray, inc: np.ndarray, Omega: np.ndarray, omega: np.ndarray, f: np.ndarray) -> np.ndarray:
     """
     Convert from orbital elements to position vector.
     See SSD page 51, equation 2.122.
@@ -248,30 +248,30 @@ def elt2pos(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     """
 
     # Calculate the distance from the center, r; SSD equation 2.20
-    r: np.array = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
+    r: np.ndarray = a * (1.0 - np.square(e)) / (1.0 + e * np.cos(f))
 
     # Calculate intermediate results used for angular rotations
     # The angle in the elliptic plane, measured from the reference direction
-    theta: np.array = omega + f 
+    theta: np.ndarray = omega + f 
     # Trigonometric functions of the angles
-    cos_inc: np.array = np.cos(inc)
-    sin_inc: np.array = np.sin(inc)
-    cos_Omega: np.array = np.cos(Omega)
-    sin_Omega: np.array = np.sin(Omega)
-    cos_theta: np.array = np.cos(theta)
-    sin_theta: np.array = np.sin(theta)
+    cos_inc: np.ndarray = np.cos(inc)
+    sin_inc: np.ndarray = np.sin(inc)
+    cos_Omega: np.ndarray = np.cos(Omega)
+    sin_Omega: np.ndarray = np.sin(Omega)
+    cos_theta: np.ndarray = np.cos(theta)
+    sin_theta: np.ndarray = np.sin(theta)
 
     # The cartesian position coordinates; see SSD equation 2.122
-    qx: np.array = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
-    qy: np.array = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
-    qz: np.array = r * (sin_theta*sin_inc)
-    q: np.array = np.stack([qx, qy, qz], axis=-1)
+    qx: np.ndarray = r * (cos_Omega*cos_theta - sin_Omega*sin_theta*cos_inc)
+    qy: np.ndarray = r * (sin_Omega*cos_theta + cos_Omega*sin_theta*cos_inc)
+    qz: np.ndarray = r * (sin_theta*sin_inc)
+    q: np.ndarray = np.stack([qx, qy, qz], axis=-1)
 
     return q
 
 # ********************************************************************************************************************* 
-def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.array, f: np.array) \
-            -> Tuple[np.array, np.array]:
+def elt2vec(a: np.ndarray, e: np.ndarray, inc: np.ndarray, Omega: np.ndarray, omega: np.ndarray, f: np.ndarray) \
+            -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert from orbital elements to state vectors.
     See SSD page 51, equation 2.122.
@@ -323,7 +323,7 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     qy = r*(sO*cocf_sosf + cO*socf_cosf*ci)
     qz = r*(socf_cosf*si)
     # Wrap the position vector
-    q: np.array = np.stack([qx, qy, qz], axis=-1)
+    q: np.ndarray = np.stack([qx, qy, qz], axis=-1)
     
     # Velocity
     # vx = v0*((e+cf)*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO))
@@ -345,7 +345,7 @@ def elt2vec(a: np.array, e: np.array, inc: np.array, Omega: np.array, omega: np.
     vy = v0*(epcf*(ci*cocO - sosO)  - sf*(cosO + ci*socO))
     vz = v0*(epcf*co*si - sf*si*so)
     # Wrap the velocity vector
-    v: np.array = np.stack([vx, vy, vz], axis=-1)
+    v: np.ndarray = np.stack([vx, vy, vz], axis=-1)
 
     # Return tuple of position and velocity
     return q, v
