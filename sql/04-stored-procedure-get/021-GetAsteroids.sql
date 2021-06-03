@@ -1,5 +1,6 @@
 DELIMITER $$
 
+-- ********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE KS.GetAsteroids()
@@ -16,6 +17,26 @@ FROM
 	KS.Asteroid AS ast
 	INNER JOIN KS.Body AS b ON b.BodyID = ast.BodyID
 ORDER BY ast.AsteroidID;
+
+END
+$$
+
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.GetAsteroidNumberRange()
+COMMENT "Get ranges of asteroid IDs"
+
+BEGIN 
+
+SELECT
+	ast.IsnumberedAsteroid,
+	min(ast.AsteroidID) AS AsteroidID_0,
+	max(ast.AsteroidID) AS AsteroidID_1
+FROM
+	KS.Asteroid AS ast
+GROUP BY ast.IsnumberedAsteroid
+ORDER BY ast.IsNumberedAsteroid DESC;
 
 END
 $$
