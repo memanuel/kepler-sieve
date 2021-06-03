@@ -29,13 +29,14 @@ from astropy.units import au, minute
 import argparse
 
 # Utility
+import sys
 from tqdm.auto import tqdm
 
 # Local imports
 from asteroid_data import load_ast_elements, load_ast_vectors
 from asteroid_spline import spline_ast_data, make_spline_df
-from astro_utils import deg2dist
-from orbital_element import unpack_elt_df, elt2pos
+from astro_utils import deg2dist, dist2sec
+from orbital_element import elt2pos
 from planets_interp import get_sun_pos
 from db_utils import sp2df
 
@@ -216,6 +217,8 @@ def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float
     cols_dna_ast = ['tAst', 'LightTime'] + cols_u_ast + ['s'] 
     cols_dna =  cols_dna_obs + cols_dna_ast
     dna = dna.reindex(columns=cols_dna)
+    # Reset the index so row_number works as expected downstream
+    dna.reset_index(drop=True, inplace=True)
 
     return dna
 
@@ -286,8 +289,54 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     cols_spline_q_ast = ['qx', 'qy', 'qz']
     spline_q_ast = make_spline_df(df=ast_vec, id_col='AsteroidID', time_col='mjd', cols_spline=cols_spline_q_ast)
 
+    # Subfunction: get position from splined orbital elements
+    def q_ast_func(t_ast: np.ndarray):
+        q_ast =  spline_q_ast(t_ast)[n, row_num]
+        return q_ast
+
+    asteroid_batch_finish(dna=dna, q_ast_func=q_ast_func)
+
+    # # Splined asteroid position
+    # q_ast =  q_ast_func(t_ast)
+    # dna[cols_q_ast] = q_ast
+
+    # # Sharpen the asteroid time
+    # t_adj = light_time_adj(df=dna, verbose=False)
+    # dna.tAst += t_adj
+
+    # # Save the improved light time
+    # light_time = (dna.tObs - dna.tAst)*1440.0
+    # dna.LightTime = light_time
+
+    # # Update the asteroid position at this new time
+    # q_ast =  q_ast_func(t_ast)
+    # dna[cols_q_ast] = q_ast
+
+    # # Displacement and distance from asteroid to observer
+    # dq = q_ast - q_obs
+    # r = np.sqrt(np.sum(np.square(dq), axis=-1, keepdims=True))
+
+    # # Direction from asteroid to observer
+    # u_ast = dq / r
+    # dna[cols_u_ast] = u_ast
+
+    # # Distance between two directions
+    # s = np.sqrt(np.sum(np.square(u_obs - u_ast), axis=-1))
+    # dna.s = s
+
+# ********************************************************************************************************************* 
+def asteroid_batch_finish(dna: pd.DataFrame, q_ast_func):
+    """
+    Complete processing of a batch of detections near asteroids.
+    Same whether batch is computed by interpolating state vectors or orbital elements.
+    """
+    # Unpack arrays
+    t_ast = dna.tAst.values
+    q_obs = dna[cols_q_obs].values
+    u_obs = dna[cols_u_obs].values
+
     # Splined asteroid position
-    q_ast =  spline_q_ast(t_ast)[n, row_num]
+    q_ast =  q_ast_func(t_ast)
     dna[cols_q_ast] = q_ast
 
     # Sharpen the asteroid time
@@ -299,7 +348,7 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     dna.LightTime = light_time
 
     # Update the asteroid position at this new time
-    q_ast =  spline_q_ast(t_ast)[n, row_num]
+    q_ast =  q_ast_func(t_ast)
     dna[cols_q_ast] = q_ast
 
     # Displacement and distance from asteroid to observer
@@ -409,6 +458,90 @@ def asteroid_batch_elt(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     dna.s = s
 
 # ********************************************************************************************************************* 
+def direction_diff(u0: np.ndarray, u1: np.ndarray):
+    """Compute difference in directions in arc seconds"""
+    du = u1 - u0
+    delta = np.sqrt(np.sum(np.square(du), axis=-1))
+    # Change in arc seconds
+    delta_sec = dist2sec(delta)
+    return delta_sec
+    
+# ********************************************************************************************************************* 
+def report_direction_diff(u_pre, u_vec, u_elt: pd.DataFrame):
+    """
+    Calculate and report difference between three methods of computing directions 
+    to a known asteroid at a detection time
+    """
+    delta_pre_vec = np.max(direction_diff(u0=u_pre, u1=u_vec))
+    delta_pre_elt = np.max(direction_diff(u0=u_pre, u1=u_elt))
+    delta_vec_elt = np.max(direction_diff(u0=u_vec, u1=u_elt))
+
+    # Report results
+    print(f'Max change in direction between different methods:')
+    print(f'pre vs. vec: {delta_pre_vec:5.2f} arc seconds')
+    print(f'pre vs. elt: {delta_pre_elt:5.2f} arc seconds')
+    print(f'vec vs. elt: {delta_vec_elt:5.2e} arc seconds')    
+
+# ********************************************************************************************************************* 
+def test():
+    """Test this calculation on a small batch of asteroids"""
+    # Inputs
+    d0 = 1
+    d1 = 1000
+    n0 = 1
+    n1 = 10
+    deg_max = 45.0
+    arcmin_max = deg_max * 60.0
+
+    # Status
+    print('Testing detection_near_ast.')
+    print(f'd0: {d0}')
+    print(f'd1: {d1}')
+    print(f'n0: {n0}')
+    print(f'n1: {n1}')
+    print(f'deg_max: {deg_max}')
+
+    # Get detections
+    print(f'Loading detections with DetectionID between {d0} and {d1}...')
+    det = get_data_detections(d0=d0, d1=d1)
+
+    # First pass at detections near asteroids
+    print(f'Calculating preliminary asteroid directions with AsteroidID between {n0} and {n1}...')
+    dna_pre = asteroid_batch_prelim(det=det, n0=n0, n1=n1, arcmin_max=arcmin_max)
+    row_count = dna_pre.shape[0]
+    print(f'Found {row_count} rows in preliminary search with angular distance < {deg_max} degrees.')
+
+    # Sharpen estimate using splined asteroid vectors
+    print(f'\nRefining search using splined asteroid vectors...')
+    dna_vec = dna_pre.copy()
+    asteroid_batch_vec(dna=dna_vec, n0=n0, n1=n1, arcmin_max=arcmin_max)    
+    # Report light time error with vectors
+    _  = light_time_adj(df=dna_vec, verbose=True)
+
+    # Sharpen estimate using splined asteroid elements
+    print(f'\nRefining search using splined orbital elements...')
+    dna_elt = dna_pre.copy()
+    asteroid_batch_elt(dna=dna_elt, n0=n0, n1=n1, arcmin_max=arcmin_max)
+    # Report light time error with vectors
+    _  = light_time_adj(df=dna_vec, verbose=True)
+
+    # Direction from three methods
+    u_pre = dna_pre[cols_u_ast].values
+    u_vec = dna_vec[cols_u_ast].values
+    u_elt = dna_elt[cols_u_ast].values
+    print()
+    report_direction_diff(u_pre=u_pre, u_vec=u_vec, u_elt=u_elt)
+
+    # Condition for passing
+    thresh_pre_vec: float = 5.0 * 60
+    thresh_vec_elt: float = 0.1
+    delta_pre_vec = np.max(direction_diff(u0=u_pre, u1=u_vec))
+    delta_vec_elt = np.max(direction_diff(u0=u_vec, u1=u_elt))
+    is_ok: bool = (delta_pre_vec < thresh_pre_vec) and (delta_vec_elt < thresh_vec_elt)
+    msg: str = 'PASS' if is_ok else 'FAIL'
+    print(f'**** {msg} ****')
+
+# ********************************************************************************************************************* 
 def main():
     """Calculate the direction and light time of the selected batch of asteroid"""
 
@@ -422,12 +555,19 @@ def main():
                         help='the number of detections to process in this batch'),
     parser.add_argument('arcmin_max', nargs='?', metavar='B', type=float, default=5.0,
                         help='the maximum distance in arcminutes between the observation and asteroid direction.'),
-    
+    parser.add_argument('--test', dest='test', action='store_const', const=True, default=False,
+                        help='Test: run program in test mode.')
+
     # Unpack command line arguments
     args = parser.parse_args()
     d0: int = args.d0
     d1: int = d0 + args.n_det
     arcmin_max: float = args.arcmin_max
+
+    # If test mode, run test harness and then exit
+    if args.test:
+        test()
+        sys.exit()
 
     # Report arguments
     print(f'Processing asteroid directions for DetectionID {d0} <= DetectionID < {d1} '
