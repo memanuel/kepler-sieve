@@ -63,7 +63,7 @@ def light_time_iter(df: pd.DataFrame, spline_q_ast: Callable[[np.ndarray, np.nda
     light_time = df.LightTime.values
 
     # Calculate t_ast from t_obs and current estimate of light_time
-    t_ast = t_obs - light_time / 1440.0             # 1440 is number of minutes in one day
+    t_ast = t_obs - light_time/1440.0             # 1440 is number of minutes in one day
     # Save revised time light leaves asteroid to DataFrame
     df['tAst'] = t_ast
 
@@ -72,11 +72,11 @@ def light_time_iter(df: pd.DataFrame, spline_q_ast: Callable[[np.ndarray, np.nda
     df[cols_q_ast] = q_ast
 
     # Compute position difference and distance from asteroid to earth
-    dq = q_ast - q_obs
-    r = np.sqrt(np.sum(dq*dq, axis=1))
+    dq = q_ast-q_obs
+    r = np.sqrt(np.sum(dq*dq, axis=-1))
 
     # Compute light time and update it on DataFrame
-    light_time = r / c
+    light_time = r/c
     df['LightTime'] = light_time
 
 # ********************************************************************************************************************* 
@@ -122,14 +122,14 @@ def calc_dir_ast2obs(n0: int, n1: int):
     df[cols_q_obs] = q_obs
 
     # Extract asteroid position vectors
-    q_ast = df[cols_q_ast].values
+    q_ast = ast_pos[cols_q_ast].values
 
     # Compute position difference and distance from asteroid to earth
-    dq = q_ast - q_obs
-    r = np.sqrt(np.sum(dq*dq, axis=1))
+    dq = q_ast-q_obs
+    r = np.sqrt(np.sum(dq*dq, axis=-1))
 
     # Compute light time and update it on DataFrame
-    light_time = r / c
+    light_time = r/c
     df['LightTime'] = light_time
 
     # Build asteroid position spline
@@ -139,16 +139,16 @@ def calc_dir_ast2obs(n0: int, n1: int):
 
     # Experiments show that 3 iterations is sufficient to achieve full convergence
     # Error in light_time (number of minutes) around 5E-9 at this point
-    for _ in range(3):
+    for _ in range(4):
         light_time_iter(df=df, spline_q_ast=spline_q_ast)
 
     # Compute position difference and distance from asteroid to earth
     q_obs = df[cols_q_obs].values
     dq = q_ast - q_obs
-    r = np.sqrt(np.sum(dq*dq, axis=1)).reshape((-1, 1))
+    r = np.sqrt(np.sum(np.square(dq), axis=-1, keepdims=True))
 
     # Calculate the direction and save it to DataFrame
-    u = dq / r
+    u = dq/r
     cols_dir = ['ux', 'uy', 'uz']
     df[cols_dir] = u
 
@@ -172,7 +172,7 @@ def insert_dir_ast2obs(df: pd.DataFrame):
 
     # Arguments to df2db
     schema = 'KS'
-    table = 'AsteroidDirections2'
+    table = 'AsteroidDirections'
     columns = ['AsteroidID', 'TimeID', 'tObs', 'ux', 'uy', 'uz', 'LightTime']
     chunksize = 2**19
     verbose = False
@@ -207,7 +207,6 @@ def main():
     k0: int = n0 // b
     k1: int = n1 // b
     for k in tqdm(range(k0, k1)):
-        k1: int = min(k0 + b, n1)
         # Start and end of this batch
         n0_i = k*b
         n1_i = n0_i + b

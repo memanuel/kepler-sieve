@@ -51,8 +51,10 @@ def report_direction_diff(u_pre, u_vec, u_elt: pd.DataFrame):
 def test_direction():
     """Test direction calculation on a small batch of asteroids"""
     # Inputs
-    d0 = 1
-    d1 = 1000
+    # d0 = 1
+    # d1 = 1000
+    d0 = 37501
+    d1 = 38501
     n0 = 1
     n1 = 1000
     deg_max = 15.0

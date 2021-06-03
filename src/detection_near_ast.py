@@ -34,7 +34,7 @@ from tqdm.auto import tqdm
 from typing import Callable
 
 # Local imports
-from asteroid_data import load_ast_elements, load_ast_vectors
+from asteroid_data import load_ast_elements, load_ast_vectors, load_ast_dir
 from asteroid_spline import spline_ast_data, make_spline_df
 from astro_utils import deg2dist
 from orbital_element import elt2pos, anomaly_M2f
@@ -118,22 +118,15 @@ def get_data_ast_dir(n0: int, n1: int):
     """
     Get DataFrame of asteroid directions
     INPUTS:
-        n0: First AsteroidID to process; inclusive.
-        n1: Last AsteroidID to process; exclusive.
+        n0:     First AsteroidID to process; inclusive.
+        n1:     Last AsteroidID to process; exclusive.
     OUTPUTS:
-
+        ast_in: DataFrame including asteroid directions and light time for selected asteroids and date range.
     """
     # Get asteroid directions in this time range
-    sp_name = 'KS.GetAsteroidDirections'
-    params = {
-        'n0': n0,
-        'n1': n1,
-        'mjd0': mjd0,
-        'mjd1': mjd1
-    }
-    ast_in = sp2df(sp_name=sp_name, params=params)
+    ast_in = load_ast_dir(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
-    # Rename columns
+    # Rename columns to disambiguate asteroid direction from observer direction
     col_tbl_ast = {
         'ux': 'uAst_x',
         'uy': 'uAst_y',
@@ -180,18 +173,16 @@ def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float
     # Get asteroid directions
     ast_dir = get_data_ast_dir(n0=n0, n1=n1)
 
-    # Build DataFrame to map from AsteroidID to asteroid number in batch, n
-    dfa = make_ast_num_df(df=ast_dir)
     # Array of distinct asteroids
-    asteroid_id_unq = dfa.AsteroidID.values
+    asteroid_id_unq = np.unique(ast_dir.AsteroidID.values)
 
     # Shape of data
     N_det = det.shape[0]
-    N_ast = dfa.shape[0]
+    N_ast = asteroid_id_unq.shape[0]
 
-    # Build asteroid position spline
-    spline_u_ast = make_spline_df(df=ast_dir, cols_spline=cols_u_ast, time_col='mjd', id_col='AsteroidID')
-    spline_LT = make_spline_df(df=ast_dir, cols_spline=['LightTime'], time_col='mjd', id_col='AsteroidID')
+    # Build spline for asteroid direction and light time
+    spline_u_ast = make_spline_df(df=ast_dir, cols_spline=cols_u_ast, time_col='tObs', id_col='AsteroidID')
+    spline_LT = make_spline_df(df=ast_dir, cols_spline=['LightTime'], time_col='tObs', id_col='AsteroidID')
 
     # First block  of interactions: tile the detections DataFrame N_ast times
     da = pd.concat([det] * N_ast)

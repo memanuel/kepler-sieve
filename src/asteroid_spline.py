@@ -18,7 +18,7 @@ Sat Sep 21 10:38:38 2019
 # Core
 import numpy as np
 import pandas as pd
-from scipy.interpolate import CubicSpline, RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline
 
 # Astronomy
 import astropy
@@ -108,7 +108,7 @@ def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
 
     # Construct a splining function for each splined columns
     spline_funcs = []
-    for _, col in enumerate(cols_spline):
+    for col in cols_spline:
         zi = df[col].values.reshape((N_obj, N_t_in)).T
         spline_func_i = RectBivariateSpline(x=x, y=y, z=zi, kx=kx, ky=ky)
         spline_funcs.append(spline_func_i)
@@ -158,7 +158,7 @@ def spline_data(df: pd.DataFrame, ts: np.ndarray, ids: np.ndarray, cols_spline: 
 
     # The splined asteroid state vectos
     out_dict_splined = {col:spline_data[:,k] for k, col in enumerate(cols_spline)}
-    
+
     # Wrap the output arrays into one dictionary and DataFrame
     out_dict = dict(**out_dict_keys, **out_dict_splined)
     df_out = pd.DataFrame(out_dict)
@@ -246,8 +246,8 @@ def spline_ast_elt(elt: pd.DataFrame, ts: np.ndarray, ids: np.ndarray, vel: bool
         # Position  of the sun
         q_sun = get_sun_pos(ts=ts_out)
         # Write v_hel and v_sun as 0 as a placeholder
-        v_hel = np.zeros(1)
-        v_sun = np.zeros(1)
+        v_hel = 0.0
+        v_sun = 0.0
 
     # The recovered position and velocity of the asteroid in the barycentric frame
     q: np.ndarray = q_hel + q_sun
