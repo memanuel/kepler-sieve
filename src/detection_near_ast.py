@@ -34,7 +34,7 @@ from tqdm.auto import tqdm
 # Local imports
 from asteroid_data import load_ast_elements, load_ast_vectors
 from asteroid_spline import spline_ast_data, make_spline_df
-from astro_utils import deg2dist, dist2sec
+from astro_utils import deg2dist
 from orbital_element import elt2pos
 from planets_interp import get_sun_pos
 from db_utils import sp2df, df2db
@@ -142,6 +142,23 @@ def get_data_ast_dir(n0: int, n1: int):
     return ast_in
 
 # ********************************************************************************************************************* 
+def make_ast_num_df(df: pd.DataFrame):
+    """Build a DataFrame mapping an AsteroidID to an ast_num field, n, that counts asteroids in this batch"""
+
+    # Number of distinct asteroids in the input data
+    ast_unq = np.unique(df.AsteroidID.values)
+    N_ast = ast_unq.size
+    
+    # Build data frame with index = AsteroidID, payload n (asteroid number in this batch)
+    dfa_tbl = {
+        'AsteroidID': ast_unq,
+        'n': np.arange(N_ast, dtype=np.int)
+    }
+    dfa = pd.DataFrame(dfa_tbl)    
+    dfa.set_index(keys='AsteroidID', drop=False, inplace=True)
+    return dfa
+    
+# ********************************************************************************************************************* 
 def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     """
     Process a batch of near asteroid calculations.
@@ -161,17 +178,22 @@ def asteroid_batch_prelim(det: pd.DataFrame, n0: int, n1: int, arcmin_max: float
     # Get asteroid directions
     ast_in = get_data_ast_dir(n0=n0, n1=n1)
 
-    # Number of distinct asteroids in the input data
-    ast_unq = np.unique(ast_in.AsteroidID)
-    N_ast = ast_unq.size
+    # # Number of distinct asteroids in the input data
+    # ast_unq = np.unique(ast_in.AsteroidID)
+    # N_ast = ast_unq.size
     
-    # Build data frame with index = AsteroidID, payload n (asteroid number in this batch)
-    dfa_tbl = {
-        'AsteroidID': ast_unq,
-        'n': np.arange(N_ast, dtype=np.int)
-    }
-    dfa = pd.DataFrame(dfa_tbl)    
-    dfa.set_index(keys='AsteroidID', drop=False, inplace=True)
+    # # Build data frame with index = AsteroidID, payload n (asteroid number in this batch)
+    # dfa_tbl = {
+    #     'AsteroidID': ast_unq,
+    #     'n': np.arange(N_ast, dtype=np.int)
+    # }
+    # dfa = pd.DataFrame(dfa_tbl)    
+    # dfa.set_index(keys='AsteroidID', drop=False, inplace=True)
+
+    # Build table mapping AsteroidID to asteroid number in this batch, n
+    dfa = make_ast_num_df(df=ast_in)
+    # The number of asteroids
+    N_ast = dfa.shape[0]
 
     # Extract array of detection times
     t_obs = det.tObs.values
@@ -342,7 +364,7 @@ def asteroid_batch_vec(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     """
 
     # Unpack DataFrame to numpy arrays
-    asteroid_id = dna.AsteroidID.values
+    # asteroid_id = dna.AsteroidID.values
     t_obs = dna.tObs.values
     t_ast = dna.tAst.values
     light_time = dna.LightTime.values
@@ -386,7 +408,7 @@ def asteroid_batch_elt(dna: pd.DataFrame, n0: int, n1: int, arcmin_max: float):
     """
 
     # Unpack DataFrame to numpy arrays
-    asteroid_id = dna.AsteroidID.values
+    # asteroid_id = dna.AsteroidID.values
     t_obs = dna.tObs.values
     t_ast = dna.tAst.values
     light_time = dna.LightTime.values
@@ -495,90 +517,6 @@ def process_all_asteroids(det: pd.DataFrame, arcmin_max: float, b: int):
     return row_count
 
 # ********************************************************************************************************************* 
-def direction_diff(u0: np.ndarray, u1: np.ndarray):
-    """Compute difference in directions in arc seconds"""
-    du = u1 - u0
-    delta = np.sqrt(np.sum(np.square(du), axis=-1))
-    # Change in arc seconds
-    delta_sec = dist2sec(delta)
-    return delta_sec
-    
-# ********************************************************************************************************************* 
-def report_direction_diff(u_pre, u_vec, u_elt: pd.DataFrame):
-    """
-    Calculate and report difference between three methods of computing directions 
-    to a known asteroid at a detection time
-    """
-    delta_pre_vec = np.max(direction_diff(u0=u_pre, u1=u_vec))
-    delta_pre_elt = np.max(direction_diff(u0=u_pre, u1=u_elt))
-    delta_vec_elt = np.max(direction_diff(u0=u_vec, u1=u_elt))
-
-    # Report results
-    print(f'Max change in direction between different methods:')
-    print(f'pre vs. vec: {delta_pre_vec:5.2f} arc seconds')
-    print(f'pre vs. elt: {delta_pre_elt:5.2f} arc seconds')
-    print(f'vec vs. elt: {delta_vec_elt:5.2e} arc seconds')    
-
-# ********************************************************************************************************************* 
-def test():
-    """Test this calculation on a small batch of asteroids"""
-    # Inputs
-    d0 = 1
-    d1 = 1000
-    n0 = 1
-    n1 = 1000
-    deg_max = 15.0
-    arcmin_max = deg_max * 60.0
-
-    # Status
-    print('Testing detection_near_ast.')
-    print(f'd0: {d0}')
-    print(f'd1: {d1}')
-    print(f'n0: {n0}')
-    print(f'n1: {n1}')
-    print(f'deg_max: {deg_max}')
-
-    # Get detections
-    print(f'Loading detections with DetectionID between {d0} and {d1}...')
-    det = get_data_detections(d0=d0, d1=d1)
-
-    # First pass at detections near asteroids
-    print(f'Calculating preliminary asteroid directions with AsteroidID between {n0} and {n1}...')
-    dna_pre = asteroid_batch_prelim(det=det, n0=n0, n1=n1, arcmin_max=arcmin_max)
-    row_count = dna_pre.shape[0]
-    print(f'Found {row_count} rows in preliminary search with angular distance < {deg_max} degrees.')
-
-    # Sharpen estimate using splined asteroid vectors
-    print(f'\nRefining search using splined asteroid vectors...')
-    dna_vec = dna_pre.copy()
-    asteroid_batch_vec(dna=dna_vec, n0=n0, n1=n1, arcmin_max=arcmin_max)    
-    # Report light time error with vectors
-    _  = light_time_adj(df=dna_vec, verbose=True)
-
-    # Sharpen estimate using splined asteroid elements
-    print(f'\nRefining search using splined orbital elements...')
-    dna_elt = dna_pre.copy()
-    asteroid_batch_elt(dna=dna_elt, n0=n0, n1=n1, arcmin_max=arcmin_max)
-    # Report light time error with vectors
-    _  = light_time_adj(df=dna_vec, verbose=True)
-
-    # Direction from three methods
-    u_pre = dna_pre[cols_u_ast].values
-    u_vec = dna_vec[cols_u_ast].values
-    u_elt = dna_elt[cols_u_ast].values
-    print()
-    report_direction_diff(u_pre=u_pre, u_vec=u_vec, u_elt=u_elt)
-
-    # Condition for passing
-    thresh_pre_vec: float = arcmin_margin * 60.0
-    thresh_vec_elt: float = 0.1
-    delta_pre_vec = np.max(direction_diff(u0=u_pre, u1=u_vec))
-    delta_vec_elt = np.max(direction_diff(u0=u_vec, u1=u_elt))
-    is_ok: bool = (delta_pre_vec < thresh_pre_vec) and (delta_vec_elt < thresh_vec_elt)
-    msg: str = 'PASS' if is_ok else 'FAIL'
-    print(f'**** {msg} ****')
-
-# ********************************************************************************************************************* 
 def main():
     """Calculate the direction and light time of the selected batch of asteroid"""
 
@@ -588,12 +526,10 @@ def main():
     'is near to the direction of a known asteroid.')
     parser.add_argument('d0', nargs='?', metavar='d0', type=int, default=0,
                         help='the first DetectionID to process')
-    parser.add_argument('n_det', nargs='?', metavar='B', type=int, default=10000000,
+    parser.add_argument('n_det', nargs='?', metavar='B', type=int, default=5000000,
                         help='the number of detections to process in this batch'),
     parser.add_argument('arcmin_max', nargs='?', metavar='B', type=float, default=60.0,
                         help='the maximum distance in arcminutes between the observation and asteroid direction.'),
-    parser.add_argument('--test', dest='test', action='store_const', const=True, default=False,
-                        help='Test: run program in test mode.')
 
     # Unpack command line arguments
     args = parser.parse_args()
@@ -601,17 +537,12 @@ def main():
     d1: int = d0 + args.n_det
     arcmin_max: float = args.arcmin_max
 
-    # If test mode, run test harness and then exit
-    if args.test:
-        test()
-        sys.exit()
-
     # Report arguments
     print(f'Processing asteroid directions for DetectionID in between {d0} and {d1} '
           f'with s < {arcmin_max} arc minutes...')
 
     # Set batch size for asteroids and detecions
-    b_det: int = 100000
+    b_det: int = 200000
     b_ast: int = 1000
 
     # Loop over detection batches

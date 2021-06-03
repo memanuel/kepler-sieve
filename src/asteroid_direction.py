@@ -157,8 +157,8 @@ def insert_dir_ast2obs(df: pd.DataFrame):
 
     # Arguments to df2db
     schema = 'KS'
-    table = 'AsteroidDirections'
-    columns = ['AsteroidID', 'TimeID', 'mjd', 'ux', 'uy', 'uz', 'LightTime']
+    table = 'AsteroidDirections2'
+    columns = ['AsteroidID', 'TimeID', 'tObs', 'ux', 'uy', 'uz', 'LightTime']
     chunksize = 2**19
     verbose = False
     progbar = False

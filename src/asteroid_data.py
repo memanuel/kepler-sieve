@@ -57,6 +57,32 @@ def load_ast_vectors(n0: int, n1: int, mjd0: float=0.0, mjd1: float=mjd_last) ->
     return df_ast
 
 # ********************************************************************************************************************* 
+def load_ast_pos(n0: int, n1: int, mjd0: float=0.0, mjd1: float=mjd_last) -> pd.DataFrame:
+    """
+    Load the MSE asteroid integrations for this range of asteroids; returns just position.
+    INPUTS:
+        n0:  First asteroid to load, e.g. 0
+        n1:  Last asteroid to load, (exclusive) e.g. 1000
+        mjd0:  Start modfified julian date used to filter output.
+        mjd1:  Last modified julian date used to filter output.
+               Default for mjd0 and mjd1 is None; then return all available time steps
+    OUTPUTS:
+        df_ast:   Position & velocity of asteroids in barycentric frame
+    """
+
+    # Get asteroid data (state vectors and orbital elements) from database
+    sp_name = 'KS.GetAsteroidPositions'
+    params = {
+        'n0': n0,
+        'n1': n1,
+        'mjd0': mjd0,
+        'mjd1': mjd1,
+    }
+    df_ast = sp2df(sp_name, params)
+
+    return df_ast
+
+# ********************************************************************************************************************* 
 def load_ast_elements(n0: int, n1: int, mjd0: float=0.0, mjd1: float=mjd_last) -> pd.DataFrame:
     """
     Load the MSE asteroid integrations for this range of asteroids; returns just orbital elements.
