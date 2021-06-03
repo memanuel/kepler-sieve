@@ -600,7 +600,7 @@ def main():
 
     # Set batch size for asteroids and detecions
     b_det: int = 100000
-    b_ast: int = 10000
+    b_ast: int = 1000
 
     # Loop over detection batches
     k0: int = d0 // b_det
