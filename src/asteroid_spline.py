@@ -99,7 +99,8 @@ def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
     # Note that this is assumed to be shared by all the different IDs
     x = df[time_col].values[0:N_t_in]
 
-    # Data to be splined: y axis is the AsteroidID; this isn't *really* splined, it just uniquely identifies a row
+    # Data to be splined: y axis is the ID, e.g. AsteroidID; 
+    # This column isn't *really* splined, it just uniquely identifies a row
     y = df[id_col].values[0:N_row:N_t_in]
 
     # Set splining order: cubic on x axis (time), linear on dummy AsteroidID axis
