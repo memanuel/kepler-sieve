@@ -1,15 +1,26 @@
-SELECT * FROM KS.AsteroidDirections2 WHERE AsteroidID=1;
-
-INSERT INTO KS.AsteroidDirections2
-(AsteroidID, TimeID, tObs, ux, uy, uz, LightTime)
 SELECT
-	ad.AsteroidID, 
-	ad.TimeID, 
-	ad.mjd AS tObs, 
-	ad.ux, 
-	ad.uy, 
+	-- Key fields
+	ad.AsteroidID,
+	ad.TimeID,
+	ad.mjd,
+	-- Original RA/DEC
+	ad.RA,
+	ad.`DEC`,
+	-- Calculated direction
+	ad.ux,
+	ad.uy,
 	ad.uz,
-	ad.LightTime
+	-- Range
+-- 	ad.r, 
+-- 	ad.rDot,
+-- 	ad.delta,
+-- 	ad.deltaDot,
+--	ad.Mag,	
+	-- Misc
+	ad.LightTime,
 FROM
-	KS.AsteroidDirections AS ad
-WHERE ad.AsteroidID <= 1000;
+	JPL.AsteroidDirection AS ad
+	INNER JOIN JPL.HorizonsBody AS hb ON hb.SmallBodyID = ad.AsteroidID
+	INNER JOIN JPL.HorizonsVectors AS hv ON 
+		hv.HorizonsBodyID=hb.HorizonsBodyID AND
+		hv.TimeID=ad.TimeID;

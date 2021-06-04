@@ -2,7 +2,7 @@ DELIMITER $$
 
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE KS.GetAsteroidDirections(
+PROCEDURE KS.GetAsteroidDirection(
     IN n0 INT,
     IN n1 INT,
     IN mjd0 INT,
@@ -27,7 +27,7 @@ SELECT
     -- The time when light left the asteroid
     ad.tObs - ad.LightTime / 1440.0 AS tAst
 FROM
-	KS.AsteroidDirections AS ad
+	KS.AsteroidDirection AS ad
 WHERE 
 	ad.TimeID BETWEEN @TimeID_0 AND @TimeID_1 AND
 	ad.AsteroidID BETWEEN n0 AND (n1-1)
