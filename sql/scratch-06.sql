@@ -1,2 +1,0 @@
-ALTER TABLE OrbitalElements_Planets
-ADD COLUMN WindingNumber INT NOT NULL DEFAULT 0 AFTER EA;

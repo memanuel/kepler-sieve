@@ -29,8 +29,8 @@ def main():
 
     # Get CSV file names
     # fnames_csv = ['/ssd1/Harvard/kepler-sieve/data/df2db/AsteroidVectors-chunk-0.csv']
+    # fnames_csv = fnames_csv[100:110]
     fnames_csv = find_fnames_csv(table=table, verbose=True)
-    fnames_csv = fnames_csv[100:110]
 
     # Iterate through the CSVs and load them with mariadb-import
     for fname_csv in fnames_csv:
@@ -50,7 +50,7 @@ def main():
         print('\n', fname_csv)
         subprocess.run(args)
 
-        # # Restore the file name
+        # Restore the file name
         os.rename(fname_load, fname_csv)
 
 # ********************************************************************************************************************* 

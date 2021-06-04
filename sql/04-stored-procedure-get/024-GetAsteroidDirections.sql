@@ -19,11 +19,13 @@ SET @TimeID_1 = mjd1 * 24 * 60;
 SELECT
     ad.AsteroidID,
 	ad.TimeID,
-	ad.mjd,
+	ad.tObs,
 	ad.ux,
 	ad.uy,
 	ad.uz,
-    ad.LightTime    
+    ad.LightTime,
+    -- The time when light left the asteroid
+    ad.tObs - ad.LightTime / 1440.0 AS tAst
 FROM
 	KS.AsteroidDirections AS ad
 WHERE 

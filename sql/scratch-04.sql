@@ -1,3 +1,6 @@
-SELECT * FROM KS.AsteroidDirections2 ORDER BY AsteroidID, TimeID;
-
-CALL KS.GetAsteroidDirections(1, 2, 59000, 59004);
+SELECT 
+	it.*
+FROM
+	KS.IntegrationTime AS it
+-- WHERE it.mjd IN (48000, 63000);
+WHERE it.mjd IN (40400, 77600);
