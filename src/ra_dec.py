@@ -18,8 +18,7 @@ from skyfield.api import Loader as SkyfieldLoader
 from skyfield.toposlib import Topos
 
 # Utility
-import os
-from datetime import date, datetime
+from datetime import date
 
 # MSE imports
 from astro_utils import mjd_to_jd, date_to_mjd
@@ -82,8 +81,9 @@ def radec2dir(ra: float, dec: float, obstime_mjd: float) -> np.array:
     # Convert to the barycentric ecliptic frame (oriented with ecliptic, origin at barycenter)
     obs_ecl = obs_icrs.transform_to(BarycentricMeanEcliptic)
     u = obs_ecl.cartesian.xyz
-    # Return as a numpy array of shape 3xN (easier b/c this is astropy default)
-    return u.value
+    # Return as a numpy array of shape Nx3 
+    # (astropy default shapes the array as 3xN)
+    return np.moveaxis(u.value, source=0, destination=-1)
 
 # ********************************************************************************************************************* 
 def dir2radec(u: np.array, obstime_mjd: np.array) -> Tuple[np.ndarray, np.ndarray]:

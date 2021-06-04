@@ -44,6 +44,37 @@ c = astropy.constants.c.to(au / minute).value
 # Column names used in calculations
 cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
 cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
+cols_dir = ['ux', 'uy', 'uz']
+
+# ********************************************************************************************************************* 
+def calc_distance(q0: np.ndarray, q1:np.ndarray):
+    """
+    Distance between two position arrays.
+    INPUTS:
+        q0: First array of positions; shape (N, 3,)
+        q1: Second array of positions; shape (N, 3,)
+    OUTPUTS:
+        r:  Array of distances from q0 to q1; shape (N,)
+    """
+    dq = q1 - q0
+    r = np.sqrt(np.sum(np.square(dq), axis=-1))
+    return r
+
+# ********************************************************************************************************************* 
+def calc_direction(q0: np.ndarray, q1:np.ndarray):
+    """
+    Direction and distance between two position arrays.
+    INPUTS:
+        q0: First array of positions; shape (N, 3,)
+        q1: Second array of positions; shape (N, 3,)
+    OUTPUTS:
+        u:  Array of directions from q0 to q1; shape (N, 3,)
+        r:  Array of distances from q0 to q1; shape (N,)    
+    """
+    dq = q1 - q0
+    r = np.sqrt(np.sum(np.square(dq), axis=-1, keepdims=True))
+    u = dq / r
+    return u
 
 # ********************************************************************************************************************* 
 def light_time_iter(df: pd.DataFrame, spline_q_ast: Callable[[np.ndarray, np.ndarray], np.ndarray]):
@@ -71,10 +102,8 @@ def light_time_iter(df: pd.DataFrame, spline_q_ast: Callable[[np.ndarray, np.nda
     q_ast = spline_q_ast(x=t_ast, y=asteroid_id)
     df[cols_q_ast] = q_ast
 
-    # Compute position difference and distance from asteroid to earth
-    dq = q_ast-q_obs
-    r = np.sqrt(np.sum(dq*dq, axis=-1))
-
+    # Compute distance from asteroid to earth
+    r = calc_distance(q0=q_obs, q1=q_ast)
     # Compute light time and update it on DataFrame
     light_time = r/c
     df['LightTime'] = light_time
@@ -124,9 +153,8 @@ def calc_dir_ast2obs(n0: int, n1: int):
     # Extract asteroid position vectors
     q_ast = ast_pos[cols_q_ast].values
 
-    # Compute position difference and distance from asteroid to earth
-    dq = q_ast-q_obs
-    r = np.sqrt(np.sum(dq*dq, axis=-1))
+    # Compute distance from asteroid to earth
+    r = calc_distance(q0=q_obs, q1=q_ast)
 
     # Compute light time and update it on DataFrame
     light_time = r/c
@@ -139,17 +167,11 @@ def calc_dir_ast2obs(n0: int, n1: int):
 
     # Experiments show that 3 iterations is sufficient to achieve full convergence
     # Error in light_time (number of minutes) around 5E-9 at this point
-    for _ in range(4):
+    for _ in range(3):
         light_time_iter(df=df, spline_q_ast=spline_q_ast)
 
-    # Compute position difference and distance from asteroid to earth
-    q_obs = df[cols_q_obs].values
-    dq = q_ast - q_obs
-    r = np.sqrt(np.sum(np.square(dq), axis=-1, keepdims=True))
-
-    # Calculate the direction and save it to DataFrame
-    u = dq/r
-    cols_dir = ['ux', 'uy', 'uz']
+    # Calculate direction and save to DataFrame
+    u = calc_direction(q0=q_obs, q1=q_ast)
     df[cols_dir] = u
 
     return df
@@ -187,7 +209,7 @@ def main():
 
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Calculated direction from known asteroids to Earth center '
-    'implied by rebound integration.  Populates DB table KS.AsteroidDirections.')
+    'implied by rebound integration.  Populates DB table KS.AsteroidDirection.')
     parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
                         help='the first asteroid number to process')
     parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,

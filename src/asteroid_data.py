@@ -151,7 +151,7 @@ def load_ast_dir(n0: int, n1: int, mjd0: float=0.0, mjd1: float=mjd_last) -> pd.
     """
 
     # Get asteroid directions in this time range
-    sp_name = 'KS.GetAsteroidDirections'
+    sp_name = 'KS.GetAsteroidDirection'
     params = {
         'n0': n0,
         'n1': n1,

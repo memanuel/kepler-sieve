@@ -63,7 +63,7 @@ def test_direction():
     # Status
     print_stars()
     print('Test of direction calculation with three methods:')
-    print(f'(1) spline direction from KS.AsteroidDirections')
+    print(f'(1) spline direction from KS.AsteroidDirection')
     print(f'(2) spline asteroid position from KS.AsteroidVectors; iteratively solve for light time')
     print(f'(3) spline asteroid position from KS.AsteroidElements; iteratively solve for light time')
     print(f'Inputs used:')
