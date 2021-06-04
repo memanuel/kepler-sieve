@@ -14,7 +14,7 @@ import pandas as pd
 from asteroid_element import get_ast_data
 from planets_interp import get_sun_vectors
 from orbital_element import unpack_elt_df, elt2pos, elt2vec
-from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E_danby, anomaly_M2E
+from orbital_element import anomaly_f2E, anomaly_E2f, anomaly_E2M, anomaly_M2E_danby, anomaly_M2E, anomaly_f2M
 from orbital_element_table import anomaly_M2E_table
 
 # ********************************************************************************************************************* 
@@ -129,8 +129,8 @@ def test_E2M():
     return report_test(err=err, test_name='E2M', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
-def test_M2E_danby():
-    """Test conversion from M to E using Danby iteration method"""
+def test_M2E_danby(n: int = 3):
+    """Test conversion from M to E using Danby iteration method"""    
     # Get test elements and unpack them
     elts = get_test_elements()
     e = elts.e.values
@@ -140,13 +140,13 @@ def test_M2E_danby():
     # Calculate E from f and e
     E = anomaly_f2E(f=f, e=e)
     # Recover E from M
-    E2 = anomaly_M2E_danby(M=M, e=e)
+    E2 = anomaly_M2E_danby(M=M, e=e, n=n)
 
     # Calculate the distance between these two angles
     err = angle_distance(E, E2)
 
     # Report the results
-    return report_test(err=err, test_name='M2E (Danby, 3 iterations)', thresh=1.0E-9)
+    return report_test(err=err, test_name=f'M2E (Danby, {n} iterations)', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_M2E_table():
@@ -187,6 +187,29 @@ def test_M2E():
 
     # Report the results
     return report_test(err=err, test_name='M2E', thresh=1.0E-9)
+
+# ********************************************************************************************************************* 
+def test_M2E_internal(n: int = 3):
+    """Test conversion from M to E for internal consistency on a round trip"""
+    # Get test elements and unpack them
+    elts = get_test_elements()
+    e = elts.e.values
+    f = elts.f.values
+
+    # Calculate M from f and e using Kepler's equation
+    M = anomaly_f2M(f=f, e=e)
+
+    # Calculate E from f and e
+    E1 = anomaly_f2E(f=f, e=e)
+    # Recover E from M
+    # E2 = anomaly_M2E(M=M, e=e, n=n)
+    E2 = anomaly_M2E_danby(M=M, e=e, n=n)
+
+    # Calculate the distance between these two angles
+    err = angle_distance(E1, E2)
+
+    # Report the results
+    return report_test(err=err, test_name=f'M2E round trip ({n} iterations)', thresh=1.0E-9)
 
 # ********************************************************************************************************************* 
 def test_elt2pos():
@@ -266,6 +289,7 @@ def test_all():
     # is_ok &= test_M2E_danby()
     # is_ok &= test_M2E_table()
     is_ok &= test_M2E()
+    is_ok &= test_M2E_internal(n=3)
     is_ok &= test_elt2pos()
     is_ok &= test_elt2vec()
 
