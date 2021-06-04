@@ -70,7 +70,6 @@ SELECT
 	ad.Mag
 FROM
 	JPL.AsteroidDirection AS ad
-	INNER JOIN JPL.Asteroid
 WHERE
     ad.AsteroidID BETWEEN n0 AND (n1-1);
 
@@ -96,6 +95,7 @@ SELECT
 	hv.qz AS qAst_z,
 	-- Light time
 	ad.LightTime,
+	ad.mjd + ad.LightTime / 1440.0 AS tObs,
 	-- Calculated direction
 	ad.ux,
 	ad.uy,
