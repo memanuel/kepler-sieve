@@ -3,21 +3,30 @@ Astronomy Utilities
 
 Michael S. Emanuel
 Fri Aug 23 16:13:28 2019
+
+Functions defined in this module:
+date_to_jd(t)
+date_to_mjd(t)
+jd_to_date(jd)
+mjd_to_date(mjd)
+datetime_to_jd(t)
+datetime_to_mjd(t, epoch)
+datetime_to_year(t)
+jd_to_datetime(jd)
+mjd_to_datetime(mjd)
+jd_to_mjd(jd)
+mjd_to_jd(mjd)
+dist2rad(dist)
+rad2dist(x_rad)
+dist2deg(dist)
+deg2dist(x_deg)
+dist2sec(dist)
 """
 
 # Core
 import numpy as np
-from scipy import interpolate
 from datetime import date, datetime, timedelta
 from collections import namedtuple
-
-# Astronomy
-import astropy
-from astropy.units import deg, au, km, meter, day, minute, second
-from astropy.coordinates import SkyCoord, ICRS, GCRS, BarycentricMeanEcliptic
-
-# Typing
-from typing import Tuple, Optional
 
 # *************************************************************************************************
 # Constant with the base date for julian day conversions
@@ -149,38 +158,6 @@ def dist2sec(dist):
     x_rad = dist2rad(dist)
     return np.rad2deg(x_rad) * 3600.0
 
-# *************************************************************************************************
-def xyz_to_sph(x: np.array, y: np.array, z: np.array):
-    """
-    Convert a Cartesian coordinates x, y, z of a displacement vector to 
-    spherical coordinates r, alt, az
-    Used only for error checking, not RA/DEC calculations.
-    See ra_dec.py for conversions between Cartesian and RA/DEC coordinates.
-    """
-    # The distance R
-    r = np.sqrt(x*x + y*y + z*z)
-
-    # The azimuth
-    az = np.arctan2(y, x)
-
-    # The altitude; use mask to avoid divide by zero when r=0
-    alt = np.zeros_like(z)
-    mask = r>0
-    alt[mask] = np.arcsin(z[mask] / r[mask])
-
-    return r, alt, az
-
-# *************************************************************************************************
-def cart_to_sph(q: np.array):
-    """
-    Convert a Cartesian coordinates q with shape (N,3) to spherical coordinates r, alt, az"""
-    # Unpack x, y, z
-    x = q[:, 0]
-    y = q[:, 1]
-    z = q[:, 2]
-    # Delegate to xyz_to_sph
-    return xyz_to_sph(x, y, z)
-
 # ********************************************************************************************************************* 
 def reverse_velocity(sim):
     """Reverse the velocities in a simulation for backwards time integration; modifies sim in place"""
@@ -189,6 +166,60 @@ def reverse_velocity(sim):
         p.vx = -vx
         p.vy = -vy
         p.vz = -vz
+
+# ********************************************************************************************************************* 
+def infer_shape(q):
+    """
+    Infer the axes with data and space dimensions
+    INPUTS:
+        q: a vector
+    OUTPUTS:
+        data_axis: the index of the axis for the N data entries, e.g. 0 when data is Nx3
+        space_axis: the index of the axis for the 3 space dimensions, e.g. 1 when data is Nx3
+        shape: the shape of the vectors, e.g. (-1, 3) when data is Nx3
+    """
+    if q.shape[0] == 3:
+        data_axis, space_axis = 1, 0
+        shape = (3, -1)
+    elif q.shape[1] == 3:
+        data_axis, space_axis = 0, 1
+        shape = (-1, 3)
+    else:
+        raise ValueError(f'Bad data shape! q_earth has shape {q.shape}, should by Nx3 or 3xN.')
+
+    return data_axis, space_axis, shape
+
+# *************************************************************************************************
+# def xyz_to_sph(x: np.array, y: np.array, z: np.array):
+#     """
+#     Convert a Cartesian coordinates x, y, z of a displacement vector to 
+#     spherical coordinates r, alt, az
+#     Used only for error checking, not RA/DEC calculations.
+#     See ra_dec.py for conversions between Cartesian and RA/DEC coordinates.
+#     """
+#     # The distance R
+#     r = np.sqrt(x*x + y*y + z*z)
+
+#     # The azimuth
+#     az = np.arctan2(y, x)
+
+#     # The altitude; use mask to avoid divide by zero when r=0
+#     alt = np.zeros_like(z)
+#     mask = r>0
+#     alt[mask] = np.arcsin(z[mask] / r[mask])
+
+#     return r, alt, az
+
+# # *************************************************************************************************
+# def cart_to_sph(q: np.array):
+#     """
+#     Convert a Cartesian coordinates q with shape (N,3) to spherical coordinates r, alt, az"""
+#     # Unpack x, y, z
+#     x = q[:, 0]
+#     y = q[:, 1]
+#     z = q[:, 2]
+#     # Delegate to xyz_to_sph
+#     return xyz_to_sph(x, y, z)
 
 # *************************************************************************************************
 # Testing
@@ -232,5 +263,6 @@ def main():
     test_julian_day()
     # test_anomaly_M2E()
 
+# *************************************************************************************************
 if __name__ == '__main__':
     main()

@@ -19,17 +19,23 @@ from scipy.interpolate import CubicSpline
 from astropy.units import deg
 
 # Local imports
-from asteroid_direction import calc_dir_ast2obs, calc_distance
+from asteroid_direction import calc_direction_linear, calc_dir_ast2obs, calc_distance
 from ra_dec import radec2dir
 from db_utils import sp2df, df2db
 from astro_utils import dist2sec
+from ra_dec_test import direction_diff
 from utils import print_stars
 
 # ********************************************************************************************************************* 
 # Column names for astrometric and apparent direction
-cols_dir = ['ux', 'uy', 'uz']
 cols_dir_ast = ['ux_ast', 'uy_ast', 'uz_ast']
 cols_dir_app = ['ux_app', 'uy_app', 'uz_app']
+
+# Column names for testing 
+cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
+cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
+cols_v_ast = ['vAst_x', 'vAst_y', 'vAst_z']
+cols_u = ['ux', 'uy', 'uz']
 
 # ********************************************************************************************************************* 
 def jpl_ast_dir_populate():
@@ -62,11 +68,85 @@ def jpl_ast_dir_populate():
     df[cols_dir_app] = u_app
 
     # Write asteroid directions to new DB table JPL.AsteroidDirections
-    columns = ['AsteroidID', 'TimeID', 'mjd', 
+    columns = ['AsteroidID', 'ObservatoryID', 'TimeID', 'mjd', 
                'RA_ast', 'DEC_ast', 'ux_ast', 'uy_ast', 'uz_ast', 
                'RA_app', 'DEC_app', 'ux_app', 'uy_app', 'uz_app', 
                'LightTime']
     df2db(df=df, schema='JPL', table='AsteroidDirection', columns=columns)
+
+# ********************************************************************************************************************* 
+def test_dir_linear(state_vec_src: str):
+    """
+    Test MSE astrometric direction calculation vs. JPL using the linear model.
+    INPUTS:
+        state_vec_src: One of 'JPL' or 'MSE' - the source of the state vectors used
+    """
+    # Check state_vec_src
+    if state_vec_src not in ('JPL', 'MSE'):
+        raise ValueError("Bad state_vec_src! Must be one of 'JPL' or 'MSE'.")
+    # Table of SP name
+    sp_name_tbl = {
+        'JPL': 'JPL.AstrometricDirectionTest',
+        'MSE': 'JPL.AstrometricDirectionAndVectorTest' 
+    }
+
+    # Import the JPL asteroid directions
+    sp_name = sp_name_tbl[state_vec_src]
+    df = sp2df(sp_name=sp_name)
+
+    # Position and velocity according to JPL
+    q_obs = df[cols_q_obs].values
+    q_ast = df[cols_q_ast].values
+    v_ast = df[cols_v_ast].values
+
+    # Direction according to JPL
+    u_jpl = df[cols_u].values
+
+    # MSE calculation of the astrometric direction in linear model
+    u_mse = calc_direction_linear(q_tgt=q_ast, v_tgt=v_ast, q_obs=q_obs)
+
+    # Compare the two directions
+    print(f'Compare directions on the first 16 asteroids using {state_vec_src} state vectors:')
+    print('JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.')
+    print('MSE: MSE calculations using linear model with function calc_direction_linear in asteroid_direction.py.\n')
+    direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
+
+# ********************************************************************************************************************* 
+def test_ast_dir_vectors():
+    """
+    Test for consistency between JPL and MSE integrations in the implied direction from earth geocenter to asteroid.
+    """
+    # Directions from two different sources
+    df_jpl = sp2df(sp_name='JPL.AstrometricDirectionTest')
+    df_mse = sp2df(sp_name='JPL.AstrometricDirectionAndVectorTest')
+
+    # Mask both frames down to overlapping dates (multiples of 20)
+    mask_interval = 20*1440
+    mask_jpl = (df_jpl.TimeID % mask_interval) == 0
+    df_jpl = df_jpl[mask_jpl].reindex()
+    mask_mse = (df_mse.TimeID % mask_interval) == 0
+    df_mse = df_mse[mask_mse].reindex()    
+
+    # State vectors according to JPL integration
+    q_obs_jpl = df_jpl[cols_q_obs].values
+    q_ast_jpl = df_jpl[cols_q_ast].values
+    v_ast_jpl = df_jpl[cols_v_ast].values
+
+    # State vectors according to MSE integration
+    q_obs_mse = df_mse[cols_q_obs].values
+    q_ast_mse = df_mse[cols_q_ast].values
+    v_ast_mse = df_mse[cols_v_ast].values
+
+    # Directions calculated in linear model with both state vectors
+    u_jpl = calc_direction_linear(q_tgt=q_ast_jpl, v_tgt=v_ast_jpl, q_obs=q_obs_jpl)
+    u_mse = calc_direction_linear(q_tgt=q_ast_mse, v_tgt=v_ast_mse, q_obs=q_obs_mse)
+
+    # Compare the two directions
+    print('Compare directions on the first 16 asteroids between two sources of state vectors:')
+    print('JPL: State vectors sources from JPL using Horizons.')
+    print('MSE: Integration done in rebound.')
+    print('Both sources have directions calculated using calc_direction_linear().')
+    direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
 
 # ********************************************************************************************************************* 
 def test_ast_dir(dfh: pd.DataFrame, asteroid_id: int, iters: int):
@@ -81,10 +161,6 @@ def test_ast_dir(dfh: pd.DataFrame, asteroid_id: int, iters: int):
     # Mask down to selected asteroid
     mask = (dfh.AsteroidID == asteroid_id)
     dfh = dfh[mask]
-
-    # Take every 4th row to get data every 20 days; this matches exactly on MSE integration points
-    dfh = dfh.iloc[::20]
-    dfh.reset_index(inplace=True)
 
     # Inputs to calc_dir_ast2obs
     n0: int = asteroid_id
@@ -150,18 +226,24 @@ def test_ast_dir(dfh: pd.DataFrame, asteroid_id: int, iters: int):
 # ********************************************************************************************************************* 
 def main():
     # Build table JPL.AsteroidDirections from JPl.AsteroidDirections_Import
-    jpl_ast_dir_populate()
-    print('Regenerated DB table JPL.AsteroidDirection')
+    # jpl_ast_dir_populate()
+    # print('Regenerated DB table JPL.AsteroidDirection')
 
-    # Get test DataFrame from JPL
-    sp_name = 'JPL.AsteroidDirectionTest'
-    dfh = sp2df(sp_name=sp_name)
-
-    # Test the asteroid directions
+    # Test the asteroid directions with JPL state vectors
+    print()
     print_stars()
-    test_ast_dir(dfh=dfh, asteroid_id=1, iters=2)
-    pass
+    test_dir_linear(state_vec_src='JPL')
 
+    # Test the asteroid directions with MSE state vectors
+    print()
+    print_stars()
+    test_dir_linear(state_vec_src='MSE')
+
+    # Test the MSE integration vs. JPL by comparing state vectors
+    print()
+    print_stars()
+    test_ast_dir_vectors()
+    
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     main()
