@@ -109,14 +109,17 @@ def light_time_iter(df: pd.DataFrame, spline_q_ast: Callable[[np.ndarray, np.nda
     df['LightTime'] = light_time
 
 # ********************************************************************************************************************* 
-def calc_dir_ast2obs(n0: int, n1: int):
+def calc_dir_ast2obs(n0: int, n1: int, iters: int=2):
     """
     Calculate light time and direction for asteroids in the given range.
     The time when photons leave the asteroid is fixed on a regular schedule.
     The arrival time includes the light time
     INPUTS:
-        n0: Fist asteroid number to include; inclusive.
-        n1: Last asteroid number to include; exclusive.
+        n0:     Fist asteroid number to include; inclusive.
+        n1:     Last asteroid number to include; exclusive.
+        iters:  number of iterations.
+                n=1 is already fully converged b/c the initial guess incorporates the light time from
+                the instantaneous distance from Earth to the asteroid.
     RETURNS:
         df: DataFrame with asteroid direction and light time.
             Columns: AsteroidID, TimeID, tAst, qAst_x, qAst_y, qAst_z, LightTime, tObs, qObs_x, qObs_y, qObs_z
@@ -165,9 +168,9 @@ def calc_dir_ast2obs(n0: int, n1: int):
     time_col = 'tAst'
     spline_q_ast = make_spline_df(df=ast_pos, cols_spline=cols_q_ast, id_col=id_col, time_col=time_col)
 
-    # Experiments show that 3 iterations is sufficient to achieve full convergence
+    # Experiments show that 2 iterations is sufficient to achieve full convergence
     # Error in light_time (number of minutes) around 5E-9 at this point
-    for _ in range(3):
+    for _ in range(iters):
         light_time_iter(df=df, spline_q_ast=spline_q_ast)
 
     # Calculate direction and save to DataFrame
