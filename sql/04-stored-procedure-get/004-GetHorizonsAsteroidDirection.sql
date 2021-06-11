@@ -91,7 +91,9 @@ $$
 -- ********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
-PROCEDURE JPL.AstrometricDirectionTest()
+PROCEDURE JPL.AstrometricDirectionTest(
+	IN ObservatoryShortName VARCHAR(16)
+)
 COMMENT "Get asteroid directions and positions to test MSE calculations; vectors from JPL."
 
 BEGIN 
@@ -142,7 +144,7 @@ WHERE
 	-- Only test the date range of MSE integrated orbits
 	ad.TimeID BETWEEN 48000*24*60 AND 63000*24*60
 	-- Only return Earth geocenter directions
-	AND o.ObservatoryShortName='Geocenter'
+	AND o.ObservatoryShortName=ObservatoryShortName
 ORDER BY ad.AsteroidID, ad.TimeID;
 
 END
