@@ -136,10 +136,16 @@ def calc_topos(obstime_mjd, site_name: str):
         # Evaluate it at the desired observation times
         spline_out = topos_spline(obstime_mjd)
         # unpack into dq and dv, with units
-        dq_topos = spline_out[:, 0:3] * au
-        dv_topos = spline_out[:, 3:6] * au/day
+        # dq_topos = spline_out[:, 0:3] * au
+        # dv_topos = spline_out[:, 3:6] * au/day
+
+        # unpack into dq and dv; units are in au and au/day
+        dq_topos = spline_out[:, 0:3]
+        dv_topos = spline_out[:, 3:6]
     else:
         # default is to use geocenter if obstime and geoloc are not passed
+        # dq_topos = np.zeros(3) * au
+        # dv_topos = np.zeros(3) * au/day
         dq_topos = np.zeros(3) * au
         dv_topos = np.zeros(3) * au/day
     return dq_topos, dv_topos
