@@ -26,12 +26,15 @@ from astropy.units import au, day
 
 # Local imports
 from planets_interp import get_sun_vectors, get_sun_pos
+from orbital_element import unpack_elt_np
 from asteroid_data import load_ast_data
+from asteroid_element import get_ast_elts_ts
 from orbital_element import unpack_elt_df, elt2vec, elt2pos, anomaly_M2f
 from orbital_element_test import report_test
 
 # Types
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Callable
+spline_type_ast = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 # ********************************************************************************************************************* 
 # Speed of light; express this in AU / day
@@ -69,7 +72,7 @@ def get_df_shape(df: pd.DataFrame, id_col: str) -> Tuple[int, int]:
 
 # ********************************************************************************************************************* 
 def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
-                   time_col: Optional[str]=None, id_col: Optional[str]=None) -> pd.DataFrame:
+                   time_col: Optional[str]=None, id_col: Optional[str]=None) -> spline_type_ast:
     """
     Build a splining interpolator from a DataFrame
     INPUTS:
@@ -107,7 +110,7 @@ def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
     kx=3
     ky=1
 
-    # Construct a splining function for each splined columns
+    # Construct a splining function for each splined column
     spline_funcs = []
     for col in cols_spline:
         zi = df[col].values.reshape((N_obj, N_t_in)).T
@@ -123,6 +126,71 @@ def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
 
     # Return the assembled spline function
     return spline_func
+
+# ********************************************************************************************************************* 
+def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
+    """
+    Build a splining interpolator that returns splined orbital elements for asteroids
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
+    OUTPUTS:
+        spline_elt: An interpolation function that accepts array inputs x and y, e.g.
+                    elt = spline_func(x, y)
+                    x and y should be 1D arrays of the same size, sz.
+                    elt is an array of shape (sz, 7) with the 7 elements a, e, i, inc, Omega, omega, f, M
+    """
+    # Get the orbital elements for these asteroids
+    elt = get_ast_elts_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Delegate to make_spline_df
+    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+    time_col = 'mjd'
+    id_col = 'AsteroidID'
+    spline_elt = make_spline_df(df=elt, cols_spline=cols_spline, time_col=time_col, id_col=id_col)
+    return spline_elt
+
+# ********************************************************************************************************************* 
+def make_spline_ast_pos(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
+    """
+    Build a splining interpolator that returns asteroid positions by way of splined orbital elements
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
+    OUTPUTS:
+        spline_elt: An interpolation function that accepts array inputs x and y, e.g.
+                    elt = spline_func(x, y)
+                    x and y should be 1D arrays of the same size, sz.
+                    elt is an array of shape (sz, 7) with the 7 elements a, e, i, inc, Omega, omega, f, M
+    """
+    # Delegate to make_spline_ast_elt to build an interpolator for the orbital elements
+    spline_elt = make_spline_ast_elt(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    # Wrap up a function that returns the position vector
+    def spline_q_ast(ts: np.ndarray, asteroid_id: np.ndarray):
+        """Splineed position as a function of time and asteroid_id"""
+        # Caclulate the splined orbital elements for the input times and asteroid_ids
+        elt = spline_elt(ts, asteroid_id)
+        # Unpack the elements
+        a, e, inc, Omega, omega, f, M = unpack_elt_np(elt)        
+        # Recover f from M
+        f = anomaly_M2f(M=M, e=e)
+        # Compute q in the heliocentric frame
+        q_hel: np.ndarray = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
+        # Position  of the sun
+        q_sun: np.ndarray = get_sun_pos(ts=ts)
+        # The position of the asteroid in the barycentric frame
+        q: np.ndarray = q_hel + q_sun
+        return q
+
+    return spline_q_ast
+    
+# ********************************************************************************************************************* 
+# Spline data to an output DataFrame
+# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def spline_data(df: pd.DataFrame, ts: np.ndarray, ids: np.ndarray, cols_spline: List[str], 
@@ -165,10 +233,6 @@ def spline_data(df: pd.DataFrame, ts: np.ndarray, ids: np.ndarray, cols_spline: 
     df_out = pd.DataFrame(out_dict)
 
     return df_out
-
-# ********************************************************************************************************************* 
-# Specialize splines for asteroids - either directly spline state vectors or spline elements, then transform them
-# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def spline_ast_data(df_ast: pd.DataFrame, ts: np.ndarray, ids: np.ndarray, cols_spline: List[str]) -> pd.DataFrame:

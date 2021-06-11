@@ -8,6 +8,7 @@ Michael S. Emanuel
 
 # Core
 import numpy as np
+import pandas as pd
 
 # Utility
 from collections import namedtuple
@@ -42,7 +43,7 @@ mu = G_ * 1.0
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def unpack_elt_df(df: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def unpack_elt_df(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Unpack a DataFrame of orbital elements
     INPUTS:
@@ -58,6 +59,36 @@ def unpack_elt_df(df: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, n
     omega = df.omega.values
     f = df.f.values
     return a, e, inc, Omega, omega, f
+
+# ********************************************************************************************************************* 
+def unpack_elt_np(elt: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Unpack a DataFrame of orbital elements
+    INPUTS:
+        elt:        A numpy array of elements, with the columns a, e, inc, Omega, omega, f; and possibly M.
+    OUTPUTS:
+        elt_tuple:  Tuple of 6 or 7 numpy arrays for these elements.
+    """
+    # Get size of input orbital elements
+    col_count = elt.shape[1]
+    # Unpack the first six elements
+    a = elt[:, 0]
+    e = elt[:, 1]
+    inc = elt[:, 2]
+    Omega = elt[:, 3]
+    omega = elt[:, 4]
+    f = elt[:, 5]
+
+    # There should be either 6 or 7 columns in the elements
+    if col_count == 6:
+        elt_tuple = a, e, inc, Omega, omega, f
+    elif col_count == 7:
+        M = elt[:, 6]
+        elt_tuple = a, e, inc, Omega, omega, f, M
+    else:
+        raise ValueError('Bad shape for elt! Must have shape (N, 6) or (N, 7).')
+
+    return elt_tuple
 
 # ********************************************************************************************************************* 
 def unpack_vector(v: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:

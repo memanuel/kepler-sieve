@@ -105,6 +105,9 @@ def calc_topos_impl(obstime_mjd: np.ndarray, obsgeoloc: EarthLocation) -> np.nda
 def calc_topos(obstime_mjd, site_name: str):
     """
     Calculate topos adjustment using cached spline
+    INPUTS:
+        obstime_mjd: Observation times as a numpy array of mjds
+        site_name:   Name of an observatory or geolocation site recognized by astropy, e.g. 'geocenter' or 'Palomar'
     """
     # convert site_name to lower case
     site_name = site_name.lower()
@@ -146,6 +149,6 @@ def calc_topos(obstime_mjd, site_name: str):
         # default is to use geocenter if obstime and geoloc are not passed
         # dq_topos = np.zeros(3) * au
         # dv_topos = np.zeros(3) * au/day
-        dq_topos = np.zeros(3) * au
-        dv_topos = np.zeros(3) * au/day
+        dq_topos = np.zeros(3)
+        dv_topos = np.zeros(3)
     return dq_topos, dv_topos
