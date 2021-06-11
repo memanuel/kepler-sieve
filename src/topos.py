@@ -12,6 +12,7 @@ calc_topos(obstime_mjd, site_name)
 
 # Core
 import numpy as np
+import pandas as pd
 from scipy.interpolate import CubicSpline
 
 # Astronomy
@@ -25,6 +26,7 @@ from datetime import date
 
 # Local
 from astro_utils import mjd_to_jd, date_to_mjd
+from db_utils import df2db
 
 # ********************************************************************************************************************* 
 # Create Skyfield loader in preferred location
@@ -46,6 +48,12 @@ try:
 except:
     topos_tbl = dict()
     np.savez(fname_topos, topos_tbl=topos_tbl)
+
+# Table keying site_name to ObservatoryID
+site_name_tbl = {
+    'geocenter': 0,
+    'palomar': 1,
+}
 
 # ********************************************************************************************************************* 
 def site2geoloc(site_name: str, verbose: bool = False):
@@ -102,7 +110,7 @@ def calc_topos_impl(obstime_mjd: np.ndarray, obsgeoloc: EarthLocation) -> np.nda
     return dq_topos, dv_topos
 
 # ********************************************************************************************************************* 
-def calc_topos(obstime_mjd, site_name: str):
+def calc_topos(obstime_mjd: np.ndarray, site_name: str):
     """
     Calculate topos adjustment using cached spline
     INPUTS:
@@ -138,17 +146,75 @@ def calc_topos(obstime_mjd, site_name: str):
         # We are now guaranteed that topos_spline is the spline for this site
         # Evaluate it at the desired observation times
         spline_out = topos_spline(obstime_mjd)
-        # unpack into dq and dv, with units
-        # dq_topos = spline_out[:, 0:3] * au
-        # dv_topos = spline_out[:, 3:6] * au/day
-
         # unpack into dq and dv; units are in au and au/day
         dq_topos = spline_out[:, 0:3]
         dv_topos = spline_out[:, 3:6]
     else:
         # default is to use geocenter if obstime and geoloc are not passed
-        # dq_topos = np.zeros(3) * au
-        # dv_topos = np.zeros(3) * au/day
         dq_topos = np.zeros(3)
         dv_topos = np.zeros(3)
     return dq_topos, dv_topos
+
+# ********************************************************************************************************************* 
+def make_topos_df(site_name: str):
+    """
+    Generate DataFrame of topos adjustments
+    INPUTS:
+        site_name:  Name of an observatory or geolocation site recognized by astropy, e.g. 'geocenter' or 'Palomar'
+    """
+    # Date range to process
+    mjd0: int = 48000
+    mjd1: int = 63000
+    TimeID_0: int = mjd0 * 1440
+    TimeID_1: int = mjd1 * 1440
+
+    # Array of TimeID and ts (in form of MJDs)
+    time_id = np.arange(TimeID_0, TimeID_1+1, dtype=np.int64)
+    # Convert array of time_ids into obstime_mjd
+    obstime_mjd: np.ndarray = time_id / 1440.0
+
+    # The ObservatoryID
+    observatory_id: int = site_name_tbl[site_name]
+    observatory_ids = np.repeat(observatory_id, time_id.shape)
+
+    # Calculate the arrays using calc_topos
+    dq_topos, dv_topos = calc_topos(obstime_mjd=obstime_mjd, site_name=site_name)
+
+    # Wrap this up into DataFrame
+    df_tbl = {
+        'ObservatoryID': observatory_ids,
+        'TimeID': time_id,
+        'mjd': obstime_mjd,
+    }
+    df = pd.DataFrame(df_tbl)
+
+    # Add displacement
+    cols_dq = ['dqx', 'dqy', 'dqz',]
+    cols_dv = ['dvx', 'dvy', 'dvz',]
+    df[cols_dq] = dq_topos
+    df[cols_dv] = dv_topos
+
+    return df
+
+# ********************************************************************************************************************* 
+def main():
+    """
+    Populate DB table StateVectors_Topos
+    """
+
+    # Sites to process
+    site_names = ['geocenter', 'palomar']
+
+    # DB Table
+    schema = 'KS'
+    table = 'StateVectors_Topos'
+    columns = ['ObservatoryID', 'TimeID', 'mjd', 'dqx', 'dqy', 'dqz', 'dvx', 'dvy', 'dvz']
+
+    # Process the requested site names
+    for site_name in site_names:
+        df = make_topos_df(site_name=site_name)
+        df2db(df=df, schema=schema, table=table, columns=columns)
+
+# ********************************************************************************************************************* 
+if __name__ == '__main__':
+    main()
