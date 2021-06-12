@@ -40,6 +40,12 @@ cols_u = ['ux', 'uy', 'uz']
 df_jpl = sp2df(sp_name='JPL.AsteroidDirectionTest')
 df_mse = sp2df(sp_name='JPL.AsteroidDirectionVectorTest')
 
+# Table of DataFrame keyed by state_vec_src
+df_tbl_src = {
+    'JPL': df_jpl,
+    'MSE': df_mse,
+}
+
 # Mask JPL DataFrame to separate Geocenter and ZTF observatories with JPL state vectors
 mask_jpl_geo = (df_jpl.ObservatoryID==0)
 mask_jpl_ztf = (df_jpl.ObservatoryID==1)
@@ -219,7 +225,8 @@ def test_topos(mjd0: int, mjd1: int):
     print_stars()
     print(f'Compare directions change between Geocenter and Palomar on the first 16 asteroids:')
     print('JPL: Quoted direction ZTF->Asteroid minus GEO->Asteroid.')
-    print('MSE: Calculated direciton ZTF->Asteroid minus GEO->Asteroid using JPL state vectors.')
+    print('MSE: Calculated direction ZTF->Asteroid minus GEO->Asteroid using JPL state vectors.')
+    print('Both sources have directions calculated using calc_dir_linear().')
     err = direction_diff(name1='JPL', name2='MSE', u1=du_jpl, u2=du_mse, verbose=True)
     # Test result
     thresh: float = 0.5
@@ -229,12 +236,11 @@ def test_topos(mjd0: int, mjd1: int):
     return is_ok
 
 # ********************************************************************************************************************* 
-def test_dir_linear(state_vec_src: str, obs_name: str, mjd0: int, mjd1: int):
+def test_dir_linear(state_vec_src: str, mjd0: int, mjd1: int):
     """
     Test MSE astrometric direction calculation vs. JPL using the linear model.
     INPUTS:
         state_vec_src:  One of 'JPL' or 'MSE' - the source of the state vectors used
-        obs_name:       One of 'geo' or 'ztf' - the location of the observatory
         mjd0:           The first date to include in the test
         mjd1:           The last date to include in the test
     """
@@ -242,14 +248,8 @@ def test_dir_linear(state_vec_src: str, obs_name: str, mjd0: int, mjd1: int):
     if state_vec_src not in ('JPL', 'MSE'):
         raise ValueError("Bad state_vec_src! Must be one of 'JPL' or 'MSE'.")    
 
-    # Check obs_name
-    if obs_name not in ('geo', 'ztf'):
-        raise ValueError("Bad obs_name! Must be one of 'geo' or 'ztf'.")
-    obs_long_name = obs_name_tbl[obs_name]
-
     # Import the JPL asteroid directions and state vectors from the selected source
-    df_key = (state_vec_src, obs_name)
-    df = df_tbl[df_key].copy()
+    df = df_tbl_src[state_vec_src].copy()
 
     # Mask data down to the selected date range
     mask =  (mjd0 <= df.tObs) & (df.tObs <= mjd1)
@@ -269,10 +269,11 @@ def test_dir_linear(state_vec_src: str, obs_name: str, mjd0: int, mjd1: int):
     # Compare the two directions
     print()
     print_stars()
-    print(f'Compare directions from {obs_long_name} to the first 16 asteroids using {state_vec_src} state vectors in linear model:')
+    print(f'Compare directions to the first 16 asteroids using {state_vec_src} state vectors in linear model:')
     print(f'Data compared between dates {mjd0} and {mjd1}.')
     print('JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.')
-    print('MSE: MSE calculations using linear model with function calc_dir_linear in asteroid_direction.py.\n')
+    print('MSE: MSE calculations using linear model with function calc_dir_linear in asteroid_direction.py.')
+    print('Both models tested combining JPL data for Geocenter and Palomar observatory locations.')
     err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
 
     # Test result
@@ -283,59 +284,49 @@ def test_dir_linear(state_vec_src: str, obs_name: str, mjd0: int, mjd1: int):
     return is_ok
 
 # # ********************************************************************************************************************* 
-# def test_dir_linear_topos(site_name: str, mjd0: int, mjd1: int):
+# def test_dir_spline(state_vec_src: str, mjd0: int, mjd1: int):
 #     """
-#     Test for consistency between JPL and MSE integrations in the implied direction from earth geocenter to asteroid.
+#     Test MSE astrometric direction calculation vs. JPL using the iterated spline model and JPL state vectors.
 #     INPUTS:
-#         site_name: String ID for observatory in Skyfield.  One of 'geocenter' or 'palomar'
+#         state_vec_src:  One of 'JPL' or 'MSE' - the source of the state vectors used
 #         mjd0: The first date to include in the test
 #         mjd1: The last date to include in the test
 #     """
-#     # Check site_name
-#     if site_name not in ('geocenter', 'palomar'):
-#         raise ValueError("Bad site_name! Must be one of 'geocenter' or 'palomar'.")
+#     # Check state_vec_src
+#     if state_vec_src not in ('JPL', 'MSE'):
+#         raise ValueError("Bad state_vec_src! Must be one of 'JPL' or 'MSE'.")    
 
-#     df_jpl = df_tbl[('JPL', site_name)].copy()
-#     df_mse = df_tbl[('MSE', 'geocenter')].copy()
+#     # Import the JPL asteroid directions and state vectors from the selected source
+#     df = df_tbl_src[state_vec_src].copy()
 
-#     # Mask for selected date range
-#     mask_range_jpl = (mjd0 <= df_jpl.tObs) & (df_jpl.tObs <= mjd1)
-#     mask_range_mse = (mjd0 <= df_mse.tObs) & (df_mse.tObs <= mjd1)
+#     # Mask data down to the selected date range
+#     mask =  (mjd0 <= df.tObs) & (df.tObs <= mjd1)
+#     df = df[mask].reindex()
 
-#     # Mask for overlapping dates (multiples of 20)
-#     interval = 20*1440
-#     mask_overlap_jpl = (df_jpl.TimeID % interval) == 0
-#     mask_overlap_mse = (df_mse.TimeID % interval) == 0
+#     # Position and velocity according to selected source of state vectors
+#     q_obs = df[cols_q_obs].values
+#     q_ast = df[cols_q_ast].values
+#     v_ast = df[cols_v_ast].values
 
-#     # Combined mask satisfies both requirements
-#     mask_jpl = mask_range_jpl & mask_overlap_jpl
-#     mask_mse = mask_range_mse & mask_overlap_mse
+#     # Direction according to JPL
+#     u_jpl = df[cols_u].values
 
-#     # Mask both frames down to selected rows
-#     df_jpl = df_jpl[mask_jpl].reindex()
-#     df_mse = df_mse[mask_mse].reindex()    
+#     # Build asteroid position spline from asteroid state vectors
+#     id_col = 'AsteroidID'
+#     time_col = 'tObs'
+#     spline_q_ast = make_spline_df(df=df, cols_spline=cols_q_ast, id_col=id_col, time_col=time_col)
 
-#     # Directions according to JPL
-#     u_jpl = df_jpl[cols_u].values
-
-#     # State vectors according to MSE integration
-#     q_earth_mse = df_mse[cols_q_obs].values
-#     q_ast_mse = df_mse[cols_q_ast].values
-#     v_ast_mse = df_mse[cols_v_ast].values
-#     # The observation time array
-#     obstime_mjd_mse = df_mse.tObs.values
-
-#     # Directions calculated in linear model with topos correction with both state vectors
-#     u_mse, delta_mse = calc_dir_linear_topos(q_tgt=q_ast_mse, v_tgt=v_ast_mse, q_earth=q_earth_mse, 
-#                                                 obstime_mjd=obstime_mjd_mse, site_name=site_name)
+#     # MSE calculation of the astrometric direction in linear model
+#     u_mse, delta_mse = calc_dir_spline(spline_q_ast=spline_q_ast, q_obs=q_obs, t_obs=t_obs, 
+#                         asteroid_id=asteroid_id, light_time=light_time, iters=2)
 
 #     # Compare the two directions
 #     print()
 #     print_stars()
-#     print(f'Compare directions from {site_name} to the first 16 asteroids between MSE and JPL:')
+#     print(f'Compare directions from Geocenter to the first 16 asteroids using JPL state vectors in spline model:')
 #     print(f'Data compared between dates {mjd0} and {mjd1}.')
-#     print('JPL: Quoted direction from observatory site to asteroid.')
-#     print('MSE: State vectors from rebound integration. Direction with topos from calc_dir_linear_topos().')
+#     print('JPL: Directions quoted by JPL. Astrometric RA/DEC converted to vectors using radec2dir.')
+#     print('MSE: MSE calculations using linear model with function calc_dir_spline.\n')
 #     err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
 
 #     # Test result
@@ -346,58 +337,7 @@ def test_dir_linear(state_vec_src: str, obs_name: str, mjd0: int, mjd1: int):
 #     return is_ok
 
 # ********************************************************************************************************************* 
-def test_dir_spline(mjd0: int, mjd1: int):
-    """
-    Test MSE astrometric direction calculation vs. JPL using the iterated spline model and JPL state vectors.
-    INPUTS:
-        state_vec_src:  One of 'JPL' or 'MSE' - the source of the state vectors used
-        obs_name:       One of 'geo' or 'ztf' - the location of the observatory
-        mjd0: The first date to include in the test
-        mjd1: The last date to include in the test
-    """
-    # Import the JPL asteroid directions
-    df = df_tbl[('JPL', 'geocenter')].copy()
-
-    # Mask data down to the selected date range
-    mask =  (mjd0 <= df.tObs) & (df.tObs <= mjd1)
-    df = df[mask].reindex()
-
-    # Position according to selected source of state vectors
-    q_obs = df[cols_q_obs].values
-    # Direction according to JPL
-    u_jpl = df[cols_u].values
-    # Other arrays used by calc_dir_spline
-    asteroid_id = df.AsteroidID.values
-    t_obs = df.tObs.values
-    light_time = df.LightTime.values
-
-    # Build asteroid position spline from asteroid state vectors
-    id_col = 'AsteroidID'
-    time_col = 'tAst'
-    spline_q_ast = make_spline_df(df=df, cols_spline=cols_q_ast, id_col=id_col, time_col=time_col)
-
-    # MSE calculation of the astrometric direction in linear model
-    u_mse, delta_mse = calc_dir_spline(spline_q_ast=spline_q_ast, q_obs=q_obs, t_obs=t_obs, 
-                        asteroid_id=asteroid_id, light_time=light_time, iters=2)
-
-    # Compare the two directions
-    print()
-    print_stars()
-    print(f'Compare directions from Geocenter to the first 16 asteroids using JPL state vectors in spline model:')
-    print(f'Data compared between dates {mjd0} and {mjd1}.')
-    print('JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.')
-    print('MSE: MSE calculations using linear model with function calc_dir_spline.\n')
-    err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
-
-    # Test result
-    thresh: float = 1.0
-    is_ok: bool = (err < thresh)
-    msg: str = 'PASS' if is_ok else 'FAIL'
-    print(f'**** {msg} ****')
-    return is_ok
-
-# ********************************************************************************************************************* 
-def test_calc_dir_ast2obs(site_name: str, mjd0: int, mjd1: int):
+def test_calc_dir_ast2obs(obs_name: str, mjd0: int, mjd1: int):
     """
     Test MSE end to end calculation of asteroid direction vs. JPL.
     INPUTS:
@@ -405,12 +345,13 @@ def test_calc_dir_ast2obs(site_name: str, mjd0: int, mjd1: int):
         mjd0: The first date to include in the test
         mjd1: The last date to include in the test
     """
-    # Check site_name
-    if site_name not in ('geocenter', 'palomar'):
-        raise ValueError("Bad site_name! Must be one of 'geocenter' or 'palomar'.")
+    # Check obs_name
+    if obs_name not in ('geo', 'ztf'):
+        raise ValueError("Bad obs_name! Must be one of 'geo' or 'ztf'.")
+    obs_long_name = obs_name_tbl[obs_name]
 
     # Import the JPL asteroid directions
-    df_jpl = df_tbl[('JPL', site_name)].copy()
+    df_jpl = df_tbl[('JPL', obs_name)].copy()
 
     # Mask data down to the selected date range
     mask =  (mjd0 <= df_jpl.tObs) & (df_jpl.tObs <= mjd1)
@@ -465,14 +406,11 @@ def main():
     is_ok &= test_topos(mjd0=mjd0, mjd1=mjd1)
 
     # Test the asteroid directions in linear model with JPL state vectors
-    is_ok &= test_dir_linear(state_vec_src='JPL', obs_name='geo', mjd0=mjd0, mjd1=mjd1)
+    is_ok &= test_dir_linear(state_vec_src='JPL', mjd0=mjd0, mjd1=mjd1)
 
     # Test the asteroid directions in linear model with MSE state vectors
-    is_ok &= test_dir_linear(state_vec_src='MSE', obs_name = 'geo', mjd0=mjd0, mjd1=mjd1)
+    is_ok &= test_dir_linear(state_vec_src='MSE', mjd0=mjd0, mjd1=mjd1)
 
-    # # Test the asteroid directions in linear model with MSE state vectors with topos
-    # is_ok &= test_dir_linear_topos(site_name='palomar', mjd0=mjd0, mjd1=mjd1)
-    
     # # Test the asteroid directions in splined model with JPL state vectors
     # is_ok &= test_dir_spline(mjd0=mjd0, mjd1=mjd1)
 
