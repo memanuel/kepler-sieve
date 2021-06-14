@@ -39,7 +39,8 @@ from planets_interp import get_earth_pos
 from asteroid_spline import make_spline_ast_pos, make_spline_ast_pos_direct
 from astro_utils import infer_shape
 from topos import calc_topos
-from db_utils import df2db
+from db_utils import sp2df, df2db
+from utils import arange_inc
 
 # ********************************************************************************************************************* 
 # Speed of light; express this in AU / min
@@ -56,6 +57,9 @@ dpm: float = 1.0 / mpd
 cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
 cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
 cols_dir = ['ux', 'uy', 'uz']
+
+# DataFrame of asteroids
+ast = sp2df(sp_name='KS.GetAsteroids')
 
 # *************************************************************************************************
 # Utility functions - calculate distance and direction between two positions
@@ -297,37 +301,49 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
     df[cols_dir] = u
     df['LightTime'] = light_time
 
-    # TESTING
-    t_ast = t_obs - light_time / mpd
-    df['tAst'] = t_ast
-    df[cols_q_obs] = q_obs
-    df[cols_q_ast] = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
-
     return df
 
-# # ********************************************************************************************************************* 
-# def calc_dir_ast2obs_topos(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str):
-#     """Calculate direction of asteroids to a named observatory"""
-#     # The splined Earth position at the observer times
-#     q_earth = get_earth_pos(ts=ts)
-#     # Compute the correction due to topos
-#     dq_topos, _ = calc_topos(obstime_mjd=ts, site_name=site_name)
-#     data_axis, space_axis, shape = infer_shape(q_earth)
-#     dq_topos = dq_topos.reshape(shape)
-#     # Position of the observer in BME frame
-#     q_obs = q_earth + dq_topos
-#     # Delegate to calc_dir_ast2obs()
-#     pass
-
 # ********************************************************************************************************************* 
-def light_time_error(df: pd.DataFrame):
-    """Calculate the light time error in minutes and print it to screen"""
-    err = df.LightTime - (df.tObs - df.tAst)*mpd
-    mean_err = np.mean(np.abs(err))
-    max_err = np.max(np.abs(err))
-    print(f'Light time error (in minutes):')
-    print(f'mean error: {mean_err:5.3e}')
-    print(f'max error : {max_err:5.3e}')
+def calc_dir_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int):
+    """
+    Calculate direction form Earth geocenter to a block of asteroids
+    INPUTS:
+        n0:             First asteroid to process; inclusive.
+        n1:             Last asteroid to process; exclusive.
+        mjd0:           First date to process
+        mjd1:           Last date to process
+        interval_min:   Step between times in MINUTES
+    OUTPUTS:
+        df:             DataFrame of asteroid directions
+    """
+    # Start, end and step for TimeID
+    TimeID_0 = mjd0 * mpd
+    TimeID_1 = mjd1 * mpd
+    # Array of TimeID
+    TimeIDs_one = arange_inc(TimeID_0, TimeID_1, interval_min).astype(np.int64)
+
+    # Get array of asteroid IDs between n0 and n1
+    mask = (n0 <= ast.AsteroidID) & (ast.AsteroidID < n1)
+    asteroid_id_one = ast.AsteroidID[mask].values
+
+    # The number of observation times and asteroids
+    N_t = TimeIDs_one.shape[0]
+    N_ast = asteroid_id_one.shape[0]
+
+    # Tile TimeIDs and calculate t_obs from TimeIDs
+    TimeIDs = np.tile(TimeIDs_one, N_ast)
+    t_obs = TimeIDs * dpm
+    # Repeat the asteroid IDs
+    asteroid_id = np.repeat(asteroid_id_one, N_t)
+
+    # Calculate observer position; using geocentric observer so there is no topos adjustment
+    q_obs = get_earth_pos(ts=t_obs)
+
+    # Delegate to calc_dir_ast2obs()
+    df = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs, iters=2)
+    # Add the supplemental column TimeID
+    df['TimeID'] = TimeIDs
+    return df
 
 # *************************************************************************************************
 # Populate DB table KS.AsteroidDirection with directions from Earth geocenter to known asteroids.
@@ -341,7 +357,7 @@ def insert_dir_ast2obs(df: pd.DataFrame):
 
     # Arguments to df2db
     schema = 'KS'
-    table = 'AsteroidDirections'
+    table = 'AsteroidDirection'
     columns = ['AsteroidID', 'TimeID', 'tObs', 'ux', 'uy', 'uz', 'LightTime']
     chunksize = 2**19
     verbose = False
@@ -369,18 +385,23 @@ def main():
     n0: int = args.n0
     n1: int = n0 + args.n_ast
 
+    # Set the time range by policy to match AsteroidVectors and AsteroidElements
+    mjd0: int = 48000
+    mjd1: int = 63000
+    interval_min: int = 4*mpd
+
     # Report arguments
-    print(f'Processing asteroid directions for asteroid number {n0} <= AsteroidID < {n1}...')
+    print(f'Processing asteroid directions for asteroid number in range [{n0}, {n1})...')
     # Set the batch size
     b: int = 200
     k0: int = n0 // b
-    k1: int = n1 // b
+    k1: int = max(n1 // b, k0+1)
     for k in tqdm(range(k0, k1)):
         # Start and end of this batch
         n0_i = k*b
-        n1_i = n0_i + b
+        n1_i = min(n0_i + b, n1)
         # Calculate the direction and light time
-        df = calc_dir_ast2obs(n0=n0_i, n1=n1_i)
+        df = calc_dir_ast_block(n0=n0_i, n1=n1_i, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
         # Insert results to database
         insert_dir_ast2obs(df=df)
 
