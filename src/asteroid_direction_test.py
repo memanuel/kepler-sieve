@@ -393,6 +393,40 @@ def test_calc_dir_ast2obs(mjd0: int, mjd1: int):
     return is_ok
 
 # ********************************************************************************************************************* 
+def test_asteroid_dir_db(mjd0: int, mjd1: int):
+    """Test asteroid direction calculations written to database"""
+    # Run SP comparing JPL and MSE directions
+    sp_name = 'KS.TestAsteroidDirection'
+    params = {
+        'mjd0': mjd0,
+        'mjd1': mjd1,
+    }
+    df = sp2df(sp_name=sp_name, params=params)
+
+    # Extract the directions according to JPL and MSE on overlapping dates (every 20th day)
+    cols_jpl = [col_nm + '_jpl' for col_nm in cols_u]
+    cols_mse = [col_nm + '_mse' for col_nm in cols_u]
+    u_jpl = df[cols_jpl].values
+    u_mse = df[cols_mse].values
+    # Extract the light times
+    lt_jpl = df.LightTime_jpl.values
+    lt_mse = df.LightTime_mse.values
+
+    # Compare the two directions
+    print()
+    print_stars()
+    print(f'Compare directions between JPL and MSE data written to DB table KS.AsteroidDirection:')
+    print('JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.')
+    print('MSE: MSE calculations using calc_dir_ast2obs and written to DB in program asteroid_direction.py.\n')
+    du, dlt = test_ast_dir(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, lt1=lt_jpl, lt2=lt_mse, verbose=True)
+
+    # Test result
+    is_ok: bool = (du < thresh_u_tot) and (dlt < thresh_lt)
+    msg: str = 'PASS' if is_ok else 'FAIL'
+    print(f'**** {msg} ****')
+    return is_ok
+
+# ********************************************************************************************************************* 
 def main():
     # Build table JPL.AsteroidDirections from JPl.AsteroidDirections_Import
     # jpl_ast_dir_populate(n0=0, n1=100)
@@ -420,8 +454,11 @@ def main():
     # Test the asteroid directions in linear model with MSE state vectors
     is_ok &= test_dir_linear(state_vec_src='MSE', mjd0=mjd0, mjd1=mjd1)
 
-    # # Test asteroid directions in end to end model
+    # Test asteroid directions in end to end model
     is_ok &= test_calc_dir_ast2obs(mjd0=mjd0, mjd1=mjd1)
+
+    # Test asteroid directions written to DB
+    is_ok &= test_asteroid_dir_db(mjd0=mjd0, mjd1=mjd1)
 
     # Overall test result
     msg: str = 'PASS' if is_ok else 'FAIL'
