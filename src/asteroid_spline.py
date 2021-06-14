@@ -161,7 +161,7 @@ def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         a, e, inc, Omega, omega, Mx, My = unpack_elt_np(elt_out)
         # Recover M from Mx and My
         M = np.arctan2(My, Mx)
-        # Recover f from M
+        # Recover f from M and e
         f = anomaly_M2f(M=M, e=e)
         # Overwrite the f and M columns in the splined element array; avoid allocating and copying a new array
         elt_out[:, 5] = f
@@ -231,7 +231,7 @@ def make_spline_ast_vec(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         # Unpack the elements
         a, e, inc, Omega, omega, f, M = unpack_elt_np(elt)        
         # Recover f from M
-        f = anomaly_M2f(M=M, e=e)
+        # f = anomaly_M2f(M=M, e=e)
         # Compute q, v in the heliocentric frame
         q_hel, v_hel = elt2vec(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
         # Vectors of the sun

@@ -40,6 +40,16 @@ cols_u = ['ux', 'uy', 'uz']
 df_jpl = sp2df(sp_name='JPL.AsteroidDirectionTest')
 df_mse = sp2df(sp_name='JPL.AsteroidDirectionVectorTest')
 
+# # Range of asteroids to test
+# n0: int = 1
+# n1: int = 10
+
+# # Mask down to selected range
+# mask_jpl = (n0 <= df_jpl.AsteroidID) & (df_jpl.AsteroidID < n1)
+# mask_mse = (n0 <= df_mse.AsteroidID) & (df_mse.AsteroidID < n1)
+# df_jpl = df_jpl[mask_jpl].copy()
+# df_mse = df_mse[mask_mse].copy()
+
 # Table of DataFrame keyed by state_vec_src
 df_tbl_src = {
     'JPL': df_jpl,
@@ -72,10 +82,6 @@ obs_name_tbl = {
     'ztf': 'Palomar',
 }
 
-# Range of asteroids to test
-n0: int = 1
-n1: int = 17
-
 # Test thresholds
 thresh_u_vec: float = 0.1
 thresh_u_topos: float = 0.05
@@ -84,14 +90,14 @@ thresh_u_tot: float = 1.0
 thresh_lt: float = 1.0E-4
 
 # ********************************************************************************************************************* 
-def jpl_ast_dir_populate():
+def jpl_ast_dir_populate(n0: int, n1:int):
     """
     Populate DB table JPL.AsteroidDirection from JPL.AsteroidDirectionImport
     """
     # Get the imported RA/DEC from JPL
     sp_name = 'JPL.GetAsteroidDirection_Import'
     params = {
-        'n0': n1,
+        'n0': n0,
         'n1': n1,
     }
     df = sp2df(sp_name=sp_name, params=params)
@@ -117,7 +123,7 @@ def jpl_ast_dir_populate():
     columns = ['AsteroidID', 'ObservatoryID', 'TimeID', 'mjd', 
                'RA_ast', 'DEC_ast', 'ux_ast', 'uy_ast', 'uz_ast', 
                'RA_app', 'DEC_app', 'ux_app', 'uy_app', 'uz_app', 
-               'LightTime', 'r', 'rDot', 'delta', 'deltaDot']
+               'LightTime', 'r', 'rDot', 'delta', 'deltaDot', 'Mag']
     df2db(df=df, schema='JPL', table='AsteroidDirection', columns=columns)
 
 # *************************************************************************************************
@@ -367,7 +373,7 @@ def test_calc_dir_ast2obs(mjd0: int, mjd1: int):
     q_obs = df_jpl[cols_q_obs].values
 
     # MSE calculation of the direction in end to end model
-    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs, iters=3)
+    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs, iters=2)
     u_mse = df_mse[cols_u].values
     lt_mse = df_mse.LightTime.values
 
@@ -389,7 +395,7 @@ def test_calc_dir_ast2obs(mjd0: int, mjd1: int):
 # ********************************************************************************************************************* 
 def main():
     # Build table JPL.AsteroidDirections from JPl.AsteroidDirections_Import
-    # jpl_ast_dir_populate()
+    # jpl_ast_dir_populate(n0=0, n1=100)
     # print('Regenerated DB table JPL.AsteroidDirection')
 
     # Set date range for testing

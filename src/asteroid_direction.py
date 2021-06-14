@@ -255,11 +255,11 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
         q_obs:          Array of positions of the observatory in the BME frame
     RETURNS:
         df:     DataFrame with asteroid direction and light time.
-                Columns: AsteroidID, TimeID, tAst, qAst_x, qAst_y, qAst_z, LightTime, tObs, qObs_x, qObs_y, qObs_z
+                Columns: AsteroidID, tObs, ux, uy, uz, LightTime
     """
     # Get range of asteroids
     n0: int = np.min(asteroid_id)
-    n1: int = np.max(asteroid_id)
+    n1: int = np.max(asteroid_id)+1     # Need to add 1 here b/c n1 is EXCLUSIVE in make_spline_ast_pos()
     # Get range of MJD
     pad: int = 32
     mjd0: int = np.min(t_obs) - pad
@@ -271,16 +271,17 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
     # Create seperate array for t_ast
     t_ast = t_obs.copy()
 
-    # # Position of asteroid at t_obs
-    # q_ast = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
-    # # Compute initial light time
-    # r = calc_distance(q0=q_obs, q1=q_ast)
-    # light_time = r/c
-    light_time = np.zeros_like(t_ast)
+    # Position of asteroid at t_obs
+    q_ast = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
+    # Compute initial light time
+    r = calc_distance(q0=q_obs, q1=q_ast)
+    light_time = r/c
 
     # Delegate to calc_dir_spline
     u, delta = calc_dir_spline(spline_q_ast=spline_q_ast, q_obs=q_obs, t_obs=t_obs, 
                                asteroid_id=asteroid_id, light_time=light_time, iters=iters)
+    # Update light_time from delta
+    light_time = delta / c
 
     # Save results to DataFrame
     df = pd.DataFrame()
@@ -295,7 +296,7 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
     t_ast = t_obs - light_time / mpd
     df['tAst'] = t_ast
     df[cols_q_obs] = q_obs
-    df[cols_q_ast] = spline_q_ast(t_ast)
+    df[cols_q_ast] = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
 
     return df
 
