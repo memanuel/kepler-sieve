@@ -36,7 +36,7 @@ spline_type_obs = Callable[[np.ndarray], np.ndarray]
 
 # Local imports
 from planets_interp import get_earth_pos
-from asteroid_spline import make_spline_ast_pos
+from asteroid_spline import make_spline_ast_pos, make_spline_ast_pos_direct
 from astro_utils import infer_shape
 from topos import calc_topos
 from db_utils import df2db
@@ -56,6 +56,10 @@ dpm: float = 1.0 / mpd
 cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
 cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
 cols_dir = ['ux', 'uy', 'uz']
+
+# *************************************************************************************************
+# Utility functions - calculate distance and direction between two positions
+# *************************************************************************************************
 
 # ********************************************************************************************************************* 
 def calc_distance(q0: np.ndarray, q1:np.ndarray):
@@ -113,22 +117,22 @@ def calc_dir_linear(q_tgt: np.ndarray, v_tgt: np.ndarray, q_obs: np.ndarray):
     u = (ux, uy, uz) in the ecliptic plane.
     Uses a simple linear model where the target is assumed to be moving at constant velocity << c (speed of light).
     INPUTS:
-        q_tgt:  position of target body in ecliptic coordinate frame; either with astropy units or an array in AU
-        v_tgt:  velocity of target body in ecliptic coordinate frame; either with astropy units or an array in AU/day
-        q_obs:  position of observer in ecliptic coordinate frame; either with astropy units or an array in AU
+        q_tgt:  position of target body in ecliptic coordinate frame; array in AU
+        v_tgt:  velocity of target body in ecliptic coordinate frame; array in AU/day
+        q_obs:  position of observer in ecliptic coordinate frame; array in AU
                 typically this will be computed as q_earth + dq_topos
     RETURNS:
         u:      An array [ux, uy, uz] on the unit sphere in the ecliptic frame
         delta:  The distance from observer to target in AU.
     """
-    # Convert q_tgt and q_obs to be in units of AU
-    if isinstance(q_tgt, astropy.units.quantity.Quantity):
-        q_tgt = q_tgt.to(au).values
-    if isinstance(q_obs, astropy.units.quantity.Quantity):
-        q_obs = q_obs.to(au).values
-    # Convert v_tgt to be in units of AU/day
-    if isinstance(v_tgt, astropy.units.quantity.Quantity):
-        v_tgt = v_tgt.to(au/day).values
+    # # Convert q_tgt and q_obs to be in units of AU
+    # if isinstance(q_tgt, astropy.units.quantity.Quantity):
+    #     q_tgt = q_tgt.to(au).values
+    # if isinstance(q_obs, astropy.units.quantity.Quantity):
+    #     q_obs = q_obs.to(au).values
+    # # Convert v_tgt to be in units of AU/day
+    # if isinstance(v_tgt, astropy.units.quantity.Quantity):
+    #     v_tgt = v_tgt.to(au/day).values
 
     # At the end of this block, q_tgt, q_obs, and v_tgt are plain old numpy arrays
     # q_tgt and q_obs are in AU; v_tgt is in AU/day
@@ -267,8 +271,9 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
 
     # Build spline of asteroid posistion that supports this range of asteroids and dates
     spline_q_ast = make_spline_ast_pos(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    # spline_q_ast = make_spline_ast_pos_direct(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
-    # Create seperate array for t_ast
+    # Create separate array for t_ast
     t_ast = t_obs.copy()
 
     # Position of asteroid at t_obs
@@ -300,19 +305,19 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
 
     return df
 
-# ********************************************************************************************************************* 
-def calc_dir_ast2obs_topos(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str):
-    """Calculate direction of asteroids to a named observatory"""
-    # The splined Earth position at the observer times
-    q_earth = get_earth_pos(ts=ts)
-    # Compute the correction due to topos
-    dq_topos, _ = calc_topos(obstime_mjd=ts, site_name=site_name)
-    data_axis, space_axis, shape = infer_shape(q_earth)
-    dq_topos = dq_topos.reshape(shape)
-    # Position of the observer in BME frame
-    q_obs = q_earth + dq_topos
-    # Delegate to calc_dir_ast2obs()
-    pass
+# # ********************************************************************************************************************* 
+# def calc_dir_ast2obs_topos(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str):
+#     """Calculate direction of asteroids to a named observatory"""
+#     # The splined Earth position at the observer times
+#     q_earth = get_earth_pos(ts=ts)
+#     # Compute the correction due to topos
+#     dq_topos, _ = calc_topos(obstime_mjd=ts, site_name=site_name)
+#     data_axis, space_axis, shape = infer_shape(q_earth)
+#     dq_topos = dq_topos.reshape(shape)
+#     # Position of the observer in BME frame
+#     q_obs = q_earth + dq_topos
+#     # Delegate to calc_dir_ast2obs()
+#     pass
 
 # ********************************************************************************************************************* 
 def light_time_error(df: pd.DataFrame):

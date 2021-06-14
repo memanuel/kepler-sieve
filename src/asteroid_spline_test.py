@@ -23,7 +23,8 @@ from planets_interp import get_sun_pos
 from orbital_element import unpack_elt_df, unpack_elt_np, elt2pos, anomaly_M2f
 from asteroid_data import load_ast_data, load_ast_pos, load_ast_vectors
 from orbital_element_test import angle_distance, report_test
-from asteroid_spline import make_spline_df, make_spline_ast_elt, make_spline_ast_pos, make_spline_ast_vec
+from asteroid_spline import make_spline_df, make_spline_ast_elt, make_spline_ast_pos, make_spline_ast_vec, \
+    make_spline_ast_pos_direct
 from utils import print_stars
 
 # ********************************************************************************************************************* 
@@ -178,8 +179,7 @@ def test_ast_spline_pos(n0: int, n1: int, mjd0: int, mjd1: int):
     print()
     print_stars()
     print(f'Splined position using orbital elements; asteroids {n0} to {n1}.')
-    is_ok: bool = True
-    is_ok &= report_test(err=err_q, test_name='ast_spline_pos', thresh=thresh_q)
+    is_ok: bool = report_test(err=err_q, test_name='ast_spline_pos', thresh=thresh_q)
 
     return is_ok
 
@@ -219,6 +219,36 @@ def test_ast_spline_vec(n0: int, n1: int, mjd0: int, mjd1: int):
     return is_ok
 
 # ********************************************************************************************************************* 
+def test_ast_spline_pos_direct(n0: int, n1: int, mjd0: int, mjd1: int):
+    """Test function splining asteroid positions directly"""
+    # Get test orbital positions from the selected asteroids and mask to selected date range
+    df = load_ast_pos(n0=n0, n1=n1)
+    mask = (mjd0 <= df.mjd) & (df.mjd <= mjd1)
+    df = df[mask]
+    # Unpack the quoted position
+    q0 = df[cols_q].values
+    # Build the position spline
+    spline_pos = make_spline_ast_pos_direct(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # The times and asteroid IDs for the input; this is also where we want to evaluate the output spline
+    ts = df.mjd.values
+    asteroid_id = df.AsteroidID.values
+    # Calculate the splined asteroid position for the input times and asteroid_ids
+    q1 = spline_pos(ts, asteroid_id)
+
+    # Position error
+    dq: np.ndarray = q1 - q0
+    err_q: np.ndarray = np.sqrt(np.sum(np.square(dq), axis=-1))
+
+    # Report the results
+    print()
+    print_stars()
+    print(f'Splined position (direct); asteroids {n0} to {n1}.')
+    is_ok: bool= report_test(err=err_q, test_name='ast_spline_pos', thresh=thresh_q)
+
+    return is_ok
+
+# ********************************************************************************************************************* 
 if __name__ == '__main__':
     # Set range of asteroids to test
     n0: int = 1
@@ -242,6 +272,9 @@ if __name__ == '__main__':
 
     # Test splining of asteroid state vectors
     is_ok &= test_ast_spline_vec(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Test direct splining of asteroid position
+    is_ok &= test_ast_spline_pos_direct(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
     # Report overall test results
     msg: str = 'PASS' if is_ok else 'FAIL'

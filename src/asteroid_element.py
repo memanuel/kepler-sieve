@@ -207,7 +207,7 @@ def make_sim_asteroids_ref(epoch: int, n0: int, n1: int, missing: bool):
     return sim
     
 # ********************************************************************************************************************* 
-# Get calculated orbital elements and wrap them into a simulation
+# Get calculated orbital elements at one epoch
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
@@ -239,6 +239,38 @@ def get_ast_elts(n0: int, n1: int, epoch: int) -> pd.DataFrame:
     return elts
 
 # ********************************************************************************************************************* 
+def get_ast_data(n0: int, n1: int, epoch: int) -> pd.DataFrame:
+    """
+    Get both calculated state vectors and orbital elements as of the given epoch.
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        epoch:      Date on which elements are requested
+    OUTPUTS:
+        elts:       DataFrame with both state vectors and orbital elements from the saved MSE integration
+    """
+    # The back end stored procedure
+    sp_name = 'KS.GetAsteroidData'
+    # Convert the epoch to a date range that will return just the one date if it's available
+    mjd0: int = epoch
+    mjd1: int = epoch+1
+
+    # Assemble input parameters (same for both stored procedures)
+    params = {
+        'n0': n0,
+        'n1': n1,
+        'mjd0': mjd0,
+        'mjd1': mjd1,
+    }
+    # Get the elements on this epoch from the database
+    data = sp2df(sp_name=sp_name, params=params)    
+    return data
+
+# ********************************************************************************************************************* 
+# Use calculated orbital elements in a time series
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
 def get_ast_elts_ts(n0: int, n1: int, mjd0: int, mjd1: int) -> pd.DataFrame:
     """
     Get calculated orbital elements as of the given epoch.
@@ -264,21 +296,19 @@ def get_ast_elts_ts(n0: int, n1: int, mjd0: int, mjd1: int) -> pd.DataFrame:
     return elts
 
 # ********************************************************************************************************************* 
-def get_ast_data(n0: int, n1: int, epoch: int) -> pd.DataFrame:
+def get_ast_data_ts(n0: int, n1: int, mjd0: int, mjd1: int) -> pd.DataFrame:
     """
     Get both calculated state vectors and orbital elements as of the given epoch.
     INPUTS:
         n0:         First asteroid number to return (inclusive)
         n1:         Last asteroid number to return (exclusive)
-        epoch:      Date on which elements are requested
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
     OUTPUTS:
         elts:       DataFrame with both state vectors and orbital elements from the saved MSE integration
     """
     # The back end stored procedure
     sp_name = 'KS.GetAsteroidData'
-    # Convert the epoch to a date range that will return just the one date if it's available
-    mjd0: int = epoch
-    mjd1: int = epoch+1
 
     # Assemble input parameters (same for both stored procedures)
     params = {
@@ -288,8 +318,12 @@ def get_ast_data(n0: int, n1: int, epoch: int) -> pd.DataFrame:
         'mjd1': mjd1,
     }
     # Get the elements on this epoch from the database
-    elts = sp2df(sp_name=sp_name, params=params)    
-    return elts
+    data = sp2df(sp_name=sp_name, params=params)    
+    return data
+
+# ********************************************************************************************************************* 
+# Use calculated orbital elements to build a simulation with a block of asteroid
+# ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
 def make_sim_asteroids(epoch: int, n0: int, n1: int):

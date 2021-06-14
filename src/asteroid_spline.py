@@ -20,14 +20,10 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import RectBivariateSpline
 
-# Astronomy
-import astropy
-from astropy.units import au, day
-
 # Local imports
 from planets_interp import get_sun_vectors, get_sun_pos
 from orbital_element import unpack_elt_np
-from asteroid_element import get_ast_elts_ts
+from asteroid_element import get_ast_elts_ts, get_ast_data_ts
 from orbital_element import elt2vec, elt2pos, anomaly_M2f
 
 # Types
@@ -131,6 +127,48 @@ def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
 def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
     """
     Build a splining interpolator that returns splined orbital elements for asteroids
+    Assumes that M is monotonic (e.g. winding number is incorporated)
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
+    OUTPUTS:
+        spline_elt: An interpolation function that accepts array inputs ts and asteroid_id, e.g.
+                    elt = spline_elt(ts, element_id)
+    """
+    # Get the orbital elements for these asteroids; these are the inputs to build the spline
+    elt_in = get_ast_elts_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Delegate to make_spline_df
+    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+    time_col = 'mjd'
+    id_col = 'AsteroidID'
+    spline_elt_raw = make_spline_df(df=elt_in, cols_spline=cols_spline, time_col=time_col, id_col=id_col)
+
+    # Wrap up a function that returns the position vector
+    def spline_elt(ts: np.ndarray, asteroid_id: np.ndarray):
+        """Splined elements as a function of time and asteroid_id"""
+        # Caclulate the splined orbital elements for the input times and asteroid_ids
+        elt_out = spline_elt_raw(ts, asteroid_id)
+        # Unpack the elements
+        a, e, inc, Omega, omega, f, M = unpack_elt_np(elt_out)
+        # Recover f from M and e
+        f = anomaly_M2f(M=M, e=e)
+        # Overwrite the f and M columns in the splined element array; avoid allocating and copying a new array
+        elt_out[:, 5] = f
+        elt_out[:, 6] = M
+        # Return the splined orbital elements with corrected f
+        return elt_out
+
+    # Return the function that calculates orbital elements
+    return spline_elt
+
+# ********************************************************************************************************************* 
+def make_spline_ast_elt_no_winding(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
+    """
+    Build a splining interpolator that returns splined orbital elements for asteroids.
+    Version suitable to use when M is not monotonic (e.g. winding number is not incorporated)
     INPUTS:
         n0:         First asteroid number to return (inclusive)
         n1:         Last asteroid number to return (exclusive)
@@ -195,8 +233,6 @@ def make_spline_ast_pos(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         elt = spline_elt(ts, asteroid_id)
         # Unpack the elements
         a, e, inc, Omega, omega, f, M = unpack_elt_np(elt)        
-        # Recover f from M
-        # f = anomaly_M2f(M=M, e=e)
         # Compute q in the heliocentric frame
         q_hel: np.ndarray = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
         # Position  of the sun
@@ -230,8 +266,6 @@ def make_spline_ast_vec(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         elt = spline_elt(ts, asteroid_id)
         # Unpack the elements
         a, e, inc, Omega, omega, f, M = unpack_elt_np(elt)        
-        # Recover f from M
-        # f = anomaly_M2f(M=M, e=e)
         # Compute q, v in the heliocentric frame
         q_hel, v_hel = elt2vec(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
         # Vectors of the sun
@@ -243,3 +277,33 @@ def make_spline_ast_vec(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
 
     # Return the function that calculates state vectors
     return spline_vec
+
+# ********************************************************************************************************************* 
+def make_spline_ast_pos_direct(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
+    """
+    Build a splining interpolator that returns splined position directly.
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
+    OUTPUTS:
+        spline_q:   An interpolation function that accepts array inputs ts and asteroid_id, e.g.
+                    q_ast = spline_elt(ts, element_id)
+    """
+    # Get the orbital elements for these asteroids; these are the inputs to build the spline
+    df_in = get_ast_data_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Delegate to make_spline_df
+    cols_spline = ['qx', 'qy', 'qz']
+    time_col = 'mjd'
+    id_col = 'AsteroidID'
+    spline_pos_np = make_spline_df(df=df_in, cols_spline=cols_spline, time_col=time_col, id_col=id_col)
+
+    # Wrap up a function that returns the position vector with named arguments
+    def spline_pos(ts: np.ndarray, asteroid_id: np.ndarray):
+        """Splined elements as a function of time and asteroid_id"""
+        return spline_pos_np(ts, asteroid_id)
+
+    # Return the function that calculates position directly
+    return spline_pos
