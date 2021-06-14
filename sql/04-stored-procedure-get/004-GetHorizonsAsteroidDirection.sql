@@ -25,7 +25,8 @@ SELECT
 	adi.r,
 	adi.rDot,
 	adi.delta,
-	adi.deltaDot
+	adi.deltaDot,
+	adi.Mag
 FROM
 	JPL.AsteroidDirectionImport AS adi
 	INNER JOIN KS.IntegrationTime AS it ON it.MJD = (adi.JD - 2400000.5)
@@ -88,6 +89,7 @@ ORDER BY ad.AsteroidID, ad.ObservatoryID, ad.TimeID;
 END
 $$
 
+/*
 -- ********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
@@ -206,59 +208,115 @@ ORDER BY ad.AsteroidID, ad.TimeID;
 
 END
 $$
+*/
 
 -- ********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
 PROCEDURE JPL.AsteroidDirectionTest()
-COMMENT "Get asteroid directions and positions to test MSE calculations."
+COMMENT "Get asteroid directions and positions according to JPL."
 
 BEGIN 
 
 SELECT
 	-- Key fields
 	ad.AsteroidID,
+	ad.ObservatoryID,
 	ad.TimeID,
-	ad.mjd - ad.LightTime / 1440.0 AS tAst,
-	-- The Earth geocenter position
-	hve.qx AS qObs_x,
-	hve.qy AS qObs_y,
-	hve.qz AS qObs_z,
-	-- The asteroid position
+	ad.mjd AS tObs,
+	-- The position of the observer; sum of Earth geocenter and topos adjustment
+	hve.qx + svt.qx AS qObs_x,
+	hve.qy + svt.qy AS qObs_y,
+	hve.qz + svt.qz AS qObs_z,
+	-- The asteroid position according to Horizons
 	hv.qx AS qAst_x,
 	hv.qy AS qAst_y,
 	hv.qz AS qAst_z,
-	-- The asteroid velocity
+	-- The asteroid velocity according to Horizons
 	hv.vx AS vAst_x,
 	hv.vy AS vAst_y,
 	hv.vz AS vAst_z,
 	-- Light time
 	ad.LightTime,
-	ad.mjd AS tObs,
+	ad.mjd - ad.LightTime / 1440.0 AS tAst,
 	-- Astrometric direction from JPL RA/DEC
-	ad.ux_ast,
-	ad.uy_ast,
-	ad.uz_ast,
-	-- Apparent direction from JPL RA/DEC
-	ad.ux_app,
-	ad.uy_app,
-	ad.uz_app
+	ad.ux_ast AS ux,
+	ad.uy_ast AS uy,
+	ad.uz_ast AS uz
 FROM
 	JPL.AsteroidDirection AS ad
-	-- Position of Earth
+	-- Position of Earth from JPL
 	INNER JOIN JPL.HorizonsBody AS hbe ON hbe.HorizonsBodyName='LB.Earth'
 	INNER JOIN JPL.HorizonsVectors AS hve ON 
 		hve.HorizonsBodyID=hbe.HorizonsBodyID AND
 		hve.TimeID=ad.TimeID
-	-- Position of Asteroids
+	-- Topos correction for observatory on Earth from MSE (not available directly from JPL)
+	INNER JOIN KS.StateVectors_Topos AS svt ON
+		svt.ObservatoryID = ad.ObservatoryID AND
+		svt.TimeID = ad.TimeID
+	-- Position of Asteroids from JPL
 	INNER JOIN JPL.HorizonsBody AS hb ON hb.SmallBodyID = ad.AsteroidID
 	INNER JOIN JPL.HorizonsVectors AS hv ON 
 		hv.HorizonsBodyID=hb.HorizonsBodyID AND
 		hv.TimeID=ad.TimeID
-	
-WHERE 
+WHERE
+	-- Only time range of MSE integration
 	ad.TimeID BETWEEN 48000*24*60 AND 63000*24*60
-ORDER BY ad.AsteroidID, ad.TimeID;
+ORDER BY ad.AsteroidID, ad.ObservatoryID, ad.TimeID;
+
+END
+$$
+
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE JPL.AsteroidDirectionVectorTest()
+COMMENT "Get asteroid directions from JPL and positions from MSE."
+
+BEGIN 
+
+SELECT
+	-- Key fields
+	ad.AsteroidID,
+	ad.ObservatoryID,
+	ad.TimeID,
+	ad.mjd AS tObs,
+	-- The position of the observer; sum of Earth geocenter and topos adjustment
+	sve.qx + svt.qx AS qObs_x,
+	sve.qy + svt.qy AS qObs_y,
+	sve.qz + svt.qz AS qObs_z,
+	-- The asteroid position according to MSE
+	av.qx AS qAst_x,
+	av.qy AS qAst_y,
+	av.qz AS qAst_z,
+	-- The asteroid velocity according to MSE
+	av.vx AS vAst_x,
+	av.vy AS vAst_y,
+	av.vz AS vAst_z,
+	-- Light time
+	ad.LightTime,
+	ad.mjd - ad.LightTime / 1440.0 AS tAst,
+	-- Astrometric direction from JPL RA/DEC
+	ad.ux_ast AS ux,
+	ad.uy_ast AS uy,
+	ad.uz_ast AS uz
+FROM
+	JPL.AsteroidDirection AS ad
+	-- The MSE state vectors for Earth
+	INNER JOIN KS.StateVectors_Earth AS sve ON
+		sve.TimeID = ad.TimeID
+	-- Topos correction for observatory on Earth
+	INNER JOIN KS.StateVectors_Topos AS svt ON
+		svt.ObservatoryID = ad.ObservatoryID AND
+		svt.TimeID = ad.TimeID
+	-- The MSE state vectors for this asteroid
+	INNER JOIN KS.AsteroidVectors AS av ON 
+		av.AsteroidID = ad.AsteroidID AND
+		av.TimeID = ad.TimeID
+WHERE 
+	-- Only time range of MSE integration
+	ad.TimeID BETWEEN 48000*24*60 AND 63000*24*60
+ORDER BY ad.AsteroidID, ad.ObservatoryID, ad.TimeID;
 
 END
 $$

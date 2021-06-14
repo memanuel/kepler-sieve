@@ -7,18 +7,18 @@ CREATE OR REPLACE TABLE KS.StateVectors_Topos(
 	mjd DOUBLE NOT NULL
 		COMMENT "The Modified Julian Date in the TDB (barycentric dynamical time) frame; derivable from IntegrationTimeID but included for performance.",
 	-- Position of observatory on Earth, dq = [dqx, dqy, dqz]
-	dqx DOUBLE NOT NULL
+	qx DOUBLE NOT NULL
 		COMMENT "Position of observatory on Earth (x coordinate); offset to geocenter in BME frame; in AU",
-	dqy DOUBLE NOT NULL
+	qy DOUBLE NOT NULL
 		COMMENT "Position of observatory on Earth (y coordinate); offset to geocenter in BME frame; in AU",
-	dqz DOUBLE NOT NULL
+	qz DOUBLE NOT NULL
 		COMMENT "Position of observatory on Earth (z coordinate); offset to geocenter in BME frame; in AU",
 	-- Velocity of observatory on Earth dv = [dvx, dvy, dvz]
-	dvx DOUBLE NOT NULL
+	vx DOUBLE NOT NULL
 		COMMENT "Velocity of observatory on Earth (x coordinate); offset to geocenter in BME frame; in AU/day",
-	dvy DOUBLE NOT NULL
+	vy DOUBLE NOT NULL
 		COMMENT "Velocity of observatory on Earth (y coordinate); offset to geocenter in BME frame; in AU/day",
-	dvz DOUBLE NOT NULL
+	vz DOUBLE NOT NULL
 		COMMENT "Velocity of observatory on Earth (z coordinate); offset to geocenter in BME frame; in AU/day",
 	-- Keys and constraints
 	PRIMARY KEY (ObservatoryID, TimeID)
