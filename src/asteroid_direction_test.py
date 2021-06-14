@@ -11,18 +11,18 @@ Michael S. Emanuel
 """
 
 # Core
-# import numpy as np
+import numpy as np
 # import pandas as pd
 
 # Astronomy
 from astropy.units import deg
 
 # Local imports
-from asteroid_spline import make_spline_df
-from asteroid_direction import calc_dir_linear, calc_dir_linear_topos, calc_dir_spline, calc_dir_ast2obs
+from asteroid_spline import make_spline_ast_pos
+from asteroid_direction import c, calc_dir_linear, calc_dir_ast2obs
 from ra_dec import radec2dir
 from db_utils import sp2df, df2db
-from ra_dec_test import direction_diff
+from astro_utils import dist2deg
 from utils import print_stars
 
 # ********************************************************************************************************************* 
@@ -76,6 +76,13 @@ obs_name_tbl = {
 n0: int = 1
 n1: int = 17
 
+# Test thresholds
+thresh_u_vec: float = 0.1
+thresh_u_topos: float = 0.05
+thresh_u_linear: float = 1.0
+thresh_u_tot: float = 1.0
+thresh_lt: float = 1.0E-4
+
 # ********************************************************************************************************************* 
 def jpl_ast_dir_populate():
     """
@@ -113,6 +120,45 @@ def jpl_ast_dir_populate():
                'LightTime', 'r', 'rDot', 'delta', 'deltaDot']
     df2db(df=df, schema='JPL', table='AsteroidDirection', columns=columns)
 
+# *************************************************************************************************
+def test_ast_dir(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, 
+                 lt1: np.ndarray, lt2: np.ndarray, verbose: bool=False) -> float:
+    """
+    Report 
+    INPUTS:
+        name1: Descriptive name of the first source, e.g. 'JPL'
+        name2: Descriptive name of the second source, e.g. 'MSE'
+        u1:    Array of directions from source 1; shape Nx3
+        u2:    Array of directions from source 2; shape Nx3
+        lt1:   Array of light times from source 1; shape N
+        lt2:   Array of light times from source 2; shape N
+        verbose: Whether to report results to console
+    """
+    # Difference in unit directions
+    du = u2 - u1
+    du_norm = np.sqrt(np.sum(np.square(du), axis=-1))
+    du_deg =  dist2deg(du_norm)
+    du_sec =  du_deg * 3600.0
+
+    # Calculate mean, median and max difference in degrees
+    du_mean = np.mean(du_sec)
+    du_median = np.median(du_sec)
+    du_max = np.max(du_sec)
+
+    # Calculate light time error
+    dlt_mean = np.mean(np.abs(lt2-lt1))
+
+    if verbose:
+        print(f'Angle Difference: {name2} vs. {name1} in arc seconds')
+        print(f'*Mean  : {du_mean:9.3f}*')
+        print(f' Median: {du_median:9.3f}')
+        print(f' Max   : {du_max:9.3f}')
+        print(f'Light time difference in minutes:')
+        print(f' Mean  : {dlt_mean:9.2e}')
+
+    # Return the difference of direction vectors in seconds of arc
+    return du_mean, dlt_mean
+    
 # ********************************************************************************************************************* 
 def test_dir_vectors(obs_name: str, mjd0: int, mjd1: int):
     """
@@ -163,6 +209,9 @@ def test_dir_vectors(obs_name: str, mjd0: int, mjd1: int):
     # Directions calculated in linear model with both state vectors
     u_jpl, delta_jpl = calc_dir_linear(q_tgt=q_ast_jpl, v_tgt=v_ast_jpl, q_obs=q_obs_jpl)
     u_mse, delta_mse = calc_dir_linear(q_tgt=q_ast_mse, v_tgt=v_ast_mse, q_obs=q_obs_mse)
+    # Compute light time
+    lt_jpl = delta_jpl / c
+    lt_mse = delta_mse / c
 
     # Compare the two directions
     print()
@@ -172,10 +221,10 @@ def test_dir_vectors(obs_name: str, mjd0: int, mjd1: int):
     print('JPL: State vectors sourced from JPL using Horizons.')
     print('MSE: Integration done in rebound.')
     print('Both sources have directions calculated using calc_dir_linear().')
-    err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
+    du, dlt = test_ast_dir(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, lt1=lt_jpl, lt2=lt_mse, verbose=True)
+
     # Test result
-    thresh: float = 0.5
-    is_ok: bool = (err < thresh)
+    is_ok: bool = (du < thresh_u_vec) and (dlt < thresh_lt)
     msg: str = 'PASS' if is_ok else 'FAIL'
     print(f'**** {msg} ****')
     return is_ok
@@ -211,26 +260,35 @@ def test_topos(mjd0: int, mjd1: int):
     # Directions quoted by JPL
     u_geo_jpl = df_geo[cols_u].values
     u_ztf_jpl = df_ztf[cols_u].values
+    # Light time according to JPL
+    lt_geo_jpl = df_geo.LightTime.values
+    lt_ztf_jpl = df_ztf.LightTime.values
 
     # Directions calculated in MSE linear model
-    u_geo_mse, _ = calc_dir_linear(q_tgt=q_ast_geo, v_tgt=v_ast_geo, q_obs=q_obs_geo)
-    u_ztf_mse, _ = calc_dir_linear(q_tgt=q_ast_ztf, v_tgt=v_ast_ztf, q_obs=q_obs_ztf)
+    u_geo_mse, delta_geo_mse = calc_dir_linear(q_tgt=q_ast_geo, v_tgt=v_ast_geo, q_obs=q_obs_geo)
+    u_ztf_mse, delta_ztf_mse = calc_dir_linear(q_tgt=q_ast_ztf, v_tgt=v_ast_ztf, q_obs=q_obs_ztf)
+    # Compute light time
+    lt_geo_mse = delta_geo_mse / c
+    lt_ztf_mse = delta_ztf_mse / c
 
     # Change in direction according to JPL and MSE
     du_jpl = u_ztf_jpl - u_geo_jpl
     du_mse = u_ztf_mse - u_geo_mse
 
-    # Compare the two directions
+    # Change in light time according to JPL and MSE
+    dlt_jpl = lt_ztf_jpl - lt_geo_jpl
+    dlt_mse = lt_ztf_mse - lt_geo_mse
+
+    # Compare the two changes due to topos
     print()
     print_stars()
     print(f'Compare directions change between Geocenter and Palomar on the first 16 asteroids:')
     print('JPL: Quoted direction ZTF->Asteroid minus GEO->Asteroid.')
     print('MSE: Calculated direction ZTF->Asteroid minus GEO->Asteroid using JPL state vectors.')
     print('Both sources have directions calculated using calc_dir_linear().')
-    err = direction_diff(name1='JPL', name2='MSE', u1=du_jpl, u2=du_mse, verbose=True)
+    du, dlt = test_ast_dir(name1='JPL', name2='MSE', u1=du_jpl, u2=du_mse, lt1=dlt_jpl, lt2=dlt_mse, verbose=True)
     # Test result
-    thresh: float = 0.5
-    is_ok: bool = (err < thresh)
+    is_ok: bool = (du < thresh_u_topos) and (dlt < thresh_lt)
     msg: str = 'PASS' if is_ok else 'FAIL'
     print(f'**** {msg} ****')
     return is_ok
@@ -260,11 +318,13 @@ def test_dir_linear(state_vec_src: str, mjd0: int, mjd1: int):
     q_ast = df[cols_q_ast].values
     v_ast = df[cols_v_ast].values
 
-    # Direction according to JPL
+    # Direction and light time according to JPL
     u_jpl = df[cols_u].values
+    lt_jpl = df.LightTime.values
 
     # MSE calculation of the astrometric direction in linear model
     u_mse, delta_mse = calc_dir_linear(q_tgt=q_ast, v_tgt=v_ast, q_obs=q_obs)
+    lt_mse = delta_mse / c
 
     # Compare the two directions
     print()
@@ -274,111 +334,54 @@ def test_dir_linear(state_vec_src: str, mjd0: int, mjd1: int):
     print('JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.')
     print('MSE: MSE calculations using linear model with function calc_dir_linear in asteroid_direction.py.')
     print('Both models tested combining JPL data for Geocenter and Palomar observatory locations.')
-    err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
+    du, dlt = test_ast_dir(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, lt1=lt_jpl, lt2=lt_mse, verbose=True)
 
     # Test result
-    thresh: float = 1.0
-    is_ok: bool = (err < thresh)
+    is_ok: bool = (du < thresh_u_tot) and (dlt < thresh_lt)
     msg: str = 'PASS' if is_ok else 'FAIL'
     print(f'**** {msg} ****')
     return is_ok
 
-# # ********************************************************************************************************************* 
-# def test_dir_spline(state_vec_src: str, mjd0: int, mjd1: int):
-#     """
-#     Test MSE astrometric direction calculation vs. JPL using the iterated spline model and JPL state vectors.
-#     INPUTS:
-#         state_vec_src:  One of 'JPL' or 'MSE' - the source of the state vectors used
-#         mjd0: The first date to include in the test
-#         mjd1: The last date to include in the test
-#     """
-#     # Check state_vec_src
-#     if state_vec_src not in ('JPL', 'MSE'):
-#         raise ValueError("Bad state_vec_src! Must be one of 'JPL' or 'MSE'.")    
-
-#     # Import the JPL asteroid directions and state vectors from the selected source
-#     df = df_tbl_src[state_vec_src].copy()
-
-#     # Mask data down to the selected date range
-#     mask =  (mjd0 <= df.tObs) & (df.tObs <= mjd1)
-#     df = df[mask].reindex()
-
-#     # Position and velocity according to selected source of state vectors
-#     q_obs = df[cols_q_obs].values
-#     q_ast = df[cols_q_ast].values
-#     v_ast = df[cols_v_ast].values
-
-#     # Direction according to JPL
-#     u_jpl = df[cols_u].values
-
-#     # Build asteroid position spline from asteroid state vectors
-#     id_col = 'AsteroidID'
-#     time_col = 'tObs'
-#     spline_q_ast = make_spline_df(df=df, cols_spline=cols_q_ast, id_col=id_col, time_col=time_col)
-
-#     # MSE calculation of the astrometric direction in linear model
-#     u_mse, delta_mse = calc_dir_spline(spline_q_ast=spline_q_ast, q_obs=q_obs, t_obs=t_obs, 
-#                         asteroid_id=asteroid_id, light_time=light_time, iters=2)
-
-#     # Compare the two directions
-#     print()
-#     print_stars()
-#     print(f'Compare directions from Geocenter to the first 16 asteroids using JPL state vectors in spline model:')
-#     print(f'Data compared between dates {mjd0} and {mjd1}.')
-#     print('JPL: Directions quoted by JPL. Astrometric RA/DEC converted to vectors using radec2dir.')
-#     print('MSE: MSE calculations using linear model with function calc_dir_spline.\n')
-#     err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
-
-#     # Test result
-#     thresh: float = 1.0
-#     is_ok: bool = (err < thresh)
-#     msg: str = 'PASS' if is_ok else 'FAIL'
-#     print(f'**** {msg} ****')
-#     return is_ok
-
 # ********************************************************************************************************************* 
-def test_calc_dir_ast2obs(obs_name: str, mjd0: int, mjd1: int):
+def test_calc_dir_ast2obs(mjd0: int, mjd1: int):
     """
     Test MSE end to end calculation of asteroid direction vs. JPL.
     INPUTS:
-        site_name: String ID for observatory in Skyfield.  One of 'geocenter' or 'palomar'
-        mjd0: The first date to include in the test
-        mjd1: The last date to include in the test
+        mjd0:       The first date to include in the test
+        mjd1:       The last date to include in the test
     """
-    # Check obs_name
-    if obs_name not in ('geo', 'ztf'):
-        raise ValueError("Bad obs_name! Must be one of 'geo' or 'ztf'.")
-    obs_long_name = obs_name_tbl[obs_name]
-
-    # Import the JPL asteroid directions
-    df_jpl = df_tbl[('JPL', obs_name)].copy()
+    # Import the JPL asteroid directions and MSE state vectors
+    df_jpl = df_tbl_src['MSE'].copy()
 
     # Mask data down to the selected date range
     mask =  (mjd0 <= df_jpl.tObs) & (df_jpl.tObs <= mjd1)
     df_jpl = df_jpl[mask].reset_index(drop=True)
 
     # Selected times and asteroids
-    ts = df_jpl.tObs.values
+    t_obs = df_jpl.tObs.values
     asteroid_id = df_jpl.AsteroidID.values
-    # Direction according to JPL
+    # Direction and light time according to JPL
     u_jpl = df_jpl[cols_u].values
+    lt_jpl = df_jpl.LightTime.values
+    # Observatory location according to JPL (plus MSE topos correction)
+    q_obs = df_jpl[cols_q_obs].values
 
     # MSE calculation of the direction in end to end model
-    df_mse = calc_dir_ast2obs(ts=ts, asteroid_id=asteroid_id, site_name=site_name)
+    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs)
     u_mse = df_mse[cols_u].values
+    lt_mse = df_mse.LightTime.values
 
     # Compare the two directions
     print()
     print_stars()
-    print(f'Compare directions from {site_name} to the first 16 asteroids using MSE end to end model:')
+    print(f'Compare directions to the first 16 asteroids using MSE end to end model:')
     print(f'Data compared between dates {mjd0} and {mjd1}.')
     print('JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.')
-    print('MSE: MSE calculations using linear model with function calc_dir_ast2obs.\n')
-    err = direction_diff(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, verbose=True)
+    print('MSE: MSE calculations using end to end model with function calc_dir_ast2obs.\n')
+    du, dlt = test_ast_dir(name1='JPL', name2='MSE', u1=u_jpl, u2=u_mse, lt1=lt_jpl, lt2=lt_mse, verbose=True)
 
     # Test result
-    thresh: float = 1.0
-    is_ok: bool = (err < thresh)
+    is_ok: bool = (du < thresh_u_tot) and (dlt < thresh_lt)
     msg: str = 'PASS' if is_ok else 'FAIL'
     print(f'**** {msg} ****')
     return is_ok
@@ -411,11 +414,8 @@ def main():
     # Test the asteroid directions in linear model with MSE state vectors
     is_ok &= test_dir_linear(state_vec_src='MSE', mjd0=mjd0, mjd1=mjd1)
 
-    # # Test the asteroid directions in splined model with JPL state vectors
-    # is_ok &= test_dir_spline(mjd0=mjd0, mjd1=mjd1)
-
     # # Test asteroid directions in end to end model
-    # is_ok &= test_calc_dir_ast2obs(site_name='geocenter', mjd0=mjd0, mjd1=mjd1)
+    is_ok &= test_calc_dir_ast2obs(mjd0=mjd0, mjd1=mjd1)
 
     # Overall test result
     msg: str = 'PASS' if is_ok else 'FAIL'

@@ -244,15 +244,15 @@ def calc_dir_spline(spline_q_ast: spline_type_ast, q_obs: np.ndarray, t_obs: np.
 # *************************************************************************************************
 # End to end calculation of direction from an observatory to a known asteroid.
 # *************************************************************************************************
-def calc_dir_ast2obs(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str = 'geocenter', iters: int=2):
+def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarray, iters: int=2):
     """
     Calculate direction for asteroids in the given range.
     The time when photons leave the asteroid is fixed on a regular schedule.
     The arrival time includes the light time
     INPUTS:
-        ts:             Array of detection times
+        t_obs:          Array of detection times
         asteroid_id:    Array of asteroid IDs
-        site_name:      String describing geolocation of the observatory, e.g. 'geocenter' or 'palomar'
+        q_obs:          Array of positions of the observatory in the BME frame
     RETURNS:
         df:     DataFrame with asteroid direction and light time.
                 Columns: AsteroidID, TimeID, tAst, qAst_x, qAst_y, qAst_z, LightTime, tObs, qObs_x, qObs_y, qObs_z
@@ -261,25 +261,18 @@ def calc_dir_ast2obs(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str = '
     n0: int = np.min(asteroid_id)
     n1: int = np.max(asteroid_id)
     # Get range of MJD
-    pad: int = 20
-    mjd0: int = np.min(ts) - pad
-    mjd1: int = np.max(ts) + pad
+    pad: int = 32
+    mjd0: int = np.min(t_obs) - pad
+    mjd1: int = np.max(t_obs) + pad
 
     # Build spline of asteroid posistion that supports this range of asteroids and dates
     spline_q_ast = make_spline_ast_pos(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
-    # The splined Earth position at the observer times
-    t_obs = ts.copy()
-    q_earth = get_earth_pos(ts=ts)
-    # Compute the correction due to topos
-    dq_topos, _ = calc_topos(obstime_mjd=ts, site_name=site_name)
-    data_axis, space_axis, shape = infer_shape(q_earth)
-    dq_topos = dq_topos.reshape(shape)
-    # Position of the observer in BME frame
-    q_obs = q_earth + dq_topos
+    # Create seperate array for t_ast
+    t_ast = t_obs.copy()
 
     # Position of asteroid at t_obs
-    q_ast = spline_q_ast(ts=ts, asteroid_id=asteroid_id)
+    q_ast = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
     # Compute initial light time
     r = calc_distance(q0=q_obs, q1=q_ast)
     light_time = r/c
@@ -297,80 +290,19 @@ def calc_dir_ast2obs(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str = '
 
     return df
 
-# # ********************************************************************************************************************* 
-# def calc_dir_ast2obs_v1(n0: int, n1: int, site_name: str = 'geocenter', iters: int=2):
-#     """
-#     Calculate direction for asteroids in the given range.
-#     The time when photons leave the asteroid is fixed on a regular schedule.
-#     The arrival time includes the light time
-#     INPUTS:
-#         n0:         Fist asteroid number to include; inclusive.
-#         n1:         Last asteroid number to include; exclusive.
-#         site_name:  String describing geolocation of the observatory, e.g. 'geocenter' or 'palomar'
-#         iters:      Number of iterations.
-#                     n=1 is already fully converged b/c the initial guess incorporates the light time from
-#                     the instantaneous distance from Earth to the asteroid.
-#     RETURNS:
-#         df:     DataFrame with asteroid direction and light time.
-#                 Columns: AsteroidID, TimeID, tAst, qAst_x, qAst_y, qAst_z, LightTime, tObs, qObs_x, qObs_y, qObs_z
-#     """
-#     # Load asteroid positions
-#     ast_pos = load_ast_pos(n0=n0, n1=n1)
-
-#     # Reorder columns to put AsteroidID first
-#     cols = ['AsteroidID', 'TimeID'] + list(ast_pos.columns[2:])
-#     ast_pos = ast_pos[cols]
-
-#     # Rename columns
-#     col_tbl = {
-#         'mjd': 'tAst',
-#         'qx': 'qAst_x',
-#         'qy': 'qAst_y',
-#         'qz': 'qAst_z',
-#     }
-#     ast_pos.rename(columns=col_tbl, inplace=True)
-
-#     # Copy asteroid positions into DataFrame used for directions
-#     df = ast_pos.copy()
-
-#     # The time the light leaves the asteroid and arrives at the observer; initial guess equal to t_obs below
-#     t_ast = df.tAst.values
-
-#     # The observer time and splined Earth position will not change
-#     t_obs = t_ast.copy()
-#     q_earth = get_earth_pos(ts=t_obs)
-
-#     # Compute the correction due to topos
-#     dq_topos, _ = calc_topos(obstime_mjd=t_obs, site_name=site_name)
-#     data_axis, space_axis, shape = infer_shape(q_earth)
-#     dq_topos = dq_topos.reshape(shape)
-#     # Position of the observer in BME frame
-#     q_obs = q_earth + dq_topos
-
-#     # Extract asteroid position vectors and asteroid IDs from position DataFrame
-#     q_ast = ast_pos[cols_q_ast].values
-#     asteroid_id = ast_pos.AsteroidID.values
-
-#     # Build asteroid position spline
-#     id_col = 'AsteroidID'
-#     time_col = 'tAst'
-#     spline_q_ast = make_spline_df(df=ast_pos, cols_spline=cols_q_ast, id_col=id_col, time_col=time_col)
-
-#     # Compute initial light time
-#     r = calc_distance(q0=q_obs, q1=q_ast)
-#     light_time = r/c
-
-#     # Delegate to calc_dir_spline
-#     u, delta = calc_dir_spline(spline_q_ast=spline_q_ast, q_obs=q_obs, t_obs=t_obs, 
-#                                 asteroid_id=asteroid_id, light_time=light_time, iters=iters)
-
-#     # Save results to DataFrame
-#     df['tObs'] = t_obs
-#     df[cols_q_obs] = q_obs
-#     df['LightTime'] = light_time
-#     df[cols_dir] = u
-
-#     return df
+# ********************************************************************************************************************* 
+def calc_dir_ast2obs_topos(ts: np.ndarray, asteroid_id: np.ndarray, site_name: str):
+    """Calculate direction of asteroids to a named observatory"""
+    # The splined Earth position at the observer times
+    q_earth = get_earth_pos(ts=ts)
+    # Compute the correction due to topos
+    dq_topos, _ = calc_topos(obstime_mjd=ts, site_name=site_name)
+    data_axis, space_axis, shape = infer_shape(q_earth)
+    dq_topos = dq_topos.reshape(shape)
+    # Position of the observer in BME frame
+    q_obs = q_earth + dq_topos
+    # Delegate to calc_dir_ast2obs()
+    pass
 
 # ********************************************************************************************************************* 
 def light_time_error(df: pd.DataFrame):

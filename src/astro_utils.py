@@ -101,6 +101,7 @@ def datetime_to_mjd(t: datetime, epoch = modified_julian_base_datetime) -> float
 # The MJD of January 1, 2000; used for converting datetime to year (float)
 mjd_01Jan2000: float = date_to_mjd(date(2000,1,1))
 
+# *************************************************************************************************
 def datetime_to_year(t: datetime):
     """Convert a datetime object to a year (float)"""
     mjd = datetime_to_mjd(t)
