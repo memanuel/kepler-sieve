@@ -43,14 +43,14 @@ mu = G_ * 1.0
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def unpack_elt_df(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def unpack_elt_df(df: pd.DataFrame) -> Tuple:
     """
     Unpack a DataFrame of orbital elements
     INPUTS:
         df:     A DataFrame of orbital elements
                 Must include columns named a, e, inc, Omega, omega, f
     OUTPUTS:
-        Tuple of 6 numpy arrays for these elements.
+        Tuple of 6 or 7 numpy arrays for these elements.
     """
     a = df.a.values
     e = df.e.values
@@ -58,10 +58,16 @@ def unpack_elt_df(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
     Omega = df.Omega.values
     omega = df.omega.values
     f = df.f.values
-    return a, e, inc, Omega, omega, f
+    # Include a return for M if it was provided
+    if 'M' in df.columns:
+        M = df.M.values
+        elt_tuple = (a, e, inc, Omega, omega, f, M,)
+    else:
+        elt_tuple = (a, e, inc, Omega, omega, f,)
+    return elt_tuple
 
 # ********************************************************************************************************************* 
-def unpack_elt_np(elt: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def unpack_elt_np(elt: np.ndarray) -> Tuple:
     """
     Unpack a DataFrame of orbital elements
     INPUTS:
@@ -87,7 +93,6 @@ def unpack_elt_np(elt: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, 
         elt_tuple = a, e, inc, Omega, omega, f, M
     else:
         raise ValueError('Bad shape for elt! Must have shape (N, 6) or (N, 7).')
-
     return elt_tuple
 
 # ********************************************************************************************************************* 
