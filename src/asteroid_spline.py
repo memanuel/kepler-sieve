@@ -140,14 +140,36 @@ def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         spline_elt: An interpolation function that accepts array inputs ts and asteroid_id, e.g.
                     elt = spline_elt(ts, element_id)
     """
-    # Get the orbital elements for these asteroids
-    elt = get_ast_elts_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    # Get the orbital elements for these asteroids; these are the inputs to build the spline
+    elt_in = get_ast_elts_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    # Add cosine and sine of M
+    elt_in['Mx'] = np.cos(elt_in.M)
+    elt_in['My'] = np.sin(elt_in.M)
 
     # Delegate to make_spline_df
-    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'f', 'M']
+    cols_spline = ['a', 'e', 'inc', 'Omega', 'omega', 'Mx', 'My']
     time_col = 'mjd'
     id_col = 'AsteroidID'
-    spline_elt = make_spline_df(df=elt, cols_spline=cols_spline, time_col=time_col, id_col=id_col)
+    spline_elt_raw = make_spline_df(df=elt_in, cols_spline=cols_spline, time_col=time_col, id_col=id_col)
+
+    # Wrap up a function that returns the position vector
+    def spline_elt(ts: np.ndarray, asteroid_id: np.ndarray):
+        """Splineed elements as a function of time and asteroid_id"""
+        # Caclulate the splined orbital elements for the input times and asteroid_ids
+        elt_out = spline_elt_raw(ts, asteroid_id)
+        # Unpack the elements; abuse API unpack_elt; really it just unpacks seven arrays in order
+        a, e, inc, Omega, omega, Mx, My = unpack_elt_np(elt_out)
+        # Recover M from Mx and My
+        M = np.arctan2(My, Mx)
+        # Recover f from M
+        f = anomaly_M2f(M=M, e=e)
+        # Overwrite the f and M columns in the splined element array; avoid allocating and copying a new array
+        elt_out[:, 5] = f
+        elt_out[:, 6] = M
+        # Return the splined orbital elements with corrected f
+        return elt_out
+
+    # Return the function that calculates orbital elements
     return spline_elt
 
 # ********************************************************************************************************************* 
@@ -165,6 +187,7 @@ def make_spline_ast_pos(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
     """
     # Delegate to make_spline_ast_elt to build an interpolator for the orbital elements
     spline_elt = make_spline_ast_elt(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
     # Wrap up a function that returns the position vector
     def spline_q(ts: np.ndarray, asteroid_id: np.ndarray):
         """Splineed position as a function of time and asteroid_id"""
@@ -173,7 +196,7 @@ def make_spline_ast_pos(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         # Unpack the elements
         a, e, inc, Omega, omega, f, M = unpack_elt_np(elt)        
         # Recover f from M
-        f = anomaly_M2f(M=M, e=e)
+        # f = anomaly_M2f(M=M, e=e)
         # Compute q in the heliocentric frame
         q_hel: np.ndarray = elt2pos(a=a, e=e, inc=inc, Omega=Omega, omega=omega, f=f)
         # Position  of the sun
@@ -182,6 +205,7 @@ def make_spline_ast_pos(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         q: np.ndarray = q_hel + q_sun
         return q
 
+    # Return the function that calculates positions
     return spline_q
 
 # ********************************************************************************************************************* 
@@ -217,4 +241,5 @@ def make_spline_ast_vec(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         v: np.ndarray = v_hel + v_sun
         return q, v
 
+    # Return the function that calculates state vectors
     return spline_vec

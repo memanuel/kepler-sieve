@@ -48,9 +48,9 @@ def unpack_elt_df(df: pd.DataFrame) -> Tuple:
     Unpack a DataFrame of orbital elements
     INPUTS:
         df:     A DataFrame of orbital elements
-                Must include columns named a, e, inc, Omega, omega, f
+                Must include columns named a, e, inc, Omega, omega, f, M
     OUTPUTS:
-        Tuple of 6 or 7 numpy arrays for these elements.
+        Tuple of 7 numpy arrays for these elements.
     """
     a = df.a.values
     e = df.e.values
@@ -58,46 +58,98 @@ def unpack_elt_df(df: pd.DataFrame) -> Tuple:
     Omega = df.Omega.values
     omega = df.omega.values
     f = df.f.values
-    # Include a return for M if it was provided
-    if 'M' in df.columns:
-        M = df.M.values
-        elt_tuple = (a, e, inc, Omega, omega, f, M,)
-    else:
-        elt_tuple = (a, e, inc, Omega, omega, f,)
+    M = df.M.values
+    # Wrap into a tuple of arrays
+    elt_tuple = (a, e, inc, Omega, omega, f, M,)
     return elt_tuple
 
 # ********************************************************************************************************************* 
 def unpack_elt_np(elt: np.ndarray) -> Tuple:
     """
-    Unpack a DataFrame of orbital elements
+    Unpack an array of orbital elements
     INPUTS:
-        elt:        A numpy array of elements, with the columns a, e, inc, Omega, omega, f; and possibly M.
+        elt:        A numpy array of elements, with the columns a, e, inc, Omega, omega, f and M.
     OUTPUTS:
         elt_tuple:  Tuple of 6 or 7 numpy arrays for these elements.
     """
-    # Get size of input orbital elements
-    col_count = elt.shape[1]
-    # Unpack the first six elements
+    # Unpack the elements
     a = elt[:, 0]
     e = elt[:, 1]
     inc = elt[:, 2]
     Omega = elt[:, 3]
     omega = elt[:, 4]
     f = elt[:, 5]
-
-    # There should be either 6 or 7 columns in the elements
-    if col_count == 6:
-        elt_tuple = a, e, inc, Omega, omega, f
-    elif col_count == 7:
-        M = elt[:, 6]
-        elt_tuple = a, e, inc, Omega, omega, f, M
-    else:
-        raise ValueError('Bad shape for elt! Must have shape (N, 6) or (N, 7).')
+    M = elt[:, 6]
+    # Wrap into a tuple of arrays
+    elt_tuple = (a, e, inc, Omega, omega, f, M,)
     return elt_tuple
 
 # ********************************************************************************************************************* 
+def pack_elt_df(a: np.ndarray, e: np.ndarray, inc: np.ndarray, Omega: np.ndarray, 
+                omega: np.ndarray, f: np.ndarray, M: np.ndarray) -> Tuple:
+    """
+    Pack orbital elements into a DataFrame
+    INPUTS:
+        a:          semi-major axis
+        e:          eccentricity
+        inc:        inclination
+        Omega:      longitude of ascending node
+        omega:      argument of pericenter
+        f:          true anomaly
+        M:          mean anomaly
+    OUTPUTS:
+        elt:        A DataFrame of elements, with the columns a, e, inc, Omega, omega, f, M.
+    """
+    # Dictionary of columns
+    elt_tbl = {
+        'a': a,
+        'e': e,
+        'inc': inc,
+        'Omega': Omega,
+        'omega': omega,
+        'f': f,
+        'M': M,
+    }
+    
+    # Convert dictionary to a DataFrame
+    elt = pd.DataFrame(elt_tbl)
+    return elt
+
+# ********************************************************************************************************************* 
+def pack_elt_np(a: np.ndarray, e: np.ndarray, inc: np.ndarray, Omega: np.ndarray, 
+                omega: np.ndarray, f: np.ndarray, M: np.ndarray) -> Tuple:
+    """
+    Pack orbital elements into an array
+    INPUTS:
+        a:          semi-major axis
+        e:          eccentricity
+        inc:        inclination
+        Omega:      longitude of ascending node
+        omega:      argument of pericenter
+        f:          true anomaly
+        M:          mean anomaly
+    OUTPUTS:
+        elt:        A numpy array of elements, with the columns a, e, inc, Omega, omega, f, M.
+    """
+    # Number of rows
+    shape_a = a.shape
+    shape_elt = a.shape + (7,)
+    # Allocate space for elements
+    elt = np.zeros(shape=shape_elt)
+    
+    # Unpack the first six elements
+    elt[:, 0] = a
+    elt[:, 1] = e
+    elt[:, 2] = inc
+    elt[:, 3] = Omega 
+    elt[:, 4] = omega 
+    elt[:, 5] = f
+    elt[:, 6] = M
+    return elt
+
+# ********************************************************************************************************************* 
 def unpack_vector(v: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Unpack three spatial indices of a vector"""
+    """Unpack three spatial indices of a vector, v"""
     vx = v[:, 0]
     vy = v[:, 1]
     vz = v[:, 2]

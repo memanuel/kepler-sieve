@@ -235,7 +235,7 @@ if __name__ == '__main__':
     is_ok &= test_ast_spline_df(n0=n0, n1=n1)
 
     # Test splining of orbital elements
-    # is_ok &= test_ast_spline_elt(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    is_ok &= test_ast_spline_elt(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
     # Test splining of asteroid position
     is_ok &= test_ast_spline_pos(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)

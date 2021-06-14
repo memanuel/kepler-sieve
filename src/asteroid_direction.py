@@ -53,8 +53,8 @@ mpd: float = 1440.0
 dpm: float = 1.0 / mpd
 
 # Column names used in calculations
-cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
 cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
+cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
 cols_dir = ['ux', 'uy', 'uz']
 
 # ********************************************************************************************************************* 
@@ -271,11 +271,12 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
     # Create seperate array for t_ast
     t_ast = t_obs.copy()
 
-    # Position of asteroid at t_obs
-    q_ast = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
-    # Compute initial light time
-    r = calc_distance(q0=q_obs, q1=q_ast)
-    light_time = r/c
+    # # Position of asteroid at t_obs
+    # q_ast = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
+    # # Compute initial light time
+    # r = calc_distance(q0=q_obs, q1=q_ast)
+    # light_time = r/c
+    light_time = np.zeros_like(t_ast)
 
     # Delegate to calc_dir_spline
     u, delta = calc_dir_spline(spline_q_ast=spline_q_ast, q_obs=q_obs, t_obs=t_obs, 
@@ -283,10 +284,18 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
 
     # Save results to DataFrame
     df = pd.DataFrame()
+    # Key columns
     df['AsteroidID'] = asteroid_id
     df['tObs'] = t_obs
-    df['LightTime'] = light_time
+    # Direction and light time
     df[cols_dir] = u
+    df['LightTime'] = light_time
+
+    # TESTING
+    t_ast = t_obs - light_time / mpd
+    df['tAst'] = t_ast
+    df[cols_q_obs] = q_obs
+    df[cols_q_ast] = spline_q_ast(t_ast)
 
     return df
 

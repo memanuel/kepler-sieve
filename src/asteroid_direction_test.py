@@ -367,7 +367,7 @@ def test_calc_dir_ast2obs(mjd0: int, mjd1: int):
     q_obs = df_jpl[cols_q_obs].values
 
     # MSE calculation of the direction in end to end model
-    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs)
+    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs, iters=3)
     u_mse = df_mse[cols_u].values
     lt_mse = df_mse.LightTime.values
 
