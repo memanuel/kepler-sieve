@@ -79,20 +79,20 @@ def site2geoloc(site_name: str, verbose: bool = False):
     return geoloc
 
 # ********************************************************************************************************************* 
-def calc_topos_impl(obstime_mjd: np.ndarray, obsgeoloc: EarthLocation) -> np.ndarray:
+def calc_topos_impl(t_obs: np.ndarray, obsgeoloc: EarthLocation) -> np.ndarray:
     """
     Compute the topos adjustment from the center of earth to an observer's geolocation.
     INPUTS:
-        obstime_mjd: observation time as a modified julian date
-        obsgeoloc: geolocation of the observatory as an astropy EarthLocation object
+        t_obs:      observation time as a modified julian date
+        obsgeoloc:  geolocation of the observatory as an astropy EarthLocation object
     RETURNS:
         dq_topos: An array of displacements in the ecliptic frame
     """
     # compute the correction due to the observatory of obstime_mjd and geoloc are passed
     # dq_obs is the displacement from geocenter to the observatory
     # the observation times as skyfield time objects
-    obstime_jd = mjd_to_jd(obstime_mjd)
-    obstime_sf = ts_sf.tt_jd(obstime_jd)
+    t_obs_jd = mjd_to_jd(t_obs)
+    t_obs_sf = ts_sf.tt_jd(t_obs_jd)
     # unpack the geodetic coordinates of this observer geolocation
     longitude, latitude, height = obsgeoloc.geodetic
     longitude_degrees = longitude.to(deg).value
@@ -103,24 +103,26 @@ def calc_topos_impl(obstime_mjd: np.ndarray, obsgeoloc: EarthLocation) -> np.nda
                   longitude_degrees=longitude_degrees, 
                   elevation_m=elevation_m)
     # query the topos object at the observation times
-    dq_topos = topos.at(obstime_sf).ecliptic_position().au.T * au
-    dv_topos = topos.at(obstime_sf).ecliptic_velocity().km_per_s.T * km / second
-    dv_topos = dv_topos.to(au/day)
+    dq_topos = topos.at(t_obs_sf).ecliptic_position().au.T * au
+    dv_topos = topos.at(t_obs_sf).ecliptic_velocity().km_per_s.T * km / second
+    # Convert the topos to flat numpy arrays in units of AU and AU / day
+    dq_topos = dq_topos.to(au).value
+    dv_topos = dv_topos.to(au/day).value
 
     return dq_topos, dv_topos
 
 # ********************************************************************************************************************* 
-def calc_topos(obstime_mjd: np.ndarray, site_name: str):
+def calc_topos(t_obs: np.ndarray, site_name: str):
     """
     Calculate topos adjustment using cached spline
     INPUTS:
-        obstime_mjd: Observation times as a numpy array of mjds
-        site_name:   Name of an observatory or geolocation site recognized by astropy, e.g. 'geocenter' or 'Palomar'
+        t_obs:      Observation times as a numpy array of mjds
+        site_name:  Name of an observatory or geolocation site recognized by astropy, e.g. 'geocenter' or 'Palomar'
     """
     # convert site_name to lower case
     site_name = site_name.lower()
     # only look up splined topos if obstime_mjd is passed and site name is not geocenter
-    if obstime_mjd is not None and site_name != 'geocenter':
+    if t_obs is not None and site_name != 'geocenter':
         try:
             # Try to find the spline for this site name
             topos_spline = topos_tbl[site_name]
@@ -136,7 +138,7 @@ def calc_topos(obstime_mjd: np.ndarray, site_name: str):
             dq_topos, dv_topos = calc_topos_impl(obstime_mjd=mjd_long, obsgeoloc=obsgeoloc)
             # build a cubic spline for this site
             x = mjd_long
-            y = np.concatenate([dq_topos.value, dv_topos.value], axis=1)
+            y = np.concatenate([dq_topos, dv_topos], axis=1)
             topos_spline = CubicSpline(x=x, y=y)
             # save this spline to the topos table
             topos_tbl[site_name] = topos_spline
@@ -145,12 +147,12 @@ def calc_topos(obstime_mjd: np.ndarray, site_name: str):
         
         # We are now guaranteed that topos_spline is the spline for this site
         # Evaluate it at the desired observation times
-        spline_out = topos_spline(obstime_mjd)
+        spline_out = topos_spline(t_obs)
         # unpack into dq and dv; units are in au and au/day
         dq_topos = spline_out[:, 0:3]
         dv_topos = spline_out[:, 3:6]
     else:
-        # default is to use geocenter if obstime and geoloc are not passed
+        # default is to use geocenter if t_obs and geoloc are not passed
         dq_topos = np.zeros(3)
         dv_topos = np.zeros(3)
     return dq_topos, dv_topos
@@ -171,26 +173,26 @@ def make_topos_df(site_name: str):
     # Array of TimeID and ts (in form of MJDs)
     time_id = np.arange(TimeID_0, TimeID_1+1, dtype=np.int64)
     # Convert array of time_ids into obstime_mjd
-    obstime_mjd: np.ndarray = time_id / 1440.0
+    t_obs: np.ndarray = time_id / 1440.0
 
     # The ObservatoryID
     observatory_id: int = site_name_tbl[site_name]
     observatory_ids = np.repeat(observatory_id, time_id.shape)
 
     # Calculate the arrays using calc_topos
-    dq_topos, dv_topos = calc_topos(obstime_mjd=obstime_mjd, site_name=site_name)
+    dq_topos, dv_topos = calc_topos(t_obs=t_obs, site_name=site_name)
 
     # Wrap this up into DataFrame
     df_tbl = {
         'ObservatoryID': observatory_ids,
         'TimeID': time_id,
-        'mjd': obstime_mjd,
+        'mjd': t_obs,
     }
     df = pd.DataFrame(df_tbl)
 
     # Add displacement
-    cols_dq = ['dqx', 'dqy', 'dqz',]
-    cols_dv = ['dvx', 'dvy', 'dvz',]
+    cols_dq = ['qx', 'qy', 'qz',]
+    cols_dv = ['vx', 'vy', 'vz',]
     df[cols_dq] = dq_topos
     df[cols_dv] = dv_topos
 
@@ -208,7 +210,7 @@ def main():
     # DB Table
     schema = 'KS'
     table = 'StateVectors_Topos'
-    columns = ['ObservatoryID', 'TimeID', 'mjd', 'dqx', 'dqy', 'dqz', 'dvx', 'dvy', 'dvz']
+    columns = ['ObservatoryID', 'TimeID', 'mjd', 'qx', 'qy', 'qz', 'vx', 'vy', 'vz']
 
     # Process the requested site names
     for site_name in site_names:

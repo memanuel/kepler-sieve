@@ -23,6 +23,7 @@ from scipy.interpolate import RectBivariateSpline
 # Local imports
 from planets_interp import get_sun_vectors, get_sun_pos
 from orbital_element import unpack_elt_np
+from asteroid_data import load_ast_dir
 from asteroid_element import get_ast_elts_ts, get_ast_data_ts
 from orbital_element import elt2vec, elt2pos, anomaly_M2f
 
@@ -307,3 +308,38 @@ def make_spline_ast_pos_direct(n0: int, n1: int, mjd0: int, mjd1: int) -> spline
 
     # Return the function that calculates position directly
     return spline_pos
+
+# ********************************************************************************************************************* 
+def make_spline_ast_dir(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
+    """
+    Build a splining interpolator that returns splined direction.
+    INPUTS:
+        n0:         First asteroid number to return (inclusive)
+        n1:         Last asteroid number to return (exclusive)
+        mjd0:       First date on which to return data (inclusive)
+        mjd1:       Last date on which to return data (exclusive)
+    OUTPUTS:
+        spline_u:   An interpolation function that accepts array inputs ts and asteroid_id, e.g.
+                    u = spline_elt(ts, element_id)
+    """
+    # Get the orbital elements for these asteroids; these are the inputs to build the spline
+    df_in = load_ast_dir(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Delegate to make_spline_df
+    cols_spline = ['ux', 'uy', 'uz', 'LightTime']
+    time_col = 'tObs'
+    id_col = 'AsteroidID'
+    spline_u_np = make_spline_df(df=df_in, cols_spline=cols_spline, time_col=time_col, id_col=id_col)
+
+    # Wrap up a function that returns the direction vector with named arguments
+    def spline_u(ts: np.ndarray, asteroid_id: np.ndarray):
+        """Splined direction as a function of time and asteroid_id"""
+        # Evaluate the spline
+        spline_out = spline_u_np(ts, asteroid_id)
+        # Unpack the direction and light time
+        u = spline_out[:, 0:3]
+        light_time = spline_out[:, 3]
+        return u, light_time
+
+    # Return the function that calculates direction directly
+    return spline_u

@@ -36,7 +36,7 @@ spline_type_obs = Callable[[np.ndarray], np.ndarray]
 
 # Local imports
 from planets_interp import get_earth_pos
-from asteroid_spline import make_spline_ast_pos, make_spline_ast_pos_direct
+from asteroid_spline import make_spline_ast_vec, make_spline_ast_pos, make_spline_ast_pos_direct
 from astro_utils import infer_shape
 from topos import calc_topos
 from db_utils import sp2df, df2db
@@ -129,21 +129,9 @@ def calc_dir_linear(q_tgt: np.ndarray, v_tgt: np.ndarray, q_obs: np.ndarray):
         u:      An array [ux, uy, uz] on the unit sphere in the ecliptic frame
         delta:  The distance from observer to target in AU.
     """
-    # # Convert q_tgt and q_obs to be in units of AU
-    # if isinstance(q_tgt, astropy.units.quantity.Quantity):
-    #     q_tgt = q_tgt.to(au).values
-    # if isinstance(q_obs, astropy.units.quantity.Quantity):
-    #     q_obs = q_obs.to(au).values
-    # # Convert v_tgt to be in units of AU/day
-    # if isinstance(v_tgt, astropy.units.quantity.Quantity):
-    #     v_tgt = v_tgt.to(au/day).values
-
-    # At the end of this block, q_tgt, q_obs, and v_tgt are plain old numpy arrays
-    # q_tgt and q_obs are in AU; v_tgt is in AU/day
-
     # First iteration of distance from object to observer
     r = calc_distance(q0=q_obs, q1=q_tgt)
-    # Light time in days
+    # Light time in DAYS (usually do this in minutes, but here want days so can multiply by v_tgt)
     light_time = (r / c_au_day).reshape((-1, 1))
 
     # Adjusted relative position, accounting for light time
@@ -156,34 +144,28 @@ def calc_dir_linear(q_tgt: np.ndarray, v_tgt: np.ndarray, q_obs: np.ndarray):
     return u, delta
 
 # ********************************************************************************************************************* 
-def calc_dir_linear_topos(q_tgt: np.ndarray, v_tgt: np.ndarray, q_earth: np.ndarray, 
-                          obstime_mjd: Optional[np.ndarray] = None, site_name: str = 'geocenter') -> np.ndarray:
+def calc_dir_linear_topos(q_tgt: np.ndarray, v_tgt: np.ndarray, t_obs: np.ndarray, 
+                          site_name: str = 'geocenter') -> np.ndarray:
     """
     Compute the direction of displacement from earth to a space body as a unit displacement vector
     u = (ux, uy, uz) in the ecliptic plane.
     Linear model including topos adjustment for position of observatory on Earth.
     INPUTS:
-        q_body:         position of target body in BME; either with astropy units or an array in AU
-        v_body:         velocity of target body in BME; passed with units (default AU / day)
-        q_earth:        position of earth in BME; either with astropy units or an array in AU
-        obstime_mjd:    observation time as a modified julian date; only required if passing obsgeoloc 
+        q_body:         position of target body in BME; array in AU
+        v_body:         velocity of target body in BME; array in AU / day
+        t_obs:          observation time as a modified julian dates
         site_name:      String describing geolocation of the observatory, e.g. 'geocenter' or 'palomar'
     RETURNS:
         u:              an array [ux, uy, uz] on the unit sphere in the ecliptic frame
         delta:          the distance from observer to target in AU.
-    EXAMPLE:
-        u, delta = calc_dir_linear_topos(q_body=np.array([-0.328365, 1.570624, 0.040733])*au, 
-                   v_body=np.array([-0.013177, -0.001673, 0.000288])*au/day,
-                   q_earth=np.array([-0.813785, -0.586761, -0.000003])*au,
-                   obsgeoloc=[-2410346.78217658, -4758666.82504051, 3487942.97502457] * meter)
     """
-    # Compute the correction due to the observatory of obstime_mjd and site_name are passed
-    dq_topos, _ = calc_topos(obstime_mjd=obstime_mjd, site_name=site_name)
-
+    # Calculate Earth position at observation times
+    q_earth = get_earth_pos(ts=t_obs) 
+    # Compute the correction due to the observatory of t_obs and site_name
+    dq_topos, _ = calc_topos(t_obs=t_obs, site_name=site_name)
     # Reshape dq_topos to match q_earth
     data_axis, space_axis, shape = infer_shape(q_earth)
     dq_topos = dq_topos.reshape(shape)
-
     # Position of the observer in space
     q_obs = q_earth + dq_topos
 
@@ -252,9 +234,53 @@ def calc_dir_spline(spline_q_ast: spline_type_ast, q_obs: np.ndarray, t_obs: np.
 # *************************************************************************************************
 # End to end calculation of direction from an observatory to a known asteroid.
 # *************************************************************************************************
-def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarray, iters: int=2):
+def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarray):
     """
     Calculate direction for asteroids in the given range.
+    Use linear method, with position and velocity of asteroid calculated via splined orbital elements.
+    The time when photons leave the asteroid is fixed on a regular schedule.
+    The arrival time includes the light time.
+    INPUTS:
+        t_obs:          Array of detection times
+        asteroid_id:    Array of asteroid IDs
+        q_obs:          Array of positions of the observatory in the BME frame
+    RETURNS:
+        df:             DataFrame with asteroid direction and light time.
+                        Columns: AsteroidID, tObs, ux, uy, uz, LightTime
+    """
+    # Get range of asteroids
+    n0: int = np.min(asteroid_id)
+    n1: int = np.max(asteroid_id)+1     # Need to add 1 here b/c n1 is EXCLUSIVE in make_spline_ast_pos()
+    # Get range of MJD
+    pad: int = 32
+    mjd0: int = np.min(t_obs) - pad
+    mjd1: int = np.max(t_obs) + pad
+
+    # Build spline of asteroid posistion that supports this range of asteroids and dates
+    spline_vec_ast = make_spline_ast_vec(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    # Position of asteroid at t_obs    
+    q_ast, v_ast = spline_vec_ast(ts=t_obs, asteroid_id=asteroid_id)
+    # Delegate to calc_dir_linear
+    u, delta = calc_dir_linear(q_tgt=q_ast, v_tgt=v_ast, q_obs=q_obs)
+    # Light time from delta
+    light_time = delta / c
+
+    # Save results to DataFrame
+    df = pd.DataFrame()
+    # Key columns
+    df['AsteroidID'] = asteroid_id
+    df['tObs'] = t_obs
+    # Direction and light time
+    df[cols_dir] = u
+    df['LightTime'] = light_time
+
+    return df
+
+# ********************************************************************************************************************* 
+def calc_dir_ast2obs_spline(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarray, iters: int=2):
+    """
+    Calculate direction for asteroids in the given range.
+    Use iterated spline method. (This is slower but results appear to be basically the same.)
     The time when photons leave the asteroid is fixed on a regular schedule.
     The arrival time includes the light time
     INPUTS:
@@ -262,8 +288,8 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
         asteroid_id:    Array of asteroid IDs
         q_obs:          Array of positions of the observatory in the BME frame
     RETURNS:
-        df:     DataFrame with asteroid direction and light time.
-                Columns: AsteroidID, tObs, ux, uy, uz, LightTime
+        df:             DataFrame with asteroid direction and light time.
+                        Columns: AsteroidID, tObs, ux, uy, uz, LightTime
     """
     # Get range of asteroids
     n0: int = np.min(asteroid_id)
@@ -275,12 +301,11 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
 
     # Build spline of asteroid posistion that supports this range of asteroids and dates
     spline_q_ast = make_spline_ast_pos(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
-    # spline_q_ast = make_spline_ast_pos_direct(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
     # Create separate array for t_ast
     t_ast = t_obs.copy()
 
-    # Position of asteroid at t_obs
+    # Position of asteroid at t_obs    
     q_ast = spline_q_ast(ts=t_ast, asteroid_id=asteroid_id)
     # Compute initial light time
     r = calc_distance(q0=q_obs, q1=q_ast)
@@ -303,10 +328,17 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
 
     return df
 
+# *************************************************************************************************
+# Batch process directions to a block of asteroids at regular intervals
+# *************************************************************************************************
+
 # ********************************************************************************************************************* 
-def calc_dir_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int):
+def prep_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int):
     """
-    Calculate direction form Earth geocenter to a block of asteroids
+    Prepare arrays used in calc_dir_ast_block.
+    N_ast = number of asteroids
+    N_t   = number of times
+    N_row = N_ast x N_t (number of rows)
     INPUTS:
         n0:             First asteroid to process; inclusive.
         n1:             Last asteroid to process; exclusive.
@@ -314,7 +346,8 @@ def calc_dir_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int
         mjd1:           Last date to process
         interval_min:   Step between times in MINUTES
     OUTPUTS:
-        df:             DataFrame of asteroid directions
+        t_obs:          Array of observation times; shape (N_row,)
+        asteroid_id:    Array of Asteroid IDs; shape (N_row,)
     """
     # Start, end and step for TimeID
     TimeID_0 = mjd0 * mpd
@@ -336,13 +369,32 @@ def calc_dir_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int
     # Repeat the asteroid IDs
     asteroid_id = np.repeat(asteroid_id_one, N_t)
 
+    return t_obs, asteroid_id
+    
+# ********************************************************************************************************************* 
+def calc_dir_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int):
+    """
+    Calculate direction from Earth geocenter to a block of asteroids
+    INPUTS:
+        n0:             First asteroid to process; inclusive.
+        n1:             Last asteroid to process; exclusive.
+        mjd0:           First date to process
+        mjd1:           Last date to process
+        interval_min:   Step between times in MINUTES
+    OUTPUTS:
+        df:             DataFrame of asteroid directions
+    """
+    # Build arrays of observation times and asteroid IDs
+    t_obs, asteroid_id = prep_ast_block(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
+
     # Calculate observer position; using geocentric observer so there is no topos adjustment
     q_obs = get_earth_pos(ts=t_obs)
 
     # Delegate to calc_dir_ast2obs()
-    df = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs, iters=2)
+    df = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs)
     # Add the supplemental column TimeID
-    df['TimeID'] = TimeIDs
+    time_id = np.round(t_obs*mpd).astype(np.int64)
+    df['TimeID'] = time_id
     return df
 
 # *************************************************************************************************
@@ -366,6 +418,10 @@ def insert_dir_ast2obs(df: pd.DataFrame):
     # Dispatch to df2db
     df2db(df=df, schema=schema, table=table, columns=columns, chunksize=chunksize, verbose=verbose, progbar=progbar)
 
+# *************************************************************************************************
+# Console program populates DB table KS.AsteroidDirection
+# *************************************************************************************************
+
 # ********************************************************************************************************************* 
 def main():
     """Calculate the direction and light time of the selected batch of asteroid"""
@@ -388,12 +444,12 @@ def main():
     # Set the time range by policy to match AsteroidVectors and AsteroidElements
     mjd0: int = 48000
     mjd1: int = 63000
-    interval_min: int = 4*mpd
+    interval_min: int = int(4*mpd)
 
     # Report arguments
     print(f'Processing asteroid directions for asteroid number in range [{n0}, {n1})...')
     # Set the batch size
-    b: int = 200
+    b: int = 100
     k0: int = n0 // b
     k1: int = max(n1 // b, k0+1)
     for k in tqdm(range(k0, k1)):

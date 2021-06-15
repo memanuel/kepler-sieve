@@ -18,8 +18,9 @@ import numpy as np
 from astropy.units import deg
 
 # Local imports
-from asteroid_spline import make_spline_ast_pos
-from asteroid_direction import c, calc_dir_linear, calc_dir_ast2obs
+from asteroid_spline import make_spline_ast_vec, make_spline_ast_dir
+from asteroid_direction import c, calc_dir_linear, calc_dir_ast2obs, prep_ast_block
+from planets_interp import get_earth_pos
 from ra_dec import radec2dir
 from db_utils import sp2df, df2db
 from astro_utils import dist2deg
@@ -39,16 +40,6 @@ cols_u = ['ux', 'uy', 'uz']
 # DataFrames of JPL directions with two sources of state vectors
 df_jpl = sp2df(sp_name='JPL.AsteroidDirectionTest')
 df_mse = sp2df(sp_name='JPL.AsteroidDirectionVectorTest')
-
-# # Range of asteroids to test
-# n0: int = 1
-# n1: int = 10
-
-# # Mask down to selected range
-# mask_jpl = (n0 <= df_jpl.AsteroidID) & (df_jpl.AsteroidID < n1)
-# mask_mse = (n0 <= df_mse.AsteroidID) & (df_mse.AsteroidID < n1)
-# df_jpl = df_jpl[mask_jpl].copy()
-# df_mse = df_mse[mask_mse].copy()
 
 # Table of DataFrame keyed by state_vec_src
 df_tbl_src = {
@@ -427,6 +418,42 @@ def test_asteroid_dir_db(mjd0: int, mjd1: int):
     return is_ok
 
 # ********************************************************************************************************************* 
+def test_asteroid_dir_spline(mjd0: int, mjd1: int, n0: int, n1: int):
+    """Test asteroid directions splined directly from saved directions vs. those built from splined vectors."""
+    # Prepare asteroid block
+    interval_min = 60   # test spline on directions sampled every hour
+    t_obs, asteroid_id = prep_ast_block(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
+    # Build spline of asteroid direction
+    spline_u = make_spline_ast_dir(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+    # Build spline of asteroid vectors
+    spline_ast_vec = make_spline_ast_vec(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Evaluate spline of asteroid directions
+    u_ast_spline, lt_spline = spline_u(t_obs, asteroid_id)
+    # Evaluate asteroid position and velocity
+    q_ast, v_ast = spline_ast_vec(ts=t_obs, asteroid_id=asteroid_id)
+    # Earth position at these times
+    q_obs = get_earth_pos(ts=t_obs)
+    # Calculate asteroid directions from position and velocity
+    u_ast_linear, delta_linear = calc_dir_linear(q_tgt=q_ast, v_tgt=v_ast, q_obs=q_obs)
+    lt_linear = delta_linear / c
+
+    # Compare two different methods
+    print()
+    print_stars()
+    print('Compare directions between direct spline of saved directions and full calculation with splined elements..')
+    print('linear: Spline orbital elements into vectors; then compute direciton using linear model on q_ast, v_ast.')
+    print('spline: Directly spline u_ast and light_time saved in DB table KS.AsteroidDirection.\n')
+    du, dlt = test_ast_dir(name1='linear', name2='spline', u1=u_ast_linear, u2=u_ast_spline, 
+                            lt1=lt_linear, lt2=lt_spline, verbose=True)
+
+    # Test result
+    is_ok: bool = (du < thresh_u_tot) and (dlt < thresh_lt)
+    msg: str = 'PASS' if is_ok else 'FAIL'
+    print(f'**** {msg} ****')
+    return is_ok
+
+# ********************************************************************************************************************* 
 def main():
     # Build table JPL.AsteroidDirections from JPl.AsteroidDirections_Import
     # jpl_ast_dir_populate(n0=0, n1=100)
@@ -458,7 +485,10 @@ def main():
     is_ok &= test_calc_dir_ast2obs(mjd0=mjd0, mjd1=mjd1)
 
     # Test asteroid directions written to DB
-    is_ok &= test_asteroid_dir_db(mjd0=mjd0, mjd1=mjd1)
+    # is_ok &= test_asteroid_dir_db(mjd0=mjd0, mjd1=mjd1)
+
+    # Test direct spline of saved asteroid directions
+    is_ok &= test_asteroid_dir_spline(mjd0=mjd0, mjd1=mjd1)
 
     # Overall test result
     msg: str = 'PASS' if is_ok else 'FAIL'
