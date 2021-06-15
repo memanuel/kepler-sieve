@@ -21,7 +21,7 @@ cf = pd.DataFrame(
     })
 
 # ********************************************************************************************************************
-def dir2SkyPatchID(dir: np.array, N: int):
+def dir2SkyPatchID(dir: np.array, N: int=1024):
     """
     Compute a vector of SkyPatchIDs from a 3 vectors of direction components
     INPUTS:

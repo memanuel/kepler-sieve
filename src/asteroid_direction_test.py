@@ -19,7 +19,7 @@ from astropy.units import deg
 
 # Local imports
 from asteroid_spline import make_spline_ast_vec, make_spline_ast_dir
-from asteroid_direction import c, calc_dir_linear, calc_dir_ast2obs, prep_ast_block
+from asteroid_direction import c, calc_dir_linear, calc_dir_ast2obs, calc_dir_ast2obs_spline, prep_ast_block
 from planets_interp import get_earth_pos
 from ra_dec import radec2dir
 from db_utils import sp2df, df2db
@@ -364,7 +364,7 @@ def test_calc_dir_ast2obs(mjd0: int, mjd1: int):
     q_obs = df_jpl[cols_q_obs].values
 
     # MSE calculation of the direction in end to end model
-    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs, iters=2)
+    df_mse = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs)
     u_mse = df_mse[cols_u].values
     lt_mse = df_mse.LightTime.values
 
@@ -418,6 +418,43 @@ def test_asteroid_dir_db(mjd0: int, mjd1: int):
     return is_ok
 
 # ********************************************************************************************************************* 
+def test_asteroid_dir_linear_vs_itersp(mjd0: int, mjd1: int, n0: int, n1: int):
+    """Test asteroid directions in linear model vs. iterated spline model."""
+    # Prepare asteroid block
+    interval_min = 60   # test spline on directions sampled every hour
+    t_obs, asteroid_id = prep_ast_block(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
+    # Earth position at these times
+    q_obs = get_earth_pos(ts=t_obs)
+
+    # Asteroid position in the iterated spline model
+    df_itersp = calc_dir_ast2obs_spline(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs)
+    # Asteroid position in the linear model
+    df_linear = calc_dir_ast2obs(t_obs=t_obs, asteroid_id=asteroid_id, q_obs=q_obs)
+
+    # Extract direction arrays
+    u_ast_itersp = df_itersp[cols_u].values
+    u_ast_linear = df_linear[cols_u].values
+    # Extract light time arrays
+    lt_itersp = df_itersp.LightTime.values
+    lt_linear = df_linear.LightTime.values
+
+    # Compare two different methods
+    print()
+    print_stars()
+    print('Compare directions between iterated spline model and linear model.')
+    print('Test compares every 1 hour to exercise both splines.')
+    print('itersp: Asteroid position is evaluated via splined elements; iterated to solve for light time.')
+    print('linear: Asteroid position and velocity evalute via splined elements, then passed to linear model.\n')
+    du, dlt = test_ast_dir(name1='itersp', name2='linear', u1=u_ast_itersp, u2=u_ast_linear, 
+                            lt1=lt_itersp, lt2=lt_linear, verbose=True)
+
+    # Test result
+    is_ok: bool = (du < thresh_u_tot) and (dlt < thresh_lt)
+    msg: str = 'PASS' if is_ok else 'FAIL'
+    print(f'**** {msg} ****')
+    return is_ok
+
+# ********************************************************************************************************************* 
 def test_asteroid_dir_spline(mjd0: int, mjd1: int, n0: int, n1: int):
     """Test asteroid directions splined directly from saved directions vs. those built from splined vectors."""
     # Prepare asteroid block
@@ -441,7 +478,8 @@ def test_asteroid_dir_spline(mjd0: int, mjd1: int, n0: int, n1: int):
     # Compare two different methods
     print()
     print_stars()
-    print('Compare directions between direct spline of saved directions and full calculation with splined elements..')
+    print('Compare directions between direct spline of saved directions and full calculation with splined elements.')
+    print('Directions are saved every 4 days in DB; test compares every 1 hour to exercise the spline.')
     print('linear: Spline orbital elements into vectors; then compute direciton using linear model on q_ast, v_ast.')
     print('spline: Directly spline u_ast and light_time saved in DB table KS.AsteroidDirection.\n')
     du, dlt = test_ast_dir(name1='linear', name2='spline', u1=u_ast_linear, u2=u_ast_spline, 
@@ -465,6 +503,10 @@ def main():
     mjd0: int = epoch - half_width
     mjd1: int = epoch + half_width
 
+    # Set asteroid range for testing splines
+    n0: int = 1
+    n1: int = 17
+
     # Initialize test result
     is_ok: bool = True
 
@@ -484,11 +526,14 @@ def main():
     # Test asteroid directions in end to end model
     is_ok &= test_calc_dir_ast2obs(mjd0=mjd0, mjd1=mjd1)
 
+    # Test linear model vs. iterated spline model
+    is_ok &= test_asteroid_dir_linear_vs_itersp(mjd0=mjd0, mjd1=mjd1, n0=n0, n1=n1)
+
     # Test asteroid directions written to DB
     # is_ok &= test_asteroid_dir_db(mjd0=mjd0, mjd1=mjd1)
 
-    # Test direct spline of saved asteroid directions
-    is_ok &= test_asteroid_dir_spline(mjd0=mjd0, mjd1=mjd1)
+    # Test direct spline of saved asteroid directions vs. calculation via splined vectors
+    is_ok &= test_asteroid_dir_spline(mjd0=mjd0, mjd1=mjd1, n0=n0, n1=n1)
 
     # Overall test result
     msg: str = 'PASS' if is_ok else 'FAIL'
