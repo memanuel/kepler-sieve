@@ -26,7 +26,10 @@ from asteroid_spline import make_spline_ast_dir
 from asteroid_direction import prep_ast_block
 from sky_patch import dir2SkyPatchID
 from db_utils import sp2df, df2db
-from astro_utils import dist2deg
+
+# ********************************************************************************************************************* 
+# SkyPatch grid size
+N_sp = 1024
 
 # Minutes in one day
 mpd: int = 1440
@@ -54,9 +57,8 @@ def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int)
     # Build spline of asteroid direction
     spline_u = make_spline_ast_dir(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
     # Calculate asteroid directions from position and velocity
-    u_ast, light_time = spline_u(t_obs, asteroid_id)
+    u_ast, _ = spline_u(t_obs, asteroid_id)
     # Calculate the SkyPatchID
-    N_sp = 1024
     sky_patch_id = dir2SkyPatchID(dir=u_ast, N=N_sp)
 
     # Calculate the asteroid number in this batch from asteroid_id
@@ -110,37 +112,6 @@ def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int)
     return df
 
 # ********************************************************************************************************************* 
-def test_skypatch_dir(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, verbose: bool=False) -> float:
-    """
-    Report 
-    INPUTS:
-        name1: Descriptive name of the first source, e.g. 'spline'
-        name2: Descriptive name of the second source, e.g. 'skypatch'
-        u1:    Array of directions from source 1; shape Nx3
-        u2:    Array of directions from source 2; shape Nx3
-        verbose: Whether to report results to console
-    """
-    # Difference in unit directions
-    du = u2 - u1
-    du_norm = np.sqrt(np.sum(np.square(du), axis=-1))
-    du_deg = dist2deg(du_norm)
-    du_sec = du_deg * 3600.0
-
-    # Calculate mean, median and max difference in degrees
-    du_mean = np.mean(du_sec)
-    du_median = np.median(du_sec)
-    du_max = np.max(du_sec)
-
-    if verbose:
-        print(f'Angle Difference: {name2} vs. {name1} in arc seconds')
-        print(f'*Mean  : {du_mean:9.1f}*')
-        print(f' Median: {du_median:9.1f}')
-        print(f' Max   : {du_max:9.1f}')
-
-    # Return the difference of direction vectors in seconds of arc
-    return du_mean
-    
-# ********************************************************************************************************************* 
 def main():
 
     # Process command line arguments
@@ -177,3 +148,6 @@ def main():
         df = 0
         # Insert results to database
         
+# ********************************************************************************************************************* 
+if __name__ == '__main__':
+    main()

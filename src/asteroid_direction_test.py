@@ -1,9 +1,18 @@
 """
 Test direction from known asteroids to Earth center implied by integrated trajectories.
-Example calls:
-$ python asteroid_direction.py 0 1000
+Example call:
+$ python asteroid_direction_test.py
 
 Functions in this module:
+jpl_ast_dir_populate(n0, n1)
+test_ast_dir(name1, name2, u1, u2, lt1, lt2)
+test_dir_vectors(obs_name, mjd0, mjd1)
+test_topos(mjd0, mjd1)
+test_dir_linear(state_vec_src, mjd0, mjd1)
+test_calc_dir_ast2obs(mjd0, mjd1)
+test_asteroid_dir_db(mjd0, mjd1)
+test_asteroid_dir_linear_vs_itersp(mjd0, mjd1, n0, n1)
+test_asteroid_dir_spline(mjd0, mjd1, n0, n1)
 main()
 
 Michael S. Emanuel

@@ -4,10 +4,13 @@ Example calls:
 $ python asteroid_direction.py 0 1000
 
 Functions in this module:
-
 light_time_iter(df, t_ast, q_ast)
 calc_dir_ast2obs(n0, n1)
 light_time_error(df)
+insert_dir_ast2obs(df)
+calc_dir_ast2obs_spline(mjd0, mjd1, n0, n1)
+prep_ast_block(n0, n1, mjd0, mjd1, interval_min)
+calc_dir_ast_block(n0, n1, mjd0, mjd1, interval_min)
 insert_dir_ast2obs(df)
 main()
 
