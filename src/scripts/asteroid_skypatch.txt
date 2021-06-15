@@ -1,0 +1,12 @@
+python asteroid_skypatch.py 0 100000
+python asteroid_skypatch.py 100000 100000
+python asteroid_skypatch.py 200000 100000
+python asteroid_skypatch.py 300000 100000
+python asteroid_skypatch.py 400000 100000
+python asteroid_skypatch.py 500000 46000
+
+python asteroid_skypatch.py 1000000 100000
+python asteroid_skypatch.py 1100000 100000
+python asteroid_skypatch.py 1200000 100000
+python asteroid_skypatch.py 1300000 100000
+python asteroid_skypatch.py 1400000 14000

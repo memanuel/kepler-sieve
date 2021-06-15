@@ -1,3 +1,1 @@
-CALL JPL.GetAsteroidDirection(0,10);
-CALL JPL.AsterometricDirectionTest();
-CALL JPL.AsteroidDirectionTest();
+CALL KS.GetAsteroidSkyPatch(0, 10);

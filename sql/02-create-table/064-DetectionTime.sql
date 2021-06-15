@@ -1,13 +1,17 @@
--- ************************************************************************************************
 CREATE OR REPLACE TABLE KS.DetectionTime(
 	DetectionTimeID INT NOT NULL PRIMARY KEY
         COMMENT "Integer ID for this detection time",
+    -- Keys to other time related tables
+    HiResTimeID INT NOT NULL
+        COMMENT "Foreign key to HiResTime table",
     DetectionTimeSliceID INT NOT NULL
     	COMMENT "The time slice; foreign key to DetectionTimeSlice",
+    -- Time filds
     mjd DOUBLE NOT NULL UNIQUE
         COMMENT "The Modified Julian Date of this detection time in the TDB (barycentric dynamical time) frame",
 	CalendarDateTime DATETIME(6) NOT NULL UNIQUE
 		COMMENT "The date and time on the Gregorian calendar in the TDB frame of this detection",
+    -- Other foreign keys describing this detection
     DataSourceID TINYINT NOT NULL
         COMMENT "The data source for this set of detections made at the same time; foreign key to DataSource table",
     ObservatoryID TINYINT NOT NULL
@@ -33,6 +37,9 @@ CREATE OR REPLACE TABLE KS.DetectionTime(
         COMMENT "Position of of the sun (y coordinate) in AU in the barcycentric mean ecliptic frame",
     qSun_z DOUBLE NOT NULL
         COMMENT "Position of of the sun (z coordinate) in AU in the barcycentric mean ecliptic frame",
+    -- Regular index on HiResTimeID
+    KEY IDX_DetectionTime_HiResTimeID(HiResTimeID)
+        COMMENT "Support efficient querying on HiResTimeID field; used for joining detections on (SkyPatchID, DetectionTimeID)",
     -- Foreign keys
     CONSTRAINT FK_DetectionTime_DataSourceID
         FOREIGN KEY (DataSourceID) REFERENCES KS.DataSource(DataSourceID),

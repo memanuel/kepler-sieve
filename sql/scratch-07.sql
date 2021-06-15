@@ -1,15 +1,25 @@
-truncate TABLE JPL.AsteroidDirectionImport;
-
--- LOAD DATA INFILE '/ssd1/tmp/mysql/jpl/horizons/asteroid_directions/ast_geocenter.csv'
--- INTO TABLE JPL.AsteroidDirectionImport
--- FIELDS TERMINATED BY ","
--- LINES TERMINATED BY "\r\n"
--- IGNORE 1 LINES
--- (AsteroidID, ObservatoryID, JD, RA_ast, DEC_ast, RA_app, DEC_app, Mag, Brightness, r, rDot, delta, deltaDot, LightTime);
--- 
--- LOAD DATA INFILE '/ssd1/tmp/mysql/jpl/horizons/asteroid_directions/ast_palomar.csv'
-INTO TABLE JPL.AsteroidDirectionImport
-FIELDS TERMINATED BY ","
-LINES TERMINATED BY "\r\n"
-IGNORE 1 LINES
-(AsteroidID, ObservatoryID, JD, RA_ast, DEC_ast, RA_app, DEC_app, Mag, Brightness, r, rDot, delta, deltaDot, LightTime);
+CREATE TABLE KS.AsteroidDirection2(
+	AsteroidID INT NOT NULL
+		COMMENT "The asteroid whose state vectors are described; FK to KS.Asteroid",
+	TimeID INT NOT NULL
+		COMMENT "Integer ID for the timestamp when light is ARRIVING on Earth (tObs); FK to KS.IntegrationTime",
+	tObs DOUBLE NOT NULL
+		COMMENT "The MJD in the TDB frame when when light arrives at Earth geocenter; denormalized from TimeID.",
+	-- Direction u = [ux, uy, uz]
+	ux DOUBLE NOT NULL
+		COMMENT "Direction of body (x coordinate) from Earth geocenter in the BME frame",
+	uy DOUBLE NOT NULL
+		COMMENT "Direction of body (y coordinate) from Earth geocenter in the BME frame",
+	uz DOUBLE NOT NULL
+		COMMENT "Direction of body (z coordinate) from Earth geocenter in the BME frame",
+	-- Light time
+	LightTime DOUBLE NOT NULL
+		COMMENT "Time for light leaving asteroid to reach Earth in MINUTES not days; tAst = tObs - LightTime / 1440.0.",
+	-- Keys and constraints
+	PRIMARY KEY (AsteroidID, TimeID)
+		COMMENT "A state vector is identified by the body and time stamp; use integer time ID for performance.",
+	UNIQUE KEY UNQ_TimeID_AsteroidID(TimeID, AsteroidID)
+        COMMENT "Allow fast search keyed first by TimeID."
+)
+ENGINE='Aria' TRANSACTIONAL=0
+COMMENT "Directions from Earth geocenter to asteroid; keyed by observation time. Calculated from MSE solar system integration done in rebound.."
