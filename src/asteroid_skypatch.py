@@ -85,15 +85,11 @@ def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int)
         'Segment': sn,
         'TimeID': time_id,
         'SkyPatchID': sky_patch_id,
-        # TODO get rid of this after testing
-        'ux': u_ast[:, 0],
-        'uy': u_ast[:, 1],
-        'uz': u_ast[:, 2],
     }
     df_all = pd.DataFrame(df_tbl)
 
     # Create DataFrame for just the rows that start segments (output rows)
-    cols = ['AsteroidID', 'Segment', 'SkyPatchID', 'TimeID', 'ux', 'uy', 'uz']
+    cols = ['AsteroidID', 'Segment', 'SkyPatchID', 'TimeID']
     df = df_all.loc[mask, cols].copy().reset_index(drop=True)
 
     # Index of next entry on the output DataFrame
@@ -128,17 +124,18 @@ def test_skypatch_dir(name1: str, name2: str, u1: np.ndarray, u2: np.ndarray, ve
     du = u2 - u1
     du_norm = np.sqrt(np.sum(np.square(du), axis=-1))
     du_deg = dist2deg(du_norm)
+    du_sec = du_deg * 3600.0
 
     # Calculate mean, median and max difference in degrees
-    du_mean = np.mean(du_deg)
-    du_median = np.median(du_deg)
-    du_max = np.max(du_deg)
+    du_mean = np.mean(du_sec)
+    du_median = np.median(du_sec)
+    du_max = np.max(du_sec)
 
     if verbose:
-        print(f'Angle Difference: {name2} vs. {name1} in degrees')
-        print(f'*Mean  : {du_mean:9.3f}*')
-        print(f' Median: {du_median:9.3f}')
-        print(f' Max   : {du_max:9.3f}')
+        print(f'Angle Difference: {name2} vs. {name1} in arc seconds')
+        print(f'*Mean  : {du_mean:9.1f}*')
+        print(f' Median: {du_median:9.1f}')
+        print(f' Max   : {du_max:9.1f}')
 
     # Return the difference of direction vectors in seconds of arc
     return du_mean
