@@ -252,9 +252,8 @@ def calc_dir_ast2obs(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: np.ndarr
     n0: int = np.min(asteroid_id)
     n1: int = np.max(asteroid_id)+1     # Need to add 1 here b/c n1 is EXCLUSIVE in make_spline_ast_pos()
     # Get range of MJD
-    pad: int = 32
-    mjd0: int = np.min(t_obs) - pad
-    mjd1: int = np.max(t_obs) + pad
+    mjd0: int = np.min(t_obs)
+    mjd1: int = np.max(t_obs)
 
     # Build spline of asteroid posistion that supports this range of asteroids and dates
     spline_vec_ast = make_spline_ast_vec(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
@@ -295,9 +294,8 @@ def calc_dir_ast2obs_spline(t_obs: np.ndarray, asteroid_id: np.ndarray, q_obs: n
     n0: int = np.min(asteroid_id)
     n1: int = np.max(asteroid_id)+1     # Need to add 1 here b/c n1 is EXCLUSIVE in make_spline_ast_pos()
     # Get range of MJD
-    pad: int = 32
-    mjd0: int = np.min(t_obs) - pad
-    mjd1: int = np.max(t_obs) + pad
+    mjd0: int = np.min(t_obs)
+    mjd1: int = np.max(t_obs)
 
     # Build spline of asteroid posistion that supports this range of asteroids and dates
     spline_q_ast = make_spline_ast_pos(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)

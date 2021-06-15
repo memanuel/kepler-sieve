@@ -125,6 +125,14 @@ def make_spline_df(df: pd.DataFrame, cols_spline: List[str],
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
+def pad_dates(mjd0: int, mjd1: int):
+    """Extend dates on either end of a spline to ensure it can handle all dates between mjd0 and mjd1."""
+    pad: int = 32
+    mjd0 = mjd0 - pad
+    mjd1 = mjd1 + pad
+    return mjd0, mjd1
+
+# ********************************************************************************************************************* 
 def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_ast:
     """
     Build a splining interpolator that returns splined orbital elements for asteroids
@@ -138,6 +146,8 @@ def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         spline_elt: An interpolation function that accepts array inputs ts and asteroid_id, e.g.
                     elt = spline_elt(ts, element_id)
     """
+    # Pad dates
+    mjd0, mjd1 = pad_dates(mjd0=mjd0, mjd1=mjd1)
     # Get the orbital elements for these asteroids; these are the inputs to build the spline
     elt_in = get_ast_elts_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
@@ -179,6 +189,8 @@ def make_spline_ast_elt_no_winding(n0: int, n1: int, mjd0: int, mjd1: int) -> sp
         spline_elt: An interpolation function that accepts array inputs ts and asteroid_id, e.g.
                     elt = spline_elt(ts, element_id)
     """
+    # Pad dates
+    mjd0, mjd1 = pad_dates(mjd0=mjd0, mjd1=mjd1)
     # Get the orbital elements for these asteroids; these are the inputs to build the spline
     elt_in = get_ast_elts_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
     # Add cosine and sine of M
@@ -292,6 +304,8 @@ def make_spline_ast_pos_direct(n0: int, n1: int, mjd0: int, mjd1: int) -> spline
         spline_q:   An interpolation function that accepts array inputs ts and asteroid_id, e.g.
                     q_ast = spline_elt(ts, element_id)
     """
+    # Pad dates
+    mjd0, mjd1 = pad_dates(mjd0=mjd0, mjd1=mjd1)
     # Get the orbital elements for these asteroids; these are the inputs to build the spline
     df_in = get_ast_data_ts(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
@@ -322,6 +336,8 @@ def make_spline_ast_dir(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         spline_u:   An interpolation function that accepts array inputs ts and asteroid_id, e.g.
                     u = spline_elt(ts, element_id)
     """
+    # Pad dates
+    mjd0, mjd1 = pad_dates(mjd0=mjd0, mjd1=mjd1)
     # Get the orbital elements for these asteroids; these are the inputs to build the spline
     df_in = load_ast_dir(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
 
