@@ -530,7 +530,7 @@ def main():
     is_ok &= test_asteroid_dir_linear_vs_itersp(mjd0=mjd0, mjd1=mjd1, n0=n0, n1=n1)
 
     # Test asteroid directions written to DB
-    # is_ok &= test_asteroid_dir_db(mjd0=mjd0, mjd1=mjd1)
+    is_ok &= test_asteroid_dir_db(mjd0=mjd0, mjd1=mjd1)
 
     # Test direct spline of saved asteroid directions vs. calculation via splined vectors
     is_ok &= test_asteroid_dir_spline(mjd0=mjd0, mjd1=mjd1, n0=n0, n1=n1)
