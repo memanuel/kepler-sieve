@@ -35,7 +35,11 @@ N_sp = 1024
 mpd: int = 1440
 
 # ********************************************************************************************************************* 
-def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int):
+# Calculate the skypatch of known asteroids in contiguous segments.
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int) -> pd.DataFrame:
     """
     Calculate the skypatch over time for a block of known asteroids.
     Output is a DataFrame matching the specifications of DB table KS.AsteroidSkyPatch.
@@ -112,11 +116,32 @@ def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int)
     return df
 
 # ********************************************************************************************************************* 
+# Save asteroid skypatch calculations to DB table KS.AsteroidSkyPatch.
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def insert_ast_skypatch(df: pd.DataFrame) -> None:
+    """Insert asteroid direction calculations to database"""
+    # Arguments to df2db
+    schema = 'KS'
+    table = 'AsteroidSkyPatch'
+    columns = ['AsteroidID', 'Segment', 'SkyPatchID', 'TimeID_0', 'TimeID_1']
+    chunksize = 2**19
+    verbose = False
+    progbar = True
+
+    # Dispatch to df2db
+    df2db(df=df, schema=schema, table=table, columns=columns, chunksize=chunksize, verbose=verbose, progbar=progbar)
+
+# *************************************************************************************************
+# Console program populates DB table KS.AsteroidSkyPatch
+# *************************************************************************************************
+
+# ********************************************************************************************************************* 
 def main():
 
     # Process command line arguments
-    parser = argparse.ArgumentParser(description='Calculated direction from known asteroids to Earth center '
-    'implied by rebound integration.  Populates DB table KS.AsteroidDirection.')
+    parser = argparse.ArgumentParser(description='Populates DB table KS.AsteroidSkypatch.')
     parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
                         help='the first asteroid number to process')
     parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
@@ -125,29 +150,35 @@ def main():
     # Unpack command line arguments
     args = parser.parse_args()
     
-    # Block of asteroids to integrate
+    # Block of asteroids to process
     n0: int = args.n0
     n1: int = n0 + args.n_ast
 
-    # Set the time range by policy to approximately match available detections
+    # Set the time range to approximately match available data on detections
+    # Exact date range on 15Jun2021 is MJD 58270-59295
+    # Round this to MJD 58000-60000
     mjd0: int = 58000
     mjd1: int = 60000
-    interval_min: int = 5
+
+    # Use a resolution of every 15 minutes.
+    # The average segment length on first 100 asteroids is about 200 minutes.
+    interval_min: int = 15
 
     # Report arguments
     print(f'Processing asteroid sky patch for asteroid number in range [{n0}, {n1})...')
     # Set the batch size
-    b: int = 100
+    b: int = 1000
     k0: int = n0 // b
     k1: int = max(n1 // b, k0+1)
     for k in tqdm(range(k0, k1)):
         # Start and end of this batch
         n0_i = k*b
         n1_i = min(n0_i + b, n1)
-        # Calculate the direction and light time
-        df = 0
+        # Calculate the asteroid skypatch IDs
+        df = calc_ast_skypatch(n0=n0_i, n1=n1_i, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
         # Insert results to database
-        
+        insert_ast_skypatch(df=df)
+
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
     main()

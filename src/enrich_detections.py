@@ -67,16 +67,17 @@ def calc_detections(mjd0: int, mjd1: int, N_sky_patch: int):
     if df.shape[0]==0:
         return pd.DataFrame(columns = list(df.columns) + ['ux', 'uy', 'uz', 'SkyPatchID', 'k'])
 
-    # Calculate direction
-    detection_add_dir(df)
+    # Caclulated HiResTimeID field and add to DataFrame
+    time_id = np.round(df.mjd.values * 1440.0).astype(np.int)
+    df['HiResTimeID'] = time_id
 
+    # Calculate direction and add it to DataFrame
+    detection_add_dir(df)
     # Nx3 array of directions
     dir = df[['ux', 'uy', 'uz']].values
 
-    # Calculate the SkyPatchID
+    # Calculate and add the SkyPatchID
     SkyPatchID = dir2SkyPatchID(dir=dir, N=N_sky_patch)
-
-    # Add the SkyPatchID
     df['SkyPatchID'] = SkyPatchID
 
     # Add the field k for the detection number in each SkyPatch
@@ -95,7 +96,7 @@ def write_detections():
     N_sky_patch: int = 1024
 
     # Columns to insert to DB
-    columns = ['DetectionTimeID', 'SkyPatchID', 'k', 'DetectionID', 'mjd', 'ux', 'uy', 'uz', 'mag']
+    columns = ['HiResTimeID', 'DetectionTimeID', 'SkyPatchID', 'k', 'DetectionID', 'mjd', 'ux', 'uy', 'uz', 'mag']
 
     # Get date range to roll up
     dts = sp2df('KS.GetRawDetectionDates')    
