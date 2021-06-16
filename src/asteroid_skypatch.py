@@ -22,6 +22,7 @@ import argparse
 from tqdm.auto import tqdm
 
 # Local
+from asteroid_element import get_asteroids
 from asteroid_spline import make_spline_ast_dir
 from asteroid_direction import prep_ast_block
 from sky_patch import dir2SkyPatchID
@@ -120,15 +121,20 @@ def calc_ast_skypatch(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int)
 # ********************************************************************************************************************* 
 
 # ********************************************************************************************************************* 
-def insert_ast_skypatch(df: pd.DataFrame) -> None:
-    """Insert asteroid direction calculations to database"""
+def insert_ast_skypatch(df: pd.DataFrame, jn: int) -> None:
+    """
+    Insert asteroid direction calculations to database
+    INPUTS:
+        df:     The DataFrame of rows to be inserted
+        jn:     The job number; supports parallel processing.
+    """
     # Arguments to df2db
     schema = 'KS'
-    table = 'AsteroidSkyPatch'
+    table = f'AsteroidSkyPatch_Stage_{jn:02d}'
     columns = ['AsteroidID', 'Segment', 'SkyPatchID', 'TimeID_0', 'TimeID_1']
     chunksize = 2**19
     verbose = False
-    progbar = True
+    progbar = False
 
     # Dispatch to df2db
     df2db(df=df, schema=schema, table=table, columns=columns, chunksize=chunksize, verbose=verbose, progbar=progbar)
@@ -142,42 +148,65 @@ def main():
 
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Populates DB table KS.AsteroidSkypatch.')
-    parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
-                        help='the first asteroid number to process')
-    parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
-                        help='the number of asteroids to process in this batch'),
+    # parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
+    #                     help='the first asteroid number to process')
+    # parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
+    #                     help='the number of asteroids to process in this batch'),
+    parser.add_argument('jn', nargs='?', metavar='jn', type=int, 
+                        help='the job number; job jn processes asteroids in block [jn*sz, (jn+1)*sz)')
+    parser.add_argument('sz', nargs='?', metavar='sz', type=int, default=25000,
+                        help='the number of asteroids to process in this job'),
     
     # Unpack command line arguments
     args = parser.parse_args()
-    
-    # Block of asteroids to process
-    n0: int = args.n0
-    n1: int = n0 + args.n_ast
+    jn: int = args.jn
+    sz: int = args.sz
+
+    # Get DataFrame of asteroids and array of all known asteroid_id
+    ast = get_asteroids()
+    asteroid_id = ast.AsteroidID.values
+    ast_count = asteroid_id.shape[0]
+    # Append dummy entry to end of asteroid_id to avoid overflowing on the last asteroid
+    ast_id_dummy = np.max(asteroid_id)+1
+    asteroid_id = np.append(asteroid_id, [ast_id_dummy])
+    # Get start and end of block of sz asteroids for this job
+    i0_job = sz*jn
+    i1_job = min(i0_job+sz, ast_count-1)
+    # Handle edge case where jn*sz is too big
+    if i0_job > ast_count:
+        print(f'There are only {ast_count} asteroids and this job starts at {i0_job}. Quitting early!')
+        quit()
+    # Get asteroid_id for start and end of job; used only in status message, not loop control
+    n0_job = asteroid_id[i0_job]
+    n1_job = asteroid_id[i1_job]
 
     # Set the time range to approximately match available data on detections
     # Exact date range on 15Jun2021 is MJD 58270-59295
     # Round this to MJD 58000-60000
     mjd0: int = 58000
     mjd1: int = 60000
-
     # Use a resolution of every 15 minutes.
     # The average segment length on first 100 asteroids is about 200 minutes.
     interval_min: int = 15
 
     # Report arguments
-    print(f'Processing asteroid sky patch for asteroid number in range [{n0}, {n1})...')
+    print(f'Processing asteroid sky patch for job number {jn} and job size {sz}...')
+    print(f'Range of asteroid index: [{i0_job}, {i1_job})')
+    print(f'Range of AsteroidID:     [{n0_job}, {n1_job})')
+
     # Set the batch size
-    b: int = 1000
-    k0: int = n0 // b
-    k1: int = max(n1 // b, k0+1)
-    for k in tqdm(range(k0, k1)):
-        # Start and end of this batch
-        n0_i = k*b
-        n1_i = min(n0_i + b, n1)
+    b: int = 100
+    # Loop over asteroids in batches of size b
+    for i0 in tqdm(range(i0_job, i1_job, b)):
+        # Ending asteroid index of this batch
+        i1: int = min(i0 + b, i1_job)
+        # Asteroid numbers in this batch
+        n0: int = asteroid_id[i0]
+        n1: int = asteroid_id[i1]
         # Calculate the asteroid skypatch IDs
-        df = calc_ast_skypatch(n0=n0_i, n1=n1_i, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
+        df = calc_ast_skypatch(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1, interval_min=interval_min)
         # Insert results to database
-        insert_ast_skypatch(df=df)
+        insert_ast_skypatch(df=df, jn=jn)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':
