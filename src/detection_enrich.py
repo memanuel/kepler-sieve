@@ -67,7 +67,7 @@ def calc_detections(did0: int, did1: int, N_sp: int):
 
     # Handle edge case where there are no rows
     if df.shape[0]==0:
-        return pd.DataFrame(columns = list(df.columns) + ['SkyPatchID', 'TimeID', 'k', 'ux', 'uy', 'uz',])
+        return pd.DataFrame(columns = list(df.columns) + ['SkyPatchID', 'TimeID', 'ux', 'uy', 'uz',])
 
     # Calculate TimeID and add it to DataFrame
     time_id = np.floor(df.mjd.values).astype(np.int)
@@ -83,8 +83,8 @@ def calc_detections(did0: int, did1: int, N_sp: int):
     df['SkyPatchID'] = SkyPatchID
 
     # Add the field k for the detection number in each SkyPatch
-    k = df.groupby(['SkyPatchID', 'TimeID']).cumcount() +1
-    df['k'] = k
+    # k = df.groupby(['SkyPatchID', 'TimeID']).cumcount() +1
+    # df['k'] = k
 
     return df
 
@@ -94,7 +94,7 @@ def write_detections():
     Write to KS.Detection table from KS.RawDetection
     """
     # Columns to insert to DB
-    columns = ['DetectionID', 'DetectionTimeID', 'TimeID', 'SkyPatchID', 'k', 'mjd', 'ux', 'uy', 'uz', 'mag']
+    columns = ['DetectionID', 'DetectionTimeID', 'TimeID', 'SkyPatchID', 'mjd', 'ux', 'uy', 'uz', 'mag']
 
     # All available (raw) Detection IDs
     did_raw = sp2df('KS.GetRawDetectionIDs')
@@ -113,6 +113,7 @@ def write_detections():
     did0s = np.arange(did0_job, did1_job, b, dtype=np.int)
     # Status update
     print('Rolling up from KS.RawDetection to KS.Detection.')
+    print('Enriching quoted RA/DEC with astrometric direction vector and SkyPatchID.')
     print(f'Processing detection IDs from {did0_job} to {did1_job}...')
 
     # Loop through the batches with a progress bar
