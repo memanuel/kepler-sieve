@@ -191,38 +191,6 @@ def infer_shape(q):
     return data_axis, space_axis, shape
 
 # *************************************************************************************************
-# def xyz_to_sph(x: np.array, y: np.array, z: np.array):
-#     """
-#     Convert a Cartesian coordinates x, y, z of a displacement vector to 
-#     spherical coordinates r, alt, az
-#     Used only for error checking, not RA/DEC calculations.
-#     See ra_dec.py for conversions between Cartesian and RA/DEC coordinates.
-#     """
-#     # The distance R
-#     r = np.sqrt(x*x + y*y + z*z)
-
-#     # The azimuth
-#     az = np.arctan2(y, x)
-
-#     # The altitude; use mask to avoid divide by zero when r=0
-#     alt = np.zeros_like(z)
-#     mask = r>0
-#     alt[mask] = np.arcsin(z[mask] / r[mask])
-
-#     return r, alt, az
-
-# # *************************************************************************************************
-# def cart_to_sph(q: np.array):
-#     """
-#     Convert a Cartesian coordinates q with shape (N,3) to spherical coordinates r, alt, az"""
-#     # Unpack x, y, z
-#     x = q[:, 0]
-#     y = q[:, 1]
-#     z = q[:, 2]
-#     # Delegate to xyz_to_sph
-#     return xyz_to_sph(x, y, z)
-
-# *************************************************************************************************
 # Testing
 # *************************************************************************************************
 def test_julian_day():

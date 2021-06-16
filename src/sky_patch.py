@@ -10,6 +10,10 @@ import numpy as np
 import pandas as pd
 
 # ********************************************************************************************************************
+
+# Default value of the grid size used for sky patch
+N_sp: int = 1024
+
 # Load one copy of the Cube DataFrame into memory
 # cf = sp2df('KS.GetCubeFace')
 cf = pd.DataFrame(
@@ -21,7 +25,7 @@ cf = pd.DataFrame(
     })
 
 # ********************************************************************************************************************
-def dir2SkyPatchID(dir: np.array, N: int=1024):
+def dir2SkyPatchID(dir: np.array, N: int=N_sp):
     """
     Compute a vector of SkyPatchIDs from a 3 vectors of direction components
     INPUTS:
