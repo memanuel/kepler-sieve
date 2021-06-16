@@ -101,10 +101,10 @@ def write_detections():
     # DetectionIDs that have already been processed
     did_proc = sp2df('KS.GetDetectionIDs')
     # First and last DetectionID to process on this job
-    # Start with the last processed DetectionID, plus 1
-    did0_job: int = did_proc.DetectionID_1[0]+1
+    # Start with the last processed DetectionID, plus 1; handle corner case where table is empty
+    did0_job: int = (did_proc.DetectionID_1[0] or 0)+1
     # End with the last available RawDetectionID
-    did1_job: int = did_raw.DetectionID_1[0]
+    did1_job: int = (did_raw.DetectionID_1[0] or 1)
 
     # Set batch size: number of detections
     b: int = 100000
