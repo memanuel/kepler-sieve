@@ -24,6 +24,23 @@ $$
 -- ********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
+PROCEDURE KS.GetAsteroidIDs()
+COMMENT "Get the AsteroidID field only for all numbered asteroids"
+
+BEGIN 
+
+SELECT
+	ast.AsteroidID
+FROM
+	KS.Asteroid AS ast
+ORDER BY ast.AsteroidID;
+
+END
+$$
+
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
 PROCEDURE KS.GetAsteroidNumberRange()
 COMMENT "Get ranges of asteroid IDs"
 
