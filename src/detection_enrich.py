@@ -45,26 +45,33 @@ def detection_add_dir(df: pd.DataFrame):
     df.insert(loc=col_num_dec+3, column='uz', value=uz)
 
 # ********************************************************************************************************************* 
-def calc_detections(mjd0: int, mjd1: int, N_sp: int):
+def calc_detections(did0: int, did1: int, N_sp: int):
     """
     Assemble a batch of detections for insertion to Database from RawDetection data.
     INPUTS:
-        mjd0: First date of detections (inclusive)
-        mjd1: Last date of detections (exclusive)
+        did0: First DetectionID (inclusive)
+        did1: Last DetectionID (exclusive)
         N_sp: Grid size used for SkyPatch
     RETURNS:
         df:   DataFrame ready to insert.
               Columns before enrichment: DetectionID, DetectionTimeID, mjd, ra, dec, mag
-              Columns added: ux, uy, uz, SkyPatchID, k
+              Columns added: SkyPatchID, TimeID, k, ux, uy, uz
     """
 
     # Get DataFrame of raw detections
-    params = {'mjd0':mjd0, 'mjd1': mjd1}
+    params = {
+        'did0': did0, 
+        'did1': did1
+    }
     df = sp2df('KS.GetRawDetections', params)
 
     # Handle edge case where there are no rows
     if df.shape[0]==0:
-        return pd.DataFrame(columns = list(df.columns) + ['ux', 'uy', 'uz', 'SkyPatchID', 'k'])
+        return pd.DataFrame(columns = list(df.columns) + ['SkyPatchID', 'TimeID', 'k', 'ux', 'uy', 'uz',])
+
+    # Calculate TimeID and add it to DataFrame
+    time_id = np.floor(df.mjd.values).astype(np.int)
+    df['TimeID'] = time_id
 
     # Calculate direction and add it to DataFrame
     detection_add_dir(df)
@@ -76,7 +83,7 @@ def calc_detections(mjd0: int, mjd1: int, N_sp: int):
     df['SkyPatchID'] = SkyPatchID
 
     # Add the field k for the detection number in each SkyPatch
-    k = df.groupby(['SkyPatchID', 'DetectionTimeID']).cumcount() +1
+    k = df.groupby(['SkyPatchID', 'TimeID']).cumcount() +1
     df['k'] = k
 
     return df
@@ -87,25 +94,34 @@ def write_detections():
     Write to KS.Detection table from KS.RawDetection
     """
     # Columns to insert to DB
-    columns = ['DetectionID', 'SkyPatchID', 'DetectionTimeID', 'k', 'mjd', 'ux', 'uy', 'uz', 'mag']
+    columns = ['DetectionID', 'DetectionTimeID', 'TimeID', 'SkyPatchID', 'k', 'mjd', 'ux', 'uy', 'uz', 'mag']
 
-    # Get date range to roll up
-    dts = sp2df('KS.GetRawDetectionDates')    
-    mjd0_all = dts.mjd0[0]
-    mjd1_all = dts.mjd1[0]
-    mjd_width = mjd1_all - mjd0_all
+    # All available (raw) Detection IDs
+    did_raw = sp2df('KS.GetRawDetectionIDs')
+    # DetectionIDs that have already been processed
+    did_proc = sp2df('KS.GetDetectionIDs')
+    # First and last DetectionID to process on this job
+    # Start with the last processed DetectionID, plus 1
+    did0_job: int = did_proc.DetectionID_1[0]+1
+    # End with the last available RawDetectionID
+    did1_job: int = did_raw.DetectionID_1[0]
+
+    # Set batch size: number of detections
+    b: int = 100000
+
+    # Array of starting detection ID for each batch
+    did0s = np.arange(did0_job, did1_job, b, dtype=np.int)
+    # Status update
     print('Rolling up from KS.RawDetection to KS.Detection.')
-    print(f'Processing dates from mjd {mjd0_all} to {mjd1_all}...')
+    print(f'Processing detection IDs from {did0_job} to {did1_job}...')
 
-    # Loop through dates
-    sz: int = 1
-    for i in tqdm_auto(range(0, mjd_width, sz)):
-        # Date range for this loop
-        mjd0 = mjd0_all + i * sz
-        mjd1 = mjd0 + sz
-        # Calculate the detections
-        df = calc_detections(mjd0=mjd0, mjd1=mjd1, N_sp=N_sp)
-        # Insert into DB table
+    # Loop through the batches with a progress bar
+    for did0 in tqdm_auto(did0s):
+        # End Detection ID for this batch
+        did1 = min(did0+b, did1_job)
+        # Build DataFrame of enriched detections in this DetectionID range
+        df = calc_detections(did0=did0, did1=did1, N_sp=N_sp)
+        # Write enriched detections to DB table KS.Detection
         df2db(df=df, schema='KS', table='Detection', columns=columns, progbar=False)
         
 # ********************************************************************************************************************* 
