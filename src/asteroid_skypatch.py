@@ -22,7 +22,7 @@ import argparse
 from tqdm.auto import tqdm
 
 # Local
-from asteroid_element import get_asteroids
+from asteroid_data import get_asteroid_ids
 from asteroid_spline import make_spline_ast_dir
 from asteroid_direction import prep_ast_block
 from sky_patch import dir2SkyPatchID
@@ -148,10 +148,6 @@ def main():
 
     # Process command line arguments
     parser = argparse.ArgumentParser(description='Populates DB table KS.AsteroidSkypatch.')
-    # parser.add_argument('n0', nargs='?', metavar='n0', type=int, default=0,
-    #                     help='the first asteroid number to process')
-    # parser.add_argument('n_ast', nargs='?', metavar='B', type=int, default=1000,
-    #                     help='the number of asteroids to process in this batch'),
     parser.add_argument('jn', nargs='?', metavar='jn', type=int, 
                         help='the job number; job jn processes asteroids in block [jn*sz, (jn+1)*sz)')
     parser.add_argument('sz', nargs='?', metavar='sz', type=int, default=25000,
@@ -162,16 +158,15 @@ def main():
     jn: int = args.jn
     sz: int = args.sz
 
-    # Get DataFrame of asteroids and array of all known asteroid_id
-    ast = get_asteroids()
-    asteroid_id = ast.AsteroidID.values
+    # Get array of all known asteroid_ids
+    asteroid_id = get_asteroid_ids()
     ast_count = asteroid_id.shape[0]
     # Append dummy entry to end of asteroid_id to avoid overflowing on the last asteroid
     ast_id_dummy = np.max(asteroid_id)+1
     asteroid_id = np.append(asteroid_id, [ast_id_dummy])
     # Get start and end of block of sz asteroids for this job
     i0_job = sz*jn
-    i1_job = min(i0_job+sz, ast_count-1)
+    i1_job = min(i0_job+sz, ast_count)
     # Handle edge case where jn*sz is too big
     if i0_job > ast_count:
         print(f'There are only {ast_count} asteroids and this job starts at {i0_job}. Quitting early!')

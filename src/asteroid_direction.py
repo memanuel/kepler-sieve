@@ -33,13 +33,14 @@ import argparse
 from tqdm.auto import tqdm
 
 # Typing
-from typing import Callable, Optional
+from typing import Callable
 spline_type_ast = Callable[[np.ndarray, np.ndarray], np.ndarray]
 spline_type_obs = Callable[[np.ndarray], np.ndarray]
 
 # Local imports
 from planets_interp import get_earth_pos
-from asteroid_spline import make_spline_ast_vec, make_spline_ast_pos, make_spline_ast_pos_direct
+from asteroid_data import get_asteroid_ids
+from asteroid_spline import make_spline_ast_vec, make_spline_ast_pos
 from astro_utils import infer_shape
 from topos import calc_topos
 from db_utils import sp2df, df2db
@@ -61,8 +62,8 @@ cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
 cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
 cols_dir = ['ux', 'uy', 'uz']
 
-# DataFrame of asteroids
-ast = sp2df(sp_name='KS.GetAsteroids')
+# Array of asteroid IDs
+asteroid_id_all = get_asteroid_ids()
 
 # *************************************************************************************************
 # Utility functions - calculate distance and direction between two positions
@@ -357,8 +358,8 @@ def prep_ast_block(n0: int, n1: int, mjd0: int, mjd1: int, interval_min: int):
     TimeIDs_one = arange_inc(TimeID_0, TimeID_1, interval_min).astype(np.int64)
 
     # Get array of asteroid IDs between n0 and n1
-    mask = (n0 <= ast.AsteroidID) & (ast.AsteroidID < n1)
-    asteroid_id_one = ast.AsteroidID[mask].values
+    mask = (n0 <= asteroid_id_all) & (asteroid_id_all < n1)
+    asteroid_id_one = asteroid_id_all[mask]
 
     # The number of observation times and asteroids
     N_t = TimeIDs_one.shape[0]

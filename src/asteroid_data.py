@@ -31,6 +31,32 @@ from typing import Tuple
 mjd_last: np.float64 = np.float64(2.0**20)
 
 # ********************************************************************************************************************* 
+# Catalog of known asteroids
+# ********************************************************************************************************************* 
+
+# ********************************************************************************************************************* 
+def get_asteroid_ids() -> np.ndarray:
+    """
+    Return array asteroid_id with the AsteroidID field of all known asteroids
+    """
+    ast: pd.DataFrame = sp2df(sp_name='KS.GetAsteroidIDs')
+    return ast.AsteroidID.values
+
+# ********************************************************************************************************************* 
+def get_asteroids(key_to_body_id: bool=False) -> pd.DataFrame:
+    """
+    Return list of known asteroid names and IDs
+    INPUTS:
+        key_to_body_id: When true, reindex this DataFrame to BodyID.  Default (false) keys to AsteroidID.
+    """
+    ast: pd.DataFrame = sp2df(sp_name='KS.GetAsteroids')
+    if key_to_body_id:
+        ast.set_index(keys='BodyID', drop=False, inplace=True)
+    else:
+        ast.set_index(keys='AsteroidID', drop=False, inplace=True)
+    return ast
+
+# ********************************************************************************************************************* 
 def load_ast_vectors(n0: int, n1: int, mjd0: float=0.0, mjd1: float=mjd_last) -> pd.DataFrame:
     """
     Load the MSE asteroid integrations for this range of asteroids; returns just state vectors.

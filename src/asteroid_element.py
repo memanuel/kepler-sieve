@@ -25,22 +25,9 @@ import pandas as pd
 import rebound
 
 # Local imports
+# from asteroid_data import get_asteroids
 from rebound_sim import make_sim_planets
 from db_utils import sp2df
-
-# ********************************************************************************************************************* 
-def get_asteroids(key_to_body_id: bool=False) -> pd.DataFrame:
-    """
-    Return list of known asteroid names and IDs
-    INPUTS:
-        key_to_body_id: When true, reindex this DataFrame to BodyID.  Default (false) keys to AsteroidID.
-    """
-    ast: pd.DataFrame = sp2df(sp_name='KS.GetAsteroids')
-    if key_to_body_id:
-        ast.set_index(keys='BodyID', drop=False, inplace=True)
-    else:
-        ast.set_index(keys='AsteroidID', drop=False, inplace=True)
-    return ast
 
 # ********************************************************************************************************************* 
 # Work with reference orbital elements for asteroids as of one date provided by JPL
