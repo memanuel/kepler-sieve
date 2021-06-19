@@ -104,7 +104,7 @@ def write_detections():
     # Start with the last processed DetectionID, plus 1; handle corner case where table is empty
     did0_job: int = (did_proc.DetectionID_1[0] or 0)+1
     # End with the last available RawDetectionID
-    did1_job: int = (did_raw.DetectionID_1[0] or 1)
+    did1_job: int = (did_raw.DetectionID_1[0]+1 or 1)
 
     # Set batch size: number of detections
     b: int = 100000
