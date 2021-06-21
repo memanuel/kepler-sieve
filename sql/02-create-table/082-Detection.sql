@@ -25,7 +25,7 @@ CREATE OR REPLACE TABLE KS.Detection(
     	COMMENT "Apparent magnitude (brightness) of this detection",
     -- Primary key
     PRIMARY KEY (DetectionID)
-    	COMMENT "Primary key optimized for matching detections in a time range, then a SkyPatch",
+    	COMMENT "Primary key optimized for speed; foreign key to RawDetection table",
     INDEX IDX_Detection_SkyPatchID_DetectionTimeID (SkyPatchID, TimeID) 
     	COMMENT "Support matching detections by location and time; SkyPatchID is first b/c it has higher cardinality",
 	-- Foreign keys

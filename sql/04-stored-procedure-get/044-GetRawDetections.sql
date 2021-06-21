@@ -63,7 +63,7 @@ PROCEDURE KS.GetRawDetections(
     IN DetectionID_0 INT,
     IN DetectionID_1 INT
 )
-COMMENT "Get raw detections in the specified DetectionID range.  Only return detections that have not been rolled up into KS.Detections."
+COMMENT "Get raw detections in the specified DetectionID range."
 
 BEGIN 
 
@@ -81,13 +81,8 @@ FROM
 	INNER JOIN KS.DetectionTime AS dt ON dt.DetectionTimeID = rd.DetectionTimeID
 WHERE
 	-- Only selected range of DetectionIDs
-	DetectionID_0 <= rd.DetectionID AND rd.DetectionID < DetectionID_1
-    -- Only detections that have not already been rolled up into KS.Detection
-    AND NOT EXISTS (
-        SELECT d.DetectionID
-        FROM KS.Detection AS d
-        WHERE d.DetectionID = rd.DetectionID
-    );
+	DetectionID_0 <= rd.DetectionID AND rd.DetectionID < DetectionID_1;
+
 END
 $$
 

@@ -28,22 +28,22 @@ ENGINE='Aria' TRANSACTIONAL=0
 COMMENT = "For all known asteroids, at every IntegrationTimeSlice, compute the direction of the asteroid and its SkyPatch.";
 
 -- ****************************************************************************************************
-CREATE OR REPLACE TABLE KS.AsteroidSkyPatch_Stage(
-	-- The asteroid
-	AsteroidID INT NOT NULL
-		COMMENT "The asteroid whose direction SkyPatch is being saved; foreign key to Asteroid table",
-	Segment INT NOT NULL
-		COMMENT "The segment number; table describes segments where asteroid is one one patch of the sky",
-	-- The SkyPatch of the direction
-	SkyPatchID INT NOT NULL
-		COMMENT "The SkyPatch where this asteroid could be found during this segment; foreign key to SkyPatch table",
-	-- The time when the direction is calculated
-	TimeID_0 INT NOT NULL
-		COMMENT "The TimeID when this segment starts",
-	TimeID_1 INT NOT NULL
-		COMMENT "The TimeID when this segment ends",
-	-- Primary key
-	PRIMARY KEY (AsteroidID, Segment)
-)
-ENGINE='Aria' TRANSACTIONAL=0
-COMMENT = "Staging table for AsteroidSkypatch";
+-- CREATE OR REPLACE TABLE KS.AsteroidSkyPatch_Stage(
+-- 	-- The asteroid
+-- 	AsteroidID INT NOT NULL
+-- 		COMMENT "The asteroid whose direction SkyPatch is being saved; foreign key to Asteroid table",
+-- 	Segment INT NOT NULL
+-- 		COMMENT "The segment number; table describes segments where asteroid is one one patch of the sky",
+-- 	-- The SkyPatch of the direction
+-- 	SkyPatchID INT NOT NULL
+-- 		COMMENT "The SkyPatch where this asteroid could be found during this segment; foreign key to SkyPatch table",
+-- 	-- The time when the direction is calculated
+-- 	TimeID_0 INT NOT NULL
+-- 		COMMENT "The TimeID when this segment starts",
+-- 	TimeID_1 INT NOT NULL
+-- 		COMMENT "The TimeID when this segment ends",
+-- 	-- Primary key
+-- 	PRIMARY KEY (AsteroidID, Segment)
+-- )
+-- ENGINE='Aria' TRANSACTIONAL=0
+-- COMMENT = "Staging table for AsteroidSkypatch";

@@ -1,12 +1,21 @@
-SELECT * FROM KS.SkyPatchGrid LIMIT 100;
-
+EXPLAIN
 SELECT 
-	min(spg.i) AS i_min,
-	max(spg.i) AS i_max,
-	min(spg.j) AS j_min,
-	max(spg.j) AS j_max
-FROM
-	KS.SkyPatchGrid AS spg;
-	
-
-SELECT * FROM KS.SkyPatch WHERE SkyPatchID=6382172;
+	asp.AsteroidID,
+	det.DetectionID,
+	det.mjd,
+	det.ux,
+	det.uy,
+	det.uz
+FROM 
+	-- Start with AsteroidSkyPatch
+	KS.AsteroidSkyPatch AS asp
+	-- Neighboring sky patches
+	INNER JOIN KS.SkyPatchNeighbor AS spn ON
+		spn.SkyPatchID_1 = asp.SkyPatchID
+	-- Matching detections
+	INNER JOIN KS.Detection AS det ON
+		det.SkyPatchID = spn.SkyPatchID_2 AND
+		det.TimeID BETWEEN asp.TimeID_0-15 AND asp.TimeID_1
+WHERE
+	-- Only selected range of asteroids
+	(asp.AsteroidID BETWEEN 1 AND 10);

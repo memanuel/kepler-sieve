@@ -1,7 +1,19 @@
-SELECT * FROM KS.DetectionTime;
+SELECT 
+	asp.AsteroidID,
+	asp.Segment
+FROM 
+	-- Start with AsteroidSkyPatch
+	KS.AsteroidSkyPatch AS asp
+WHERE
+	asp.AsteroidID = 1
+LIMIT 100;
 
-UPDATE KS.DetectionTime 
-SET HiResTimeID = CAST(FLOOR(mjd*1440) AS INT);
+SELECT
+	spn.SkyPatchID_1,
+	spn.SkyPatchID_2,
+	(360*3600/pi())*ASIN(spn.dr_mid/2) AS dr_sec
+FROM
+	KS.SkyPatchNeighbor AS spn
+LIMIT 100;	
 
-ALTER TABLE KS.DetectionTime
-ADD KEY IDX_DetectionTime_HiResTimeID(HiResTimeID);
+SELECT ASIN(1.0) AS x;
