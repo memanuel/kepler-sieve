@@ -21,6 +21,10 @@ from orbital_element import unpack_vector
 from sky_patch import dir2SkyPatchID, N_sp
 
 # ********************************************************************************************************************* 
+# Number of minutes in one day
+mpd: int = 1440
+
+# ********************************************************************************************************************* 
 def detection_add_dir(df: pd.DataFrame):
     """
     Add calculated directions to DataFrame of ZTF observations
@@ -70,7 +74,7 @@ def calc_detections(did0: int, did1: int, N_sp: int):
         return pd.DataFrame(columns = list(df.columns) + ['SkyPatchID', 'TimeID', 'ux', 'uy', 'uz',])
 
     # Calculate TimeID and add it to DataFrame
-    time_id = np.floor(df.mjd.values).astype(np.int)
+    time_id = np.floor(df.mjd.values*mpd).astype(np.int)
     df['TimeID'] = time_id
 
     # Calculate direction and add it to DataFrame
@@ -81,10 +85,6 @@ def calc_detections(did0: int, did1: int, N_sp: int):
     # Calculate and add the SkyPatchID
     SkyPatchID = dir2SkyPatchID(dir=dir, N=N_sp)
     df['SkyPatchID'] = SkyPatchID
-
-    # Add the field k for the detection number in each SkyPatch
-    # k = df.groupby(['SkyPatchID', 'TimeID']).cumcount() +1
-    # df['k'] = k
 
     return df
 
