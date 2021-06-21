@@ -5,7 +5,8 @@ CREATE OR REPLACE
 DEFINER = kepler
 PROCEDURE KS.GetDetectionNearAstCand(
     IN AsteroidID_0 INT,
-    IN AsteroidID_1 INT
+    IN AsteroidID_1 INT,
+    IN jn INT
 )
 COMMENT "Get candidate detections near asteroids in the given range of asteroids."
 
@@ -15,13 +16,16 @@ BEGIN
 SET max_heap_table_size = 16*(1024*1024*1024);
 SET tmp_table_size = 16*(1024*1024*1024);
 
--- Range of asteroid
--- SET @AsteroidID_0 = 0;
--- SET @AsteroidID_1 = 10;
+-- Get Asteroid number for this batch
+-- SELECT 
+-- 	MIN(ast.AsteroidIdx) AS AsteroidIdx 
+-- INTO @AsteroidIdx
+-- FROM KS.AsteroidNum AS ast
+-- WHERE ast.AsteroidID>=AsteroidID_0;
 
 -- The table name
-SET @k = CAST(AsteroidID_0 DIV 25000 AS INT);
-SET @table_name = CONCAT('KS.AsteroidSkyPatch_Stage_', LPAD(@k, 2, '0'));
+-- SET @k = CAST(@AsteroidIdx DIV 25000 AS INT);
+SET @table_name = CONCAT('KS.AsteroidSkyPatch_Stage_', LPAD(jn, 2, '0'));
 
 -- Staging table for SkyPatchID and time range by asteroid
 CREATE OR REPLACE TEMPORARY TABLE KS.ASP_Candidate(
@@ -31,6 +35,13 @@ CREATE OR REPLACE TEMPORARY TABLE KS.ASP_Candidate(
 	TimeID_1 INT NOT NULL,
 	TimeID_2 INT NOT NULL,
 	PRIMARY KEY (SkyPatchID, AsteroidID, Segment)
+) ENGINE=Memory;
+
+-- Staging table for (AsteroidID, DetectionID) pairs
+CREATE OR REPLACE TEMPORARY TABLE KS.DNA_Candidate(
+	AsteroidID INT NOT NULL,
+	DetectionID INT NOT NULL,
+	PRIMARY KEY (AsteroidID, DetectionID)
 ) ENGINE=Memory;
 
 -- SQL statement template
@@ -67,8 +78,8 @@ DEALLOCATE PREPARE stmt;
 -- Batch of candidate skypatches including neighbors
 -- INSERT INTO KS.ASP_Candidate
 -- SELECT DISTINCT
--- 	spn.SkyPatchID_2 AS SkyPatchID,
 -- 	asp.AsteroidID,
+-- 	spn.SkyPatchID_2 AS SkyPatchID,
 -- 	asp.Segment,
 -- 	asp.TimeID_0-15 AS TimeID_0,
 -- 	asp.TimeID_1
@@ -83,17 +94,42 @@ DEALLOCATE PREPARE stmt;
 -- 	asp.AsteroidID BETWEEN AsteroidID_0 AND (AsteroidID_1-1);
 
 -- Candidate detections matching these skypatches
+INSERT INTO KS.DNA_Candidate
+(AsteroidID, DetectionID)
 SELECT DISTINCT
-	det.DetectionID,
-	asp.AsteroidID
+	asp.AsteroidID,
+	det.DetectionID
 FROM
 	-- Start with AsteroidSkyPatch candidates
-	temp.ASP_Candidate AS asp
+	KS.ASP_Candidate AS asp
 	-- Matching detections
-	INNER JOIN KS.Detection_v2 AS det ON
+	INNER JOIN KS.Detection AS det ON
 		det.SkyPatchID = asp.SkyPatchID AND
-		det.TimeID BETWEEN asp.TimeID_1 AND asp.TimeID_2
-ORDER BY det.DetectionID, asp.AsteroidID;
+		det.TimeID BETWEEN asp.TimeID_1 AND asp.TimeID_2;
+
+-- Query the selected detections along with supplementary information
+SELECT
+	-- Key fields: DetectionID and AsteroidID
+	dc.DetectionID,
+	dc.AsteroidID,
+	-- Time of this detection
+	det.mjd AS tObs,
+	-- The position of the observatory
+	dt.qObs_x,
+	dt.qObs_y,
+	dt.qObs_z,
+	-- The direction of this detection
+	det.ux AS uObs_x,
+	det.uy AS uObs_y,
+	det.uz AS uObs_z
+FROM
+	-- Start with the candidate AsteroidID, DetectionID pairs
+	KS.DNA_Candidate AS dc
+	-- Join Detection to get the position
+	INNER JOIN KS.Detection AS det ON det.DetectionID = dc.DetectionID
+	-- Join DetectionTime to get the observatory position
+	INNER JOIN KS.DetectionTime AS dt ON dt.DetectionTimeID = det.DetectionTimeID
+	ORDER BY dc.AsteroidID, dc.DetectionID;
 
 END
 $$
