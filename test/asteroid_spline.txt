@@ -1,0 +1,86 @@
+Running test suite on asteroid_spline.py...
+
+********************************************************************************
+Splined position using orbital elements; asteroids 1 to 16.
+Original data interval is 4 days.  Spline built using interval of 8 days.
+
+Test: ast_spline_elt (position q, spline on vectors)
+RMS error: 1.509e-08
+Max error: 3.110e-07
+*** PASS ***
+
+Test: ast_spline_elt (position q, spline on elements)
+RMS error: 6.888e-10
+Max error: 4.493e-09
+*** PASS ***
+
+********************************************************************************
+Splined orbital elements vs. MSE calculated elements in DB; asteroids 1 to 16.
+
+Test: a
+RMS error: 3.322e-16
+Max error: 1.332e-15
+*** PASS ***
+
+Test: e
+RMS error: 2.227e-17
+Max error: 1.110e-16
+*** PASS ***
+
+Test: inc
+RMS error: 2.942e-17
+Max error: 2.220e-16
+*** PASS ***
+
+Test: Omega
+RMS error: 2.624e-16
+Max error: 1.776e-15
+*** PASS ***
+
+Test: omega
+RMS error: 2.180e-16
+Max error: 1.332e-15
+*** PASS ***
+
+Test: f
+RMS error: 2.706e-13
+Max error: 6.047e-11
+*** PASS ***
+
+Test: M
+RMS error: 4.834e-15
+Max error: 4.263e-14
+*** PASS ***
+
+********************************************************************************
+Splined position using orbital elements; asteroids 1 to 16.
+
+Test: ast_spline_pos
+RMS error: 7.324e-13
+Max error: 1.631e-10
+*** PASS ***
+
+********************************************************************************
+Splined state vectors using orbital elements; asteroids 1 to 16.
+
+Test: ast_spline_vec (q)
+RMS error: 7.324e-13
+Max error: 1.631e-10
+*** PASS ***
+
+Test: ast_spline_vec (v)
+RMS error: 2.969e-15
+Max error: 6.676e-13
+*** PASS ***
+
+********************************************************************************
+Splined position (direct); asteroids 1 to 16.
+
+Test: ast_spline_pos
+RMS error: 3.399e-16
+Max error: 1.780e-15
+*** PASS ***
+
+********************************************************************************
+Overall test result:
+**** PASS ****

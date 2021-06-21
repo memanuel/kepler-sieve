@@ -1,0 +1,128 @@
+
+********************************************************************************
+Compare directions from Geocenter to the first 16 asteroids between two sources of state vectors:
+Data compared between dates 57000 and 61000.
+JPL: State vectors sourced from JPL using Horizons.
+MSE: Integration done in rebound.
+Both sources have directions calculated using calc_dir_linear().
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.059*
+ Median:     0.047
+ Max   :     0.384
+Light time difference in minutes:
+ Mean  :  4.64e-06
+**** PASS ****
+
+********************************************************************************
+Compare directions from Palomar to the first 16 asteroids between two sources of state vectors:
+Data compared between dates 57000 and 61000.
+JPL: State vectors sourced from JPL using Horizons.
+MSE: Integration done in rebound.
+Both sources have directions calculated using calc_dir_linear().
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.059*
+ Median:     0.047
+ Max   :     0.384
+Light time difference in minutes:
+ Mean  :  4.64e-06
+**** PASS ****
+
+********************************************************************************
+Compare directions change between Geocenter and Palomar on the first 16 asteroids:
+JPL: Quoted direction ZTF->Asteroid minus GEO->Asteroid.
+MSE: Calculated direction ZTF->Asteroid minus GEO->Asteroid using JPL state vectors.
+Both sources have directions calculated using calc_dir_linear().
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.011*
+ Median:     0.010
+ Max   :     0.037
+Light time difference in minutes:
+ Mean  :  9.33e-07
+**** PASS ****
+
+********************************************************************************
+Compare directions to the first 16 asteroids using JPL state vectors in linear model:
+Data compared between dates 57000 and 61000.
+JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.
+MSE: MSE calculations using linear model with function calc_dir_linear in asteroid_direction.py.
+Both models tested combining JPL data for Geocenter and Palomar observatory locations.
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.894*
+ Median:     0.945
+ Max   :     1.864
+Light time difference in minutes:
+ Mean  :  5.39e-05
+**** PASS ****
+
+********************************************************************************
+Compare directions to the first 16 asteroids using MSE state vectors in linear model:
+Data compared between dates 57000 and 61000.
+JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.
+MSE: MSE calculations using linear model with function calc_dir_linear in asteroid_direction.py.
+Both models tested combining JPL data for Geocenter and Palomar observatory locations.
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.897*
+ Median:     0.945
+ Max   :     1.955
+Light time difference in minutes:
+ Mean  :  5.37e-05
+**** PASS ****
+
+********************************************************************************
+Compare directions to the first 16 asteroids using MSE end to end model:
+Data compared between dates 57000 and 61000.
+JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.
+MSE: MSE calculations using end to end model with function calc_dir_ast2obs.
+
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.897*
+ Median:     0.945
+ Max   :     1.955
+Light time difference in minutes:
+ Mean  :  5.37e-05
+**** PASS ****
+
+********************************************************************************
+Compare directions between iterated spline model and linear model.
+Test compares every 1 hour to exercise both splines.
+itersp: Asteroid position is evaluated via splined elements; iterated to solve for light time.
+linear: Asteroid position and velocity evalute via splined elements, then passed to linear model.
+
+Angle Difference: linear vs. itersp in arc seconds
+*Mean  :     0.000*
+ Median:     0.000
+ Max   :     0.001
+Light time difference in minutes:
+ Mean  :  3.87e-08
+**** PASS ****
+
+********************************************************************************
+Compare directions between JPL and MSE data written to DB table KS.AsteroidDirection:
+JPL: Directions quoted by JPL.  Astrometric RA/DEC converted to vectors using radec2dir.
+MSE: MSE calculations using calc_dir_ast2obs and written to DB in program asteroid_direction.py.
+
+Angle Difference: MSE vs. JPL in arc seconds
+*Mean  :     0.898*
+ Median:     0.945
+ Max   :     1.955
+Light time difference in minutes:
+ Mean  :  5.39e-05
+**** PASS ****
+
+********************************************************************************
+Compare directions between direct spline of saved directions and full calculation with splined elements.
+Directions are saved every 4 days in DB; test compares every 1 hour to exercise the spline.
+linear: Spline orbital elements into vectors; then compute direciton using linear model on q_ast, v_ast.
+spline: Directly spline u_ast and light_time saved in DB table KS.AsteroidDirection.
+
+Angle Difference: spline vs. linear in arc seconds
+*Mean  :     0.004*
+ Median:     0.002
+ Max   :     0.084
+Light time difference in minutes:
+ Mean  :  2.77e-07
+**** PASS ****
+
+********************************************************************************
+Overall test of asteroid directions:
+**** PASS ****

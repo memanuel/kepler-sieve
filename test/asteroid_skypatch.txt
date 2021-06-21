@@ -1,0 +1,15 @@
+
+********************************************************************************
+Test skypatch segments by comparing two directions:
+(1) spline  : Take the midpoint time of each segment, and spline the direction of the asteroid using output of make_spline_ast_dir().
+(2) skypatch: Take the center of the reported skypatch in that segment.
+
+Angle Difference: skypatch vs. spline in arc seconds
+*Mean  :      49.1*
+ Median:      47.3
+ Max   :     148.7
+**** PASS ****
+
+********************************************************************************
+Overall test of asteroid skypatch calculations:
+**** PASS ****
