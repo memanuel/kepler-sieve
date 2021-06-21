@@ -7,24 +7,19 @@ Fri Aug 23 16:13:28 2019
 
 # Core
 import numpy as np
-import pandas as pd
-import sqlalchemy
 
 # Astronomy
 import rebound
 
 # Utilities
-import time
 from pathlib import Path
 import os
 
 # MSE imports
-from db_utils import sp2df
 from horizons import make_sim_horizons, extend_sim_horizons
-from orbital_element import OrbitalElement_aeiOofM as OrbitalElement # a, e, inc, Omega, omega, f, M
 
 # Typing
-from typing import List, Tuple, Dict, Set, Optional
+from typing import List, Optional
 
 # ********************************************************************************************************************* 
 # Directory for simulations; make if missing
@@ -149,37 +144,46 @@ def make_sim_de435(epoch: int, integrator: str ='ias15', epsilon: float = 2.0**-
     return sim
 
 # ********************************************************************************************************************* 
-def load_sim_np(fname_np: str) -> Tuple[np.array, np.array, Dict[str, np.array]]:
-    """Load numpy arrays for position, velocity, and catalog data from the named file"""
-    # Path of numpy data file
-    path_np= os.path.join(dir_archive, fname_np)
-    # Load the numpy data file
-    with np.load(path_np, allow_pickle=True) as npz:
-        # Extract position, velocity and hashes
-        q = npz['q']
-        v = npz['v']
-        elts_np = npz['elts']
-        ts = npz['ts']
-        epochs = npz['epochs']
-        epochs_dt = npz['epochs_dt']
-        hashes = npz['hashes']
-        body_ids = npz['body_ids']
-        body_names = npz['body_names']
-        # body_names_list: List[str] = [nm for nm in body_names]
+def reverse_velocity(sim):
+    """Reverse the velocities in a simulation for backwards time integration; modifies sim in place"""
+    for p in sim.particles:
+        vx, vy, vz = p.vx, p.vy, p.vz
+        p.vx = -vx
+        p.vy = -vy
+        p.vz = -vz
 
-    # Wrap the catalog into a dictionary
-    catalog = {
-        'ts': ts,
-        'epochs': epochs,
-        'epochs_dt': epochs_dt,
-        'hashes': hashes,
-        'body_ids': body_ids,
-        'body_names': body_names,
-        }
+# # ********************************************************************************************************************* 
+# def load_sim_np(fname_np: str) -> Tuple[np.array, np.array, Dict[str, np.array]]:
+#     """Load numpy arrays for position, velocity, and catalog data from the named file"""
+#     # Path of numpy data file
+#     path_np= os.path.join(dir_archive, fname_np)
+#     # Load the numpy data file
+#     with np.load(path_np, allow_pickle=True) as npz:
+#         # Extract position, velocity and hashes
+#         q = npz['q']
+#         v = npz['v']
+#         elts_np = npz['elts']
+#         ts = npz['ts']
+#         epochs = npz['epochs']
+#         epochs_dt = npz['epochs_dt']
+#         hashes = npz['hashes']
+#         body_ids = npz['body_ids']
+#         body_names = npz['body_names']
+#         # body_names_list: List[str] = [nm for nm in body_names]
 
-    # For some reason, np.save() squishes a namedtuple into an ND array.  Restore it to a named tuple
-    elts = OrbitalElement(a=elts_np[0], e=elts_np[1], inc=elts_np[2], 
-                          Omega=elts_np[3], omega=elts_np[4], f=elts_np[5], M=elts_np[6])
+#     # Wrap the catalog into a dictionary
+#     catalog = {
+#         'ts': ts,
+#         'epochs': epochs,
+#         'epochs_dt': epochs_dt,
+#         'hashes': hashes,
+#         'body_ids': body_ids,
+#         'body_names': body_names,
+#         }
 
-    # Return the position, velocity, and catalog        
-    return q, v, elts, catalog
+#     # For some reason, np.save() squishes a namedtuple into an ND array.  Restore it to a named tuple
+#     elts = OrbitalElement(a=elts_np[0], e=elts_np[1], inc=elts_np[2], 
+#                           Omega=elts_np[3], omega=elts_np[4], f=elts_np[5], M=elts_np[6])
+
+#     # Return the position, velocity, and catalog        
+#     return q, v, elts, catalog

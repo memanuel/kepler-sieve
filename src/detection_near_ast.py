@@ -26,6 +26,9 @@ from tqdm.auto import tqdm
 
 # Local imports
 from asteroid_data import get_asteroid_ids
+from asteroid_spline import make_spline_ast_dir
+from asteroid_direction import calc_distance
+from astro_utils import sec2dist
 from db_utils import sp2df, df2db
 from utils import print_stars
 
@@ -36,39 +39,51 @@ c = astropy.constants.c.to(au / minute).value
 # Margin for preliminary search
 arcmin_margin: float = 15.0
 
-# Column groups - detections
+# Column groups
 cols_u_obs = ['uObs_x', 'uObs_y', 'uObs_z']
-cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z']
-
-# Column groups - asteroid
 cols_u_ast = ['uAst_x', 'uAst_y', 'uAst_z']
-cols_q_ast = ['qAst_x', 'qAst_y', 'qAst_z']
-cols_v_ast = ['vAst_x', 'vAst_y', 'vAst_z']
-cols_spline_ast = cols_u_ast + ['LightTime']
-
-# Get detection times
-dt = sp2df(sp_name='KS.GetDetectionTimes', params=dict())
-
-# Get range of asteroids
-anr = sp2df(sp_name='KS.GetAsteroidNumberRange')
-n0_num = anr.loc[0, 'AsteroidID_0']
-n1_num = anr.loc[0, 'AsteroidID_1']
-n0_unum = anr.loc[1, 'AsteroidID_0']
-n1_unum = anr.loc[1, 'AsteroidID_1']
-
-# # TEST
-# n0_num = 0
-# n1_num = 1000
-# n0_unum = 1000000
-# n1_unum = 1001000
 
 # ********************************************************************************************************************* 
-def calc_det_near_ast(n0: int, n1: int, arcmin_max: float):
+def calc_det_near_ast(n0: int, n1: int, arcsec_max: float):
     """Calculate asteroid detections near a batch of known asteroids """
-    # Get DataFrame of candidate interactions
+    # Convert threshold from arc seconds to distance
+    s_max = sec2dist(arcsec_max)
 
-    # Calculate the the asteroid directions
+    # Get batch of candidates
+    sp_name = 'KS.GetDetectionNearAstCand'
+    params = {
+        'AsteroidID_0': n0,
+        'AsteroidID_1': n1,
+    }
+    df = sp2df(sp_name=sp_name, params=params)
 
+    # Extract arrays of observation times and asteroid_id
+    t_obs: np.ndarray = df.tObs.values
+    asteroid_id: np.ndarray = df.AsteroidID.values
+
+    # Extract array of detection directions
+    u_obs = df[cols_u_obs].values
+
+    # Get date range
+    mjd0: float = np.min(t_obs)
+    mjd1: float = np.max(t_obs)
+
+    # Build spline of asteroid direction
+    spline_u = make_spline_ast_dir(n0=n0, n1=n1, mjd0=mjd0, mjd1=mjd1)
+
+    # Calculate asteroid directions and light time from spline; add light time to DataFrame
+    u_ast, light_time = spline_u(t_obs, asteroid_id)
+    # df[cols_u_ast] = u_ast
+    df['LightTime'] = light_time
+
+    # Calculate distance between the detection and the asteroid and add it to DataFrame
+    s = calc_distance(u_obs, u_ast)
+    df['s'] = s
+
+    # Mask down to only rows within the maximum distance
+    mask = (s < s_max)
+    df = df[mask].reset_index(drop=True)
+    return df
     
 # ********************************************************************************************************************* 
 def insert_det_near_ast(df: pd.DataFrame):
@@ -93,14 +108,14 @@ def main():
                         help='the job number; job jn processes asteroids in block [jn*sz, (jn+1)*sz)')
     parser.add_argument('sz', nargs='?', metavar='sz', type=int, default=25000,
                         help='the number of asteroids to process in this job'),
-    parser.add_argument('arcmin_max', nargs='?', metavar='B', type=float, default=15.0,
-                        help='the maximum distance in arcminutes between the observation and asteroid direction.'),
+    parser.add_argument('arcsec_max', nargs='?', metavar='B', type=float, default=60.0,
+                        help='the maximum distance in arc seconds between the observation and asteroid direction.'),
 
     # Unpack command line arguments
     args = parser.parse_args()
     jn: int = args.jn
     sz: int = args.sz
-    arcmin_max: float = args.arcmin_max
+    arcsec_max: float = args.arcsec_max
 
     # Get array of all known asteroid_ids
     asteroid_id = get_asteroid_ids()
@@ -123,10 +138,10 @@ def main():
     print(f'Processing detections near asteroids for job number {jn} and job size {sz}...')
     print(f'Range of asteroid index: [{i0_job}, {i1_job})')
     print(f'Range of AsteroidID:     [{n0_job}, {n1_job})')
-    print(f'Threshold distance for a detection to be near: {arcmin_max:6.1f} arc minutes')
+    print(f'Threshold distance:     {arcsec_max:5.1f} arc seconds')
 
     # Set the batch size
-    b: int = 100
+    b: int = 10
     # Loop over asteroids in batches of size b
     for i0 in tqdm(range(i0_job, i1_job, b)):
         # Ending asteroid index of this batch
@@ -135,9 +150,9 @@ def main():
         n0: int = asteroid_id[i0]
         n1: int = asteroid_id[i1]
         # Calculate the asteroid skypatch IDs
-        df = insert_det_near_ast(n0=n0, n1=n1, arcmin_max=arcmin_max)
+        df = calc_det_near_ast(n0=n0, n1=n1, arcsec_max=arcsec_max)
         # Insert results to database
-        insert_det_near_ast(df=df, jn=jn)
+        insert_det_near_ast(df=df)
 
 # ********************************************************************************************************************* 
 if __name__ == '__main__':

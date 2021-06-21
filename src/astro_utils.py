@@ -21,6 +21,7 @@ rad2dist(x_rad)
 dist2deg(dist)
 deg2dist(x_deg)
 dist2sec(dist)
+sec2dist(x_sec)
 """
 
 # Core
@@ -131,45 +132,42 @@ def mjd_to_jd(mjd: float) -> date:
     return mjd + modified_julian_offset
 
 # ********************************************************************************************************************* 
-def dist2rad(dist):
+def dist2rad(dist: np.ndarray):
     """Convert a cartesian distance on unit sphere in [0, 2] to radians in [0, pi]"""
     x_rad = np.arcsin(0.5 * dist) * 2.0
     return x_rad
 
 # ********************************************************************************************************************* 
-def rad2dist(x_rad):
+def rad2dist(x_rad: np.ndarray):
     """Convert a distance on unit sphere from radians in [0, pi] to cartesian distance in [0, 2]"""
     return np.sin(0.5 * x_rad) * 2.0
 
 # ********************************************************************************************************************* 
-def dist2deg(dist):
+def dist2deg(dist: np.ndarray):
     """Convert a cartesian distance on unit sphere in [0, 2] to degrees in [0, 180]"""
     x_rad = dist2rad(dist)
     return np.rad2deg(x_rad)
 
 # ********************************************************************************************************************* 
-def deg2dist(x_deg):
+def deg2dist(x_deg: np.ndarray):
     """Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]"""
     x_rad = np.deg2rad(x_deg)
     return rad2dist(x_rad)
 
 # ********************************************************************************************************************* 
-def dist2sec(dist):
+def dist2sec(dist: np.ndarray):
     """Convert a cartesian distance on unit sphere in [0, 2] to arc seconds in [0, 180*3600]"""
     x_rad = dist2rad(dist)
     return np.rad2deg(x_rad) * 3600.0
 
 # ********************************************************************************************************************* 
-def reverse_velocity(sim):
-    """Reverse the velocities in a simulation for backwards time integration; modifies sim in place"""
-    for p in sim.particles:
-        vx, vy, vz = p.vx, p.vy, p.vz
-        p.vx = -vx
-        p.vy = -vy
-        p.vz = -vz
+def sec2dist(x_sec: np.ndarray):
+    """Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]"""
+    x_rad = np.deg2rad(x_sec / 3600.0)
+    return rad2dist(x_rad)
 
 # ********************************************************************************************************************* 
-def infer_shape(q):
+def infer_shape(q: np.ndarray):
     """
     Infer the axes with data and space dimensions
     INPUTS:
@@ -230,7 +228,6 @@ def test_julian_day():
 # *************************************************************************************************
 def main():
     test_julian_day()
-    # test_anomaly_M2E()
 
 # *************************************************************************************************
 if __name__ == '__main__':

@@ -8,23 +8,18 @@ Fri Aug 23 16:13:28 2019
 # Core
 import numpy as np
 import pandas as pd
-import sqlalchemy
 
 # Astronomy
 import rebound
-
-# Utilities
-from datetime import datetime, timedelta
 
 # UI
 from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
-from astro_utils import mjd_to_datetime
 from orbital_element import OrbitalElement_aeiOofM as OrbitalElement # a, e, inc, Omega, omega, f, M
 
 # Typing
-from typing import List, Tuple, Dict, Set, Optional
+from typing import List, Tuple, Optional
 
 # ********************************************************************************************************************* 
 def integrate_mjds(sim_epoch: rebound.Simulation, mjds: np.array, save_elements: bool, progbar: bool):
