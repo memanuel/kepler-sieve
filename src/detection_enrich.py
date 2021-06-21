@@ -16,9 +16,12 @@ from tqdm.auto import tqdm as tqdm_auto
 
 # MSE imports
 from db_utils import df2db, sp2df, sp_run
+from astro_utils import mjd_to_datetime
 from ra_dec import radec2dir
 from orbital_element import unpack_vector
 from sky_patch import dir2SkyPatchID, N_sp
+from planets_interp import get_earth_vectors, get_sun_vectors
+from topos import calc_topos
 
 # ********************************************************************************************************************* 
 # Number of minutes in one day
@@ -87,6 +90,43 @@ def calc_detections(did0: int, did1: int, N_sp: int):
     df['SkyPatchID'] = SkyPatchID
 
     return df
+
+# ********************************************************************************************************************* 
+def write_detection_times():
+    """
+    Write to KS.DetectionTime from ZTF.DetectionTime
+    """
+    # Start with ZTF Detection Times
+    sp_name = 'ZTF.GetDetectionTimes'
+    df = sp2df(sp_name=sp_name)
+    # Add the CalendarDateTime
+    df['CalendarDateTime'] = [mjd_to_datetime(x) for x in df.mjd.values]
+    # Array of observation times
+    t_obs = df.mjd.values
+    # Calculate Earth and Sun vectors  at observation times
+    q_earth, v_earth = get_earth_vectors(ts=t_obs) 
+    q_sun, v_sun = get_sun_vectors(ts=t_obs)
+    # Calculate the topos adustment
+    site_name = 'palomar'
+    dq, dv = calc_topos(t_obs=t_obs, site_name=site_name)
+    # Position of the observer in space
+    q_obs = q_earth + dq
+    v_obs = v_earth + dv
+
+    # Save to DataFrame
+    cols_q_obs = ['qObs_x', 'qObs_y', 'qObs_z',]
+    cols_v_obs = ['vObs_x', 'vObs_y', 'vObs_z',]
+    cols_q_sun = ['qSun_x', 'qSun_y', 'qSun_z',]
+    cols_v_sun = ['vSun_x', 'vSun_y', 'vSun_z',]
+    df[cols_q_obs] = q_obs
+    df[cols_v_obs] = v_obs
+    df[cols_q_sun] = q_sun
+    df[cols_v_sun] = v_sun
+
+    # Save to KS.DetectionTime
+    cols_key = ['DetectionTimeID', 'HiResTimeID', 'mjd', 'CalendarDateTime', 'DataSourceID', 'ObservatoryID',]
+    columns = cols_key + cols_q_obs + cols_v_obs + cols_q_sun + cols_v_sun
+    df2db(df=df, schema='KS', table='DetectionTime', columns=columns)
 
 # ********************************************************************************************************************* 
 def write_detections():
@@ -159,10 +199,13 @@ def main():
     Main routine for console program
     """
 
-    # Write from KS.RawDetection to KS.Detection
-    write_detections()
+    # Write from ZTF.DetectionTime to KS.DetectionTime
+    # write_detection_times()
 
-    # # Get last DetectionPairID already loaded onto KS.Tracklet
+    # Write from KS.RawDetection to KS.Detection
+    # write_detections()
+
+    # Get last DetectionPairID already loaded onto KS.Tracklet
     # ldtp = sp2df('KS.GetLastTrackletTimePair').LastDetectionTimePairID[0]
     # print(f'Last DetectionTimePairID loaded into KS.Tracklet is {ldtp}.')
 

@@ -121,7 +121,7 @@ def calc_topos(t_obs: np.ndarray, site_name: str):
     """
     # convert site_name to lower case
     site_name = site_name.lower()
-    # only look up splined topos if obstime_mjd is passed and site name is not geocenter
+    # only look up splined topos if t_obs is passed and site name is not geocenter
     if t_obs is not None and site_name != 'geocenter':
         try:
             # Try to find the spline for this site name
@@ -135,7 +135,7 @@ def calc_topos(t_obs: np.ndarray, site_name: str):
             # convert the site name to a geolocation
             obsgeoloc = site2geoloc(site_name)
             # do the actual topos calculation with calc_topos_impl; pass long array mjd_long
-            dq_topos, dv_topos = calc_topos_impl(obstime_mjd=mjd_long, obsgeoloc=obsgeoloc)
+            dq_topos, dv_topos = calc_topos_impl(t_obs=mjd_long, obsgeoloc=obsgeoloc)
             # build a cubic spline for this site
             x = mjd_long
             y = np.concatenate([dq_topos, dv_topos], axis=1)
@@ -152,7 +152,7 @@ def calc_topos(t_obs: np.ndarray, site_name: str):
         dq_topos = spline_out[:, 0:3]
         dv_topos = spline_out[:, 3:6]
     else:
-        # default is to use geocenter if t_obs and geoloc are not passed
+        # default is to use geocenter if t_obs and site_name are not passed
         dq_topos = np.zeros(3)
         dv_topos = np.zeros(3)
     return dq_topos, dv_topos

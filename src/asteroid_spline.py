@@ -166,9 +166,9 @@ def make_spline_ast_elt(n0: int, n1: int, mjd0: int, mjd1: int) -> spline_type_a
         a, e, inc, Omega, omega, f, M = unpack_elt_np(elt_out)
         # Recover f from M and e
         f = anomaly_M2f(M=M, e=e)
-        # Overwrite the f and M columns in the splined element array; avoid allocating and copying a new array
+        # Overwrite the f column in the splined element array; avoid allocating and copying a new array
         elt_out[:, 5] = f
-        elt_out[:, 6] = M
+        # elt_out[:, 6] = M
         # Return the splined orbital elements with corrected f
         return elt_out
 
@@ -217,7 +217,7 @@ def make_spline_ast_elt_no_winding(n0: int, n1: int, mjd0: int, mjd1: int) -> sp
         # Overwrite the f and M columns in the splined element array; avoid allocating and copying a new array
         elt_out[:, 5] = f
         elt_out[:, 6] = M
-        # Return the splined orbital elements with corrected f
+        # Return the splined orbital elements with corrected f and M
         return elt_out
 
     # Return the function that calculates orbital elements
