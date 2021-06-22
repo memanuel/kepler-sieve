@@ -153,16 +153,18 @@ def main():
     print(f'Threshold distance:     {arcsec_max:5.1f} arc seconds')
 
     # Set the batch size
-    b: int = 25
+    b: int = 20
     # Loop over asteroids in batches of size b
     for i0 in tqdm(range(i0_job, i1_job, b)):
         # Ending asteroid index of this batch
         i1: int = min(i0 + b, i1_job)
+        # Job number for this batch; based on sz=25000 used in AsteroidSkyPatch job
+        jn_asp: int = i0 // 25000
         # Asteroid numbers in this batch
         n0: int = asteroid_id[i0]
         n1: int = asteroid_id[i1]
         # Calculate the asteroid skypatch IDs
-        df = calc_det_near_ast(n0=n0, n1=n1, arcsec_max=arcsec_max, jn=jn)
+        df = calc_det_near_ast(n0=n0, n1=n1, arcsec_max=arcsec_max, jn=jn_asp)
         # Insert results to database
         insert_det_near_ast(df=df)
 
