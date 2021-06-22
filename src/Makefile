@@ -23,8 +23,8 @@ LDFLAGS=$(LIBPATH) $(LIBS)
 
 # *****************************************************************************
 # Targets
-db_test: db_test.cpp
-	$(CXX) db_test.cpp -o db_test.x $(CFLAGS) $(LDFLAGS)
+db_test: db_test.cpp db_utils.cpp
+	$(CXX) db_test.cpp db_utils.cpp -o db_test.x $(CFLAGS) $(LDFLAGS)
 
 mariadb-example: mariadb-example.cpp
 	$(CXX) mariadb-example.cpp -o mariadb-example.x $(CFLAGS) $(LDFLAGS)
