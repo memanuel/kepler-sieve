@@ -1,5 +1,6 @@
+// *****************************************************************************
+// Local dependencies
 #include "db_utils.h"
-#include "sky_patch.h"
 
 // *****************************************************************************
 /** Get a connection to the Thor database server running a MariaDB instance.

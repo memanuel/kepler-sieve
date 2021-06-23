@@ -1,3 +1,5 @@
+#pragma once
+
 // *****************************************************************************
 // Included files
 #include <string>
@@ -7,15 +9,20 @@
 using std::string;
 
 // *****************************************************************************
-// Classes defined in sky_patch.cpp
+// Put classes into the namespace ks (for Kepler Sieve)
+namespace ks {
 
+// *****************************************************************************
 /** One face of a cube; used in SkyPatch. */
 class CubeFace
 {
-    private:
-        int8_t id;
     public:
-        CubeFace(int8_t id);
+        // Constructor and destructor
+        CubeFace(int8_t id_);
+        ~CubeFace();
+        // Data
+        const int8_t id;
+        // Access attributes
         const string code();
         const int8_t i();
         const int8_t j1();
@@ -24,3 +31,7 @@ class CubeFace
         const char beta();
         const char gamma();
 };
+
+
+// *****************************************************************************
+}; // namespace

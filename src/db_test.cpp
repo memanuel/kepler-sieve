@@ -1,9 +1,14 @@
+// *****************************************************************************
+// Included libraries
 #include <iostream>
 #include <string>
 #include <boost/format.hpp>
 
+// Local dependencies
 #include "db_utils.h"
 
+// *****************************************************************************
+// Names used
 using std::cout;
 using std::string;
 using std::pair;
@@ -12,7 +17,7 @@ using boost::format;
 // *****************************************************************************
 /** Test database utilities.
 */
-int main(int argc, char *argv[])
+int main()
 {
 
     // Establish Connection
