@@ -1,6 +1,11 @@
 #include "db_utils.h"
+#include "sky_patch.h"
 
 // *****************************************************************************
+/** Get a connection to the Thor database server running a MariaDB instance.
+ *  Connect to the default schema "KS".
+ *  Use credentials for user "kepler".
+ * */
 unique_ptr<Connection> get_db_conn(bool verbose=false)
 {
 
@@ -10,13 +15,12 @@ unique_ptr<Connection> get_db_conn(bool verbose=false)
     string user {"kepler"};
     string password {"kepler"};
 
-    // Wrap username/password into properties object
+    // Wrap username/password into sql Properties object
     pair<string, string> p1("user", user);
     pair<string, string> p2("password", password);
     Properties properties({p1, p2});
 
     // Configure DB connection
-    // string url = format("jdbc:mariadb://Thor/KS").str();
     string url = (format("jdbc:mariadb://%1%/%2%") % db_host % schema).str();
     // SQLString url("jdbc:mariadb://Thor/KS");
 

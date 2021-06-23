@@ -10,6 +10,8 @@ using std::pair;
 using boost::format;
 
 // *****************************************************************************
+/** Test database utilities.
+*/
 int main(int argc, char *argv[])
 {
 
