@@ -1,9 +1,10 @@
 #pragma once
 
 // *****************************************************************************
-// Included files
+// Included libraries
 #include <string>
 #include <stdexcept>
+#include <boost/format.hpp>
 
 // Local dependencies
 #include "utils.h"
@@ -65,6 +66,8 @@ class SkyPatch
         const double x();
         const double y();
         const double z();
+        // Output string description
+        const string str();
     private:
         // Distance to circumscribing cube
         const double r;
@@ -74,8 +77,15 @@ class SkyPatch
         const double c();
 };
 
+// *****************************************************************************
 /** Construct a SkyPatch from its integer ID, sky_patch_id.*/
 SkyPatch SkyPatch_from_id(int32_t sky_patch_id);
+
+/** The number of SkyPatches for the selected grid size.*/
+int32_t sky_patch_count();
+
+/** Construct a table of sky patch neighbors.*/
+void write_sky_patch_neighbor_table(int32_t* spn);
 
 // *****************************************************************************
 }; // namespace
