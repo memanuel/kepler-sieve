@@ -30,6 +30,7 @@ class CubeFace
         const char alpha();
         const char beta();
         const char gamma();
+        const double ci();
 };
 
 
