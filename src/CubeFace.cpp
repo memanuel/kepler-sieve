@@ -1,19 +1,25 @@
 // *****************************************************************************
 // Included files
-#include <stdexcept>
 #include "sky_patch.h"
 
 // *****************************************************************************
 using std::range_error;
 using ks::CubeFace;
 
+// *****************************************************************************
 // Instantiate exception for a bad CubeFaceID
-range_error err_cube_face_id = range_error("cube face id must be between 0 and 5, inclusive.\n");
+namespace ks{
+range_error err_cube_face_id = range_error("CubeFace id must be between 0 and 5, inclusive.\n");
+}
+using ks::err_cube_face_id;
 
 // *****************************************************************************
 /** Initialize a CubeFace from its ID; starts from 0.*/
 CubeFace::CubeFace(int8_t id_) : 
-id(id_) {}
+id(id_) 
+{
+    if ((id_ < 0) || (id_ > 5)) {throw err_cube_face_id;}
+}
 
 // *****************************************************************************
 /** Default destructor for CubeFace.*/
@@ -133,7 +139,7 @@ const char CubeFace::gamma()
 
 // *****************************************************************************
 /**Sign of the largest axis, with local values 'w'; e.g. for Z+, ci=1.0 .*/
-const double CubeFace::ci()
+const double CubeFace::c() const
 {
     switch (id)
     {
@@ -146,4 +152,3 @@ const double CubeFace::ci()
         default:    throw err_cube_face_id;
     }
 }
-
