@@ -54,69 +54,107 @@ SkyPatch::~SkyPatch() {}
 
 // *****************************************************************************
 /**Integer ID of this sky patch*/
-const int32_t SkyPatch::id()
+const int32_t SkyPatch::id() const
 {
     return (M2*f.id) + (M*i) + j;
 }
 
 // *****************************************************************************
 /**Coordinate on unit cube of first varying axis (alpha).*/
-const double SkyPatch::a()
+const double SkyPatch::a() const
 {
     return N_inv*(static_cast<double>(i)+0.5) - 1.0;
 }
 
 // *****************************************************************************
 /**Coordinate on unit cube of second varying axis (beta).*/
-const double SkyPatch::b()
+const double SkyPatch::b() const
 {
     return N_inv*(static_cast<double>(j)+0.5) - 1.0;
 }
 
 // *****************************************************************************
 /**Coordinate on unit cube of third varying axis (gamma).*/
-const double SkyPatch::c()
+const double SkyPatch::c() const
 {
     return f.c();
 }
 
 // *****************************************************************************
 /**Coordinate on first varying axis (alpha).*/
-const double SkyPatch::u()
+const double SkyPatch::u() const
 {
     return a() / r;
 }
 
 // *****************************************************************************
 /**Coordinate on second varying axis (beta).*/
-const double SkyPatch::v()
+const double SkyPatch::v() const
 {
     return b() / r;
 }
 
 // *****************************************************************************
 /**Coordinate on third varying axis (gamma).*/
-const double SkyPatch::w()
+const double SkyPatch::w() const
 {
     return c() / r;
 }
 
 // *****************************************************************************
-const string SkyPatch::str()
+/**Global x coordinate.*/
+const double SkyPatch::x() const
+{
+    if (f.alpha()=='X') {return u();}
+    if (f.beta()=='X') {return v();}
+    if (f.gamma()=='X') {return w();}
+    throw std::runtime_error("Bad cube face.  None of alpha, beta, gamma equal 'X'.");
+}
+
+// *****************************************************************************
+/**Global y coordinate.*/
+const double SkyPatch::y() const
+{
+    if (f.alpha()=='Y') {return u();}
+    if (f.beta()=='Y') {return v();}
+    if (f.gamma()=='Y') {return w();}
+    throw std::runtime_error("Bad cube face.  None of alpha, beta, gamma equal 'Y'.");
+}
+
+// *****************************************************************************
+/**Global z coordinate.*/
+const double SkyPatch::z() const
+{
+    if (f.alpha()=='Z') {return u();}
+    if (f.beta()=='Z') {return v();}
+    if (f.gamma()=='Z') {return w();}
+    throw std::runtime_error("Bad cube face.  None of alpha, beta, gamma equal 'Z'.");
+}
+
+// *****************************************************************************
+const string SkyPatch::str() const
 {
     // The Integer coordinates (f, i, j)
     int f_ = static_cast<int>(f.id);
-    string fij = (format("(f, i, j) = (%d, %d, %d)") % f_ % i % j).str();
-    // The midpoint coordinates (u, v, w)
-    string uvw = (format("(u, v, w) = (%8.6f, %8.6f, %8.6f)") % u() % v() % w()).str();
+    string fij = (format("(f, i, j) = (%d, %4d, %4d)") % f_ % i % j).str();
+    // The midpoint local coordinates (u, v, w)
+    // string uvw = (format("(u, v, w) = (%8.6f, %8.6f, %8.6f)") % u() % v() % w()).str();
+    // The midpoint global coordinates (x, y, z)
+    string xyz = (format("(x, y, z) = (%8.6f, %8.6f, %8.6f)") % x() % y() % z()).str();
     // Return one combined description
-    return (format("spid = %8d. %s. %s.\n") % id() % fij % uvw).str();
+    return (format("spid = %8d. %s. %s.\n") % id() % fij % xyz).str();
 }
 
 /******************************************************************************
 Functions for working with SkyPatch objects
 ******************************************************************************/
 namespace ks {
+
+// *****************************************************************************
+int fij2spid(int8_t f, int16_t i, int16_t j)
+{
+    return (M2*f) + (M*i) + j;
+}
 
 // *****************************************************************************
 /** Initialize a SkyPatch from its integer ID.*/
@@ -137,9 +175,9 @@ SkyPatch SkyPatch_from_id(int32_t id)
 }
 
 // *****************************************************************************
-int32_t sky_patch_count()
+int sky_patch_count()
 {
-    return N_spc;
+    return static_cast<int>(N_spc);
 }
 
 // *****************************************************************************
@@ -150,8 +188,8 @@ void write_sky_patch_neighbor_table(int32_t* spn)
     {
         // The offset for this grid face is M2*f
         int32_t idx_f = M2*f;
-        // for (int16_t i0=0; i0<M; i0++)
-        for (int16_t i0=0; i0<10; i0++)
+        for (int16_t i0=0; i0<M; i0++)
+        // for (int16_t i0=0; i0<10; i0++)
         {
             for (int16_t j0=0; j0<M; j0++)
             {

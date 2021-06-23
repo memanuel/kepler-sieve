@@ -27,7 +27,7 @@ CubeFace::~CubeFace() {}
 
 // *****************************************************************************
 /** Two character description, e.g. "Z+"; see DB table KS.CubeFace. */
-const string CubeFace::code()
+const string CubeFace::code() const
 {
     switch (id)
     {
@@ -43,7 +43,7 @@ const string CubeFace::code()
 
 // *****************************************************************************
 /**Integer index of the largest axis, with local values w; e.g. for Z+, i=3 and gamma='Z'.*/
-const int8_t CubeFace::i()
+const int8_t CubeFace::i() const
 {
     switch (id)
     {
@@ -59,7 +59,7 @@ const int8_t CubeFace::i()
 
 // *****************************************************************************
 /**Integer index of the first varying axis, with local values 'u'; e.g. for Z+, j1=1 and alpha='X'.*/
-const int8_t CubeFace::j1()
+const int8_t CubeFace::j1() const
 {
     switch (id)
     {
@@ -75,7 +75,7 @@ const int8_t CubeFace::j1()
 
 // *****************************************************************************
 /**Integer index of the second varying axis, with local values 'v'; e.g. for Z+, j2=2 and beta='Y'.*/
-const int8_t CubeFace::j2()
+const int8_t CubeFace::j2() const
 {
     switch (id)
     {
@@ -91,7 +91,7 @@ const int8_t CubeFace::j2()
 
 // *****************************************************************************
 /**Name of the first varying axis, with local values 'u'; e.g. for Z+, j1=1 and alpha='X'.*/
-const char CubeFace::alpha()
+const char CubeFace::alpha() const
 {
     switch (id)
     {
@@ -107,7 +107,7 @@ const char CubeFace::alpha()
 
 // *****************************************************************************
 /**Name of the second varying axis, with local values 'v'; e.g. for Z+, j2=2 and beta='Y'.*/
-const char CubeFace::beta()
+const char CubeFace::beta() const
 {
     switch (id)
     {
@@ -123,7 +123,7 @@ const char CubeFace::beta()
 
 // *****************************************************************************
 /**Name of the largest axis, with local values 'w'; e.g. for Z+, i=3 and gamma='Z'.*/
-const char CubeFace::gamma()
+const char CubeFace::gamma() const
 {
     switch (id)
     {
@@ -152,3 +152,68 @@ const double CubeFace::c() const
         default:    throw err_cube_face_id;
     }
 }
+
+// *****************************************************************************
+/**Neighbor when i=0 (u=-1.0).*/
+const CubeFace CubeFace::neighbor_i0() const
+{
+    switch (id)
+    {
+        case 0: return 3;
+        case 1: return 5;
+        case 2: return 4;
+        case 3: return 4;
+        case 4: return 5;
+        case 5: return 3;
+        default:    throw err_cube_face_id;
+    }
+}
+
+// *****************************************************************************
+/**Neighbor when i=M (u=+1.0).*/
+const CubeFace CubeFace::neighbor_i1() const
+{
+    switch (id)
+    {
+        case 0: return 2;
+        case 1: return 0;
+        case 2: return 1;
+        case 3: return 1;
+        case 4: return 0;
+        case 5: return 2;
+        default:    throw err_cube_face_id;
+    }
+}
+
+// *****************************************************************************
+/**Neighbor when j=0 (v=-1.0).*/
+const CubeFace CubeFace::neighbor_j0() const
+{
+    switch (id)
+    {
+        case 0: return 4;
+        case 1: return 3;
+        case 2: return 5;
+        case 3: return 5;
+        case 4: return 5;
+        case 5: return 4;
+        default:    throw err_cube_face_id;
+    }
+}
+
+// *****************************************************************************
+/**Neighbor when j=1 (v=+1.0).*/
+const CubeFace CubeFace::neighbor_j1() const
+{
+    switch (id)
+    {
+        case 0: return 1;
+        case 1: return 2;
+        case 2: return 0;
+        case 3: return 0;
+        case 4: return 2;
+        case 5: return 1;
+        default:    throw err_cube_face_id;
+    }
+}
+

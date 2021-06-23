@@ -15,6 +15,9 @@ using boost::format;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::SkyPatch_from_id;
+using ks::fij2spid;
+using ks::sky_patch_count;
+using ks::write_sky_patch_neighbor_table;
 using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
@@ -26,7 +29,7 @@ constexpr int M = 2*N;
 constexpr int M2 = M*M;
 
 // *****************************************************************************
-int main()
+void test_cube_face()
 {
     // Initialize a CubeFace
     CubeFace cf = CubeFace(0);
@@ -45,11 +48,17 @@ int main()
     cout << format("j2   : %d\n") % static_cast<int>(cf.j2());
     cout << format("c    :%+3.1f\n") % cf.c();
 
+}
+
+// *****************************************************************************
+void test_sky_patch()
+{
     // Set SkyPatch integer values for test
     int8_t f_ = 0;
     int16_t i = 512;
     int16_t j = 1024+512;
-    int32_t sky_patch_id = (M2*f_ + M*i + j);
+    // int32_t sky_patch_id = (M2*f_ + M*i + j);
+    int32_t sky_patch_id = fij2spid(f_, i, j);
     // Initialize a SkyPatch
     SkyPatch sp = SkyPatch(f_, i, j);
     // Report results
@@ -98,6 +107,71 @@ int main()
     // Combined test results
     bool is_ok = (is_ok_id && is_ok_sphere && is_ok_from_id);
     report_test("\nSkyPatch: overall test results", is_ok);
+}
+
+// *****************************************************************************
+void test_sky_patch_neighbor()
+{
+    // Total number of sky patches is known at compile time
+    int32_t N_spc = sky_patch_count();
+    // Allocate an array of size 9*N_spc to hold the 9 neighbors of each patch
+    int N_spnc = N_spc*9;
+    int32_t *spn = new int32_t [N_spnc];
+
+    // Build the SkyPatchNeighbor table
+    cout << format("Building SkyPatch neighbors for N = %d...\n") % N;
+    write_sky_patch_neighbor_table(spn);
+
+    // Count the number of nonzero neighbors
+    int neighbor_count = 0;
+    for (int i=0; i<N_spnc; i++)
+    {
+        if (spn[i]>= 0) 
+        {
+            neighbor_count++;
+        }
+    }
+    // Report number of nonzero neighbors
+    cout << format("SkyPatchNeighbor table has %d entries.\n") % neighbor_count;
+
+    // Initialize a starting SkyPatch
+    int8_t f = 0;
+    int16_t i = 0;
+    int16_t j = 1024;
+    int32_t spid0 = fij2spid(f,i,j);
+    SkyPatch sp0 = SkyPatch_from_id(spid0);
+
+    // Read off neighbors of first row
+    cout << format("Starting SkyPatch:\n%s") % sp0.str();
+    cout << format("Neighbors of this SkyPatch:\n");
+    // Offset into table for sp0
+    int32_t idx0 = spid0*9;
+    for (int j=0; j<9; j++)
+    {
+        // The jth neighbor
+        int32_t spid1 = spn[idx0+j];
+        // Only process *real* neighbors with non-negative spids
+        if (spid1 >= 0)
+        {
+            SkyPatch sp1 = SkyPatch_from_id(spid1);
+            // cout << format("spid: %d\n") % sp1.id();            
+            cout << sp1.str();
+        }
+    }
+
+}
+
+// *****************************************************************************
+int main()
+{
+    // Test CubeFace class
+    test_cube_face();
+
+    // Test SkyPatch class
+    test_sky_patch();
+
+    // Test SkyPatch neighbor
+    test_sky_patch_neighbor();
 
     // Normal program exit
     return 0;

@@ -38,7 +38,7 @@ OBJ := $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRC_CPP))
 # $(info OBJ is $(OBJ))
 
 # Lists of executables (prefix only)
-EXEC := db_test sky_patch_test
+EXEC := db_test sky_patch_test detection_near_ast
 
 # List of executables files on this platform; e.g. myprogram.x on Linux, myprogram.exe on Windows
 EXEC_FILES := $(patsubst %, %.$(EXEC_SUFFIX), $(EXEC))
