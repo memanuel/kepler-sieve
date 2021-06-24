@@ -9,6 +9,7 @@ using ks::CubeFace;
 // *****************************************************************************
 // Instantiate exception for a bad CubeFaceID
 namespace ks{
+//*Error condition for a bad cube face; must be in range [0, 6).
 range_error err_cube_face_id = range_error("CubeFace id must be between 0 and 5, inclusive.\n");
 }
 using ks::err_cube_face_id;
@@ -120,6 +121,51 @@ const char CubeFace::beta() const
 const char CubeFace::gamma() const
 {
     return static_cast<const char>(label_base + k3());
+}
+
+// *****************************************************************************
+const int CubeFace::index_x() const
+{
+    switch (id)
+    {
+        case 0:     return 1;   // Face Z+; (X, Y, Z);
+        case 1:     return 2;   // Face Y+; (Z, X, Y);
+        case 2:     return 3;   // Face X+; (Y, Z, X);
+        case 3:     return 3;   // Face X-; (Y, Z, X);
+        case 4:     return 2;   // Face Y-; (Z, X, Y);
+        case 5:     return 1;   // Face Z-; (X, Y, Z);
+        default:    throw err_cube_face_id;
+    }
+}
+
+// *****************************************************************************
+const int CubeFace::index_y() const
+{
+    switch (id)
+    {
+        case 0:     return 2;   // Face Z+; (X, Y, Z);
+        case 1:     return 3;   // Face Y+; (Z, X, Y);
+        case 2:     return 1;   // Face X+; (Y, Z, X);
+        case 3:     return 1;   // Face X-; (Y, Z, X);
+        case 4:     return 3;   // Face Y-; (Z, X, Y);
+        case 5:     return 2;   // Face Z-; (X, Y, Z);
+        default:    throw err_cube_face_id;
+    }
+}
+
+// *****************************************************************************
+const int CubeFace::index_z() const
+{
+    switch (id)
+    {
+        case 0:     return 3;   // Face Z+; (X, Y, Z);
+        case 1:     return 1;   // Face Y+; (Z, X, Y);
+        case 2:     return 2;   // Face X+; (Y, Z, X);
+        case 3:     return 2;   // Face X-; (Y, Z, X);
+        case 4:     return 1;   // Face Y-; (Z, X, Y);
+        case 5:     return 3;   // Face Z-; (X, Y, Z);
+        default:    throw err_cube_face_id;
+    }
 }
 
 // *****************************************************************************

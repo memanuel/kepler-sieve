@@ -41,6 +41,13 @@ class CubeFace
         //*Index of largest axis, with local values w, e.g. 3 on 'Z+'
         const int k3() const;    
 
+        //*The index corresponding to global 'X' axis
+        const int index_x() const;
+        //*The index corresponding to global 'Y' axis
+        const int index_y() const;
+        //*The index corresponding to global 'Z' axis
+        const int index_z() const;
+
         // One letter labels for the three axes on this cube face
         //*Label of axis indexed by i with local values u, e.g. 'X' on 'Z+'
         const char alpha() const;

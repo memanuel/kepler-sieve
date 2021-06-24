@@ -16,12 +16,16 @@ constexpr double N_inv = 1.0 / static_cast<double>(N);
 // *****************************************************************************
 // Instantiate exceptions for a bad cube face f or grid entry (i or j)
 namespace ks {
+//*Error condition for bad integer input for a CubeFace
 range_error err_sky_patch_f = range_error("SkyPatch cube face f must be between 0 and 6, inclusive.\n");
+//*Error condition for bad grid i coordinate
 range_error err_sky_patch_grid_i = range_error("SkyPatch grid coordinate i must be between 0 and M=2048, exclusive.\n");
+//*Error condition for bad grid j coordinate
 range_error err_sky_patch_grid_j = range_error("SkyPatch grid coordinate j must be between 0 and M=2048, exclusive.\n");
 }
-using ks::err_sky_patch_f, ks::err_sky_patch_grid_i, ks::err_sky_patch_grid_j;
 
+// *****************************************************************************
+// Various error conditions
 /******************************************************************************
 Implementation of the SkyPatch class
 ******************************************************************************/
@@ -43,82 +47,83 @@ r(sqrt(1.0 + sqr(N_inv*(i+0.5)-1.0) + sqr(N_inv*(j+0.5)-1.0)))
 SkyPatch::~SkyPatch() {}
 
 // *****************************************************************************
-/**Integer ID of this sky patch*/
 const int32_t SkyPatch::id() const
 {
     return (M2*f.id) + (M*i) + j;
 }
 
 // *****************************************************************************
-/**Coordinate on unit cube of first varying axis (alpha).*/
 const double SkyPatch::a() const
 {
     return N_inv*(static_cast<double>(i)+0.5) - 1.0;
 }
 
 // *****************************************************************************
-/**Coordinate on unit cube of second varying axis (beta).*/
 const double SkyPatch::b() const
 {
     return N_inv*(static_cast<double>(j)+0.5) - 1.0;
 }
 
 // *****************************************************************************
-/**Coordinate on unit cube of third varying axis (gamma).*/
 const double SkyPatch::c() const
 {
     return f.c();
 }
 
 // *****************************************************************************
-/**Coordinate on unit sphere of first varying axis (alpha).*/
 const double SkyPatch::u() const
 {
     return a() / r;
 }
 
 // *****************************************************************************
-/**Coordinate on unit sphere of second varying axis (beta).*/
 const double SkyPatch::v() const
 {
     return b() / r;
 }
 
 // *****************************************************************************
-/**Coordinate on unit sphere of third varying axis (gamma).*/
 const double SkyPatch::w() const
 {
     return c() / r;
 }
 
 // *****************************************************************************
-/**Global x coordinate.*/
 const double SkyPatch::x() const
 {
-    if (f.alpha()=='X') {return u();}
-    if (f.beta()=='X') {return v();}
-    if (f.gamma()=='X') {return w();}
-    throw std::runtime_error("Bad cube face.  None of alpha, beta, gamma equal 'X'.");
+   switch (f.index_x())
+   {
+        case 1:     return u();
+        case 2:     return v();
+        case 3:     return w();
+        default:    throw err_sky_patch_f;
+   }
 }
 
 // *****************************************************************************
 /**Global y coordinate.*/
 const double SkyPatch::y() const
 {
-    if (f.alpha()=='Y') {return u();}
-    if (f.beta()=='Y') {return v();}
-    if (f.gamma()=='Y') {return w();}
-    throw std::runtime_error("Bad cube face.  None of alpha, beta, gamma equal 'Y'.");
+   switch (f.index_y())
+   {
+        case 1:     return u();
+        case 2:     return v();
+        case 3:     return w();
+        default:    throw err_sky_patch_f;
+   }
 }
 
 // *****************************************************************************
 /**Global z coordinate.*/
 const double SkyPatch::z() const
 {
-    if (f.alpha()=='Z') {return u();}
-    if (f.beta()=='Z') {return v();}
-    if (f.gamma()=='Z') {return w();}
-    throw std::runtime_error("Bad cube face.  None of alpha, beta, gamma equal 'Z'.");
+   switch (f.index_z())
+   {
+        case 1:     return u();
+        case 2:     return v();
+        case 3:     return w();
+        default:    throw err_sky_patch_f;
+   }
 }
 
 // *****************************************************************************

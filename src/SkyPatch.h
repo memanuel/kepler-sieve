@@ -4,6 +4,7 @@
 // Included libraries
 #include <string>
 #include <cmath>
+#include <stdexcept>
 #include <boost/format.hpp>
 
 // Local dependencies
