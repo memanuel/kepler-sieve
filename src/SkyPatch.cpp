@@ -1,25 +1,17 @@
 // *****************************************************************************
 // Included files
-#include <cmath>
-#include "utils.h"
-#include "sky_patch.h"
+#include "SkyPatch.h"
 
 // *****************************************************************************
-using std::div;
-using std::div_t;
-using std::range_error;
-using boost::format;
-using ks::CubeFace;
+// Local names used
 using ks::SkyPatch;
-using ks::sqr;
+using ks::sky_patch::N;
+using ks::sky_patch::M;
+using ks::sky_patch::M2;
 
 // *****************************************************************************
-// Set the grid size at compile time
-constexpr int N = ks::N_sky_patch;
-constexpr int M = 2*N;
-constexpr int M2 = M*M;
+// Precompute 1.0/N for speed
 constexpr double N_inv = 1.0 / static_cast<double>(N);
-constexpr int N_spc = 6*M2;
 
 // *****************************************************************************
 // Instantiate exceptions for a bad cube face f or grid entry (i or j)
@@ -35,7 +27,6 @@ Implementation of the SkyPatch class
 ******************************************************************************/
 
 // *****************************************************************************
-/** Initialize a SkyPatch from its face ID and grid coordinates.*/
 SkyPatch::SkyPatch(int8_t f_, int16_t i_, int16_t j_) : 
 f(CubeFace(f_)),
 i(i_),
@@ -49,7 +40,6 @@ r(sqrt(1.0 + sqr(N_inv*(i+0.5)-1.0) + sqr(N_inv*(j+0.5)-1.0)))
 }
 
 // *****************************************************************************
-/** Default destructor for SkyPatch.*/
 SkyPatch::~SkyPatch() {}
 
 // *****************************************************************************
@@ -81,21 +71,21 @@ const double SkyPatch::c() const
 }
 
 // *****************************************************************************
-/**Coordinate on first varying axis (alpha).*/
+/**Coordinate on unit sphere of first varying axis (alpha).*/
 const double SkyPatch::u() const
 {
     return a() / r;
 }
 
 // *****************************************************************************
-/**Coordinate on second varying axis (beta).*/
+/**Coordinate on unit sphere of second varying axis (beta).*/
 const double SkyPatch::v() const
 {
     return b() / r;
 }
 
 // *****************************************************************************
-/**Coordinate on third varying axis (gamma).*/
+/**Coordinate on unit sphere of third varying axis (gamma).*/
 const double SkyPatch::w() const
 {
     return c() / r;
@@ -144,81 +134,3 @@ const string SkyPatch::str() const
     // Return one combined description
     return (format("spid = %8d. %s. %s.\n") % id() % fij % xyz).str();
 }
-
-/******************************************************************************
-Functions for working with SkyPatch objects
-******************************************************************************/
-namespace ks {
-
-// *****************************************************************************
-int fij2spid(int8_t f, int16_t i, int16_t j)
-{
-    return (M2*f) + (M*i) + j;
-}
-
-// *****************************************************************************
-/** Initialize a SkyPatch from its integer ID.*/
-SkyPatch SkyPatch_from_id(int32_t id)
-{
-    // First integer division; unpack id into cube face f and remainder x
-    div_t qr = div(id, M2);
-    int8_t f_ = static_cast<int8_t>(qr.quot);
-    int32_t x = qr.rem;
-
-    // Second integer division; unpack x into grid points i and j    
-    qr = div(x, M);
-    int16_t i_ = static_cast<int16_t>(qr.quot);
-    int16_t j_ = static_cast<int16_t>(qr.rem);
-
-    // Instantiate the sky patch
-    return SkyPatch(f_, i_, j_);
-}
-
-// *****************************************************************************
-int sky_patch_count()
-{
-    return static_cast<int>(N_spc);
-}
-
-// *****************************************************************************
-void write_sky_patch_neighbor_table(int32_t* spn)
-{
-    // Loop through the starting sky patch, with ID sky_patch_id_1
-    for (int8_t f=0; f<6; f++)
-    {
-        // The offset for this grid face is M2*f
-        int32_t idx_f = M2*f;
-        for (int16_t i0=0; i0<M; i0++)
-        // for (int16_t i0=0; i0<10; i0++)
-        {
-            for (int16_t j0=0; j0<M; j0++)
-            {
-                // The starting SkyPatchID
-                int32_t spid0 = idx_f + (M*i0) + j0;
-                // The starting index
-                size_t idx = spid0*9;
-                
-                // Get grid coordinates of 9 candidate neighbors.
-                for (int16_t di=-1; di<=1; di++)
-                {
-                    // The grid entry i1 for the three candidate neighbors in this row
-                    int16_t i1 = i0+di;
-                    int32_t idx_i1 = M*i1;
-                    for (int16_t dj=-1; dj<=1; dj++)
-                    {
-                        // The grid entry j1 for this candidate neighbor
-                        int16_t j1 = j0+dj;
-                        // Write the candidate neighbor to the array if it is on the same face.
-                        // Don't worry about wrapping around edges and corners.
-                        // Write the dummy value -1 if the neighbor is not a real grid point
-                        bool is_on_grid = (0 <= i1) && (i1 < M) && (0 <= j1) && (j1 < M);
-                        spn[idx++] = is_on_grid ? (idx_f+idx_i1+j1) : -1;
-                    }
-                }
-            }
-        }
-    }
-}
-
-// *****************************************************************************
-}; // namespace

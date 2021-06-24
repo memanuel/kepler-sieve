@@ -1,9 +1,9 @@
 // *****************************************************************************
 // Included files
-#include "sky_patch.h"
+#include "CubeFace.h"
 
 // *****************************************************************************
-using std::range_error;
+// Local names used
 using ks::CubeFace;
 
 // *****************************************************************************
@@ -86,7 +86,6 @@ const int CubeFace::k2() const
 }
 
 // *****************************************************************************
-/**Integer index of the largest axis, with local values w; e.g. for Z+, i=3 and gamma='Z'.*/
 const int CubeFace::k3() const
 {
     switch (id)
@@ -106,28 +105,24 @@ const int CubeFace::k3() const
 constexpr int label_base = static_cast<int>('W');
 
 // *****************************************************************************
-/**Name of the first varying axis, with local values 'u'; e.g. for Z+, j1=1 and alpha='X'.*/
 const char CubeFace::alpha() const
 {    
     return static_cast<const char>(label_base + k1());
 }
 
 // *****************************************************************************
-/**Name of the second varying axis, with local values 'v'; e.g. for Z+, j2=2 and beta='Y'.*/
 const char CubeFace::beta() const
 {
     return static_cast<const char>(label_base + k2());
 }
 
 // *****************************************************************************
-/**Name of the largest axis, with local values 'w'; e.g. for Z+, i=3 and gamma='Z'.*/
 const char CubeFace::gamma() const
 {
     return static_cast<const char>(label_base + k3());
 }
 
 // *****************************************************************************
-/**Sign of the largest axis, with local values 'w'; e.g. for Z+, ci=1.0 .*/
 const double CubeFace::c() const
 {
     switch (id)
@@ -143,7 +138,6 @@ const double CubeFace::c() const
 }
 
 // *****************************************************************************
-/**Neighbor when i=0 (u=-1.0).*/
 const CubeFace CubeFace::neighbor_i0() const
 {
     switch (id)
@@ -159,7 +153,6 @@ const CubeFace CubeFace::neighbor_i0() const
 }
 
 // *****************************************************************************
-/**Neighbor when i=M (u=+1.0).*/
 const CubeFace CubeFace::neighbor_i1() const
 {
     switch (id)
@@ -175,7 +168,6 @@ const CubeFace CubeFace::neighbor_i1() const
 }
 
 // *****************************************************************************
-/**Neighbor when j=0 (v=-1.0).*/
 const CubeFace CubeFace::neighbor_j0() const
 {
     switch (id)
@@ -191,7 +183,6 @@ const CubeFace CubeFace::neighbor_j0() const
 }
 
 // *****************************************************************************
-/**Neighbor when j=1 (v=+1.0).*/
 const CubeFace CubeFace::neighbor_j1() const
 {
     switch (id)
@@ -204,4 +195,13 @@ const CubeFace CubeFace::neighbor_j1() const
         case 5: return 1;       // Z-; (X, Y, Z); neighbor Y+
         default:    throw err_cube_face_id;
     }
+}
+
+// *****************************************************************************
+const CubeFace CubeFace::opposite() const
+{
+    // IDs are chosen to that each matched pair adds up to 5
+    // This is just like a standard 6 sided die except IDs are shifted down by 1.
+    // Opposite faces on a standard die add up to 7; here they add to 5.
+    return CubeFace(5 - id);
 }

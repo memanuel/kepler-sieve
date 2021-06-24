@@ -14,6 +14,7 @@ using std::cout;
 using boost::format;
 using ks::CubeFace;
 using ks::SkyPatch;
+using ks::sky_patch::N;
 using ks::SkyPatch_from_id;
 using ks::fij2spid;
 using ks::sky_patch_count;
@@ -22,11 +23,6 @@ using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
 using ks::report_test;
-
-// The grid size
-constexpr int N = ks::N_sky_patch;
-constexpr int M = 2*N;
-constexpr int M2 = M*M;
 
 // *****************************************************************************
 void test_cube_face()
@@ -67,7 +63,7 @@ void test_sky_patch()
     cout << "SkyPatch:\n";
     cout << sp.str();
     // Calculate sky patch integer attributes
-    cout << "Integer attributes\n";
+    cout << "\nInteger attributes\n";
     cout << format("f:   %d\n") % static_cast<int>(sp.f.id);
     cout << format("i:   %d\n") % static_cast<int>(sp.i);
     cout << format("j:   %d\n") % static_cast<int>(sp.j);
