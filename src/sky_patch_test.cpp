@@ -37,17 +37,17 @@ void test_cube_face()
     print_stars();
     cout << "CubeFace:\n";
     // String attributes
-    cout << format("code : %s\n") % cf.code();
+    cout << format("description: %s\n") % cf.description();
+    cout << format("code : %s\n") % cf.str();
     cout << format("alpha: %c\n") % cf.alpha();
     cout << format("beta : %c\n") % cf.beta();
     cout << format("gamma: %c\n") % cf.gamma();
-    // Integer attributes
+    // Integer and float attributes
     cout << format("id   : %d\n") % static_cast<int>(cf.id);
-    cout << format("i    : %d\n") % static_cast<int>(cf.i());
-    cout << format("j1   : %d\n") % static_cast<int>(cf.j1());
-    cout << format("j2   : %d\n") % static_cast<int>(cf.j2());
+    cout << format("k1   : %d\n") % cf.k1();
+    cout << format("k2   : %d\n") % cf.k2();
+    cout << format("k3   : %d\n") % cf.k3();
     cout << format("c    :%+3.1f\n") % cf.c();
-
 }
 
 // *****************************************************************************
@@ -82,10 +82,20 @@ void test_sky_patch()
     double v = sp.v();
     double w = sp.w();
     // Display (u, v, w)
-    cout << "\nCoordinates of midpoint on unit sphere\n";
-    cout << format("u:   %+8.6f\n") % u;
-    cout << format("v:   %+8.6f\n") % v;
-    cout << format("w:   %+8.6f\n") % w;
+    cout << "\nLocal coordinates of midpoint on unit sphere\n";
+    cout << format("u:   %+10.8f\n") % u;
+    cout << format("v:   %+10.8f\n") % v;
+    cout << format("w:   %+10.8f\n") % w;
+
+    // Calculate global sky patch coordinates (x, y, z) on unit sphere
+    double x = sp.x();
+    double y = sp.y();
+    double z = sp.z();
+    // Display (x, y, z)
+    cout << "Global coordinates of midpoint on unit sphere\n";
+    cout << format("x:   %+10.8f\n") % x;
+    cout << format("y:   %+10.8f\n") % y;
+    cout << format("z:   %+10.8f\n") % z;
 
     // Check that (u, v, w) is really on the sphere
     double r_sph = sqrt(sqr(u) + sqr(v) + sqr(w));
@@ -119,6 +129,8 @@ void test_sky_patch_neighbor()
     int32_t *spn = new int32_t [N_spnc];
 
     // Build the SkyPatchNeighbor table
+    print_newline();
+    print_stars();
     cout << format("Building SkyPatch neighbors for N = %d...\n") % N;
     write_sky_patch_neighbor_table(spn);
 

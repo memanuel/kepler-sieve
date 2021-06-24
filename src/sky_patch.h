@@ -32,20 +32,26 @@ class CubeFace
         ~CubeFace();
         // Data
         const int8_t id;
-        // Access attributes
-        const string code() const;
-        const int8_t i() const;
-        const int8_t j1() const;
-        const int8_t j2() const;
-        const char alpha() const;
-        const char beta() const;
-        const char gamma() const;
-        const double c() const;
+        // Access attributes        
+        const string str() const;   /**String representation of this CubeFace, e.g. 'Z+. See DB table KS.CubeFace'*/
+        const string description() const;   /**Long string description, e.g. ''*/
+        // Integer index of the three axes on this cube face
+        const int k1() const;    /**Index of axis indexed by i with local values u, e.g. 1 on 'Z+'*/
+        const int k2() const;    /**Index of axis indexed by j with local values v, e.g. 2 on 'Z+'*/
+        const int k3() const;    /**Index of largest axis, with local values w, e.g. 3 on 'Z+'*/
+        // One letter labels for the three axes on this cube face
+        const char alpha() const;   /**Label of axis indexed by i with local values u, e.g. 'X' on 'Z+'*/
+        const char beta() const;    /**Label of axis indexed by j with local values v, e.g. 'Y' on 'Z+'*/
+        const char gamma() const;   /**Label of largest axis, with local values w, e.g. 'Z' on 'Z+'*/
+        // The shared value of c on circumscribed cube coordinates (a, b, c)
+        const double c() const;     /**Value of constant coordinate on cube face, e.g. '+1.0' on 'Z+'*/
         // Neighbors
-        const CubeFace neighbor_i0() const;
-        const CubeFace neighbor_i1() const;
-        const CubeFace neighbor_j0() const;
-        const CubeFace neighbor_j1() const;
+        const CubeFace neighbor_i0() const;     /**Neighboring face when wrapping through i=0.*/
+        const CubeFace neighbor_i1() const;     /**Neighboring face when wrapping through i=M.*/
+        const CubeFace neighbor_j0() const;     /**Neighboring face when wrapping through j=0.*/
+        const CubeFace neighbor_j1() const;     /**Neighboring face when wrapping through j=M.*/
+        // The opposite face
+        const CubeFace opposite() const;
 };
 
 
