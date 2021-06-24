@@ -19,8 +19,8 @@ using ks::sky_patch::N_sp;
 using ks::sky_patch::N_spn;
 using ks::SkyPatch_from_id;
 using ks::fij2spid;
-// using ks::sky_patch_count;
-using ks::write_sky_patch_neighbor_table;
+using ks::spn_type;
+using ks::make_sky_patch_neighbor_table;
 using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
@@ -120,14 +120,11 @@ void test_sky_patch()
 // *****************************************************************************
 void test_sky_patch_neighbor()
 {
-    // Allocate an array of size 9*N_spc to hold the 9 neighbors of each patch
-    int32_t *spn = new int32_t [N_spn];
-
     // Build the SkyPatchNeighbor table
     print_newline();
     print_stars();
     cout << format("Building SkyPatch neighbors for N = %d...\n") % N;
-    write_sky_patch_neighbor_table(spn);
+    spn_type spn = make_sky_patch_neighbor_table();
 
     // Count the number of nonzero neighbors
     int neighbor_count = 0;

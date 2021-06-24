@@ -3,6 +3,7 @@
 // *****************************************************************************
 // Included libraries
 #include <string>
+#include <array>
 #include <stdexcept>
 #include <boost/format.hpp>
 
@@ -31,6 +32,7 @@ namespace ks {
 namespace sky_patch {
 constexpr int N_spn = N_sp*9;
 }
+using ks::sky_patch::N_spn;
 
 // *****************************************************************************
 //* Construct a SkyPatch from its integer ID, sky_patch_id.
@@ -43,7 +45,8 @@ int fij2spid(int8_t f, int16_t i, int16_t j);
 int sky_patch_count();
 
 //* Construct a table of sky patch neighbors.
-void write_sky_patch_neighbor_table(int32_t* spn);
+using spn_type = int32_t*;
+spn_type make_sky_patch_neighbor_table();
 
 //* Construct a table of sky patch neighbor distances.*/
 void write_sky_patch_neighbor_dist_table(const int32_t* spn, double* spnd);

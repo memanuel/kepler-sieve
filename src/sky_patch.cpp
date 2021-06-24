@@ -38,8 +38,10 @@ int sky_patch_count()
 }
 
 // *****************************************************************************
-void write_sky_patch_neighbor_table(int32_t* spn)
+spn_type make_sky_patch_neighbor_table()
 {
+    // Allocate an array of size 9*N_spc to hold the 9 neighbors of each patch
+    spn_type spn = new int32_t[N_spn];
     // Loop through the starting sky patch, with ID sky_patch_id_1
     for (int8_t f=0; f<6; f++)
     {
@@ -55,7 +57,7 @@ void write_sky_patch_neighbor_table(int32_t* spn)
 
                 // The starting index into the neighbors table
                 size_t idx = spid0*9;
-                
+
                 // Get grid coordinates of 9 candidate neighbors.
                 // First iterate over the shift in the i index, di               
                 for (int16_t di=-1; di<=1; di++)
@@ -94,21 +96,13 @@ void write_sky_patch_neighbor_table(int32_t* spn)
 
                         // Write the new SkyPatchID to the spn array
                         spn[idx++] = spid1;
-                    }
-                }
-                
-               /*
-               for (int16_t di=-1; di<=1; di++)
-               {
-                   for (int16_t dj=-1; dj<=1; dj++)
-                   {
-                       spn[idx++] = sp.shift(di, dj).id();
-                   }
-               }
-               */
-            }
-        }
-    }
+                    } // for over dj
+                } // for over di
+            } // for over j0
+        } // for over i0
+    } // for over f
+    // Return the populated array
+    return spn;
 }
 
 // *****************************************************************************
