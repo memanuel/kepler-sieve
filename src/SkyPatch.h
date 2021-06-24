@@ -33,14 +33,14 @@ namespace ks {
 // *****************************************************************************
 // Set the grid size for the sky patch at compile time
 namespace sky_patch{
-    //*The multiplier for local coordinates; each face is on a 2Nx2N grid
+    //*The multiplier for local coordinates; each cube face is on a 2Nx2N grid
     constexpr int N = 1024;
-    //*The side length of each grid face
+    //*The side length in dicrete grid units of each cube face
     constexpr int M = 2*N;
     //*The number of squares in each grid face
     constexpr int M2 = M*M;
-    //*The number of SkyPatch entries
-    constexpr int N_spc = 6*M2;
+    //*The number of SkyPatch entries; there are six faces on a cube
+    constexpr int N_sp = 6*M2;
 }
 
 // *****************************************************************************
@@ -79,6 +79,9 @@ class SkyPatch
         const double y() const;
         //*Center of SkyPatch: global z
         const double z() const;
+
+        //*Write the direction into an array of size 3
+        void xyz(double *u);
 
         //*String description of this SkyPatch
         const string str() const;

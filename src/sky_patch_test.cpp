@@ -15,9 +15,11 @@ using boost::format;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::sky_patch::N;
+using ks::sky_patch::N_sp;
+using ks::sky_patch::N_spn;
 using ks::SkyPatch_from_id;
 using ks::fij2spid;
-using ks::sky_patch_count;
+// using ks::sky_patch_count;
 using ks::write_sky_patch_neighbor_table;
 using ks::sqr;
 using ks::print_stars;
@@ -118,11 +120,8 @@ void test_sky_patch()
 // *****************************************************************************
 void test_sky_patch_neighbor()
 {
-    // Total number of sky patches is known at compile time
-    int32_t N_spc = sky_patch_count();
     // Allocate an array of size 9*N_spc to hold the 9 neighbors of each patch
-    int N_spnc = N_spc*9;
-    int32_t *spn = new int32_t [N_spnc];
+    int32_t *spn = new int32_t [N_spn];
 
     // Build the SkyPatchNeighbor table
     print_newline();
@@ -132,15 +131,20 @@ void test_sky_patch_neighbor()
 
     // Count the number of nonzero neighbors
     int neighbor_count = 0;
-    for (int i=0; i<N_spnc; i++)
+    int missing_count = 0;
+    for (int i=0; i<N_spn; i++)
     {
         if (spn[i]>= 0) 
         {
             neighbor_count++;
         }
+        else
+        {
+            missing_count++;
+        }
     }
     // Report number of nonzero neighbors
-    cout << format("SkyPatchNeighbor table has %d entries.\n") % neighbor_count;
+    cout << format("SkyPatchNeighbor table has %d valid entries and %d holes.\n") % neighbor_count % missing_count;
 
     // Initialize a starting SkyPatch
     int8_t f = 0;

@@ -15,7 +15,8 @@ using boost::format;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::sky_patch::N;
-using ks::sky_patch::N_spc;
+using ks::sky_patch::N_sp;
+using ks::sky_patch::N_spn;
 using ks::SkyPatch_from_id;
 using ks::write_sky_patch_neighbor_table;
 using ks::print_stars;
@@ -24,8 +25,8 @@ using ks::print_stars;
 // *****************************************************************************
 int main()
 {
-    // Allocate an array of size 9*N_spc to hold the 9 neighbors of each patch
-    int32_t *spn = new int32_t [N_spc*9];
+    // Allocate an array of size 9*N_sp to hold the 9 neighbors of each patch
+    int32_t *spn = new int32_t [N_spn];
 
     // Build the SkyPatchNeighbor table
     cout << format("Building SkyPatch neighbors for N = %d...\n") % N;

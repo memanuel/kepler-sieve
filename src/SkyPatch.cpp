@@ -155,6 +155,14 @@ const double SkyPatch::z() const
 }
 
 // *****************************************************************************
+void SkyPatch::xyz(double *u)
+{
+    u[0] = x();
+    u[1] = y();
+    u[2] = z();
+}
+
+// *****************************************************************************
 const SkyPatch SkyPatch::shift_i(const int16_t di) const
 {
     // Calculate candidate new i value
@@ -260,23 +268,28 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
         return SkyPatch(f, i_, j_);
     }
 
-    // If we did not wrap in the j direction, delegate to shift_i
+    // If we did not wrap in the j direction, delegate to shift_j first, then shift_i
     if (!is_wrap_j)
     {
-        return shift_i(di);
+        SkyPatch sp = shift_j(dj);
+        return sp.shift_i(di);
     }
 
-    // If we did not wrap in the i direction, delegate to shift_j
+    // If we did not wrap in the i direction, delegate to shift_i first, then shift_j
     if (!is_wrap_i)
     {
-        return shift_j(dj);
+        SkyPatch sp = shift_i(di);
+        return sp.shift_j(dj);
     }
 
     // If we get here, we are wrapping around twice.
     // Map these to the opposite face to make sure we have a valid SkyPatch, but one that is very far away.
     // This way it will be filtered out later when setting a maximum distance.
     CubeFace f_ = f.opposite();
-    return SkyPatch(f_, i, j);
+    // Wrap i_ and j_ mod M so they are legal
+    i_ = (M+i_) % M;
+    j_ = (M+j_) % M;
+    return SkyPatch(f_, i_, j_);
 }
 
 // *****************************************************************************

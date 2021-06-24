@@ -34,7 +34,7 @@ SkyPatch SkyPatch_from_id(int32_t id)
 // *****************************************************************************
 int sky_patch_count()
 {
-    return static_cast<int>(N_spc);
+    return static_cast<int>(N_sp);
 }
 
 // *****************************************************************************
@@ -57,44 +57,103 @@ void write_sky_patch_neighbor_table(int32_t* spn)
                 size_t idx = spid0*9;
                 
                 // Get grid coordinates of 9 candidate neighbors.
+                // First iterate over the shift in the i index, di               
                 for (int16_t di=-1; di<=1; di++)
                 {
                     // The grid entry i1 for the three candidate neighbors in this row
                     int16_t i1 = i0+di;
+                    // The additive term to the index into the sky patch table for this row
                     int32_t idx_i1 = M*i1;
+                    // Now iterate over the shift in the j index, dj
                     for (int16_t dj=-1; dj<=1; dj++)
                     {
                         // The grid entry j1 for this candidate neighbor
                         int16_t j1 = j0+dj;
+                        // Storage for the new SkyPatchID; initialize to signify missing neighbors (e.g. for corners)
+                        int32_t spid1=-1;
+
+                        // Determine if we're wrapping in the i and j directions
+                        bool is_on_grid_i = (0 <= i1) && (i1 < M);
+                        bool is_on_grid_j = (0 <= j1) && (j1 < M);
                         // Is this the simple case where we are on the same grid square?
-                        bool is_on_grid = (0 <= i1) && (i1 < M) && (0 <= j1) && (j1 < M);
+                        bool is_on_grid = is_on_grid_i & is_on_grid_j;
+                        // Is this the special case where we are trying to double wrap around a corner?
+                        bool is_corner = (!is_on_grid_i) & (!is_on_grid_j);
 
                         // Simple case; we're on the grid, use fast calculation
                         if (is_on_grid)
                         {
-                            spn[idx++] = idx_f+idx_i1+j1;
+                            spid1 = idx_f+idx_i1+j1;
                         }
-                        // Shift in the i direction only
-                        else if (dj==0)
+                        // Handle shifts that wrap to another face, including diagonals
+                        // Exclude case of corners; want to write -1 here, not bogus SkyPatchID.
+                        else if (!is_corner)
                         {
-                            spn[idx++] = sp.shift_i(di).id();
+                            spid1 = sp.shift(di, dj).id();
                         }
-                        // Shift in the j direction only
-                        else if (di==0)
-                        {
-                            spn[idx++] = sp.shift_j(dj).id();
-                        }
-                        // Handle diagonal shifts
-                        else
-                        {
-                            spn[idx++] = sp.shift(di, dj).id();
-                        }
+
+                        // Write the new SkyPatchID to the spn array
+                        spn[idx++] = spid1;
                     }
                 }
+                
+               /*
+               for (int16_t di=-1; di<=1; di++)
+               {
+                   for (int16_t dj=-1; dj<=1; dj++)
+                   {
+                       spn[idx++] = sp.shift(di, dj).id();
+                   }
+               }
+               */
             }
         }
     }
 }
 
+// *****************************************************************************
+void write_sky_patch_neighbor_dist_table(const int32_t* spn, double *spnd)
+{
+    // Direction of the first and second skypatch
+    double u0[3];
+    double u1[3];
+
+    // Loop through the first SkyPatch
+    for (int spid0=0; spid0<N_sp; spid0++)
+    {
+        // The first SkyPatch
+        SkyPatch sp0 = SkyPatch_from_id(spid0);
+        // Direction of the first sky patch
+        sp0.xyz(u0);
+        
+        // double x0 = sp0.x();
+        // double y0 = sp0.y();
+        // double z0 = sp0.z();
+        // The index into the spn and spnd arrays
+        int idx = spid0*9;
+
+        // Loop through the 9 neighbors
+        for (int j=0; j<9; j++)
+        {
+            // The second SkyPatch: ID and instance
+            int spid1 = spn[idx];
+            SkyPatch sp1 = SkyPatch_from_id(spid1);
+
+            // Direction of the second sky patch
+            sp1.xyz(u1);
+
+            // Distance between the directions u0 and u1
+            spnd[idx] = norm(u0, u1);
+
+            // Advance the index into spn and spnd
+            idx++;
+
+            // Coordinates of the second skypatch
+            // double x1 = sp1.x();
+            // double y1 = sp1.y();
+            // double z1 = sp1.z();
+        }
+    }
+}
 // *****************************************************************************
 }; // namespace
