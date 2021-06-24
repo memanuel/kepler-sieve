@@ -167,6 +167,9 @@ void test_sky_patch_neighbor()
         }
     }
 
+    // Summary statistics of neighbors by j
+    
+
 }
 
 // *****************************************************************************

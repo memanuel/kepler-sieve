@@ -46,13 +46,14 @@ void write_sky_patch_neighbor_table(int32_t* spn)
         // The offset for this grid face is M2*f
         int32_t idx_f = M2*f;
         for (int16_t i0=0; i0<M; i0++)
-        // for (int16_t i0=0; i0<10; i0++)
         {
             for (int16_t j0=0; j0<M; j0++)
             {
-                // The starting SkyPatchID
-                int32_t spid0 = idx_f + (M*i0) + j0;
-                // The starting index
+                // The starting SkyPatch and its ID
+                SkyPatch sp = SkyPatch(f, i0, j0);
+                int32_t spid0 = sp.id();
+
+                // The starting index into the neighbors table
                 size_t idx = spid0*9;
                 
                 // Get grid coordinates of 9 candidate neighbors.
@@ -65,11 +66,29 @@ void write_sky_patch_neighbor_table(int32_t* spn)
                     {
                         // The grid entry j1 for this candidate neighbor
                         int16_t j1 = j0+dj;
-                        // Write the candidate neighbor to the array if it is on the same face.
-                        // Don't worry about wrapping around edges and corners.
-                        // Write the dummy value -1 if the neighbor is not a real grid point
+                        // Is this the simple case where we are on the same grid square?
                         bool is_on_grid = (0 <= i1) && (i1 < M) && (0 <= j1) && (j1 < M);
-                        spn[idx++] = is_on_grid ? (idx_f+idx_i1+j1) : -1;
+
+                        // Simple case; we're on the grid, use fast calculation
+                        if (is_on_grid)
+                        {
+                            spn[idx++] = idx_f+idx_i1+j1;
+                        }
+                        // Shift in the i direction only
+                        else if (dj==0)
+                        {
+                            spn[idx++] = sp.shift_i(di).id();
+                        }
+                        // Shift in the j direction only
+                        else if (di==0)
+                        {
+                            spn[idx++] = sp.shift_j(dj).id();
+                        }
+                        // Handle diagonal shifts
+                        else
+                        {
+                            spn[idx++] = sp.shift(di, dj).id();
+                        }
                     }
                 }
             }

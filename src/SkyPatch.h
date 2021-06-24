@@ -2,8 +2,9 @@
 
 // *****************************************************************************
 // Included libraries
-#include <string>
 #include <cmath>
+#include <string>
+#include <iostream>
 #include <stdexcept>
 #include <boost/format.hpp>
 
@@ -16,6 +17,7 @@
 using std::div;
 using std::div_t;
 using std::string;
+using std::cout;
 using std::range_error;
 using boost::format;
 
@@ -47,6 +49,8 @@ class SkyPatch
 {
     public:
         // Constructor and destructor
+        //*Initialize a SkyPatch from a CubeFace instance and grid coordinates.
+        SkyPatch(CubeFace f_, int16_t i_, int16_t j_);
         //*Initialize a SkyPatch from its face ID and grid coordinates.
         SkyPatch(int8_t f_, int16_t i_, int16_t j_);
         //*Default destructor for SkyPatch.
