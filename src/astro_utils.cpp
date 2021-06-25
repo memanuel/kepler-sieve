@@ -5,62 +5,65 @@
 
 // *****************************************************************************
 // Included files
-#include "utils.h"
+#include "astro_utils.h"
 
 // *****************************************************************************
 // Names used
-using std::cout;
-using boost::format;
 
 // *****************************************************************************
 // Put functions into the namespace ks (for Kepler Sieve)
 namespace ks {
 
 // *****************************************************************************
-void print_stars()
+double jd_to_mjd(double jd)
 {
-    cout << "********************************************************************************\n";
+    return jd - modified_julian_offset;
 }
 
 // *****************************************************************************
-void print_newline()
+double mjd_to_jd(double mjd)
 {
-    cout << "\n";
+    return mjd + modified_julian_offset;
 }
 
 // *****************************************************************************
-const string test_message(bool is_ok)
+double dist2rad(double s)
 {
-    if (is_ok)
-        return string("PASS");
-    else
-        return string("FAIL");
+    return asin(0.5*s) * 2.0;
 }
 
 // *****************************************************************************
-void report_test(const string test_name, bool is_ok)
+double rad2dist(double s_rad)
 {
-    cout << format("%s:\n") % test_name;
-    cout << format("**** %s ****\n") % test_message(is_ok);
+    return sin(0.5*s_rad) * 2.0;
 }
 
 // *****************************************************************************
-//* Calculate Cartesian squared distance between two 3-vectors
-double norm2(const double *v0, const double *v1)
+double dist2deg(double s)
 {
-    // Get the three distance components out
-    double dx = v1[0]-v0[0];
-    double dy = v1[1]-v0[1];
-    double dz = v1[2]-v0[2];
-    return sqr(dx) + sqr(dy) + sqr(dz);
+    double s_rad = dist2rad(s);
+    return s_rad*deg_per_rad;
 }
 
 // *****************************************************************************
-//* Calculate Cartesian squared distance between two 3-vectors
-double norm(const double *v0, const double *v1)
+double deg2dist(double s_deg)
 {
-    // Delegate to norm2 and take square root
-    return sqrt(norm2(v0, v1));
+    double s_rad = s_deg*rad_per_deg;
+    return rad2dist(s_rad);
+}
+
+// *****************************************************************************
+double dist2sec(double s)
+{
+    double s_deg = dist2deg(s);
+    return s_deg*3600.0;
+}
+
+// *****************************************************************************
+double sec2dist(double s_sec)
+{
+    double s_deg = s_sec / 3600.0;
+    return deg2dist(s_deg);
 }
 
 // *****************************************************************************

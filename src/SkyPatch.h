@@ -1,3 +1,11 @@
+/*****************************************************************************
+ * Class encapsulating the concept of SkyPatch - one grid of the sky with
+ * the unit sphere projected onto a circumscribing unit cube.
+ * See DB tables SkyPatch, CubeFace and SkyPatchNeighbor.
+ * 
+ * Michael S. Emanuel
+ * 2021-06-24
+ * ****************************************************************************/
 #pragma once
 
 // *****************************************************************************

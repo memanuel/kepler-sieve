@@ -1,16 +1,25 @@
+/*****************************************************************************
+ * Functions for working with SkyPatch and related classes.
+ * Build a SkyPatch from an integer ID.
+ * Assemble a tables of sky patch neighbors and their distances.
+ * 
+ * Michael S. Emanuel
+ * 2021-06-24
+ * ****************************************************************************/
 #pragma once
 
 // *****************************************************************************
 // Included libraries
 #include <string>
-#include <array>
+#include <algorithm>
 #include <stdexcept>
 #include <boost/format.hpp>
 
 // Local dependencies
-#include "utils.h"
 #include "CubeFace.h"
 #include "SkyPatch.h"
+#include "utils.h"
+#include "astro_utils.h"
 
 // *****************************************************************************
 // Standard library and boost class names used

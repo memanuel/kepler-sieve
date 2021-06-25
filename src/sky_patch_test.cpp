@@ -1,3 +1,10 @@
+/*****************************************************************************
+ * Test harness for SkyPatch and sky_patch.
+ * 
+ * Michael S. Emanuel
+ * 2021-06-24
+ * ****************************************************************************/
+
 // *****************************************************************************
 // Included libraries
 #include <cmath>
@@ -6,11 +13,14 @@
 
 // Local dependencies
 #include "utils.h"
+#include "astro_utils.h"
 #include "sky_patch.h"
 
 // *****************************************************************************
 // Names used
 using std::cout;
+using std::min_element;
+using std::max_element;
 using boost::format;
 using ks::CubeFace;
 using ks::SkyPatch;
@@ -27,6 +37,7 @@ using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
 using ks::report_test;
+using ks::dist2sec;
 
 // *****************************************************************************
 void test_cube_face()
@@ -230,23 +241,70 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     }
 
     // Report the summary statistics
-    cout << "di  dj   MEAN     MIN      MAX      COUNT    HOLES\n";
+    cout << "di  dj   MEAN   MIN    MAX    COUNT    HOLES\n";
     int k=0;    
     for (int di=-1; di<=1; di++)
     {
         for (int dj=-1; dj<=1; dj++)
         {
+            // The number of records and holes
             int count = dist_count[k];
             int holes = N_sp - count;
-            double mean = dist_mean[k];
-            double min = dist_min[k];
-            double max = dist_max[k];
-            cout << format("%+d  %+d   %8.6f %8.6f %8.6f %d %d\n") 
+            // Convert distances to arc seconds
+            double mean = dist2sec(dist_mean[k]);
+            double min = dist2sec(dist_min[k]);
+            double max = dist2sec(dist_max[k]);
+            cout << format("%+d  %+d   %6.1f %6.1f %6.1f %d %d\n") 
                 % di % dj % mean % min % max % count % holes;
             // Increment the column counter k (looping on di and dj but need k for array column index)
             k++;
         }
     }
+
+    // Global summary statistics
+    int holes=0;
+    double max=0.0;
+    double mean=0.0;
+    for (int k=0; k<9;k++)
+    {
+        holes += (N_sp - dist_count[k]);
+        mean += dist_mean[k]/9.0;
+        if (dist_max[k]>max) {max=dist_max[k];}        
+    }
+    double mean_sec = dist2sec(mean);
+    double max_sec = dist2sec(max);
+
+    // Report global results
+    cout << format("\nMean distance: %6.1f arc seconds\n") % mean_sec;
+    cout << format("Max  distance: %6.1f arc seconds\n") % max_sec;
+    cout << format("Number of holes: %d\n") % holes;
+
+    // Test that number of holes is 24
+    bool is_ok_holes = (holes == 24);
+    report_test("\nSkyPatchNeighbor: total number of holes is 24?", is_ok_holes);
+
+    // Test that max distance between neighbors is not too large
+    double thresh_sec = 300.0;
+    bool is_ok_max = (max_sec < thresh_sec);
+    report_test((format("\nSkyPatchNeighbor: max distance < %d arc seconds?")%thresh_sec).str(), is_ok_max);
+
+    // Test symmetry
+    double thresh_sym = 0.01;
+
+    // double min_rook = min_element({dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]});
+    // double max_rook = max_element({dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]});
+    // double err_rook = max_rook - min_rook;
+    // bool is_ok_sym_rook = err_rook < thresh_sym;
+
+    // double min_diag = min_element({dist_mean[0], dist_mean[2], dist_mean[6], dist_mean[8]});
+    // double max_diag = max_element({dist_mean[0], dist_mean[2], dist_mean[6], dist_mean[8]});
+    // double err_diag = max_diag - min_diag;
+    // bool is_ok_sym_diag = err_diag < thresh_sym;
+    // bool is_ok_sym = is_ok_sym_rook && is_ok_sym_diag;
+    // report_test("SkyPatchNeighbor: distance symmetric across 'rook' and 'diagonal' style moves?", is_ok_holes);
+
+    bool is_ok = is_ok_holes && is_ok_max;
+    report_test("SkyPatchNeighbor: overall test results", is_ok);
 }
 
 // *****************************************************************************
