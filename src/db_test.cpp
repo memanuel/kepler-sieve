@@ -1,6 +1,5 @@
 // *****************************************************************************
 // Included libraries
-#include <iostream>
 #include <string>
 #include <fmt/format.h>
 
@@ -9,10 +8,10 @@
 
 // *****************************************************************************
 // Names used
-using std::cout;
 using std::string;
 using std::pair;
 using fmt::print;
+using ks::get_db_conn;
 
 // *****************************************************************************
 /** Test database utilities.

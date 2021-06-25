@@ -12,7 +12,6 @@
 // Included libraries
 #include <cmath>
 #include <string>
-#include <iostream>
 #include <stdexcept>
 #include <fmt/format.h>
 
@@ -25,7 +24,6 @@
 using std::div;
 using std::div_t;
 using std::string;
-using std::cout;
 using std::range_error;
 using fmt::print;
 using fmt::format;

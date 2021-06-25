@@ -8,7 +8,6 @@
 // *****************************************************************************
 // Included libraries
 #include <cmath>
-#include <iostream>
 #include <fmt/format.h>
 
 // Local dependencies
@@ -18,7 +17,6 @@
 
 // *****************************************************************************
 // Names used
-using std::cout;
 using std::min_element;
 using std::max_element;
 using fmt::print;
@@ -47,7 +45,7 @@ void test_cube_face()
     CubeFace cf = CubeFace(0);
     // Report results
     print_stars();
-    cout << "CubeFace:\n";
+    print("CubeFace:\n");
     // String attributes
     print("description: {} \n", cf.description());
     print("code : {}\n", cf.str());
@@ -240,7 +238,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     }
 
     // Report the summary statistics
-    print("di  dj   MEAN   MIN    MAX    COUNT    HOLES\n");
+    print("di  dj    MEAN    MIN   MAX   COUNT    HOLES\n");
     int k=0;    
     for (int di=-1; di<=1; di++)
     {
@@ -318,7 +316,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
 int main()
 {
     // Test CubeFace class
-    // test_cube_face();
+    test_cube_face();
 
     // Test SkyPatch class
     test_sky_patch();
@@ -327,7 +325,7 @@ int main()
     spn_type spn = test_sky_patch_neighbor();
 
     // Test SkyPatch neighbor distance
-    // test_sky_patch_neighbor_distance(spn);
+    test_sky_patch_neighbor_distance(spn);
 
     // Normal program exit
     return 0;

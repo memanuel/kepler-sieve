@@ -3,11 +3,16 @@
 #include "db_utils.h"
 
 // *****************************************************************************
-/** Get a connection to the Thor database server running a MariaDB instance.
- *  Connect to the default schema "KS".
- *  Use credentials for user "kepler".
- * */
-unique_ptr<Connection> get_db_conn(bool verbose=false)
+// Names used
+using ks::db_conn_type;
+using ks::sql_stmt_type;
+using ks::sql_prepared_stmt_type;
+
+// *****************************************************************************
+namespace ks {
+
+// *****************************************************************************
+db_conn_type get_db_conn(bool verbose)
 {
 
     // Username and password for DB connection
@@ -23,7 +28,6 @@ unique_ptr<Connection> get_db_conn(bool verbose=false)
 
     // Configure DB connection
     string url = format("jdbc:mariadb://{:s}/{:s}", db_host, schema);
-    // SQLString url("jdbc:mariadb://Thor/KS");
 
     // Report DB connection settings if requested
     if (verbose)
@@ -44,3 +48,47 @@ unique_ptr<Connection> get_db_conn(bool verbose=false)
     // Return the DB connection
     return conn;
 }
+
+// *****************************************************************************
+int result_set_size(ResultSet *rs)
+{
+    // Get current row
+    int current_row = rs->getRow();
+    // Go to last row and get its row number
+    rs->last();
+    int rows = rs->getRow();
+    // Return to starting row
+    // rs.first();
+    rs->absolute(current_row);
+    return rows;
+}
+
+// *****************************************************************************
+//*Join a stored proecedure name and a vector of string parameters into a single SQL statement
+// string sql_sp_bind_params(const string sp_name, const vector<string> params)
+// {
+//     return sp_name;
+//     // return sp_name + join(params, ", ");
+// }
+
+// *****************************************************************************
+// ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> params)
+ResultSet* sp_run(db_conn_type &conn)
+{
+    // Create a new SQL statement
+    sql_stmt_type stmt(conn->createStatement());
+    // Execute stored procedure into a SQL resultset object
+    // SQLString query = format("CALL {:s}(0, 10);", sp_name);
+    // string sql_str = sql_sp_bind_params(sp_name, params);
+    // print("SP call with bound parameters:\n{:s}", sql_str);
+    // ResultSet *rs = stmt->executeQuery(query);
+
+    // Simple code - use string literal
+    ResultSet *rs = stmt->executeQuery("CALL KS.GetDetections(0, 10);");
+
+    // Return the resultset
+    return rs;
+}
+
+// *****************************************************************************
+} // Namespace ks

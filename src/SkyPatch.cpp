@@ -307,7 +307,7 @@ const string SkyPatch::str() const
 {
     // The Integer coordinates (f, i, j)
     int f_ = static_cast<int>(f.id);
-    string fij = format("(f, i, j) = (%d, %4d, %4d)", f_, i, j);
+    string fij = format("(f, i, j) = ({:d}, {:4d}, {:4d})", f_, i, j);
     // The midpoint local coordinates (u, v, w)
     // string uvw = format("(u, v, w) = ({:8.6f}, {:8.6f}, {:8.6f})", u(), v(), w());
     // The midpoint global coordinates (x, y, z)
