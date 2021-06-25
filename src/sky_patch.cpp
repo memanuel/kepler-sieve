@@ -93,18 +93,7 @@ spn_type make_sky_patch_neighbor_table()
                             // Exclude case of corners; want to write -1 here, not bogus SkyPatchID.
                             if (!is_corner)
                             {
-                                // DEBUG
-                                try
-                                {
-                                    spid1 = sp.shift(di, dj).id();
-                                }
-                                catch (std::range_error err)
-                                {                        
-                                    cout << format("Bad SkyPatch neighbor calculation. sp0 is:\n");
-                                    cout << format("%s.\n") % sp.str();
-                                    cout << format("di=%d, dj=%d.\n") % di % dj;
-                                    throw err;
-                                }
+                                spid1 = sp.shift(di, dj).id();
                             }
                         }
                         // Write the new SkyPatchID to the spn array

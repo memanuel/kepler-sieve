@@ -182,7 +182,7 @@ const SkyPatch SkyPatch::shift_i(const int16_t di) const
     // The sign of the cube face as an integer; e.g. Z+ has ci=1
     int ci = static_cast<int> (f.c());
     // Calculate the distance that i has gone past the end; this is a small positive integer
-    int16_t wrap = is_lo ? -i_ : (i_-M);
+    int16_t wrap = is_lo ? -i_ : (i_-M+1);
     // Calculate the new grid index on what used to be the largest axis (gamma)
     int16_t k = N + (N-wrap)*ci;
 
@@ -225,8 +225,8 @@ const SkyPatch SkyPatch::shift_j(const int16_t dj) const
     // If we get here, we've wrapped around.
     // The sign of the cube face as an integer; e.g. Z+ has ci=1
     int ci = static_cast<int> (f.c());
-    // Calculate the distance that i has gone past the end; this is a small positive integer
-    int16_t wrap = is_lo ? -j_ : (j_-M);
+    // Calculate the distance that j has gone past the end; this is a small positive integer
+    int16_t wrap = is_lo ? -j_ : (j_-M+1);
     // Calculate the new grid index on what used to be the largest axis (gamma)
     int16_t k = N + (N-wrap)*ci;
 
@@ -257,20 +257,11 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
     int16_t i_ = i + di;
     int16_t j_ = j + dj;
 
-    // DEBUG
-    // cout << format("Entering SkyPatch::shift.\n");
-    // cout << format("%s\ndi=%d. dj=%d.\n") % str() % di % dj;
-
     // Determine if we're wrapping in the i and j directions
     bool is_on_grid_i = (0 <= i_) && (i_ < M);
     bool is_on_grid_j = (0 <= j_) && (j_ < M);
     // Is this the simple case where we are on the same cube face?
     bool is_on_grid = is_on_grid_i && is_on_grid_j;
-
-    // DEBUG
-    // cout << format("is_on_grid_i=%b.\n") % is_on_grid_i;
-    // cout << format("is_on_grid_j=%b.\n") % is_on_grid_j;
-    // cout << format("is_on_grid=%b.\n") % is_on_grid;
 
     // Most common case: no wrap.  Then stay on the same CubeFace
     if (is_on_grid)
@@ -281,10 +272,7 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
     // If we did not wrap in the j direction, delegate to shift_j first, then shift_i
     if (is_on_grid_j)
     {
-        // DEBUG
-        // cout << format("SkyPatch::shift.  Entering if with is_on_grid_j true.\n");
         SkyPatch sp = shift_j(dj);
-        // cout << format("SkyPatch::shift.  Built sp.\n%s\n") % sp.str();
         return sp.shift_i(di);
     }
 
@@ -298,11 +286,12 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
     // If we get here, we are wrapping around twice.
     // Map these to the opposite face to make sure we have a valid SkyPatch, but one that is very far away.
     // This way it will be filtered out later when setting a maximum distance.
-    CubeFace f_ = f.opposite();
+    // CubeFace f_ = f.opposite();
     // Wrap i_ and j_ mod M so they are legal
-    i_ = (M+i_) % M;
-    j_ = (M+j_) % M;
-    return SkyPatch(f_, i_, j_);
+    // i_ = (M+i_) % M;
+    // j_ = (M+j_) % M;
+    // return SkyPatch(f_, i_, j_);
+    return SkyPatch(f, i , j);
 }
 
 // *****************************************************************************

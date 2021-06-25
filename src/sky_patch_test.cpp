@@ -186,6 +186,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
 
     // Initialize arrays with summary statistics of neighbors by column j
     int dist_count[9];
+    // int dist_count_dummy[9];
     double dist_sum[9];
     double dist_mean[9];
     double dist_min[9];
@@ -198,6 +199,8 @@ void test_sky_patch_neighbor_distance(spn_type spn)
         dist_min[j] = 2.0;
         dist_max[j] = 0.0;
     }
+    // Distance threshold for dummy entries
+    double dummy_thresh = 0.5;
     // Iterate through all the rows, accumulating the summary stats
     for (int i=0; i<N_sp; i++)
     {
@@ -212,6 +215,8 @@ void test_sky_patch_neighbor_distance(spn_type spn)
             if (spn[idx]<0) {continue;}
             // Get the distance
             double x = spnd[idx];
+            // Skip this entry if distance is over 1.0; it was a dummy entry
+            if (x>dummy_thresh) {continue;}
             // Accumulate the count
             dist_count[j]++;
             // Accumulate the total
@@ -229,9 +234,23 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     }
 
     // Report the summary statistics
-    cout << "j  MEAN    MIN     MAX     \n";
-    for (int j=0; j<9; j++)
-        {cout << format("%d %8.6f %8.6f %8.6f\n") % j % dist_mean[j] % dist_min[j] % dist_max[j];}
+    cout << "di  dj   MEAN     MIN      MAX      COUNT    HOLES\n";
+    int k=0;    
+    for (int di=-1; di<=1; di++)
+    {
+        for (int dj=-1; dj<=1; dj++)
+        {
+            int count = dist_count[k];
+            int holes = N_sp - count;
+            double mean = dist_mean[k];
+            double min = dist_min[k];
+            double max = dist_max[k];
+            cout << format("%+d  %+d   %8.6f %8.6f %8.6f %d %d\n") 
+                % di % dj % mean % min % max % count % holes;
+            // Increment the column counter k (looping on di and dj but need k for array column index)
+            k++;
+        }
+    }
 }
 
 // *****************************************************************************
@@ -248,19 +267,6 @@ int main()
 
     // Test SkyPatch neighbor distance
     test_sky_patch_neighbor_distance(spn);
-
-    // DEBUG
-    // SkyPatch sp0 = SkyPatch(0, 0, 0);
-    // int32_t spid0 = sp0.id();
-    // cout << format("\nSkyPatch sp0 built from spid=%d.\n") % spid0;
-    // int di=-1;
-    // int dj=0;
-    // SkyPatch sp1 = sp0.shift(di, dj);
-    // int32_t spid1 = sp1.id();
-    // cout << format("\nSkyPatch sp1 is sp0 shifted (%d, %d);  spid1=%d.\n") % di % dj % spid1;
-    // cout << format("%s\n") % sp1.str(); 
-    // SkyPatch sp1 = SkyPatch_from_id(spid1);
-    // cout << format("sp1:\n%s\n") % sp1.str();
 
     // Normal program exit
     return 0;
