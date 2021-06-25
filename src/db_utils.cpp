@@ -65,27 +65,23 @@ int result_set_size(ResultSet *rs)
 
 // *****************************************************************************
 //*Join a stored proecedure name and a vector of string parameters into a single SQL statement
-// string sql_sp_bind_params(const string sp_name, const vector<string> params)
-// {
-//     return sp_name;
-//     // return sp_name + join(params, ", ");
-// }
+string sql_sp_bind_params(const string sp_name, const vector<string> &params)
+{
+    return format("CALL {}({});", sp_name, join(params, ", "));
+}
 
 // *****************************************************************************
-// ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> params)
-ResultSet* sp_run(db_conn_type &conn)
+// ResultSet* sp_run(db_conn_type &conn)
+ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params)
 {
     // Create a new SQL statement
     sql_stmt_type stmt(conn->createStatement());
+    // Bind the vector of SQL parameters to the named SP
+    string sql = sql_sp_bind_params(sp_name, params);
+    // print("SP call with bound parameters:\n{:s}\n", sql);
+
     // Execute stored procedure into a SQL resultset object
-    // SQLString query = format("CALL {:s}(0, 10);", sp_name);
-    // string sql_str = sql_sp_bind_params(sp_name, params);
-    // print("SP call with bound parameters:\n{:s}", sql_str);
-    // ResultSet *rs = stmt->executeQuery(query);
-
-    // Simple code - use string literal
-    ResultSet *rs = stmt->executeQuery("CALL KS.GetDetections(0, 10);");
-
+    ResultSet *rs = stmt->executeQuery(sql);
     // Return the resultset
     return rs;
 }

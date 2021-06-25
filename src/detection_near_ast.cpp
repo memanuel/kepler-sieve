@@ -47,8 +47,8 @@ int main()
     // Run the stored procedure
     string sp_name = "KS.GetDetections";
     vector<string> params = {"0", "10"};
-    // ResultSet *rs = sp_run(conn, sp_name, params);
-    ResultSet *rs = sp_run(conn);
+    ResultSet *rs = sp_run(conn, sp_name, params);
+    // ResultSet *rs = sp_run(conn);
 
     // Get size of resultset
     int rows = result_set_size(rs);

@@ -4,7 +4,7 @@
 // Included files
 #include <string>
 #include <fmt/format.h>
-// #include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include <mariadb/conncpp.hpp>
 
 // *****************************************************************************
@@ -15,7 +15,7 @@ using std::unique_ptr;
 using std::vector;
 using fmt::print;
 using fmt::format;
-// using boost::algorithm::join;
+using boost::algorithm::join;
 
 // SQL class names and functions used (from MariaDB/Connector)
 using sql::SQLString;
@@ -53,12 +53,12 @@ int result_set_size(ResultSet *rs);
 
 // *****************************************************************************
 //*Helper function for SQL stored procedures- bind parameters into one SQL string.
-// string sql_sp_bind_params(const string sp_name, const vector<string> params);
+string sql_sp_bind_params(const string sp_name, const vector<string> &params);
 
 // *****************************************************************************
 //*Execute a stored procedure and return a SQL resultset object
-// ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> params={});
-ResultSet* sp_run(db_conn_type &conn);
+// ResultSet* sp_run(db_conn_type &conn);
+ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params);
 
 // *****************************************************************************
 } // Namespace ks
