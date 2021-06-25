@@ -9,6 +9,7 @@
 // Included libraries
 #include <cmath>
 #include <iostream>
+#include <fmt/core.h>
 #include <boost/format.hpp>
 
 // Local dependencies
@@ -22,6 +23,7 @@ using std::cout;
 using std::min_element;
 using std::max_element;
 using boost::format;
+using fmt::print;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::sky_patch::N;
@@ -48,17 +50,17 @@ void test_cube_face()
     print_stars();
     cout << "CubeFace:\n";
     // String attributes
-    cout << format("description: %s\n") % cf.description();
-    cout << format("code : %s\n") % cf.str();
-    cout << format("alpha: %c\n") % cf.alpha();
-    cout << format("beta : %c\n") % cf.beta();
-    cout << format("gamma: %c\n") % cf.gamma();
+    print("description: {} \n", cf.description());
+    print("code : {}\n", cf.str());
+    print("alpha: {}\n", cf.alpha());
+    print("beta : {}\n", cf.beta());
+    print("gamma: {}\n", cf.gamma());
     // Integer and float attributes
-    cout << format("id   : %d\n") % static_cast<int>(cf.id);
-    cout << format("k1   : %d\n") % cf.k1();
-    cout << format("k2   : %d\n") % cf.k2();
-    cout << format("k3   : %d\n") % cf.k3();
-    cout << format("c    :%+3.1f\n") % cf.c();
+    print("id   : {}\n", cf.id);
+    print("k1   : {}\n", cf.k1());
+    print("k2   : {}\n", cf.k2());
+    print("k3   : {}\n", cf.k3());
+    print("c    :{:+3.1f}\n", cf.c());
 }
 
 // *****************************************************************************
@@ -68,7 +70,6 @@ void test_sky_patch()
     int8_t f_ = 0;
     int16_t i = 512;
     int16_t j = 1024+512;
-    // int32_t sky_patch_id = (M2*f_ + M*i + j);
     int32_t sky_patch_id = fij2spid(f_, i, j);
     // Initialize a SkyPatch
     SkyPatch sp = SkyPatch(f_, i, j);
@@ -263,18 +264,25 @@ void test_sky_patch_neighbor_distance(spn_type spn)
 
     // Global summary statistics
     int holes=0;
-    double max=0.0;
     double mean=0.0;
+    double min=2.0;
+    double max=0.0;
     for (int k=0; k<9;k++)
     {
+        // Skip the case of k=4, since there is no move
+        if (k==0) {continue;}
         holes += (N_sp - dist_count[k]);
         mean += dist_mean[k]/9.0;
-        if (dist_max[k]>max) {max=dist_max[k];}        
+        if (dist_min[k] < min) {min=dist_max[k];}
+        if (dist_max[k] > max) {max=dist_max[k];}
     }
+    // Convert from Cartesian distance to arc seconds
     double mean_sec = dist2sec(mean);
+    double min_sec = dist2sec(min);
     double max_sec = dist2sec(max);
 
     // Report global results
+    cout << format("Summary statistics over all non-trivial neighbor interactions.\n");
     cout << format("\nMean distance: %6.1f arc seconds\n") % mean_sec;
     cout << format("Max  distance: %6.1f arc seconds\n") % max_sec;
     cout << format("Number of holes: %d\n") % holes;
@@ -311,16 +319,19 @@ void test_sky_patch_neighbor_distance(spn_type spn)
 int main()
 {
     // Test CubeFace class
-    // test_cube_face();
+    test_cube_face();
 
     // Test SkyPatch class
     // test_sky_patch();
 
     // Test SkyPatch neighbor
-    spn_type spn = test_sky_patch_neighbor();
+    // spn_type spn = test_sky_patch_neighbor();
 
     // Test SkyPatch neighbor distance
-    test_sky_patch_neighbor_distance(spn);
+    // test_sky_patch_neighbor_distance(spn);
+
+    // DEBUG
+    // std::cout << "\nBoost version:" << BOOST_LIB_VERSION << '\n';
 
     // Normal program exit
     return 0;

@@ -24,21 +24,31 @@ include build/Makefile.dep
 SRC_DIR := src
 OBJ_DIR := obj
 
+# Set verbosity flag; uncomment this line to show lists of source files, object files and executables.
+# VERBOSE := true
+
 # *************************************************************************************************
 # Source, object and executable files
 # *************************************************************************************************
 # List of C++ source files; filename.cpp.  Includes both executables and intermediates.
 SRC_CPP := $(wildcard $(SRC_DIR)/*.cpp)
 # Debug listing of SRC_CPP
-# $(info SRC_CPP is $(SRC_CPP))
+ifdef VERBOSE
+$(info SRC_CPP is $(SRC_CPP) $(NEWLINE))
+endif
 
-# Lists of object files; filename.o
+# List of object files; filename.o
 OBJ := $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRC_CPP))
 # Debug listing of object files
-# $(info OBJ is $(OBJ))
+ifdef VERBOSE
+$(info OBJ is $(OBJ) $(NEWLINE))
+endif
 
-# Lists of executables (prefix only)
-EXEC := db_test sky_patch_test detection_near_ast
+# List of executable files is at the top of Makefile.dep!
+# Debug listing of executable prefix names
+ifdef VERBOSE
+$(info EXEC is $(EXEC) $(NEWLINE))
+endif
 
 # List of executables files on this platform; e.g. myprogram.x on Linux, myprogram.exe on Windows
 EXEC_FILES := $(patsubst %, %.$(EXEC_SUFFIX), $(EXEC))
