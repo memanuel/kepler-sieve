@@ -60,13 +60,13 @@ r(r_initializer(i, j))
     if ((i_ < 0) || (i_ > M)) 
     {
         int fi = static_cast<int>(f_.id);
-        cout << format("Bad inputs to SkyPatch. (f, i, j) = (%d, %d, %d).\n") % fi % i_ % j_;
+        print("Bad inputs to SkyPatch. (f, i, j) = ({:d}, {:d}, {:d}).\n", fi, i_, j_);
         throw err_sky_patch_grid_i;
     }
     if ((j_ < 0) || (j_ > M)) 
     {
         int fi = static_cast<int>(f_.id);
-        cout << format("Bad inputs to SkyPatch. (f, i, j) = (%d, %d, %d).\n") % fi % i_ % j_;
+        print("Bad inputs to SkyPatch. (f, i, j) = ({:d}, {:d}, {:d}).\n", fi % i_ % j_);
         throw err_sky_patch_grid_j;
     }
 }
@@ -307,11 +307,11 @@ const string SkyPatch::str() const
 {
     // The Integer coordinates (f, i, j)
     int f_ = static_cast<int>(f.id);
-    string fij = (format("(f, i, j) = (%d, %4d, %4d)") % f_ % i % j).str();
+    string fij = format("(f, i, j) = (%d, %4d, %4d)", f_, i, j);
     // The midpoint local coordinates (u, v, w)
-    // string uvw = (format("(u, v, w) = (%8.6f, %8.6f, %8.6f)") % u() % v() % w()).str();
+    // string uvw = format("(u, v, w) = ({:8.6f}, {:8.6f}, {:8.6f})", u(), v(), w());
     // The midpoint global coordinates (x, y, z)
-    string xyz = (format("(x, y, z) = (%+8.6f, %+8.6f, %+8.6f)") % x() % y() % z()).str();
+    string xyz = format("(x, y, z) = ({:+8.6f}, {:+8.6f}, {:+8.6f})", x(),  y(), z());
     // Return one combined description
-    return (format("spid = %8d. %s. %s.\n") % id() % fij % xyz).str();
+    return format("spid = {:8d}. {:s}. {:s}.\n", id(), fij, xyz);
 }

@@ -13,7 +13,6 @@
 #include <string>
 #include <algorithm>
 #include <stdexcept>
-#include <boost/format.hpp>
 
 // Local dependencies
 #include "CubeFace.h"
@@ -22,7 +21,7 @@
 #include "astro_utils.h"
 
 // *****************************************************************************
-// Standard library and boost class names used
+// Standard library class names used
 using std::string;
 using std::range_error;
 

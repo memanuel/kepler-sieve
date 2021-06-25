@@ -2,7 +2,7 @@
 // Included libraries
 #include <cmath>
 #include <iostream>
-#include <boost/format.hpp>
+#include <fmt/format.h>
 
 // Local dependencies
 #include "utils.h"
@@ -10,8 +10,8 @@
 
 // *****************************************************************************
 // Names used
-using std::cout;
-using boost::format;
+using fmt::print;
+using fmt::format;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::sky_patch::N;
@@ -27,7 +27,7 @@ using ks::print_stars;
 int main()
 {
     // Build the SkyPatchNeighbor table
-    cout << format("Building SkyPatch neighbors for N = %d...\n") % N;
+    print("Building SkyPatch neighbors for N = {:d}...\n", N);
     /*
     spn_type spn = make_sky_patch_neighbor_table();
 
@@ -36,8 +36,8 @@ int main()
     SkyPatch sp0 = SkyPatch_from_id(spid0);
 
     // Read off neighbors of first row
-    cout << format("Starting SkyPatch:\n%s") % sp0.str();
-    cout << format("Neighbors of this SkyPatch:\n");
+    print("Starting SkyPatch:\n{:s}", sp0.str());
+    print("Neighbors of this SkyPatch:\n");
     // Offset into table for sp0
     int32_t idx0 = spid0*9;
     for (int j=0; j<9; j++)
@@ -48,8 +48,7 @@ int main()
         if (spid1 >= 0)
         {
             SkyPatch sp1 = SkyPatch_from_id(spid1);
-            // cout << format("spid: %d\n") % sp1.id();            
-            cout << sp1.str();
+            print(sp1.str());
         }
     }
     */

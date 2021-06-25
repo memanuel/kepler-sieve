@@ -2,7 +2,7 @@
 // Included libraries
 #include <iostream>
 #include <string>
-#include <boost/format.hpp>
+#include <fmt/format.h>
 
 // Local dependencies
 #include "db_utils.h"
@@ -12,7 +12,7 @@
 using std::cout;
 using std::string;
 using std::pair;
-using boost::format;
+using fmt::print;
 
 // *****************************************************************************
 /** Test database utilities.
@@ -26,7 +26,7 @@ int main()
     // Do something with the connection object
     SQLString db_host = conn->getHostname();
     SQLString schema = conn->getSchema();
-    cout << format("\nGot DB connection to host %s, schema %s\n") % db_host % schema;
+    print("\nGot DB connection to host {:s}, schema {:s}\n", db_host, schema);
 
     // Close Connection
     conn->close();

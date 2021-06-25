@@ -22,7 +22,7 @@ using std::cout;
 using std::min_element;
 using std::max_element;
 using fmt::print;
-// using fmt::format;
+using fmt::format;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::sky_patch::N;
@@ -84,7 +84,7 @@ void test_sky_patch()
     print("id   {}\n", sp.id());
     // Test that recovered ID matches
     bool is_ok_id = (sky_patch_id == sp.id());
-    string test_name = fmt::format("SkyPatch: recovered ID matches calculated ID ({})", sky_patch_id);
+    string test_name = format("SkyPatch: recovered ID matches calculated ID ({})", sky_patch_id);
     report_test(test_name, is_ok_id);
     
     // Calculate local sky patch coordinates (u, v, w) on unit sphere
@@ -268,10 +268,10 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     for (int k=0; k<9;k++)
     {
         // Skip the case of k=4, since there is no move
-        if (k==0) {continue;}
+        if (k==4) {continue;}
         holes += (N_sp - dist_count[k]);
         mean += dist_mean[k]/9.0;
-        if (dist_min[k] < min) {min=dist_max[k];}
+        if (dist_min[k] < min) {min=dist_min[k];}
         if (dist_max[k] > max) {max=dist_max[k];}
     }
     // Convert from Cartesian distance to arc seconds
@@ -282,6 +282,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     // Report global results
     print("Summary statistics over all non-trivial neighbor interactions.\n");
     print("\nMean distance: {:6.1f} arc seconds\n", mean_sec);
+    print("Min  distance: {:6.1f} arc seconds\n", min_sec);
     print("Max  distance: {:6.1f} arc seconds\n", max_sec);
     print("Number of holes: {:d}\n", holes);
 
@@ -292,10 +293,10 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     // Test that max distance between neighbors is not too large
     double thresh_sec = 300.0;
     bool is_ok_max = (max_sec < thresh_sec);
-    report_test((fmt::format("\nSkyPatchNeighbor: max distance < {:d} arc seconds?", thresh_sec)), is_ok_max);
+    report_test((format("\nSkyPatchNeighbor: max distance < {:4.0f} arc seconds?", thresh_sec)), is_ok_max);
 
     // Test symmetry
-    double thresh_sym = 0.01;
+    // double thresh_sym = 0.01;
 
     // double min_rook = min_element({dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]});
     // double max_rook = max_element({dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]});
@@ -327,9 +328,6 @@ int main()
 
     // Test SkyPatch neighbor distance
     // test_sky_patch_neighbor_distance(spn);
-
-    // DEBUG
-    // std::cout << "\nBoost version:" << BOOST_LIB_VERSION << '\n';
 
     // Normal program exit
     return 0;

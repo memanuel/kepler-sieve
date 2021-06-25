@@ -14,20 +14,21 @@
 #include <string>
 #include <iostream>
 #include <stdexcept>
-#include <boost/format.hpp>
+#include <fmt/format.h>
 
 // Local dependencies
 #include "CubeFace.h"
 #include "utils.h"
 
 // *****************************************************************************
-// Standard library and boost class names used
+// Standard library class names used
 using std::div;
 using std::div_t;
 using std::string;
 using std::cout;
 using std::range_error;
-using boost::format;
+using fmt::print;
+using fmt::format;
 
 // *****************************************************************************
 // Local names used

@@ -22,17 +22,17 @@ unique_ptr<Connection> get_db_conn(bool verbose=false)
     Properties properties({p1, p2});
 
     // Configure DB connection
-    string url = (format("jdbc:mariadb://%1%/%2%") % db_host % schema).str();
+    string url = format("jdbc:mariadb://{:s}/{:s}", db_host, schema);
     // SQLString url("jdbc:mariadb://Thor/KS");
 
     // Report DB connection settings if requested
     if (verbose)
     {
-        cout << format("DB connection settings:\n");
-        cout << format("DB host : %s\n") % db_host;
-        cout << format("schema  : %s\n") % schema;
-        cout << format("%s    : %s\n") % p1.first % p1.second;
-        cout << format("%s: %s\n") % p2.first % p2.second;
+        print("DB connection settings:\n");
+        print("DB host : {:s}\n", db_host);
+        print("schema  : {:s}\n", schema);
+        print("{:s}    : {:s}\n", p1.first, p1.second);
+        print("{:s}: {:s}\n", p2.first, p2.second);
     }
 
     // Instantiate DB driver

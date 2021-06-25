@@ -4,17 +4,18 @@
 // Included files
 #include <iostream>
 #include <string>
-#include <boost/format.hpp>
+#include <fmt/format.h>
 #include <mariadb/conncpp.hpp>
 
 // *****************************************************************************
-// Standard library and boost class names used
+// Standard library class names used
 using std::cout;
 using std::endl;
 using std::string;
 using std::pair;
 using std::unique_ptr;
-using boost::format;
+using fmt::print;
+using fmt::format;
 
 // SQL class names used (from MariaDB/Connector)
 using sql::Driver;

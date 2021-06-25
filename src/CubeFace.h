@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 // *****************************************************************************
-// Standard library and boost class names used
+// Standard library class names used
 using std::string;
 using std::range_error;
 

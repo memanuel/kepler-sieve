@@ -10,9 +10,8 @@
 // *****************************************************************************
 // Included libraries
 #include <cmath>
-#include <iostream>
 #include <string>
-#include <boost/format.hpp>
+#include <fmt/format.h>
 
 // *****************************************************************************
 // Names used
