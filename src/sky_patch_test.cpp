@@ -9,8 +9,7 @@
 // Included libraries
 #include <cmath>
 #include <iostream>
-#include <fmt/core.h>
-#include <boost/format.hpp>
+#include <fmt/format.h>
 
 // Local dependencies
 #include "utils.h"
@@ -22,8 +21,8 @@
 using std::cout;
 using std::min_element;
 using std::max_element;
-using boost::format;
 using fmt::print;
+// using fmt::format;
 using ks::CubeFace;
 using ks::SkyPatch;
 using ks::sky_patch::N;
@@ -76,17 +75,16 @@ void test_sky_patch()
     // Report results
     print_newline();
     print_stars();
-    cout << "SkyPatch:\n";
-    cout << sp.str();
+    print("SkyPatch:\n{}", sp.str());
     // Calculate sky patch integer attributes
-    cout << "\nInteger attributes\n";
-    cout << format("f:   %d\n") % static_cast<int>(sp.f.id);
-    cout << format("i:   %d\n") % static_cast<int>(sp.i);
-    cout << format("j:   %d\n") % static_cast<int>(sp.j);
-    cout << format("id   %d\n") % sp.id();
+    print("\nInteger attributes\n");
+    print("f:   {}\n", sp.f.id);
+    print("i:   {}\n", sp.i);
+    print("j:   {}\n", sp.j);
+    print("id   {}\n", sp.id());
     // Test that recovered ID matches
     bool is_ok_id = (sky_patch_id == sp.id());
-    string test_name = (format("SkyPatch: recovered ID matches calculated ID (%s)") % sky_patch_id).str();
+    string test_name = fmt::format("SkyPatch: recovered ID matches calculated ID ({})", sky_patch_id);
     report_test(test_name, is_ok_id);
     
     // Calculate local sky patch coordinates (u, v, w) on unit sphere
@@ -94,35 +92,35 @@ void test_sky_patch()
     double v = sp.v();
     double w = sp.w();
     // Display (u, v, w)
-    cout << "\nLocal coordinates of midpoint on unit sphere\n";
-    cout << format("u:   %+10.8f\n") % u;
-    cout << format("v:   %+10.8f\n") % v;
-    cout << format("w:   %+10.8f\n") % w;
+    print("\nLocal coordinates of midpoint on unit sphere\n");
+    print("u:   {:+10.8f}\n", u);
+    print("v:   {:+10.8f}\n", v);
+    print("w:   {:+10.8f}\n", w);
 
     // Calculate global sky patch coordinates (x, y, z) on unit sphere
     double x = sp.x();
     double y = sp.y();
     double z = sp.z();
     // Display (x, y, z)
-    cout << "Global coordinates of midpoint on unit sphere\n";
-    cout << format("x:   %+10.8f\n") % x;
-    cout << format("y:   %+10.8f\n") % y;
-    cout << format("z:   %+10.8f\n") % z;
+    print("Global coordinates of midpoint on unit sphere\n");
+    print("x:   {:+10.8f}\n", x);
+    print("y:   {:+10.8f}\n", y);
+    print("z:   {:+10.8f}\n", z);
 
     // Check that (u, v, w) is really on the sphere
     double r_sph = sqrt(sqr(u) + sqr(v) + sqr(w));
-    cout << "\nRecovered radius of point (u, v, w) on sphere:\n";
-    cout << format("r    : %8.6f\n") % r_sph;
+    print("\nRecovered radius of point (u, v, w) on sphere:\n");
+    print("r    : {:8.6f}\n", r_sph);
     double err = fabs(1.0 - r_sph);
-    cout << format("Error: %8.6e\n") % err;
+    print("Error: {:8.6e}\n", err);
     bool is_ok_sphere = (err < 1.0E-15);
     report_test("SkyPatch: point(u, v, w) on unit sphere", is_ok_sphere);
 
     // Create a second SkyPatch from the integer ID and check that it's the same as the first
     SkyPatch sp2 = SkyPatch_from_id(sky_patch_id);
-    cout << format("\nSkyPatch built using this ID (%d):\n") % sky_patch_id;
-    cout << format("(%+8.6f, %+8.6f, %+8.6f)\n") % sp2.u() % sp2.v() % sp2.w();
-    cout << format("id:   %d\n") % sp2.id();
+    print("\nSkyPatch built using this ID {}):\n", sky_patch_id);
+    print("({:+8.6f}, {:+8.6f}, {:+8.6f})\n", sp2.u(), sp2.v(), sp2.w());
+    print("id:   {}\n", sp2.id());
     bool is_ok_from_id = (sp2.id() == sky_patch_id);
     report_test("SkyPatch: instance built from ID matches input sky_patch_id", is_ok_from_id);
 
@@ -137,9 +135,9 @@ spn_type test_sky_patch_neighbor()
     // Build the SkyPatchNeighbor table
     print_newline();
     print_stars();
-    cout << format("Building SkyPatch neighbors for N = %d...\n") % N;
+    print("Building SkyPatch neighbors for N = {}...\n", N);
     spn_type spn = make_sky_patch_neighbor_table();
-    cout << format("Completed SkyPatch neighbor table spn.\n");
+    print("Completed SkyPatch neighbor table spn.\n");
 
     // Count the number of nonzero neighbors
     int neighbor_count = 0;
@@ -156,7 +154,7 @@ spn_type test_sky_patch_neighbor()
         }
     }
     // Report number of nonzero neighbors
-    cout << format("SkyPatchNeighbor table has %d valid entries and %d holes.\n") % neighbor_count % missing_count;
+    print("SkyPatchNeighbor table has {} valid entries and {} holes.\n", neighbor_count, missing_count);
 
     // Initialize a starting SkyPatch
     int8_t f = 0;
@@ -166,8 +164,8 @@ spn_type test_sky_patch_neighbor()
     SkyPatch sp0 = SkyPatch_from_id(spid0);
 
     // Read off neighbors of first row
-    cout << format("Starting SkyPatch:\n%s") % sp0.str();
-    cout << format("Neighbors of this SkyPatch:\n");
+    print("Starting SkyPatch:\n{}", sp0.str());
+    print("Neighbors of this SkyPatch:\n");
     // Offset into table for sp0
     int32_t idx0 = spid0*9;
     for (int j=0; j<9; j++)
@@ -178,8 +176,8 @@ spn_type test_sky_patch_neighbor()
         if (spid1 >= 0)
         {
             SkyPatch sp1 = SkyPatch_from_id(spid1);
-            // cout << format("spid: %d\n") % sp1.id();            
-            cout << sp1.str();
+            // print("spid: {}\n", sp1.id());
+            print(sp1.str());
         }
     }
 
@@ -193,7 +191,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     // Build the SkyPatchNeighborDistance table
     print_newline();
     print_stars();
-    cout << format("Building SkyPatch neighbor distance for N = %d...\n") % N;
+    print("Building SkyPatch neighbor distance for N = {}...\n", N);
     spnd_type spnd = make_sky_patch_neighbor_dist_table(spn);
 
     // Initialize arrays with summary statistics of neighbors by column j
@@ -242,7 +240,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     }
 
     // Report the summary statistics
-    cout << "di  dj   MEAN   MIN    MAX    COUNT    HOLES\n";
+    print("di  dj   MEAN   MIN    MAX    COUNT    HOLES\n");
     int k=0;    
     for (int di=-1; di<=1; di++)
     {
@@ -255,8 +253,8 @@ void test_sky_patch_neighbor_distance(spn_type spn)
             double mean = dist2sec(dist_mean[k]);
             double min = dist2sec(dist_min[k]);
             double max = dist2sec(dist_max[k]);
-            cout << format("%+d  %+d   %6.1f %6.1f %6.1f %d %d\n") 
-                % di % dj % mean % min % max % count % holes;
+            print("{:+d}  {:+d}   {:6.1f} {:6.1f} {:6.1f} {:d} {:d}\n", 
+                di, dj, mean, min, max, count, holes);
             // Increment the column counter k (looping on di and dj but need k for array column index)
             k++;
         }
@@ -282,10 +280,10 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     double max_sec = dist2sec(max);
 
     // Report global results
-    cout << format("Summary statistics over all non-trivial neighbor interactions.\n");
-    cout << format("\nMean distance: %6.1f arc seconds\n") % mean_sec;
-    cout << format("Max  distance: %6.1f arc seconds\n") % max_sec;
-    cout << format("Number of holes: %d\n") % holes;
+    print("Summary statistics over all non-trivial neighbor interactions.\n");
+    print("\nMean distance: {:6.1f} arc seconds\n", mean_sec);
+    print("Max  distance: {:6.1f} arc seconds\n", max_sec);
+    print("Number of holes: {:d}\n", holes);
 
     // Test that number of holes is 24
     bool is_ok_holes = (holes == 24);
@@ -294,7 +292,7 @@ void test_sky_patch_neighbor_distance(spn_type spn)
     // Test that max distance between neighbors is not too large
     double thresh_sec = 300.0;
     bool is_ok_max = (max_sec < thresh_sec);
-    report_test((format("\nSkyPatchNeighbor: max distance < %d arc seconds?")%thresh_sec).str(), is_ok_max);
+    report_test((fmt::format("\nSkyPatchNeighbor: max distance < {:d} arc seconds?", thresh_sec)), is_ok_max);
 
     // Test symmetry
     double thresh_sym = 0.01;
@@ -319,13 +317,13 @@ void test_sky_patch_neighbor_distance(spn_type spn)
 int main()
 {
     // Test CubeFace class
-    test_cube_face();
+    // test_cube_face();
 
     // Test SkyPatch class
-    // test_sky_patch();
+    test_sky_patch();
 
     // Test SkyPatch neighbor
-    // spn_type spn = test_sky_patch_neighbor();
+    spn_type spn = test_sky_patch_neighbor();
 
     // Test SkyPatch neighbor distance
     // test_sky_patch_neighbor_distance(spn);
