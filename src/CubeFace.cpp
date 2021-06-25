@@ -222,7 +222,7 @@ const CubeFace CubeFace::neighbor_j0() const
         case 1: return 3;       // Y+; (Z, X, Y); neighbor X-
         case 2: return 5;       // X+; (Y, Z, X); neighbor Z-
         case 3: return 5;       // X-; (Y, Z, X); neighbor Z-
-        case 4: return 5;       // Y-; (Z, X, Y); neighbor X-
+        case 4: return 3;       // Y-; (Z, X, Y); neighbor X-
         case 5: return 4;       // Z-; (X, Y, Z); neighbor Y-
         default:    throw err_cube_face_id;
     }

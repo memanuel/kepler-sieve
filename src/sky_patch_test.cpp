@@ -199,8 +199,6 @@ void test_sky_patch_neighbor_distance(spn_type spn)
         dist_min[j] = 2.0;
         dist_max[j] = 0.0;
     }
-    // Distance threshold for dummy entries
-    double dummy_thresh = 0.5;
     // Iterate through all the rows, accumulating the summary stats
     for (int i=0; i<N_sp; i++)
     {
@@ -215,8 +213,6 @@ void test_sky_patch_neighbor_distance(spn_type spn)
             if (spn[idx]<0) {continue;}
             // Get the distance
             double x = spnd[idx];
-            // Skip this entry if distance is over 1.0; it was a dummy entry
-            if (x>dummy_thresh) {continue;}
             // Accumulate the count
             dist_count[j]++;
             // Accumulate the total

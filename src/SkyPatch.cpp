@@ -193,13 +193,15 @@ const SkyPatch SkyPatch::shift_i(const int16_t di) const
     CubeFace f_ = is_lo ? f.neighbor_i0() : f.neighbor_i1();
 
     // Assign the grid index of new i axis
-    if (f_.k1() == f.k1()) {i_ = i;}    // New i is old i; shared axis
+    // All three cases shown, but new i = old i is impossible; adjacent cube faces always have different i axes.
+    // if (f_.k1() == f.k1()) {i_ = i;}    // New i is old i; shared axis.
     if (f_.k1() == f.k2()) {i_ = j;}    // New i is old j; shared axis
     if (f_.k1() == f.k3()) {i_ = k;}    // New i is wrapped axis
 
     // Assign the grid index of new j axis
+    // All three cases shown, but new j = old j is impossible; adjacent cube faces always have different i axes.
     if (f_.k2() == f.k1()) {j_ = i;}    // New j is old i; shared axis
-    if (f_.k2() == f.k2()) {j_ = j;}    // New j is old j; shared axis
+    // if (f_.k2() == f.k2()) {j_ = j;}    // New j is old j; shared axis
     if (f_.k2() == f.k3()) {j_ = k;}    // New j is wrapped axis
 
     // Now return new SkyPatch
@@ -237,13 +239,15 @@ const SkyPatch SkyPatch::shift_j(const int16_t dj) const
     CubeFace f_ = is_lo ? f.neighbor_j0() : f.neighbor_j1();
 
     // Assign the grid index of new i axis
-    if (f_.k1() == f.k1()) {i_ = i;}    // New i is old i; shared axis
+    // All three cases shown, but new i = old i is impossible; adjacent cube faces always have different i axes.
+    // if (f_.k1() == f.k1()) {i_ = i;}    // New i is old i; shared axis
     if (f_.k1() == f.k2()) {i_ = j;}    // New i is old j; shared axis
     if (f_.k1() == f.k3()) {i_ = k;}    // New i is wrapped axis
 
     // Assign the grid index of new j axis
+    // All three cases shown, but new j = old j is impossible; adjacent cube faces always have different i axes.
     if (f_.k2() == f.k1()) {j_ = i;}    // New j is old i; shared axis
-    if (f_.k2() == f.k2()) {j_ = j;}    // New j is old j; shared axis
+    // if (f_.k2() == f.k2()) {j_ = j;}    // New j is old j; shared axis
     if (f_.k2() == f.k3()) {j_ = k;}    // New j is wrapped axis
 
     // Now return new SkyPatch
@@ -269,13 +273,6 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
         return SkyPatch(f, i_, j_);
     }
 
-    // If we did not wrap in the j direction, delegate to shift_j first, then shift_i
-    if (is_on_grid_j)
-    {
-        SkyPatch sp = shift_j(dj);
-        return sp.shift_i(di);
-    }
-
     // If we did not wrap in the i direction, delegate to shift_i first, then shift_j
     if (is_on_grid_i)
     {
@@ -283,15 +280,21 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
         return sp.shift_j(dj);
     }
 
+    // If we did not wrap in the j direction, delegate to shift_j first, then shift_i
+    if (is_on_grid_j)
+    {
+        SkyPatch sp = shift_j(dj);
+        return sp.shift_i(di);
+    }
+
     // If we get here, we are wrapping around twice.
     // Map these to the opposite face to make sure we have a valid SkyPatch, but one that is very far away.
     // This way it will be filtered out later when setting a maximum distance.
-    // CubeFace f_ = f.opposite();
+    CubeFace f_ = f.opposite();
     // Wrap i_ and j_ mod M so they are legal
-    // i_ = (M+i_) % M;
-    // j_ = (M+j_) % M;
-    // return SkyPatch(f_, i_, j_);
-    return SkyPatch(f, i , j);
+    i_ = (M+i_) % M;
+    j_ = (M+j_) % M;
+    return SkyPatch(f_, i_, j_);
 }
 
 // *****************************************************************************
