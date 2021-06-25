@@ -20,7 +20,9 @@ using ks::sky_patch::N_spn;
 using ks::SkyPatch_from_id;
 using ks::fij2spid;
 using ks::spn_type;
+using ks::spnd_type;
 using ks::make_sky_patch_neighbor_table;
+using ks::make_sky_patch_neighbor_dist_table;
 using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
@@ -118,13 +120,14 @@ void test_sky_patch()
 }
 
 // *****************************************************************************
-void test_sky_patch_neighbor()
+spn_type test_sky_patch_neighbor()
 {
     // Build the SkyPatchNeighbor table
     print_newline();
     print_stars();
     cout << format("Building SkyPatch neighbors for N = %d...\n") % N;
     spn_type spn = make_sky_patch_neighbor_table();
+    cout << format("Completed SkyPatch neighbor table spn.\n");
 
     // Count the number of nonzero neighbors
     int neighbor_count = 0;
@@ -168,22 +171,96 @@ void test_sky_patch_neighbor()
         }
     }
 
-    // Summary statistics of neighbors by j
-    
+    // Return the assembled SkyPatch neighbor table for use in the next test
+    return spn;
+}
 
+// *****************************************************************************
+void test_sky_patch_neighbor_distance(spn_type spn)
+{
+    // Build the SkyPatchNeighborDistance table
+    print_newline();
+    print_stars();
+    cout << format("Building SkyPatch neighbor distance for N = %d...\n") % N;
+    spnd_type spnd = make_sky_patch_neighbor_dist_table(spn);
+
+    // Initialize arrays with summary statistics of neighbors by column j
+    int dist_count[9];
+    double dist_sum[9];
+    double dist_mean[9];
+    double dist_min[9];
+    double dist_max[9];
+    // Initialize the 9 columns
+    for (int j=0; j<9; j++)
+    {
+        dist_count[j] = 0;
+        dist_sum[j] = 0.0;
+        dist_min[j] = 2.0;
+        dist_max[j] = 0.0;
+    }
+    // Iterate through all the rows, accumulating the summary stats
+    for (int i=0; i<N_sp; i++)
+    {
+        // Base index for this row
+        int idx0 = i*9;
+        // Iterate through the 9 columns
+        for (int j=0; j<9; j++)
+        {
+            // Index of this entry
+            int idx = idx0+j;
+            // Skip this entry if it's not a real neighbor
+            if (spn[idx]<0) {continue;}
+            // Get the distance
+            double x = spnd[idx];
+            // Accumulate the count
+            dist_count[j]++;
+            // Accumulate the total
+            dist_sum[j] += x;
+            // Accumulate the min
+            if (x<dist_min[j]) {dist_min[j]=x;}
+            // Accumulate the max
+            if (x>dist_max[j]) {dist_max[j]=x;}
+        }   // for j
+    }   // for i
+    // Calculate the mean from the total and count
+    for (int j=0; j<9; j++)
+    {
+        dist_mean[j] = dist_sum[j] / dist_count[j];
+    }
+
+    // Report the summary statistics
+    cout << "j  MEAN    MIN     MAX     \n";
+    for (int j=0; j<9; j++)
+        {cout << format("%d %8.6f %8.6f %8.6f\n") % j % dist_mean[j] % dist_min[j] % dist_max[j];}
 }
 
 // *****************************************************************************
 int main()
 {
     // Test CubeFace class
-    test_cube_face();
+    // test_cube_face();
 
     // Test SkyPatch class
-    test_sky_patch();
+    // test_sky_patch();
 
     // Test SkyPatch neighbor
-    test_sky_patch_neighbor();
+    spn_type spn = test_sky_patch_neighbor();
+
+    // Test SkyPatch neighbor distance
+    test_sky_patch_neighbor_distance(spn);
+
+    // DEBUG
+    // SkyPatch sp0 = SkyPatch(0, 0, 0);
+    // int32_t spid0 = sp0.id();
+    // cout << format("\nSkyPatch sp0 built from spid=%d.\n") % spid0;
+    // int di=-1;
+    // int dj=0;
+    // SkyPatch sp1 = sp0.shift(di, dj);
+    // int32_t spid1 = sp1.id();
+    // cout << format("\nSkyPatch sp1 is sp0 shifted (%d, %d);  spid1=%d.\n") % di % dj % spid1;
+    // cout << format("%s\n") % sp1.str(); 
+    // SkyPatch sp1 = SkyPatch_from_id(spid1);
+    // cout << format("sp1:\n%s\n") % sp1.str();
 
     // Normal program exit
     return 0;

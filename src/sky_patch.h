@@ -44,12 +44,13 @@ int fij2spid(int8_t f, int16_t i, int16_t j);
 //* The number of SkyPatches for the selected grid size. Alias to access ks::sky_patch::N_sp.
 int sky_patch_count();
 
-//* Construct a table of sky patch neighbors.
 using spn_type = int32_t*;
+//* Construct a table of sky patch neighbors.
 spn_type make_sky_patch_neighbor_table();
 
+using spnd_type = double*;
 //* Construct a table of sky patch neighbor distances.*/
-void write_sky_patch_neighbor_dist_table(const int32_t* spn, double* spnd);
+spnd_type make_sky_patch_neighbor_dist_table(const spn_type spn);
 
 // *****************************************************************************
 }; // namespace

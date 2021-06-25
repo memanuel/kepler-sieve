@@ -257,26 +257,39 @@ const SkyPatch SkyPatch::shift(const int16_t di, const int16_t dj) const
     int16_t i_ = i + di;
     int16_t j_ = j + dj;
 
-    // Check whether i and j have wrapped around
-    bool is_wrap_i = (i_ <0) || (i_ >M);
-    bool is_wrap_j = (j_ <0) || (j_ >M);
-    bool is_wrap = is_wrap_i || is_wrap_j;
+    // DEBUG
+    // cout << format("Entering SkyPatch::shift.\n");
+    // cout << format("%s\ndi=%d. dj=%d.\n") % str() % di % dj;
+
+    // Determine if we're wrapping in the i and j directions
+    bool is_on_grid_i = (0 <= i_) && (i_ < M);
+    bool is_on_grid_j = (0 <= j_) && (j_ < M);
+    // Is this the simple case where we are on the same cube face?
+    bool is_on_grid = is_on_grid_i && is_on_grid_j;
+
+    // DEBUG
+    // cout << format("is_on_grid_i=%b.\n") % is_on_grid_i;
+    // cout << format("is_on_grid_j=%b.\n") % is_on_grid_j;
+    // cout << format("is_on_grid=%b.\n") % is_on_grid;
 
     // Most common case: no wrap.  Then stay on the same CubeFace
-    if (!is_wrap)
+    if (is_on_grid)
     {
         return SkyPatch(f, i_, j_);
     }
 
     // If we did not wrap in the j direction, delegate to shift_j first, then shift_i
-    if (!is_wrap_j)
+    if (is_on_grid_j)
     {
+        // DEBUG
+        // cout << format("SkyPatch::shift.  Entering if with is_on_grid_j true.\n");
         SkyPatch sp = shift_j(dj);
+        // cout << format("SkyPatch::shift.  Built sp.\n%s\n") % sp.str();
         return sp.shift_i(di);
     }
 
     // If we did not wrap in the i direction, delegate to shift_i first, then shift_j
-    if (!is_wrap_i)
+    if (is_on_grid_i)
     {
         SkyPatch sp = shift_i(di);
         return sp.shift_j(dj);

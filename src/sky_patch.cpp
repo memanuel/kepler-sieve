@@ -18,7 +18,7 @@ int fij2spid(int8_t f, int16_t i, int16_t j)
 SkyPatch SkyPatch_from_id(int32_t id)
 {
     // First integer division; unpack id into cube face f and remainder x
-    div_t qr = div(id, M2);
+    div_t qr = div(static_cast<int>(id), M2);
     int8_t f_ = static_cast<int8_t>(qr.quot);
     int32_t x = qr.rem;
 
@@ -40,7 +40,7 @@ int sky_patch_count()
 // *****************************************************************************
 spn_type make_sky_patch_neighbor_table()
 {
-    // Allocate an array of size 9*N_spc to hold the 9 neighbors of each patch
+    // Allocate an array of size N_spn (number of sky patch neighbors) to hold the 9 neighbors of each patch
     spn_type spn = new int32_t[N_spn];
     // Loop through the starting sky patch, with ID sky_patch_id_1
     for (int8_t f=0; f<6; f++)
@@ -77,10 +77,8 @@ spn_type make_sky_patch_neighbor_table()
                         // Determine if we're wrapping in the i and j directions
                         bool is_on_grid_i = (0 <= i1) && (i1 < M);
                         bool is_on_grid_j = (0 <= j1) && (j1 < M);
-                        // Is this the simple case where we are on the same grid square?
+                        // Is this the simple case where we are on the same cube face?
                         bool is_on_grid = is_on_grid_i & is_on_grid_j;
-                        // Is this the special case where we are trying to double wrap around a corner?
-                        bool is_corner = (!is_on_grid_i) & (!is_on_grid_j);
 
                         // Simple case; we're on the grid, use fast calculation
                         if (is_on_grid)
@@ -88,12 +86,27 @@ spn_type make_sky_patch_neighbor_table()
                             spid1 = idx_f+idx_i1+j1;
                         }
                         // Handle shifts that wrap to another face, including diagonals
-                        // Exclude case of corners; want to write -1 here, not bogus SkyPatchID.
-                        else if (!is_corner)
+                        else 
                         {
-                            spid1 = sp.shift(di, dj).id();
+                            // Is this the special case where we are trying to double wrap around a corner?
+                            bool is_corner = (!is_on_grid_i) & (!is_on_grid_j);
+                            // Exclude case of corners; want to write -1 here, not bogus SkyPatchID.
+                            if (!is_corner)
+                            {
+                                // DEBUG
+                                try
+                                {
+                                    spid1 = sp.shift(di, dj).id();
+                                }
+                                catch (std::range_error err)
+                                {                        
+                                    cout << format("Bad SkyPatch neighbor calculation. sp0 is:\n");
+                                    cout << format("%s.\n") % sp.str();
+                                    cout << format("di=%d, dj=%d.\n") % di % dj;
+                                    throw err;
+                                }
+                            }
                         }
-
                         // Write the new SkyPatchID to the spn array
                         spn[idx++] = spid1;
                     } // for over dj
@@ -106,9 +119,12 @@ spn_type make_sky_patch_neighbor_table()
 }
 
 // *****************************************************************************
-void write_sky_patch_neighbor_dist_table(const int32_t* spn, double *spnd)
+spnd_type make_sky_patch_neighbor_dist_table(const spn_type spn)
 {
-    // Direction of the first and second skypatch
+    // Allocate an array of size N_spn (number of sky patch neighbors) to hold the distance
+    // to the 9 neighbors of each patch.
+    spnd_type spnd = new double[N_spn];
+    // Direction of the first and second skypatch; reused in inner loop.
     double u0[3];
     double u1[3];
 
@@ -118,36 +134,32 @@ void write_sky_patch_neighbor_dist_table(const int32_t* spn, double *spnd)
         // The first SkyPatch
         SkyPatch sp0 = SkyPatch_from_id(spid0);
         // Direction of the first sky patch
-        sp0.xyz(u0);
-        
-        // double x0 = sp0.x();
-        // double y0 = sp0.y();
-        // double z0 = sp0.z();
-        // The index into the spn and spnd arrays
+        sp0.xyz(u0);       
+        // The base index into the spn and spnd arrays for this row (neighbors of sp0)
         int idx = spid0*9;
-
-        // Loop through the 9 neighbors
+        // Loop through the 9 neighbors of sp0
         for (int j=0; j<9; j++)
         {
-            // The second SkyPatch: ID and instance
+            // The second SkyPatch ID on the table
             int spid1 = spn[idx];
-            SkyPatch sp1 = SkyPatch_from_id(spid1);
-
-            // Direction of the second sky patch
-            sp1.xyz(u1);
-
-            // Distance between the directions u0 and u1
-            spnd[idx] = norm(u0, u1);
-
+            // Only build a SkyPatch instance for real entries; -1 signifies holes due to a corner
+            if (spid1 >= 0)
+            {
+                // This is a real neighbor entry; build the SkyPatch instance
+                SkyPatch sp1 = SkyPatch_from_id(spid1);
+                // Direction of the second sky patch
+                sp1.xyz(u1);
+                // Distance between the directions u0 and u1
+                spnd[idx] = norm(u0, u1);
+            }   // if real sky patch
+            // Write the maximum distance of 2.0 for the holes
+            else {spnd[idx] = 2.0;}
             // Advance the index into spn and spnd
             idx++;
-
-            // Coordinates of the second skypatch
-            // double x1 = sp1.x();
-            // double y1 = sp1.y();
-            // double z1 = sp1.z();
-        }
-    }
+        }   // for over j
+    } // for over spid0
+    // Return the populated array
+    return spnd;
 }
 // *****************************************************************************
 }; // namespace
