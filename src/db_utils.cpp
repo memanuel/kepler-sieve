@@ -87,7 +87,8 @@ ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string>
     // Execute stored procedure into a SQL resultset object
     ResultSet *rs = stmt->executeQuery(sql);
 
-    //Workaround: Makes sure there are no more ResultSets
+    // Workaround to MariaDB behavior complaining about statements being out of sync:
+    // Make sure there are no more ResultSets
     while (stmt->getMoreResults()) {
         ResultSet *throwaway = stmt->getResultSet();
         throwaway->close();
@@ -95,6 +96,25 @@ ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string>
 
     // Return the resultset
     return rs;
+}
+
+// *****************************************************************************
+int sp_run_int(db_conn_type &conn, const string sp_name)
+{
+    // Create a SQL statement
+    sql_stmt_type stmt(conn->createStatement());
+    // The SQL string
+    string sql = format("CALL {:s}();", sp_name);
+    // Execute stored procedure into a SQL resultset object
+    ResultSet *rs = stmt->executeQuery(sql);
+    // Workaround for MariaDB sync error
+    while (stmt->getMoreResults()) {
+        ResultSet *throwaway = stmt->getResultSet();
+        throwaway->close();
+    }
+    // Return the result, which is the value in the first column of the [only] row in the output
+    rs->next();
+    return rs->getInt(1);
 }
 
 // *****************************************************************************

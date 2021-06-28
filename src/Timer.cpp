@@ -7,6 +7,7 @@
 
 // *********************************************************************************************************************
 #include "Timer.hpp"
+	using ks::Timer;
 
 // *********************************************************************************************************************
 // Constants used in converting units
@@ -41,7 +42,7 @@ double Timer::tock() {
 }
 
 // *********************************************************************************************************************
-double Timer::tock_msg(string blurb, ostream &os) {
+double Timer::tock_msg(string blurb) {
 	// Time point when tock() is called
 	highResTimePoint tp1 = high_resolution_clock::now();
 
@@ -53,30 +54,30 @@ double Timer::tock_msg(string blurb, ostream &os) {
 	// Elapsed time <blurb>: nn.ddd <TimeUnits>.
 	// Elapsed time: nn.ddd <TimeUnits>.
 	// TimeUnits is one of seconds, milliseoncds, microseconds, or nanoseconds.
-	format msg("Elapsed time: %.3f %s.\n");
-	if (blurb.length() > 0) {
-		msg = format("Elapsed time %s: %.3f %s.\n");
-		msg % blurb;
-	}
+
+	// The template message depends on whether a blurb was provided or not
+	string msg = (blurb.length() > 0) ? 
+		"Elapsed time {:s}: {:.3f} {:s}.\n" : 
+		"Elapsed time: {:.3f} {:s}.\n";
 
 	// Compute the elapsed time in seconds.
 	double tSeconds = static_cast<double>(t) / aBillion;
 
-	// Send a message to cout stating the elapsed time.
+	// Print a message stating the elapsed time.
 	if (t > aBillion) {
-		cout << msg % tSeconds % "seconds";
+		print(msg, tSeconds, "seconds");
 	}
 	else if (t > aMillion) {
 		double tMilliSeconds = tSeconds * 1000;
-		cout << msg % tMilliSeconds % "milliseconds";
+		print(msg, tMilliSeconds, "milliseconds");
 	}
 	else if (t > 1000) {
 		double tMicroSeconds = tSeconds * aMillion;
-		cout << msg % tMicroSeconds% "microseconds";
+		print(msg, tMicroSeconds, "microseconds");
 	}
 	else {
 		double tNanoSeconds = static_cast<double>(t);
-		cout << msg % tNanoSeconds % "microseconds";
+		print(msg, tNanoSeconds, "nanoseconds");
 	}
 
 	// Return the elapsed time in seconds

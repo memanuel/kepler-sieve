@@ -12,6 +12,9 @@
 using ks::Detection;
 using ks::DetectionTable;
 
+// Set batch size
+constexpr int bs = 10000;
+
 // *****************************************************************************
 /** Helper function: Process a batch of rows, 
  * writing data from stored preocedure output to vector of detections. */
@@ -60,73 +63,56 @@ void process_rows(db_conn_type &conn, vector<Detection> &dt, int d0, int d1)
 }
 
 // *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1): 
+DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar): 
     d0(d0),
     d1(d1),
-    dt(vector<Detection>(0))
+    dt(vector<Detection>(d1-d0))
 {
-    // Allocate a vector of detections with the appropriate size
-    int sz = d1-d0;
-    dt.resize(sz);
-
     // Write -1 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
-    for (int i=0; i<sz; i++)
-    {
-        dt[i].detection_id=-1;
-    }
-
-    // Write vector of detections using SQL data
-    process_rows(conn, dt, d0, d1);
-}
-
-// *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type &conn, bool progbar): 
-    // Provisionally populate d0 and d1
-    d0(0),
-    d1(1),
-    dt(vector<Detection>(0))
-{
-
-    // Calculate d1 from the database
-    // TODO: replace hard coded values with real DB Calls!
-    d1 = 1000000;
-    // d1 = 159000000;
-
-    // Allocate a vector of detections with the appropriate size
     int sz = d1-d0;
-    dt.resize(sz);
-
-    // Write -1 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
     for (int i=0; i<sz; i++)
     {
         dt[i].detection_id=-1;
     }
 
     // Set batch size
-    int b = 10000;
-    int n = (d1-d0);
-    int batch_count = n / b;
+    int batch_count = sz / bs;
+
     // Status update
     if (progbar) 
     {
-        print("Processing detections from {:d} to {:d} in {:d} batches of {:d}...\n", d0, d1, batch_count, b);
+        print("Processing {:d} detections from {:d} to {:d} in {:d} batches of {:d}...\n",
+                sz, d0, d1, batch_count, bs);
     }
 
+    // Timer for processing detections from DB
+	Timer t;
+    t.tick();
+
     // Iterate over the batches
-    for (int i0=0; i0<d1; i0+=b)
+    for (int i0=0; i0<d1; i0+=bs)
     {
         // Upper limit for this batch
-        int i1 = std::min(i0+b, d1);
+        int i1 = std::min(i0+bs, d1);
         // Process SQL data in this batch
         process_rows(conn, dt, i0, i1);
         // Progress bar
         if (progbar) {print("."); }
     }
-    if (progbar) {print("Loaded detections.\n");}
-
+    if (progbar) 
+    {
+        print("\nLoaded detection table.\n");
+        t.tock_msg();
+    }
 }
+
 // *****************************************************************************
-//*Default destructor is fine
+DetectionTable::DetectionTable(db_conn_type &conn, bool progbar): 
+    // Delegate to range constructor, using DB to compute d1
+    DetectionTable(conn, 0, sp_run_int(conn, "KS.GetMaxDetectionID"), progbar) {}
+
+// *****************************************************************************
+///Default destructor is OK here
 DetectionTable::~DetectionTable() {}
 
 // *****************************************************************************

@@ -10,21 +10,18 @@
 // *****************************************************************************
 // Included libraries
 #include <string>
+    using std::string;
+    using std::to_string;
+#include <vector>
+    using std::vector;
 
 // Local dependencies
 #include "db_utils.hpp"
-
-// *****************************************************************************
-// Standard library class names used
-using std::string;
-using std::to_string;
-using std::vector;
-
-// *****************************************************************************
-// Local names used
-using ks::db_conn_type;
-using ks::get_db_conn;
-using ks::sp_run;
+    using ks::db_conn_type;
+    using ks::get_db_conn;
+    using ks::sp_run;
+#include "Timer.hpp"
+    using ks::Timer;
 
 // *****************************************************************************
 namespace ks {
@@ -64,10 +61,10 @@ struct Detection
 class DetectionTable
 {
 public:
+    //*Initialize a DetectionTable object with detections in the given range
+    DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar);
     //*Initialize a DetectionTable object with all available detections
     DetectionTable(db_conn_type &conn, bool progbar);
-    //*Initialize a DetectionTable object with detections in the given range
-    DetectionTable(db_conn_type &conn, int d0, int d1);
     //*Destructor for DetectionTable.
     ~DetectionTable();
 
@@ -82,7 +79,7 @@ private:
     //*First detection ID loaded; base for indexing into arrays
     const int d0;
     //*Last detection ID loaded
-    int d1;
+    const int d1;
     //*Vector of detections; dt stands for "Detection Table"
     vector<Detection> dt;
     //*Vector of detection ID vectors keyed by SkyPatchID; dtsp stands for "Detection Table [keyed by] SkyPatchID"

@@ -14,22 +14,19 @@
 #pragma once
 
 // *********************************************************************************************************************
-// Libraries
+// Library dependencies
 #include <chrono>
 	using std::chrono::high_resolution_clock;
 	using std::chrono::time_point;
 	using std::chrono::duration_cast;
 	using std::chrono::nanoseconds;
 
-#include <boost/format.hpp>
-    using boost::format;
-
-#include <iostream>
-    using std::ostream;
-    using std::cout;
-
 #include <string>
     using std::string;
+
+#include <fmt/format.h>
+	using fmt::print;
+	using fmt::format;
 
 // *********************************************************************************************************************
 // Type aliases
@@ -38,6 +35,9 @@ using highResTimePoint = time_point<high_resolution_clock>;
 
 // Define a type name for the integer type with the number of time units
 using time_unit_t = long long;
+
+// *********************************************************************************************************************
+namespace ks {
 
 // *********************************************************************************************************************
 /**
@@ -56,7 +56,7 @@ public:
 	double tock();
 
 	/// Return the elapsed time in seconds
-	double tock_msg(string blurb = "", ostream &os = cout);
+	double tock_msg(string blurb = "");
 
 private:
 	/// Static time point that is updated each time tick() is called
@@ -65,3 +65,6 @@ private:
     highResTimePoint tp1;
 
 };
+
+// *********************************************************************************************************************
+}; // namespace ks

@@ -54,17 +54,20 @@ using sql_prepared_stmt_type = std::unique_ptr<sql::PreparedStatement>;
 db_conn_type get_db_conn(bool verbose=false);
 
 // *****************************************************************************
-//*Count the number of rows in a SQL resultset
+/// Count the number of rows in a SQL resultset
 int result_set_size(ResultSet *rs);
 
 // *****************************************************************************
-//*Helper function for SQL stored procedures- bind parameters into one SQL string.
+/// Helper function for SQL stored procedures- bind parameters into one SQL string.
 string sql_sp_bind_params(const string sp_name, const vector<string> &params);
 
 // *****************************************************************************
-//*Execute a stored procedure and return a SQL resultset object
-// ResultSet* sp_run(db_conn_type &conn);
+/// Execute a stored procedure and return a SQL resultset object
 ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params);
+
+// *****************************************************************************
+//*Execute a stored procedure that returns a single integer
+int sp_run_int(db_conn_type &conn, const string sp_name);
 
 // *****************************************************************************
 } // Namespace ks

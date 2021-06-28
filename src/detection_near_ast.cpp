@@ -9,38 +9,31 @@
 
 // *****************************************************************************
 // Included libraries
-#include <cmath>
+// #include <cmath>
 #include <fmt/format.h>
+    using fmt::print;
+    using fmt::format;
 
 // Local dependencies
 #include "db_utils.hpp"
+    using ks::db_conn_type;
+    using ks::sql_stmt_type;
+    using ks::sql_prepared_stmt_type;
+    using ks::get_db_conn;
+    using ks::sp_run;
+    using ks::sp_run_int;
+
 #include "utils.hpp"
+    using ks::print_stars;
+
 #include "SkyPatchNeighbor.hpp"
+    using ks::SkyPatch;
+    using ks::SkyPatchNeighbor;
+    using ks::sky_patch::N_sp;
+
 #include "Detection.hpp"
-
-// *****************************************************************************
-// Names used
-using fmt::print;
-using fmt::format;
-
-// DB utilities
-using ks::db_conn_type;
-using ks::sql_stmt_type;
-using ks::sql_prepared_stmt_type;
-using ks::get_db_conn;
-using ks::sp_run;
-using ks::result_set_size;
-
-// SkyPatch
-using ks::SkyPatch;
-using ks::SkyPatchNeighbor;
-using ks::Detection;
-using ks::DetectionTable;
-using ks::sky_patch::N_sp;
-// using ks::sky_patch::N_spn;
-
-// Utilities
-using ks::print_stars;
+    using ks::Detection;
+    using ks::DetectionTable;
 
 // *****************************************************************************
 int main()
@@ -48,18 +41,23 @@ int main()
     // Build the SkyPatchNeighbor table
     print("Building SkyPatch neighbors...\n");
     SkyPatchNeighbor spn = SkyPatchNeighbor();
-    print("Completed SkyPatch neighbor table spn.\n");
+    print("Completed SkyPatch neighbor table.\n");
 
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Range of detections
+    // Get last detection in database
+    int d_max = sp_run_int(conn, "KS.GetMaxDetectionID");
+    print("Max DetectionID: {:d}.\n", d_max);
+
+    // Inputs for DetectionTable constructor
     int d0 = 0;
-    int d1 = 100000;
+    int d1 = 10000;
+    bool progbar = true;
     // Initialize DetectionTable
-    // DetectionTable dt = DetectionTable(conn, d0, d1);
-    DetectionTable dt = DetectionTable(conn, true);
-    print("Loaded detection table with detections {:d} to {:d}.\n", d0, d1);
+    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
+    // print("Loaded detection table with detections {:d} to {:d}.\n", d0, d1);
+    // DetectionTable dt = DetectionTable(conn, progbar);
     
     // Print first 10 detections
     int i0=d0;

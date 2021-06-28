@@ -1,20 +1,17 @@
-/*****************************************************************************
- * Michael S. Emanuel
- * 2021-06-28
- * ****************************************************************************/
+/** @file SkyPatchNeighbor.cpp
+ *  @brief Implmentation of SkyPatchNeighbor class.
+ *
+ *  @author Michael S. Emanuel
+ *  @date 2021-06-28
+ */
 
 // *****************************************************************************
-// Included files
+// Local dependencies
 #include "SkyPatchNeighbor.hpp"
-
-// *****************************************************************************
-// Local names used
-using ks::SkyPatch;
-using ks::SkyPatchNeighbor;
-using ks::make_SkyPatch_table;
-
-// Import these names for legibility
-using ks::sky_patch::N_spn;
+    using ks::SkyPatch;
+    using ks::SkyPatchNeighbor;
+    using ks::make_SkyPatch_table;
+    using ks::sky_patch::N_spn;
 
 // *****************************************************************************
 SkyPatchNeighbor::SkyPatchNeighbor(): 
@@ -92,7 +89,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
 };
 
 // *****************************************************************************
-//* Need to manually delete two arrays that were allocated manually
+/// Need to manually delete two arrays that were allocated manually
 SkyPatchNeighbor::~SkyPatchNeighbor()
 {
     delete spn;
@@ -100,7 +97,7 @@ SkyPatchNeighbor::~SkyPatchNeighbor()
 }
 
 // *****************************************************************************
-//* Need to manually delete two arrays that were allocated manually
+/// Need to manually delete two arrays that were allocated manually
 void SkyPatchNeighbor::build_neighbor_distance()
 {
     // Build SkyPatch table with precomputed SkyPatch positions.

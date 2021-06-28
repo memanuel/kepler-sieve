@@ -1,3 +1,10 @@
+/** @file astro_utils.cpp
+ *  @brief Implmentation of astronomy utilities.
+ *
+ *  @author Michael S. Emanuel
+ *  @date 2021-06-24
+ */
+
 /*****************************************************************************
  * Michael S. Emanuel
  * 2021-06-24
@@ -8,10 +15,6 @@
 #include "astro_utils.hpp"
 
 // *****************************************************************************
-// Names used
-
-// *****************************************************************************
-// Put functions into the namespace ks (for Kepler Sieve)
 namespace ks {
 
 // *****************************************************************************

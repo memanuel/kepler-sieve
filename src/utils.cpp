@@ -1,15 +1,13 @@
-/*****************************************************************************
- * Michael S. Emanuel
- * 2021-06-24
- * ****************************************************************************/
+/** @file utils.cpp
+ *  @brief Implmentation of general purpose utilities.
+ *
+ *  @author Michael S. Emanuel
+ *  @date 2021-06-24
+ */
 
 // *****************************************************************************
-// Included files
+// Local dependencies
 #include "utils.hpp"
-
-// *****************************************************************************
-// Names used
-using fmt::print;
 
 // *****************************************************************************
 // Put functions into the namespace ks (for Kepler Sieve)
@@ -44,7 +42,7 @@ void report_test(const string test_name, bool is_ok)
 }
 
 // *****************************************************************************
-//* Calculate Cartesian squared distance between two 3-vectors
+/// Calculate Cartesian squared distance between two 3-vectors
 double norm2(const double *v0, const double *v1)
 {
     // Get the three distance components out
@@ -55,7 +53,7 @@ double norm2(const double *v0, const double *v1)
 }
 
 // *****************************************************************************
-//* Calculate Cartesian squared distance between two 3-vectors
+/// Calculate Cartesian squared distance between two 3-vectors
 double norm(const double *v0, const double *v1)
 {
     // Delegate to norm2 and take square root

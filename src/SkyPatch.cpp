@@ -1,19 +1,18 @@
-/*****************************************************************************
- * Michael S. Emanuel
- * 2021-06-24
- * ****************************************************************************/
+/** @file SkyPatch.cpp
+ *  @brief Implmentation of SkyPatch class.
+ *
+ *  @author Michael S. Emanuel
+ *  @date 2021-06-24
+ */
 
 // *****************************************************************************
-// Included files
+// Local dependencies
 #include "SkyPatch.hpp"
-
-// *****************************************************************************
-// Local names used
-using ks::SkyPatch;
-using ks::sky_patch::N;
-using ks::sky_patch::M;
-using ks::sky_patch::M2;
-using ks::sky_patch::N_sp;
+    using ks::SkyPatch;
+    using ks::sky_patch::N;
+    using ks::sky_patch::M;
+    using ks::sky_patch::M2;
+    using ks::sky_patch::N_sp;
 
 // *****************************************************************************
 // Precompute 1.0/N for speed
