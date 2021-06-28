@@ -56,12 +56,13 @@ public:
 
 private:
     // Data
-    //*Array of N_spn SkyPatchIDs; a block of 9 entries indexed[spid*9, (spid+1)*9) 
-    // are the 9 neighbors of the sky patch with ID spid
+    /**Array of N_spn SkyPatchIDs; a block of 9 entries indexed[spid*9, (spid+1)*9) 
+       are the 9 neighbors of the sky patch with ID spid */
     int32_t* spn;
     //*Array of N_spn distances from spid to its neighbors
     double* spnd;
 };
 
 // *****************************************************************************
-}; // namespace ks
+} // namespace ks
+

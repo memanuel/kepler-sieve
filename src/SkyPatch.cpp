@@ -13,6 +13,7 @@ using ks::SkyPatch;
 using ks::sky_patch::N;
 using ks::sky_patch::M;
 using ks::sky_patch::M2;
+using ks::sky_patch::N_sp;
 
 // *****************************************************************************
 // Precompute 1.0/N for speed
@@ -82,6 +83,21 @@ SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_) :
 // Delegate to constructor taking a CubeFace instance by building f from its integer ID
 SkyPatch::SkyPatch(int8_t f_, int16_t i_, int16_t j_) : 
     SkyPatch(CubeFace(f_), i_, j_) {}
+
+// *****************************************************************************
+//*Fast constructor when r precomputed, f, i, j already validated. Used e.g. in copying
+SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_) : 
+    f(f_),
+    i(i_),
+    j(j_),
+    r(r_) {}
+
+// *****************************************************************************
+SkyPatch::SkyPatch(const ks::SkyPatch& sp) :
+    f(sp.f),
+    i(sp.i),
+    j(sp.j),
+    r(sp.r) {}
 
 // *****************************************************************************
 SkyPatch::~SkyPatch() {}
@@ -337,4 +353,28 @@ SkyPatch ks::SkyPatch_from_id(int32_t id)
 
     // Instantiate the sky patch
     return SkyPatch(f_, i_, j_);
+}
+
+// *****************************************************************************
+vector<SkyPatch> ks::make_SkyPatch_table()
+{
+    // Initialize an empty vector and reserve space for N_sp entries
+    vector<SkyPatch> spt;
+    spt.reserve(N_sp);
+
+    // Efficiently loop through f, i, j to initialize the entries on the sky patch table
+    for (int8_t f=0; f<6; f++)
+    {
+        for (int16_t i=0; i<M; i++)
+        {
+            for (int16_t j=0; j<M; j++)
+            {
+                // The SkyPatch and its ID
+                SkyPatch sp = SkyPatch(f, i, j);
+                // Save this sky patch to the table
+                spt.push_back(sp);
+            }
+        } // for / j
+    } // for / f
+    return spt;
 }

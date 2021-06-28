@@ -24,6 +24,7 @@
 using std::div;
 using std::div_t;
 using std::string;
+using std::vector;
 using std::range_error;
 using fmt::print;
 using fmt::format;
@@ -64,6 +65,13 @@ class SkyPatch
         SkyPatch(CubeFace f_, int16_t i_, int16_t j_);
         //*Initialize a SkyPatch from its face ID and grid coordinates.
         SkyPatch(int8_t f_, int16_t i_, int16_t j_);
+
+        //*Initialize a SkyPatch from a CubeFace instance and grid coordinates when r is precomputed
+        SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_);
+        //*Copy constructor
+        SkyPatch(const ks::SkyPatch& sp);
+        //*Assignment operator
+
         //*Default destructor for SkyPatch.
         ~SkyPatch();
 
@@ -123,4 +131,8 @@ class SkyPatch
 SkyPatch SkyPatch_from_id(int32_t sky_patch_id);
 
 // *****************************************************************************
-}; // namespace ks
+//* Construct a vector with all of the skypatches
+vector<SkyPatch> make_SkyPatch_table();
+
+// *****************************************************************************
+} // namespace ks

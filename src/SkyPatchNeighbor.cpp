@@ -11,6 +11,7 @@
 // Local names used
 using ks::SkyPatch;
 using ks::SkyPatchNeighbor;
+using ks::make_SkyPatch_table;
 
 // Import these names for legibility
 using ks::sky_patch::N_spn;
@@ -22,6 +23,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
     // Allocate array to hold the neighbor distances
     spnd(new double[N_spn])
 {
+
     // Populate the neighbor table
     // Loop through the starting sky patch, with ID sky_patch_id_1
     for (int8_t f=0; f<6; f++)
@@ -101,6 +103,9 @@ SkyPatchNeighbor::~SkyPatchNeighbor()
 //* Need to manually delete two arrays that were allocated manually
 void SkyPatchNeighbor::build_neighbor_distance()
 {
+    // Build SkyPatch table with precomputed SkyPatch positions.
+    vector<SkyPatch> spt = make_SkyPatch_table();
+
     // Direction of the first and second skypatch; reused in inner loop.
     double u0[3];
     double u1[3];
@@ -111,8 +116,8 @@ void SkyPatchNeighbor::build_neighbor_distance()
     // Loop through the first SkyPatch
     for (int spid0=0; spid0<N_sp; spid0++)
     {
-        // The first SkyPatch
-        SkyPatch sp0 = SkyPatch_from_id(spid0);
+        // The first SkyPatch from the table
+        SkyPatch sp0 = spt[spid0];
         // Direction of the first sky patch
         sp0.xyz(u0);       
         // The base index into the spn and spnd arrays for this row (neighbors of sp0)
@@ -125,8 +130,8 @@ void SkyPatchNeighbor::build_neighbor_distance()
             // Only build a SkyPatch instance for real entries; -1 signifies holes due to a corner
             if (spid1 >= 0)
             {
-                // This is a real neighbor entry; build the SkyPatch instance
-                SkyPatch sp1 = SkyPatch_from_id(spid1);
+                // This is a real neighbor entry; get the SkyPatch instance from the table
+                SkyPatch sp1 = spt[spid1];
                 // Direction of the second sky patch
                 sp1.xyz(u1);
                 // Distance between the directions u0 and u1
@@ -138,8 +143,7 @@ void SkyPatchNeighbor::build_neighbor_distance()
             idx++;
         }   // for over j
     } // for over spid0
-
-}
+} // function
  
 // *****************************************************************************
 int32_t* SkyPatchNeighbor::operator[](int32_t spid) const
