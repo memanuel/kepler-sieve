@@ -5,6 +5,8 @@ CREATE OR REPLACE TABLE KS.Asteroid(
 		COMMENT "The IAU asteroid number when it exists; otherwise a sequential counter starting at 1,000,000",
 	AsteroidName VARCHAR(32) NOT NULL UNIQUE
 		COMMENT "The IAU asteroid name where applicable or asteroid designation",
+    AsteroidIndex INT NOT NULL AUTO_INCREMENT UNIQUE
+        COMMENT "Internal sequence counter of all asteroids with no skips, used for batching jobs",
 	BodyID INT NOT NULL UNIQUE
 		COMMENT "Foreign key to KS.Body table",
     IsNumberedAsteroid BOOL NOT NULL

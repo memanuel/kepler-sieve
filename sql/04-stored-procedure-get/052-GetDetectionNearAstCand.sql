@@ -16,15 +16,7 @@ BEGIN
 SET max_heap_table_size = 16*(1024*1024*1024);
 SET tmp_table_size = 16*(1024*1024*1024);
 
--- Get Asteroid number for this batch
--- SELECT 
--- 	MIN(ast.AsteroidIdx) AS AsteroidIdx 
--- INTO @AsteroidIdx
--- FROM KS.AsteroidNum AS ast
--- WHERE ast.AsteroidID>=AsteroidID_0;
-
 -- The table name
--- SET @k = CAST(@AsteroidIdx DIV 25000 AS INT);
 SET @table_name = CONCAT('KS.AsteroidSkyPatch_Stage_', LPAD(jn, 2, '0'));
 
 -- Staging table for SkyPatchID and time range by asteroid
@@ -45,53 +37,53 @@ CREATE OR REPLACE TEMPORARY TABLE KS.DNA_Candidate(
 ) ENGINE=Memory;
 
 -- SQL statement template
-SET @sql_str =
-"
-INSERT INTO KS.ASP_Candidate
-SELECT DISTINCT
-	spn.SkyPatchID_2 AS SkyPatchID,
-	asp.AsteroidID,
-	asp.Segment,
-	asp.TimeID_0-15 AS TimeID_0,
-	asp.TimeID_1
-FROM
-	-- Start with AsteroidSkyPatch
-	@table_name AS asp
-	-- Neighboring SkyPatches
-	INNER JOIN KS.SkyPatchNeighbor AS spn ON
-		spn.SkyPatchID_1 = asp.SkyPatchID
-WHERE
-	-- Only selected range of asteroids
-	asp.AsteroidID BETWEEN @AsteroidID_0 AND (@AsteroidID_1-1);
-";
-
--- Bind parameter values
-SET @sql_str = REPLACE(@sql_str, '@AsteroidID_0', AsteroidID_0); 
-SET @sql_str = REPLACE(@sql_str, '@AsteroidID_1', AsteroidID_1);
-SET @sql_str = REPLACE(@sql_str, '@table_name', @table_name);
-
--- Batch of candidate skypatches including neighbors
-PREPARE stmt FROM @sql_str;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Batch of candidate skypatches including neighbors
+-- SET @sql_str =
+-- "
 -- INSERT INTO KS.ASP_Candidate
 -- SELECT DISTINCT
--- 	asp.AsteroidID,
 -- 	spn.SkyPatchID_2 AS SkyPatchID,
+-- 	asp.AsteroidID,
 -- 	asp.Segment,
 -- 	asp.TimeID_0-15 AS TimeID_0,
 -- 	asp.TimeID_1
 -- FROM
 -- 	-- Start with AsteroidSkyPatch
--- 	KS.AsteroidSkyPatch_Stage_00 AS asp
+-- 	@table_name AS asp
 -- 	-- Neighboring SkyPatches
 -- 	INNER JOIN KS.SkyPatchNeighbor AS spn ON
 -- 		spn.SkyPatchID_1 = asp.SkyPatchID
 -- WHERE
 -- 	-- Only selected range of asteroids
--- 	asp.AsteroidID BETWEEN AsteroidID_0 AND (AsteroidID_1-1);
+-- 	asp.AsteroidID BETWEEN @AsteroidID_0 AND (@AsteroidID_1-1);
+-- ";
+
+-- Bind parameter values
+-- SET @sql_str = REPLACE(@sql_str, '@AsteroidID_0', AsteroidID_0); 
+-- SET @sql_str = REPLACE(@sql_str, '@AsteroidID_1', AsteroidID_1);
+-- SET @sql_str = REPLACE(@sql_str, '@table_name', @table_name);
+
+-- Batch of candidate skypatches including neighbors
+-- PREPARE stmt FROM @sql_str;
+-- EXECUTE stmt;
+-- DEALLOCATE PREPARE stmt;
+
+-- Batch of candidate skypatches including neighbors
+INSERT INTO KS.ASP_Candidate
+SELECT DISTINCT
+	asp.AsteroidID,
+	spn.SkyPatchID_2 AS SkyPatchID,
+	asp.Segment,
+	asp.TimeID_0-15 AS TimeID_0,
+	asp.TimeID_1
+FROM
+	-- Start with AsteroidSkyPatch
+	KS.AsteroidSkyPatch_Stage_00 AS asp
+	-- Neighboring SkyPatches
+	INNER JOIN KS.SkyPatchNeighbor AS spn ON
+		spn.SkyPatchID_1 = asp.SkyPatchID
+WHERE
+	-- Only selected range of asteroids
+	asp.AsteroidID BETWEEN AsteroidID_0 AND (AsteroidID_1-1);
 
 -- Candidate detections matching these skypatches
 INSERT INTO KS.DNA_Candidate

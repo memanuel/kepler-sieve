@@ -12,6 +12,7 @@ SELECT
 	ast.AsteroidNumber AS AsteroidID,
 	ast.AsteroidNumber,
 	ast.AsteroidName,
+    row_number() OVER (ORDER BY ast.AsteroidNumber) AS AsteroidIndex,
 	b.BodyID,
 	ast.IsNumberedAsteroid,
 	ast.H,
