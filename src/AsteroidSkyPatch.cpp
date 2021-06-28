@@ -1,18 +1,18 @@
-/** @file Detection.cpp
- *  @brief Implmentation of Detection class.
- *
+/** @file AsteroidSkyPatch.cpp
+ *  @brief Implmentation of AsteroidSkyPatch class.
+ *  
  *  @author Michael S. Emanuel
- *  @date 2021-06-28
+ *  @date 2021-06-24
  */
 
 // *****************************************************************************
 // Included files
-#include "Detection.hpp"
+#include "AsteroidSkyPatch.hpp"
 
 // *****************************************************************************
 // Local names used
-using ks::Detection;
-using ks::DetectionTable;
+using ks::AsteroidSkyPatch;
+using ks::AsteroidSkyPatchTable;
 
 // Set batch size
 constexpr int bs = 10000;
@@ -20,31 +20,23 @@ constexpr int bs = 10000;
 // *****************************************************************************
 /** Helper function: Process a batch of rows, 
  * writing data from stored preocedure output to vector of detections. */
-void process_rows(db_conn_type &conn, vector<Detection> &dt, int d0, int d1)
+void process_rows(db_conn_type &conn, vector<AsteroidSkyPatch> &asp, int n0, int n1)
 {
     // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetDetectionsObs";
-    vector<string> params = {to_string(d0), to_string(d1)};
+    string sp_name = "KS.GetAsteroidSkyPatch";
+    vector<string> params = {to_string(n0), to_string(n1)};
     ResultSet *rs = sp_run(conn, sp_name, params);
 
     // Loop through resultset
     while (rs->next()) 
     {
         // Unpack the fields in the resultset; 10 total fields
-        // 3 key fields
-        int32_t detection_id = rs->getInt("DetectionID");
+        int32_t asteroid_id = rs->getInt("AsteroidID");
+        int32_t segment = rs->getInt("Segment");
         int32_t sky_patch_id = rs->getInt("SkyPatchID");
-        int32_t time_id = rs->getInt("TimeID");
-        // 1 time field
-        double mjd = rs->getDouble("mjd");
-        // 3 direction components
-        double ux = rs->getDouble("ux");
-        double uy = rs->getDouble("uy");
-        double uz = rs->getDouble("uz");
-        // 3 observatory position components
-        double q_obs_x = rs->getDouble("qObs_x");
-        double q_obs_y = rs->getDouble("qObs_y");
-        double q_obs_z = rs->getDouble("qObs_z");
+        int32_t time_id_0 = rs->getInt("TimeID_0");
+        int32_t time_id_1 = rs->getInt("TimeID_1");
+
         // Initialize the Detection at this location in dt
         int idx = detection_id - d0;
         dt[idx] = {

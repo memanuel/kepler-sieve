@@ -3,7 +3,6 @@
  *  The unit sphere is projected onto a circumscribing unit cube and then gridded..
  *  See DB tables SkyPatch, CubeFace and SkyPatchNeighbor.
  *  
- *   
  *  @author Michael S. Emanuel
  *  @date 2021-06-24
  */
