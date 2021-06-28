@@ -16,8 +16,8 @@
 #include <fmt/format.h>
 
 // Local dependencies
-#include "CubeFace.h"
-#include "utils.h"
+#include "CubeFace.hpp"
+#include "utils.hpp"
 
 // *****************************************************************************
 // Standard library class names used

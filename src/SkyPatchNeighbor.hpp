@@ -11,7 +11,7 @@
 // Included libraries
 
 // Local dependencies
-#include "SkyPatch.h"
+#include "SkyPatch.hpp"
 
 // *****************************************************************************
 // Standard library class names used

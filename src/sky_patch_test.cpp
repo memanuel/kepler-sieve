@@ -11,9 +11,9 @@
 #include <fmt/format.h>
 
 // Local dependencies
-#include "utils.h"
-#include "astro_utils.h"
-#include "SkyPatchNeighbor.h"
+#include "utils.hpp"
+#include "astro_utils.hpp"
+#include "SkyPatchNeighbor.hpp"
 
 // *****************************************************************************
 // Names used - libraries

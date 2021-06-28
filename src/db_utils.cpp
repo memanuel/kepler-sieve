@@ -5,7 +5,7 @@
 
 // *****************************************************************************
 // Local dependencies
-#include "db_utils.h"
+#include "db_utils.hpp"
 
 // *****************************************************************************
 // Names used
@@ -86,6 +86,13 @@ ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string>
 
     // Execute stored procedure into a SQL resultset object
     ResultSet *rs = stmt->executeQuery(sql);
+
+    //Workaround: Makes sure there are no more ResultSets
+    while (stmt->getMoreResults()) {
+        ResultSet *throwaway = stmt->getResultSet();
+        throwaway->close();
+    }
+
     // Return the resultset
     return rs;
 }

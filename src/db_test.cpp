@@ -11,7 +11,7 @@
 #include <fmt/format.h>
 
 // Local dependencies
-#include "db_utils.h"
+#include "db_utils.hpp"
 
 // *****************************************************************************
 // Names used

@@ -13,10 +13,10 @@
 #include <fmt/format.h>
 
 // Local dependencies
-#include "db_utils.h"
-#include "utils.h"
-#include "SkyPatchNeighbor.h"
-#include "Detection.h"
+#include "db_utils.hpp"
+#include "utils.hpp"
+#include "SkyPatchNeighbor.hpp"
+#include "Detection.hpp"
 
 // *****************************************************************************
 // Names used
@@ -55,13 +55,18 @@ int main()
 
     // Range of detections
     int d0 = 0;
-    int d1 = 10;
+    int d1 = 100000;
     // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(conn, d0, d1);
-
-    // Get detections
+    // DetectionTable dt = DetectionTable(conn, d0, d1);
+    DetectionTable dt = DetectionTable(conn, true);
+    print("Loaded detection table with detections {:d} to {:d}.\n", d0, d1);
+    
+    // Print first 10 detections
+    int i0=d0;
+    int i1=std::min(d1, 10);
+    print("\nSample data: first {:d} detections:\n", i1);
     print("{:12s} {:8s}  {:9s}  {:9s}  {:9s}\n", "DetectionID", "mjd", "ux", "uy", "uz");
-    for (int i=d0; i<d1;i++)
+    for (int i=i0; i<i1;i++)
     {
         Detection d = dt[i];
         if (d.detection_id < 0) {continue;}
