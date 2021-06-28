@@ -34,7 +34,7 @@ using ks::CubeFace;
 using ks::sqr;
 
 // *****************************************************************************
-// Put classes into the namespace ks (for Kepler Sieve)
+// Put classes into the namespace ks
 namespace ks {
 
 // *****************************************************************************
@@ -49,6 +49,10 @@ namespace sky_patch{
     //*The number of SkyPatch entries; there are six faces on a cube
     constexpr int N_sp = 6*M2;
 }
+
+// *****************************************************************************
+//* Calculate a SkyPatchID from the CubeFaceID f and grid coordinates (i, j).
+int fij2spid(int8_t f, int16_t i, int16_t j);
 
 // *****************************************************************************
 /** One cell on the surface of the unit sphere, used for spatial indexing. */
@@ -115,4 +119,8 @@ class SkyPatch
 };
 
 // *****************************************************************************
-}; // namespace
+//* Construct a SkyPatch from its integer ID, sky_patch_id.
+SkyPatch SkyPatch_from_id(int32_t sky_patch_id);
+
+// *****************************************************************************
+}; // namespace ks

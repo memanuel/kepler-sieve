@@ -1,3 +1,12 @@
+/*****************************************************************************
+ * Batch program to calculate candidate pairs (AsteroidID, DetectionID)
+ * where an asteroid is in a neighboring skypatch of the detection.
+ * Results further refined downstream in detection_near_ast.py.
+ * 
+ * Michael S. Emanuel
+ * 2021-06-25
+ * ****************************************************************************/
+
 // *****************************************************************************
 // Included libraries
 #include <cmath>
@@ -6,7 +15,8 @@
 // Local dependencies
 #include "db_utils.h"
 #include "utils.h"
-#include "sky_patch.h"
+// #include "sky_patch.h"
+#include "SkyPatchNeighbor.h"
 
 // *****************************************************************************
 // Names used
@@ -27,8 +37,8 @@ using ks::sky_patch::N;
 using ks::sky_patch::N_sp;
 using ks::sky_patch::N_spn;
 using ks::SkyPatch_from_id;
-using ks::spn_type;
-using ks::make_sky_patch_neighbor_table;
+// using ks::spn_type;
+// using ks::make_sky_patch_neighbor_table;
 // Utilities
 using ks::print_stars;
 

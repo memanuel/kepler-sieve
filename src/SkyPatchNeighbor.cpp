@@ -1,52 +1,28 @@
 /*****************************************************************************
  * Michael S. Emanuel
- * 2021-06-24
+ * 2021-06-28
  * ****************************************************************************/
 
 // *****************************************************************************
 // Included files
-#include "sky_patch.h"
-
-/******************************************************************************
-Functions for working with SkyPatch objects
-******************************************************************************/
-namespace ks {
+#include "SkyPatchNeighbor.h"
 
 // *****************************************************************************
-int fij2spid(int8_t f, int16_t i, int16_t j)
-{
-    return (M2*f) + (M*i) + j;
-}
+// Local names used
+using ks::SkyPatch;
+using ks::SkyPatchNeighbor;
+
+// Import these names for legibility
+using ks::sky_patch::N_spn;
 
 // *****************************************************************************
-/** Initialize a SkyPatch from its integer ID.*/
-SkyPatch SkyPatch_from_id(int32_t id)
-{
-    // First integer division; unpack id into cube face f and remainder x
-    div_t qr = div(static_cast<int>(id), M2);
-    int8_t f_ = static_cast<int8_t>(qr.quot);
-    int32_t x = qr.rem;
-
-    // Second integer division; unpack x into grid points i and j    
-    qr = div(x, M);
-    int16_t i_ = static_cast<int16_t>(qr.quot);
-    int16_t j_ = static_cast<int16_t>(qr.rem);
-
-    // Instantiate the sky patch
-    return SkyPatch(f_, i_, j_);
-}
-
-// *****************************************************************************
-int sky_patch_count()
-{
-    return static_cast<int>(N_sp);
-}
-
-// *****************************************************************************
-spn_type make_sky_patch_neighbor_table()
-{
+SkyPatchNeighbor::SkyPatchNeighbor(): 
     // Allocate an array of size N_spn (number of sky patch neighbors) to hold the 9 neighbors of each patch
-    spn_type spn = new int32_t[N_spn];
+    spn(new int32_t[N_spn]),
+    // Allocate array to hold the neighbor distances
+    spnd(new double[N_spn])
+{
+    // Populate the neighbor table
     // Loop through the starting sky patch, with ID sky_patch_id_1
     for (int8_t f=0; f<6; f++)
     {
@@ -108,19 +84,29 @@ spn_type make_sky_patch_neighbor_table()
             } // for over j0
         } // for over i0
     } // for over f
-    // Return the populated array
-    return spn;
+
+    // Do *NOT* populate the neighbor distance table!
+    // This is not alwyays needed, so only build it on demand.
+};
+
+// *****************************************************************************
+//* Need to manually delete two arrays that were allocated manually
+SkyPatchNeighbor::~SkyPatchNeighbor()
+{
+    delete spn;
+    delete spnd;
 }
 
 // *****************************************************************************
-spnd_type make_sky_patch_neighbor_dist_table(const spn_type spn)
+//* Need to manually delete two arrays that were allocated manually
+void SkyPatchNeighbor::build_neighbor_distance()
 {
-    // Allocate an array of size N_spn (number of sky patch neighbors) to hold the distance
-    // to the 9 neighbors of each patch.
-    spnd_type spnd = new double[N_spn];
     // Direction of the first and second skypatch; reused in inner loop.
     double u0[3];
     double u1[3];
+
+    // Build a vector of all the sky patches indexed by SkyPatchID.
+    // This will be reused in the neighbor distance calculation
 
     // Loop through the first SkyPatch
     for (int spid0=0; spid0<N_sp; spid0++)
@@ -152,8 +138,17 @@ spnd_type make_sky_patch_neighbor_dist_table(const spn_type spn)
             idx++;
         }   // for over j
     } // for over spid0
-    // Return the populated array
-    return spnd;
+
 }
+ 
 // *****************************************************************************
-}; // namespace
+int32_t* SkyPatchNeighbor::operator[](int32_t spid) const
+{
+    return (spn + 9*spid);
+}
+
+// *****************************************************************************
+double* SkyPatchNeighbor::neighbor_distance(int32_t spid) const
+{
+    return (spnd + 9*spid);
+}

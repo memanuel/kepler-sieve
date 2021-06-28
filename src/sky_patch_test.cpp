@@ -13,7 +13,7 @@
 // Local dependencies
 #include "utils.h"
 #include "astro_utils.h"
-#include "sky_patch.h"
+#include "SkyPatchNeighbor.h"
 
 // *****************************************************************************
 // Names used
@@ -28,10 +28,11 @@ using ks::sky_patch::N_sp;
 using ks::sky_patch::N_spn;
 using ks::SkyPatch_from_id;
 using ks::fij2spid;
-using ks::spn_type;
-using ks::spnd_type;
-using ks::make_sky_patch_neighbor_table;
-using ks::make_sky_patch_neighbor_dist_table;
+using ks::SkyPatchNeighbor;
+// using ks::sky_patch::spn_type;
+// using ks::sky_patch::spnd_type;
+// using ks::make_sky_patch_neighbor_table;
+// using ks::make_sky_patch_neighbor_dist_table;
 using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
@@ -128,27 +129,35 @@ void test_sky_patch()
 }
 
 // *****************************************************************************
-spn_type test_sky_patch_neighbor()
+void test_sky_patch_neighbor()
 {
     // Build the SkyPatchNeighbor table
     print_newline();
     print_stars();
     print("Building SkyPatch neighbors for N = {}...\n", N);
-    spn_type spn = make_sky_patch_neighbor_table();
+    SkyPatchNeighbor spn = SkyPatchNeighbor();
     print("Completed SkyPatch neighbor table spn.\n");
+
+    // Array pointing to the 9 neighbors of a sky patch
+    int32_t *neighbors;
 
     // Count the number of nonzero neighbors
     int neighbor_count = 0;
     int missing_count = 0;
-    for (int i=0; i<N_spn; i++)
+    for (int spid=0; spid<N_spn; spid++)
     {
-        if (spn[i]>= 0) 
-        {
-            neighbor_count++;
-        }
-        else
-        {
-            missing_count++;
+        // Get the 9 neibhbors of this sky ppatch
+        neighbors = spn[spid];
+        // Iterate through the neibhbors, counting the real entries
+        for (int j=0; j<9; j++){
+            if (spn[j]>= 0) 
+            {
+                neighbor_count++;
+            }
+            else
+            {
+                missing_count++;
+            }
         }
     }
     // Report number of nonzero neighbors
@@ -161,15 +170,15 @@ spn_type test_sky_patch_neighbor()
     int32_t spid0 = fij2spid(f,i,j);
     SkyPatch sp0 = SkyPatch_from_id(spid0);
 
-    // Read off neighbors of first row
+    // Read off neighbors of the selected sky patch
     print("Starting SkyPatch:\n{}", sp0.str());
     print("Neighbors of this SkyPatch:\n");
     // Offset into table for sp0
-    int32_t idx0 = spid0*9;
-    for (int j=0; j<9; j++)
+    neighbors = spn[spid0];
+    for (int k=0; k<9; k++)
     {
         // The jth neighbor
-        int32_t spid1 = spn[idx0+j];
+        int32_t spid1 = neighbors[k];
         // Only process *real* neighbors with non-negative spids
         if (spid1 >= 0)
         {
@@ -178,23 +187,28 @@ spn_type test_sky_patch_neighbor()
             print(sp1.str());
         }
     }
-
-    // Return the assembled SkyPatch neighbor table for use in the next test
-    return spn;
 }
 
 // *****************************************************************************
-void test_sky_patch_neighbor_distance(spn_type spn)
+void test_sky_patch_neighbor_distance()
 {
-    // Build the SkyPatchNeighborDistance table
+
+    // Build the SkyPatchNeighbor table
     print_newline();
     print_stars();
-    print("Building SkyPatch neighbor distance for N = {}...\n", N);
-    spnd_type spnd = make_sky_patch_neighbor_dist_table(spn);
+    print("Building SkyPatch neighbors for N = {}...\n", N);
+    SkyPatchNeighbor spn = SkyPatchNeighbor();
+    print("Completed SkyPatch neighbor table spn.\n");
+    // Populate the distance table
+    spn.build_neighbor_distance();
+
+    // Array pointing to the 9 neighbors of a sky patch
+    int32_t *neighbors;
+    // Array pointing to the 9 neighbor distances of a sky patch
+    double *dist;
 
     // Initialize arrays with summary statistics of neighbors by column j
     int dist_count[9];
-    // int dist_count_dummy[9];
     double dist_sum[9];
     double dist_mean[9];
     double dist_min[9];
@@ -207,20 +221,21 @@ void test_sky_patch_neighbor_distance(spn_type spn)
         dist_min[j] = 2.0;
         dist_max[j] = 0.0;
     }
-    // Iterate through all the rows, accumulating the summary stats
-    for (int i=0; i<N_sp; i++)
+
+    // Iterate through all the sky patches, accumulating the summary stats
+    for (int spid=0; spid<N_sp; spid++)
     {
-        // Base index for this row
-        int idx0 = i*9;
+        // The IDs of the 9 neighbors
+        neighbors = spn[spid];
+        // The distances to the 9 neighbors of this sky patch
+        dist = spn.neighbor_distance(spid);
         // Iterate through the 9 columns
         for (int j=0; j<9; j++)
         {
-            // Index of this entry
-            int idx = idx0+j;
             // Skip this entry if it's not a real neighbor
-            if (spn[idx]<0) {continue;}
+            if (neighbors[j]<0) {continue;}
             // Get the distance
-            double x = spnd[idx];
+            double x = dist[j];
             // Accumulate the count
             dist_count[j]++;
             // Accumulate the total
@@ -322,10 +337,10 @@ int main()
     test_sky_patch();
 
     // Test SkyPatch neighbor
-    spn_type spn = test_sky_patch_neighbor();
+    // test_sky_patch_neighbor();
 
     // Test SkyPatch neighbor distance
-    test_sky_patch_neighbor_distance(spn);
+    test_sky_patch_neighbor_distance();
 
     // Normal program exit
     return 0;

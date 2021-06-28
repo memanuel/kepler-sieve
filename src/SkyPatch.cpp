@@ -27,13 +27,20 @@ range_error err_sky_patch_f = range_error("SkyPatch cube face f must be between 
 range_error err_sky_patch_grid_i = range_error("SkyPatch grid coordinate i must be between 0 and M=2048, exclusive.\n");
 //*Error condition for bad grid j coordinate
 range_error err_sky_patch_grid_j = range_error("SkyPatch grid coordinate j must be between 0 and M=2048, exclusive.\n");
-}
+} // namespace ks
 
 // *****************************************************************************
 // Various error conditions
 /******************************************************************************
 Implementation of the SkyPatch class
 ******************************************************************************/
+
+// *****************************************************************************
+// Helper function to compute a SkyPatchID from (f, i, j)
+int ks::fij2spid(int8_t f, int16_t i, int16_t j)
+{
+    return (M2*f) + (M*i) + j;
+}
 
 // *****************************************************************************
 //*Helper function used to initialize SkyPatch; calculate distance r to point on cube.
@@ -49,12 +56,12 @@ double r_initializer(int16_t i, int16_t j)
 
 // *****************************************************************************
 SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_) : 
-f(f_),
-i(i_),
-j(j_),
-// The distance r to the point on the unit cube (where unit sphere is inscribed)
-// r(sqrt(1.0 + sqr(N_inv*(i+0.5)-1.0) + sqr(N_inv*(j+0.5)-1.0)))
-r(r_initializer(i, j))
+    f(f_),
+    i(i_),
+    j(j_),
+    // The distance r to the point on the unit cube (where unit sphere is inscribed)
+    // r(sqrt(1.0 + sqr(N_inv*(i+0.5)-1.0) + sqr(N_inv*(j+0.5)-1.0)))
+    r(r_initializer(i, j))
 {
     // Check that grid points were valid
     if ((i_ < 0) || (i_ > M)) 
@@ -74,7 +81,7 @@ r(r_initializer(i, j))
 // *****************************************************************************
 // Delegate to constructor taking a CubeFace instance by building f from its integer ID
 SkyPatch::SkyPatch(int8_t f_, int16_t i_, int16_t j_) : 
-SkyPatch(CubeFace(f_), i_, j_) {};
+    SkyPatch(CubeFace(f_), i_, j_) {}
 
 // *****************************************************************************
 SkyPatch::~SkyPatch() {}
@@ -199,15 +206,15 @@ const SkyPatch SkyPatch::shift_i(const int16_t di) const
 
     // Assign the grid index of new i axis
     // All three cases shown, but new i = old i is impossible; adjacent cube faces always have different i axes.
-    // if (f_.k1() == f.k1()) {i_ = i;}    // New i is old i; shared axis.
-    if (f_.k1() == f.k2()) {i_ = j;}    // New i is old j; shared axis
-    if (f_.k1() == f.k3()) {i_ = k;}    // New i is wrapped axis
+    // if (f_.k1() == f.k1()) {i_ = i;}     // New i is old i; shared axis.
+    if (f_.k1() == f.k2()) {i_ = j;}        // New i is old j; shared axis
+    if (f_.k1() == f.k3()) {i_ = k;}        // New i is wrapped axis
 
     // Assign the grid index of new j axis
     // All three cases shown, but new j = old j is impossible; adjacent cube faces always have different i axes.
-    if (f_.k2() == f.k1()) {j_ = i;}    // New j is old i; shared axis
-    // if (f_.k2() == f.k2()) {j_ = j;}    // New j is old j; shared axis
-    if (f_.k2() == f.k3()) {j_ = k;}    // New j is wrapped axis
+    if (f_.k2() == f.k1()) {j_ = i;}        // New j is old i; shared axis
+    // if (f_.k2() == f.k2()) {j_ = j;}     // New j is old j; shared axis
+    if (f_.k2() == f.k3()) {j_ = k;}        // New j is wrapped axis
 
     // Now return new SkyPatch
     return SkyPatch(f_, i_, j_);
@@ -245,15 +252,15 @@ const SkyPatch SkyPatch::shift_j(const int16_t dj) const
 
     // Assign the grid index of new i axis
     // All three cases shown, but new i = old i is impossible; adjacent cube faces always have different i axes.
-    // if (f_.k1() == f.k1()) {i_ = i;}    // New i is old i; shared axis
-    if (f_.k1() == f.k2()) {i_ = j;}    // New i is old j; shared axis
-    if (f_.k1() == f.k3()) {i_ = k;}    // New i is wrapped axis
+    // if (f_.k1() == f.k1()) {i_ = i;}     // New i is old i; shared axis
+    if (f_.k1() == f.k2()) {i_ = j;}        // New i is old j; shared axis
+    if (f_.k1() == f.k3()) {i_ = k;}        // New i is wrapped axis
 
     // Assign the grid index of new j axis
     // All three cases shown, but new j = old j is impossible; adjacent cube faces always have different i axes.
-    if (f_.k2() == f.k1()) {j_ = i;}    // New j is old i; shared axis
-    // if (f_.k2() == f.k2()) {j_ = j;}    // New j is old j; shared axis
-    if (f_.k2() == f.k3()) {j_ = k;}    // New j is wrapped axis
+    if (f_.k2() == f.k1()) {j_ = i;}        // New j is old i; shared axis
+    // if (f_.k2() == f.k2()) {j_ = j;}     // New j is old j; shared axis
+    if (f_.k2() == f.k3()) {j_ = k;}        // New j is wrapped axis
 
     // Now return new SkyPatch
     return SkyPatch(f_, i_, j_);
@@ -308,10 +315,26 @@ const string SkyPatch::str() const
     // The Integer coordinates (f, i, j)
     int f_ = static_cast<int>(f.id);
     string fij = format("(f, i, j) = ({:d}, {:4d}, {:4d})", f_, i, j);
-    // The midpoint local coordinates (u, v, w)
-    // string uvw = format("(u, v, w) = ({:8.6f}, {:8.6f}, {:8.6f})", u(), v(), w());
     // The midpoint global coordinates (x, y, z)
     string xyz = format("(x, y, z) = ({:+8.6f}, {:+8.6f}, {:+8.6f})", x(),  y(), z());
     // Return one combined description
     return format("spid = {:8d}. {:s}. {:s}.\n", id(), fij, xyz);
+}
+
+// *****************************************************************************
+/** Initialize a SkyPatch from its integer ID.*/
+SkyPatch ks::SkyPatch_from_id(int32_t id)
+{
+    // First integer division; unpack id into cube face f and remainder x
+    div_t qr = div(static_cast<int>(id), M2);
+    int8_t f_ = static_cast<int8_t>(qr.quot);
+    int32_t x = qr.rem;
+
+    // Second integer division; unpack x into grid points i and j    
+    qr = div(x, M);
+    int16_t i_ = static_cast<int16_t>(qr.quot);
+    int16_t j_ = static_cast<int16_t>(qr.rem);
+
+    // Instantiate the sky patch
+    return SkyPatch(f_, i_, j_);
 }
