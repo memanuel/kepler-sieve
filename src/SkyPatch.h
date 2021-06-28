@@ -117,7 +117,8 @@ class SkyPatch
         //*Distance to circumscribing cube, i.e. to point (a, b, c)
         const double r;
 
-        // Local coordinates of the center of this sky patch, projected onto unit cube
+        // a, b, c: local coordinates of the center of this sky patch, projected onto unit cube
+
         //*Local coordinate on cube face indexed by i (labeled alpha); corresponds to u.
         const double a() const;
         //*Local coordinate on cube face indexed by j (labeled beta); corresponds to v.
@@ -127,11 +128,11 @@ class SkyPatch
 };
 
 // *****************************************************************************
-//* Construct a SkyPatch from its integer ID, sky_patch_id.
+//*Construct a SkyPatch from its integer ID, sky_patch_id.
 SkyPatch SkyPatch_from_id(int32_t sky_patch_id);
 
 // *****************************************************************************
-//* Construct a vector with all of the skypatches
+//*Construct a vector with all of the skypatches
 vector<SkyPatch> make_SkyPatch_table();
 
 // *****************************************************************************

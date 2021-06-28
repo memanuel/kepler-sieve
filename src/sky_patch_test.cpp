@@ -16,23 +16,24 @@
 #include "SkyPatchNeighbor.h"
 
 // *****************************************************************************
-// Names used
+// Names used - libraries
 using std::min_element;
 using std::max_element;
 using fmt::print;
 using fmt::format;
+
+// Names used - kepler sieve
 using ks::CubeFace;
 using ks::SkyPatch;
+using ks::SkyPatchNeighbor;
+
 using ks::sky_patch::N;
 using ks::sky_patch::N_sp;
 using ks::sky_patch::N_spn;
+
 using ks::SkyPatch_from_id;
 using ks::fij2spid;
-using ks::SkyPatchNeighbor;
-// using ks::sky_patch::spn_type;
-// using ks::sky_patch::spnd_type;
-// using ks::make_sky_patch_neighbor_table;
-// using ks::make_sky_patch_neighbor_dist_table;
+
 using ks::sqr;
 using ks::print_stars;
 using ks::print_newline;
@@ -337,7 +338,7 @@ int main()
     test_sky_patch();
 
     // Test SkyPatch neighbor
-    // test_sky_patch_neighbor();
+    test_sky_patch_neighbor();
 
     // Test SkyPatch neighbor distance
     test_sky_patch_neighbor_distance();

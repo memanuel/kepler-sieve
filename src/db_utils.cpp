@@ -76,7 +76,6 @@ string sql_sp_bind_params(const string sp_name, const vector<string> &params)
 }
 
 // *****************************************************************************
-// ResultSet* sp_run(db_conn_type &conn)
 ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params)
 {
     // Create a new SQL statement

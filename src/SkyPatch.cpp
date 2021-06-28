@@ -30,14 +30,11 @@ range_error err_sky_patch_grid_i = range_error("SkyPatch grid coordinate i must 
 range_error err_sky_patch_grid_j = range_error("SkyPatch grid coordinate j must be between 0 and M=2048, exclusive.\n");
 } // namespace ks
 
-// *****************************************************************************
-// Various error conditions
 /******************************************************************************
 Implementation of the SkyPatch class
 ******************************************************************************/
 
 // *****************************************************************************
-// Helper function to compute a SkyPatchID from (f, i, j)
 int ks::fij2spid(int8_t f, int16_t i, int16_t j)
 {
     return (M2*f) + (M*i) + j;
@@ -85,7 +82,7 @@ SkyPatch::SkyPatch(int8_t f_, int16_t i_, int16_t j_) :
     SkyPatch(CubeFace(f_), i_, j_) {}
 
 // *****************************************************************************
-//*Fast constructor when r precomputed, f, i, j already validated. Used e.g. in copying
+//*Fast constructor when r precomputed and f, i, j already validated. Used in copying.
 SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_) : 
     f(f_),
     i(i_),
@@ -93,6 +90,7 @@ SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_) :
     r(r_) {}
 
 // *****************************************************************************
+//*Use same approach as fast constructor for copy assignment
 SkyPatch::SkyPatch(const ks::SkyPatch& sp) :
     f(sp.f),
     i(sp.i),

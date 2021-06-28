@@ -28,12 +28,8 @@ namespace ks {
 
 // *****************************************************************************
 namespace sky_patch{
-
 //*The number of SkyPatch neighbors: each cell has 9 neighbors except for the 8 corners.
 constexpr int N_spn = N_sp*9;
-// Alias data types for the two tables
-// using spn_type = int32_t*;
-// using spnd_type = double*;
 } // namespace ks::sky_patch
 
 // *****************************************************************************
@@ -65,4 +61,3 @@ private:
 
 // *****************************************************************************
 } // namespace ks
-
