@@ -84,7 +84,7 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
     }
     if (progbar) 
     {
-        print("\nLoaded detection table.\n");
+        print("\nLoaded AsteroidSkyPatch table.\n");
         t.tock_msg();
     }
 }
@@ -97,4 +97,10 @@ AsteroidSkyPatchTable::~AsteroidSkyPatchTable() {}
 AsteroidSkyPatch AsteroidSkyPatchTable::operator[](int32_t i) const
 {
     return aspt[i];
+}
+
+// *****************************************************************************
+int AsteroidSkyPatchTable::size() const
+{
+    return aspt.size();
 }

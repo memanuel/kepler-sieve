@@ -58,6 +58,9 @@ public:
     /// Get an AsteroidSkyPatch entry given its row number i
     AsteroidSkyPatch operator[](int32_t i) const;
 
+    // The number of entries
+    int size() const;
+
 private:
     // Data
     //*First asteroid ID loaded
