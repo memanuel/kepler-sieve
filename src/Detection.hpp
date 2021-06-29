@@ -22,6 +22,8 @@
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
+#include "SkyPatch.hpp"
+    using ks::sky_patch::N_sp;
 #include "Timer.hpp"
     using ks::Timer;
 
@@ -72,12 +74,12 @@ public:
     /// Get vector of DetectionIDs matching a given SkyPatchID
     vector<int32_t> get_skypatch(int32_t spid) const;
 
-private:
-    // Data
     /// First detection ID loaded; base for indexing into arrays
     const int d0;
     /// Last detection ID loaded
     const int d1;
+
+private:
     /// Vector of detections; dt stands for "Detection Table"
     vector<Detection> dt;
     /// Vector of detection ID vectors keyed by SkyPatchID; dtsp stands for "Detection Table [keyed by] SkyPatchID"

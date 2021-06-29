@@ -25,6 +25,7 @@
 
 #include "utils.hpp"
     using ks::print_stars;
+    using ks::print_newline;
 
 #include "SkyPatchNeighbor.hpp"
     using ks::SkyPatch;
@@ -34,6 +35,24 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
+
+// *****************************************************************************
+void test_detection_table(DetectionTable& dt)
+{
+    // Print first 10 detections
+    int i0=dt.d0;
+    int i1=std::min(dt.d1, 10);
+    print("\nSample data: first {:d} detections:\n", i1);
+    print("{:12s} {:10s} {:8s}  {:9s}  {:9s}  {:9s}\n", "DetectionID", "SkyPatchID", "mjd", "ux", "uy", "uz");
+    for (int i=i0; i<i1;i++)
+    {
+        Detection d = dt[i];
+        if (d.detection_id < 0) {continue;}
+        print("{:11d} {:10d} {:8.3f} {:+9.6f} {:+9.6f} {:+9.6f}.\n", 
+            d.detection_id, d.sky_patch_id, d.mjd, d.ux, d.uy, d.uz);
+    }
+
+}
 
 // *****************************************************************************
 int main()
@@ -59,17 +78,12 @@ int main()
     // print("Loaded detection table with detections {:d} to {:d}.\n", d0, d1);
     // DetectionTable dt = DetectionTable(conn, progbar);
     
-    // Print first 10 detections
-    int i0=d0;
-    int i1=std::min(d1, 10);
-    print("\nSample data: first {:d} detections:\n", i1);
-    print("{:12s} {:8s}  {:9s}  {:9s}  {:9s}\n", "DetectionID", "mjd", "ux", "uy", "uz");
-    for (int i=i0; i<i1;i++)
-    {
-        Detection d = dt[i];
-        if (d.detection_id < 0) {continue;}
-        print("{:11d} {:8.3f} {:+9.6f} {:+9.6f} {:+9.6f}.\n", d.detection_id, d.mjd, d.ux, d.uy, d.uz);
-    }
+    // Demonstrate searching by SkyPatchID
+    Detection d = dt[1];
+    int sky_patch_id = d.sky_patch_id;
+    print("\nSearch detections with SkyPatchID={:d}:\n", sky_patch_id);
+    for (int detection_id: dt.get_skypatch(sky_patch_id)) {print("{:d},", detection_id);}
+    print_newline();
 
     // Close Connection
     conn->close();

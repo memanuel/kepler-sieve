@@ -65,7 +65,7 @@ private:
     //*Last asteroid ID loaded
     const int n1;
     //*Vector of AsteroidSkyPatch entries
-    vector<AsteroidSkyPatch> asp;
+    vector<AsteroidSkyPatch> aspt;
 };
 
 // *****************************************************************************

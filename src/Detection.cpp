@@ -20,7 +20,7 @@ constexpr int bs = 10000;
 // *****************************************************************************
 /** Helper function: Process a batch of rows, 
  * writing data from stored preocedure output to vector of detections. */
-void process_rows(db_conn_type &conn, vector<Detection> &dt, int d0, int d1)
+void process_rows(db_conn_type& conn, vector<Detection>& dt, vector<vector<int32_t>>& dtsp, int d0, int d1)
 {
     // Run the stored procedure to get detections including the observatory position
     string sp_name = "KS.GetDetectionsObs";
@@ -45,6 +45,7 @@ void process_rows(db_conn_type &conn, vector<Detection> &dt, int d0, int d1)
         double q_obs_x = rs->getDouble("qObs_x");
         double q_obs_y = rs->getDouble("qObs_y");
         double q_obs_z = rs->getDouble("qObs_z");
+
         // Initialize the Detection at this location in dt
         int idx = detection_id - d0;
         dt[idx] = {
@@ -59,6 +60,9 @@ void process_rows(db_conn_type &conn, vector<Detection> &dt, int d0, int d1)
             .q_obs_y = q_obs_y,
             .q_obs_z = q_obs_z,
         };
+
+        // Write this DetectionID to the vector keyed by this SkyPatchID
+        (dtsp[sky_patch_id]).push_back(detection_id);
     }   // while rs
     // Close the resultset
     rs->close();
@@ -68,7 +72,10 @@ void process_rows(db_conn_type &conn, vector<Detection> &dt, int d0, int d1)
 DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar): 
     d0(d0),
     d1(d1),
-    dt(vector<Detection>(d1-d0))
+    // Initialize dt to a vector with sz entries, one for each possible detection in the interval
+    dt(vector<Detection>(d1-d0)),
+    // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
+    dtsp(vector<vector<int32_t>>(N_sp))
 {
     // Write -1 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
     int sz = d1-d0;
@@ -77,9 +84,8 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
         dt[i].detection_id=-1;
     }
 
-    // Set batch size
+    // Calculate number of batches
     int batch_count = sz / bs;
-
     // Status update
     if (progbar) 
     {
@@ -97,7 +103,7 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
         // Upper limit for this batch
         int i1 = std::min(i0+bs, d1);
         // Process SQL data in this batch
-        process_rows(conn, dt, i0, i1);
+        process_rows(conn, dt, dtsp, i0, i1);
         // Progress bar
         if (progbar) {print("."); }
     }

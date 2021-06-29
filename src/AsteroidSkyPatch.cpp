@@ -14,13 +14,13 @@
 using ks::AsteroidSkyPatch;
 using ks::AsteroidSkyPatchTable;
 
-// Set batch size
-constexpr int bs = 10000;
+// Set batch size; this is in terms of the number of asteroids, not rows
+constexpr int bs = 100;
 
 // *****************************************************************************
 /** Helper function: Process a batch of rows, 
  * writing data from stored preocedure output to vector of detections. */
-void process_rows(db_conn_type &conn, vector<AsteroidSkyPatch> &asp, int n0, int n1)
+void process_rows(db_conn_type &conn, vector<AsteroidSkyPatch> &aspt, int n0, int n1)
 {
     // Run the stored procedure to get detections including the observatory position
     string sp_name = "KS.GetAsteroidSkyPatch";
@@ -37,59 +37,48 @@ void process_rows(db_conn_type &conn, vector<AsteroidSkyPatch> &asp, int n0, int
         int32_t time_id_0 = rs->getInt("TimeID_0");
         int32_t time_id_1 = rs->getInt("TimeID_1");
 
-        // Initialize the Detection at this location in dt
-        int idx = detection_id - d0;
-        dt[idx] = {
-            .detection_id = detection_id,
+        // Build the AsteroidSkyPatch at this location
+        AsteroidSkyPatch asp = {
+            .asteroid_id = asteroid_id,
+            .segment = segment,
             .sky_patch_id = sky_patch_id,
-            .time_id = time_id,
-            .mjd = mjd,
-            .ux = ux,
-            .uy = uy,
-            .uz = uz,
-            .q_obs_x = q_obs_x,
-            .q_obs_y = q_obs_y,
-            .q_obs_z = q_obs_z,
+            .time_id_0 = time_id_0,
+            .time_id_1 = time_id_1,
         };
+        // Save it to the asteroid sky patch table
+        aspt.push_back(asp);
     }   // while rs
     // Close the resultset
     rs->close();
 }
 
 // *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar): 
-    d0(d0),
-    d1(d1),
-    dt(vector<Detection>(d1-d0))
+AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1, bool progbar): 
+    n0(n0),
+    n1(n1),
+    aspt(vector<AsteroidSkyPatch>())
 {
-    // Write -1 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
-    int sz = d1-d0;
-    for (int i=0; i<sz; i++)
-    {
-        dt[i].detection_id=-1;
-    }
-
-    // Set batch size
-    int batch_count = sz / bs;
+    // Number of asteroids to be processed
+    int ast_count = n1-n0;
 
     // Status update
     if (progbar) 
     {
-        print("Processing {:d} detections from {:d} to {:d} in {:d} batches of {:d}...\n",
-                sz, d0, d1, batch_count, bs);
+        print("Processing {:d} asteroids of AsteroidSkyPatch data from {:d} to {:d} in batches of {:d}...\n",
+                ast_count, n0, n1, bs);
     }
 
-    // Timer for processing detections from DB
+    // Timer for processing AsteroidSkyPatch from DB
 	Timer t;
     t.tick();
 
     // Iterate over the batches
-    for (int i0=0; i0<d1; i0+=bs)
+    for (int i0=0; i0<n1; i0+=bs)
     {
         // Upper limit for this batch
-        int i1 = std::min(i0+bs, d1);
+        int i1 = std::min(i0+bs, n1);
         // Process SQL data in this batch
-        process_rows(conn, dt, i0, i1);
+        process_rows(conn, aspt, i0, i1);
         // Progress bar
         if (progbar) {print("."); }
     }
@@ -101,22 +90,11 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
 }
 
 // *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type &conn, bool progbar): 
-    // Delegate to range constructor, using DB to compute d1
-    DetectionTable(conn, 0, sp_run_int(conn, "KS.GetMaxDetectionID"), progbar) {}
-
-// *****************************************************************************
 ///Default destructor is OK here
-DetectionTable::~DetectionTable() {}
+AsteroidSkyPatchTable::~AsteroidSkyPatchTable() {}
 
 // *****************************************************************************
-Detection DetectionTable::operator[](int32_t id) const
+AsteroidSkyPatch AsteroidSkyPatchTable::operator[](int32_t i) const
 {
-    return dt[id];
+    return aspt[i];
 }
-
-// *****************************************************************************
-vector<int32_t> DetectionTable::get_skypatch(int32_t spid) const
-{
-    return dtsp[spid];
-} // function
