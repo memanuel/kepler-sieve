@@ -3,18 +3,29 @@
  * where an asteroid is in a neighboring skypatch of the detection.
  * Results further refined downstream in detection_near_ast.py.
  * 
+ * Commandline arguments:
+ * jn: the job number
+ * sz: the job size; defaults to 100000
+ * This will process asteroids with asteroid numbers in [n0, n1), where
+ * n0 = jn*sz
+ * n1 = n0+sz
+ * 
+ * Example calls:
+ * ./detection_near_ast.x --jn 0 --sz 1000
+ * ./detection_near_ast.x 0 1000
+ * both of these will process asteroids in [0, 1000)
+ * 
  * Michael S. Emanuel
  * 2021-06-25
  * ****************************************************************************/
 
 // *****************************************************************************
 // Included libraries
-// #include <utility>
-//     using std::pair;
-
 #include <fmt/format.h>
     using fmt::print;
     using fmt::format;
+#include <boost/program_options.hpp>
+    namespace po = boost::program_options;
 
 // Local dependencies
 #include "db_utils.hpp"
@@ -64,7 +75,6 @@ void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id);
 void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
 void test_all();
 void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn);
-int main();
 
 // *****************************************************************************
 /** Perform a search over detections in the detection table dt and
@@ -157,8 +167,37 @@ void write_candidates_db(
 }
 
 // *****************************************************************************
-int main()
+int main(int argc, char* argv[])
 {
+    // Set up parser for commandline arguments
+    po::options_description desc(
+        "./detection_near_ast.x jn sz.\n"
+        "Process asteroids from n0=jn*sz to n1=(jn+1)*sz.\n");
+    desc.add_options()
+        ("jn", po::value<int>(), "Job number")
+        ("sz", po::value<int>()->default_value(1000), "Batch size for jobs");
+    po::variables_map vm;
+
+    po::positional_options_description p;
+    p.add("jn", 1);
+    p.add("sz", 2);
+
+    // Unpack commandline arguments
+    // po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+    notify(vm);
+    po::notify(vm);
+    int jn = vm["jn"].as<int>();
+    int sz = vm["sz"].as<int>();
+    int n0 = jn*sz;
+    int n1 = n0+sz;
+
+    // Report commandline arguments    
+    print("Job Number jn       : {:d}\n", jn);
+    print("Batch Size sz       : {:d}\n", sz);
+    print("Start AsteroidID n0 : {:d}\n", n0);
+    print("End AsteroidID   n1 : {:d}\n", n1);
+
     // Build the SkyPatchNeighbor table
     print("Building SkyPatch neighbors...\n");
     SkyPatchNeighbor spn = SkyPatchNeighbor();
@@ -174,8 +213,8 @@ int main()
     // Inputs to build DetectionTable and AsteroidSkypatchTable
     int d0 = 0;
     int d1 = 1000;
-    int n0 = 0;
-    int n1 = 1000;
+    // int n0 = 0;
+    // int n1 = 1000;
     bool progbar = true;
 
     // Initialize DetectionTable
