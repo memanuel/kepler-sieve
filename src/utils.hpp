@@ -17,7 +17,9 @@
     using std::cout;
     using std::flush;
 #include <fmt/format.h>
+#include <fmt/chrono.h>
     using fmt::print;
+    using fmt::format;
 
 // *****************************************************************************
 namespace ks {
@@ -29,6 +31,10 @@ void print_stars();
 // *****************************************************************************
 /// Print a single newline to the console
 void print_newline();
+
+// *****************************************************************************
+/// Convert a time in seconds to a string in the form hh:mm:ss.s
+string time2hms(double t);
 
 // *****************************************************************************
 /// Flush buffer so text on console appears

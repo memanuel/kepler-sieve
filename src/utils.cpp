@@ -26,6 +26,17 @@ void print_newline()
 }
 
 // *****************************************************************************
+string time2hms(double t)
+{
+    // Convert the time in seconds to a duration
+    auto duration = std::chrono::duration<double>(t);
+    // Round the duration to the nearest one second
+    std::chrono::seconds time = std::chrono::round<std::chrono::seconds>(duration);
+    // Format this duration as a string
+    return format("{:%H:%M:%S}", time);
+}
+
+// *****************************************************************************
 void flush_console()
 {
     cout << flush;

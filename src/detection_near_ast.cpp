@@ -20,10 +20,9 @@
  * ****************************************************************************/
 
 // *****************************************************************************
-// Included libraries
+// Library dependencies
 #include <fmt/format.h>
     using fmt::print;
-    using fmt::format;
 #include <boost/program_options.hpp>
     namespace po = boost::program_options;
 
@@ -39,6 +38,7 @@
 #include "utils.hpp"
     using ks::print_stars;
     using ks::print_newline;
+    using ks::time2hms;
 
 #include "SkyPatchNeighbor.hpp"
     using ks::SkyPatch;
@@ -62,7 +62,7 @@ struct DetectionNearAsteroidCandidate
 };
 
 // Batch size used for processing asteroids
-constexpr int batch_size = 1000;
+constexpr int batch_size = 10;
 
 // *****************************************************************************
 // Declare functions
@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
 
     // Inputs to build DetectionTable and AsteroidSkypatchTable
     int d0 = 0;
-    int d1 = 100000;
+    int d1 = 10000;
     bool progbar = true;
 
     // Initialize DetectionTable
@@ -243,7 +243,7 @@ int main(int argc, char* argv[])
     // Status message for main loop over asteroid blocks
     int n_ast = (n1-n0);
     int n_batch = std::max((n_ast+1)/batch_size, 1);
-    print("Processing {:d} asteroids with AsteroidID in [{:d}, {:d}) in {:d} batches of size {:d}.\n", 
+    print("\nProcessing {:d} asteroids with AsteroidID in [{:d}, {:d}) in {:d} batches of size {:d}.\n", 
         n_ast, n0, n1, n_batch, batch_size);
 
     // Counter for the number of candidates found; used for inserting batches of records into DB
@@ -252,6 +252,10 @@ int main(int argc, char* argv[])
     // Timer for progress bar
     Timer t;
     t.tick();
+
+    // Column headers for progress updates
+    print("{:17s} : {:10s} : {:17s} :\n", "Processed", "Average", "Remaining");
+    print("{:6s} : {:8s} : {:10s} : {:6s} : {:8s} : {:7s}\n", "N_ast", "time", "sec/batch", "N_ast", "time", "Matches" );
 
     // Iterate over batches of asteroids
     for (int i0=n0; i0<n1; i0+=batch_size)
@@ -274,6 +278,7 @@ int main(int argc, char* argv[])
         // Progress indicator
         // print(".");
         // flush_console();
+
         // Estimate remaining time
         double t_proc = t.tock();
         int n_proc = i1 - n0;
@@ -281,10 +286,8 @@ int main(int argc, char* argv[])
         int n_left = n1 - i1;
         double t_left = n_left * t_per_ast;
         double t_per_batch = t_per_ast * batch_size;
-        print("Processed {:5d} asteroids in {:5d} seconds @ {:4.1f} sec/batch. Time remaining {:5d}\n.", 
-            n_proc, int(t_proc), t_per_batch, int(t_left));
-
-
+        print("{:6d} : {:8s} : {:10.2f} : {:6d} : {:8s} : {:7d}\n", 
+            n_proc, time2hms(t_proc), t_per_batch, n_left, time2hms(t_left), n_cand);
     } // for / i0
 
     // Report matches
