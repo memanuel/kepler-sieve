@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
 
     // Inputs to build DetectionTable and AsteroidSkypatchTable
     int d0 = 0;
-    int d1 = 10000;
+    int d1 = d_max;
     bool progbar = true;
 
     // Initialize DetectionTable
