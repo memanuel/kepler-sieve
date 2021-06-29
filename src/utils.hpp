@@ -13,6 +13,9 @@
 #include <cmath>
 #include <string>
     using std::string;
+#include <iostream>
+    using std::cout;
+    using std::flush;
 #include <fmt/format.h>
     using fmt::print;
 
@@ -26,6 +29,10 @@ void print_stars();
 // *****************************************************************************
 /// Print a single newline to the console
 void print_newline();
+
+// *****************************************************************************
+/// Flush buffer so text on console appears
+void flush_console();
 
 // *****************************************************************************
 /// Message describing test results (PASS or FAIL)

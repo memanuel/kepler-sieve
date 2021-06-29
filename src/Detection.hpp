@@ -18,6 +18,8 @@
     using std::vector;
 
 // Local dependencies
+#include "utils.hpp"
+    using ks::flush_console;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;

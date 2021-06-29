@@ -98,14 +98,18 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
     t.tick();
 
     // Iterate over the batches
-    for (int i0=0; i0<d1; i0+=bs)
+    for (int i0=d0; i0<d1; i0+=bs)
     {
         // Upper limit for this batch
         int i1 = std::min(i0+bs, d1);
         // Process SQL data in this batch
         process_rows(conn, dt, dtsp, i0, i1);
         // Progress bar
-        if (progbar) {print("."); }
+        if (progbar) 
+        {
+            print("."); 
+            flush_console();
+        }
     }
     if (progbar) 
     {

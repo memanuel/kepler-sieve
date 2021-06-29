@@ -15,7 +15,7 @@ using ks::AsteroidSkyPatch;
 using ks::AsteroidSkyPatchTable;
 
 // Set batch size; this is in terms of the number of asteroids, not rows
-constexpr int bs = 100;
+constexpr int batch_size = 100;
 
 // *****************************************************************************
 /** Helper function: Process a batch of rows, 
@@ -58,14 +58,13 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
     n1(n1),
     aspt(vector<AsteroidSkyPatch>())
 {
-    // Number of asteroids to be processed
-    int ast_count = n1-n0;
-
     // Status update
     if (progbar) 
     {
-        print("Processing {:d} asteroids of AsteroidSkyPatch data from {:d} to {:d} in batches of {:d}...\n",
-                ast_count, n0, n1, bs);
+        int ast_count = n1-n0;
+        int batch_count = ast_count / batch_size;
+        print("Processing {:d} asteroids of AsteroidSkyPatch data from {:d} to {:d} in {:d} batches of {:d}...\n",
+                ast_count, n0, n1, batch_count, batch_size);
     }
 
     // Timer for processing AsteroidSkyPatch from DB
@@ -73,14 +72,18 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
     t.tick();
 
     // Iterate over the batches
-    for (int i0=0; i0<n1; i0+=bs)
+    for (int i0=n0; i0<n1; i0+=batch_size)
     {
         // Upper limit for this batch
-        int i1 = std::min(i0+bs, n1);
+        int i1 = std::min(i0+batch_size, n1);
         // Process SQL data in this batch
         process_rows(conn, aspt, i0, i1);
         // Progress bar
-        if (progbar) {print("."); }
+        if (progbar) 
+        {
+            print(".");
+            flush_console();            
+        }
     }
     if (progbar) 
     {
