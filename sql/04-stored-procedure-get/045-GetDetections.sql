@@ -3,6 +3,22 @@ DELIMITER $$
 -- ********************************************************************************
 CREATE OR REPLACE 
 DEFINER = kepler
+PROCEDURE KS.GetMaxDetectionID()
+COMMENT "Get ID of last asteroid detections; add 1 for compatibility with exclusive uper index."
+
+BEGIN 
+
+SELECT
+	COALESCE(max(d.DetectionID), -1)+1 AS MaxDetectionID
+FROM
+	KS.Detection AS d;
+
+END
+$$
+
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
 PROCEDURE KS.GetDetections(
     IN d0 INT,
     IN d1 INT

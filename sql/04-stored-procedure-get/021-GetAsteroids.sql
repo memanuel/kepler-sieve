@@ -58,4 +58,25 @@ ORDER BY ast.IsNumberedAsteroid DESC;
 END
 $$
 
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.GetAsteroidNumberFromIndex(
+	IN AsteroidIndex INT
+)
+COMMENT "Convert an asteroid index to an AsteroidID"
+
+BEGIN 
+
+SELECT
+	COALESCE(MAX(ast.AsteroidID),-1)+1 AS AsteroidID
+FROM
+	KS.Asteroid AS ast
+WHERE
+	ast.AsteroidIndex<AsteroidIndex;
+
+END
+$$
+
+-- ********************************************************************************
 DELIMITER ;

@@ -1,0 +1,1 @@
+CALL KS.GetAsteroidSkyPatch(0, 1000);
