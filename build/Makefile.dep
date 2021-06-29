@@ -1,0 +1,41 @@
+# List of executables (prefix only)
+EXEC := detection_near_ast db_test sky_patch_test
+
+# Miscellanoues utilities
+utils.o: utils.hpp utils.cpp
+
+# Astronomy utilities
+astro_utils.o: astro_utils.hpp astro_utils.cpp
+
+# Database utilities
+db_utils.o: db_utils.hpp db_utils.cpp
+
+# Timing utilites
+Timer.o: Timer.hpp Timer.cpp
+
+# SkyPatch and related classes
+CubeFace.o: CubeFace.hpp CubeFace.cpp
+SkyPatch.o: SkyPatch.hpp SkyPatch.cpp
+SkyPatchNeighbor.o: SkyPatchNeighbor.hpp SkyPatchNeighbor.cpp
+
+# Detections and related classes
+Detection.o: Detection.hpp Detection.cpp
+
+# AsteroidSkyPatch and related classes
+AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
+
+# Object files for executables
+detection_near_ast.o: detection_near_ast.cpp
+db_test.o: db_test.cpp
+sky_patch_test.o: sky_patch_test.cpp
+
+# Executables
+detection_near_ast: obj/detection_near_ast.o \
+    obj/utils.o obj/db_utils.o \
+    obj/Timer.o \
+    obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
+    obj/Detection.o \
+    obj/AsteroidSkyPatch.o
+db_test: obj/db_test.o obj/db_utils.o
+sky_patch_test: obj/sky_patch_test.o obj/utils.o obj/astro_utils.o \
+    obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o
