@@ -78,6 +78,8 @@ public:
     const int d0;
     /// Last detection ID loaded
     const int d1;
+    /// The size
+    const int size() const;
 
 private:
     /// Vector of detections; dt stands for "Detection Table"

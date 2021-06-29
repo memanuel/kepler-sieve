@@ -77,11 +77,11 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
     dtsp(vector<vector<int32_t>>(N_sp))
 {
-    // Write -1 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
+    // Write 0 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
     int sz = d1-d0;
     for (int i=0; i<sz; i++)
     {
-        dt[i].detection_id=-1;
+        dt[i].detection_id=0;
     }
 
     // Calculate number of batches
@@ -122,6 +122,12 @@ DetectionTable::DetectionTable(db_conn_type &conn, bool progbar):
 // *****************************************************************************
 ///Default destructor is OK here
 DetectionTable::~DetectionTable() {}
+
+// *****************************************************************************
+const int DetectionTable::size() const
+{
+    return (d1-d0);
+}
 
 // *****************************************************************************
 Detection DetectionTable::operator[](int32_t id) const
