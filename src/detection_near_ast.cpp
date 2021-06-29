@@ -137,6 +137,7 @@ void search_asteroid_detection(
 }
 
 // *****************************************************************************
+/// Write one batch of detection candidates to the databaes.
 void write_candidates_db(
     db_conn_type& conn, const vector<DetectionNearAsteroidCandidate>& cv,
     int k0, int k1)
@@ -167,14 +168,15 @@ void write_candidates_db(
 }
 
 // *****************************************************************************
-int main(int argc, char* argv[])
+/// Parse the commandline arguments; report them and wrap into a map.
+std::map<string, int> parse_args(int argc, char* argv[])
 {
     // Set up parser for commandline arguments
     po::options_description desc(
         "./detection_near_ast.x jn sz.\n"
         "Process asteroids from n0=jn*sz to n1=(jn+1)*sz.\n");
     desc.add_options()
-        ("jn", po::value<int>(), "Job number")
+        ("jn", po::value<int>()->default_value(0), "Job number")
         ("sz", po::value<int>()->default_value(1000), "Batch size for jobs");
     po::variables_map vm;
 
@@ -187,34 +189,48 @@ int main(int argc, char* argv[])
     po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
     notify(vm);
     po::notify(vm);
+
     int jn = vm["jn"].as<int>();
     int sz = vm["sz"].as<int>();
     int n0 = jn*sz;
     int n1 = n0+sz;
 
-    // Report commandline arguments    
+    // Report commandline arguments
+    print("Commandline arguments\n");
     print("Job Number jn       : {:d}\n", jn);
     print("Batch Size sz       : {:d}\n", sz);
     print("Start AsteroidID n0 : {:d}\n", n0);
     print("End AsteroidID   n1 : {:d}\n", n1);
+    print_newline();
+
+    // Wrap into standard map
+    std::map<string, int> args = {{"n0", n0},{"n1", n1}};
+    return args;
+}
+
+// *****************************************************************************
+int main(int argc, char* argv[])
+{
+    // Parse command line arguments
+    std::map<string, int> args = parse_args(argc, argv);
+    int n0 = args["n0"];
+    int n1 = args["n1"];
 
     // Build the SkyPatchNeighbor table
     print("Building SkyPatch neighbors...\n");
     SkyPatchNeighbor spn = SkyPatchNeighbor();
-    print("Completed SkyPatch neighbor table.\n");
+    print("Completed SkyPatch neighbor table.\n\n");
 
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
     // Get last detection in database
     int d_max = sp_run_int(conn, "KS.GetMaxDetectionID");
-    print("Max DetectionID: {:d}.\n", d_max);
+    // print("Max DetectionID: {:d}.\n", d_max);
 
     // Inputs to build DetectionTable and AsteroidSkypatchTable
     int d0 = 0;
-    int d1 = 1000;
-    // int n0 = 0;
-    // int n1 = 1000;
+    int d1 = 100000;
     bool progbar = true;
 
     // Initialize DetectionTable
@@ -226,12 +242,16 @@ int main(int argc, char* argv[])
 
     // Status message for main loop over asteroid blocks
     int n_ast = (n1-n0);
-    int n_batch = std::min((n_ast+1)/batch_size, 1);
+    int n_batch = std::max((n_ast+1)/batch_size, 1);
     print("Processing {:d} asteroids with AsteroidID in [{:d}, {:d}) in {:d} batches of size {:d}.\n", 
         n_ast, n0, n1, n_batch, batch_size);
 
     // Counter for the number of candidates found; used for inserting batches of records into DB
     int n_cand = 0;
+
+    // Timer for progress bar
+    Timer t;
+    t.tick();
 
     // Iterate over batches of asteroids
     for (int i0=n0; i0<n1; i0+=batch_size)
@@ -250,9 +270,21 @@ int main(int argc, char* argv[])
         write_candidates_db(conn, cv, k0, k1);
         // Update the candidate counter
         n_cand = cv.size();
+
         // Progress indicator
-        print(".");
-        flush_console();
+        // print(".");
+        // flush_console();
+        // Estimate remaining time
+        double t_proc = t.tock();
+        int n_proc = i1 - n0;
+        double t_per_ast = t_proc / n_proc;
+        int n_left = n1 - i1;
+        double t_left = n_left * t_per_ast;
+        double t_per_batch = t_per_ast * batch_size;
+        print("Processed {:5d} asteroids in {:5d} seconds @ {:4.1f} sec/batch. Time remaining {:5d}\n.", 
+            n_proc, int(t_proc), t_per_batch, int(t_left));
+
+
     } // for / i0
 
     // Report matches

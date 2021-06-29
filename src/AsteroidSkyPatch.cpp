@@ -62,7 +62,7 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
     if (progbar) 
     {
         int ast_count = n1-n0;
-        int batch_count = ast_count / batch_size;
+        int batch_count = std::max(ast_count/batch_size, 1);
         print("Processing {:d} asteroids of AsteroidSkyPatch data from {:d} to {:d} in {:d} batches of {:d}...\n",
                 ast_count, n0, n1, batch_count, batch_size);
     }
