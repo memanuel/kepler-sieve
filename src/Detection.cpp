@@ -15,7 +15,7 @@ using ks::Detection;
 using ks::DetectionTable;
 
 // Set batch size
-constexpr int bs = 10000;
+constexpr int batch_size = 10000;
 
 // *****************************************************************************
 /** Helper function: Process a batch of rows, 
@@ -85,12 +85,12 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
     }
 
     // Calculate number of batches
-    int batch_count = sz / bs;
+    int batch_count = std::min((sz+1)/batch_size, 1);
     // Status update
     if (progbar) 
     {
         print("Processing {:d} detections from {:d} to {:d} in {:d} batches of {:d}...\n",
-                sz, d0, d1, batch_count, bs);
+                sz, d0, d1, batch_count, batch_size);
     }
 
     // Timer for processing detections from DB
@@ -98,10 +98,10 @@ DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar)
     t.tick();
 
     // Iterate over the batches
-    for (int i0=d0; i0<d1; i0+=bs)
+    for (int i0=d0; i0<d1; i0+=batch_size)
     {
         // Upper limit for this batch
-        int i1 = std::min(i0+bs, d1);
+        int i1 = std::min(i0+batch_size, d1);
         // Process SQL data in this batch
         process_rows(conn, dt, dtsp, i0, i1);
         // Progress bar
