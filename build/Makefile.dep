@@ -20,6 +20,7 @@ SkyPatchNeighbor.o: SkyPatchNeighbor.hpp SkyPatchNeighbor.cpp
 
 # Detections and related classes
 Detection.o: Detection.hpp Detection.cpp
+DetectionCandidate.o: DetectionCandidate.hpp DetectionCandidate.cpp
 
 # AsteroidSkyPatch and related classes
 AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
@@ -34,7 +35,7 @@ detection_near_ast: obj/detection_near_ast.o \
     obj/utils.o obj/db_utils.o \
     obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/Detection.o \
+    obj/DetectionCandidate.o \
     obj/AsteroidSkyPatch.o
 db_test: obj/db_test.o obj/db_utils.o
 sky_patch_test: obj/sky_patch_test.o obj/utils.o obj/astro_utils.o \

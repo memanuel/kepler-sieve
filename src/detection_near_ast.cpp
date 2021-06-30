@@ -44,10 +44,14 @@
     using ks::SkyPatch;
     using ks::SkyPatchNeighbor;
     using ks::sky_patch::N_sp;
-
+/*
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
+*/
+#include "DetectionCandidate.hpp"
+    using ks::DetectionCandidate;
+    using ks::DetectionCandidateTable;
 
 #include "AsteroidSkyPatch.hpp"
     using ks::AsteroidSkyPatch;
@@ -62,19 +66,19 @@ struct DetectionNearAsteroidCandidate
 };
 
 // Batch size used for processing asteroids
-constexpr int batch_size = 10;
+constexpr int batch_size = 1000;
 
 // *****************************************************************************
 // Declare functions
 void search_asteroid_detection(
-    DetectionTable& dt, AsteroidSkyPatchTable& aspt, 
+    DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, 
     SkyPatchNeighbor& spn, vector<DetectionNearAsteroidCandidate>& cv);
 void write_candidates_db(db_conn_type& conn, const vector<DetectionNearAsteroidCandidate>& cv, int k0, int k1);
-void test_detection_table(DetectionTable& dt, int detection_id);
-void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id);
+void test_detection_table(DetectionCandidateTable& dt, int detection_id);
+void test_detection_table_by_sp(DetectionCandidateTable& dt, int sky_patch_id);
 void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
 void test_all();
-void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn);
+void test_search(DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn);
 
 // *****************************************************************************
 /** Perform a search over detections in the detection table dt and
@@ -85,7 +89,7 @@ void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighb
  * \param[in] cv - vector of candidate detections near an asteroid
  * */
 void search_asteroid_detection(
-    DetectionTable& dt, AsteroidSkyPatchTable& aspt, 
+    DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, 
     SkyPatchNeighbor& spn, vector<DetectionNearAsteroidCandidate>& cv)
 {
     // Counter for the number of matches found and pairs examined
@@ -184,12 +188,13 @@ std::map<string, int> parse_args(int argc, char* argv[])
     p.add("jn", 1);
     p.add("sz", 2);
 
-    // Unpack commandline arguments
+    // Parse commandline arguments
     // po::store(po::parse_command_line(argc, argv, desc), vm);
     po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
     notify(vm);
     po::notify(vm);
 
+    // Unpack commandline arguments and calculate asteroid numbers
     int jn = vm["jn"].as<int>();
     int sz = vm["sz"].as<int>();
     int n0 = jn*sz;
@@ -211,7 +216,7 @@ std::map<string, int> parse_args(int argc, char* argv[])
 // *****************************************************************************
 int main(int argc, char* argv[])
 {
-    // Parse command line arguments
+    // Parse and unpack command line arguments
     std::map<string, int> args = parse_args(argc, argv);
     int n0 = args["n0"];
     int n1 = args["n1"];
@@ -224,18 +229,12 @@ int main(int argc, char* argv[])
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Get last detection in database
-    int d_max = sp_run_int(conn, "KS.GetMaxDetectionID");
-    // print("Max DetectionID: {:d}.\n", d_max);
-
-    // Inputs to build DetectionTable and AsteroidSkypatchTable
-    int d0 = 0;
-    int d1 = d_max;
+    // Inputs to build DetectionCandidateTable and AsteroidSkypatchTable
     bool progbar = true;
 
-    // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
-    // DetectionTable dt = DetectionTable(conn, progbar);
+    // Initialize DetectionCandidateTable
+    // DetectionCandidateTable dt = DetectionCandidateTable(conn, 0, 1000, progbar);
+    DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
 
     // Initialize an empty vector of candidates, cv (for "candidate vector")
     vector<DetectionNearAsteroidCandidate> cv;
@@ -254,8 +253,8 @@ int main(int argc, char* argv[])
     t.tick();
 
     // Column headers for progress updates
-    print("{:17s} : {:10s} : {:17s} :\n", "Processed", "Average", "Remaining");
-    print("{:6s} : {:8s} : {:10s} : {:6s} : {:8s} : {:7s}\n", "N_ast", "time", "sec/batch", "N_ast", "time", "Matches" );
+    print("{:17s} : {:10s} : {:17s} : {:7s}\n", "Processed", "Average", "Remaining", "Matches");
+    print("{:6s} : {:8s} : {:10s} : {:6s} : {:8s} : {:7s}\n", "N_ast", "time", "sec/batch", "N_ast", "time", "Found" );
 
     // Iterate over batches of asteroids
     for (int i0=n0; i0<n1; i0+=batch_size)
@@ -275,10 +274,6 @@ int main(int argc, char* argv[])
         // Update the candidate counter
         n_cand = cv.size();
 
-        // Progress indicator
-        // print(".");
-        // flush_console();
-
         // Estimate remaining time
         double t_proc = t.tock();
         int n_proc = i1 - n0;
@@ -293,11 +288,13 @@ int main(int argc, char* argv[])
     // Report matches
     int matches = cv.size();
     print("\nFound {:d} matches.\n", matches);
+    /*
     if (matches) {print("{:12s} {:12s}\n", "DetectionID", "AsteroidID");}
     for (DetectionNearAsteroidCandidate c: cv)
     {
         print("{:11d} {:11d}\n", c.detection_id, c.asteroid_id);
     }
+    */
 
     // Close DB connection
     conn->close();
@@ -311,7 +308,7 @@ int main(int argc, char* argv[])
 // *****************************************************************************
 
 // *****************************************************************************
-void test_detection_table(DetectionTable& dt, int detection_id)
+void test_detection_table(DetectionCandidateTable& dt, int detection_id)
 {
     // Print first 10 detections
     int i0=detection_id;
@@ -321,20 +318,23 @@ void test_detection_table(DetectionTable& dt, int detection_id)
     for (int i=i0; i<i1;i++)
     {
         // The ith detection on the table
-        Detection d = dt[i];
+        DetectionCandidate d = dt[i];
         // Holes in the detection vector indicated by d.detectio_id=0; skip these
         if (!d.detection_id) {continue;}
         // Print this detection
+        /*
         print("{:11d} {:10d} {:8.3f} {:+9.6f} {:+9.6f} {:+9.6f}.\n", 
             d.detection_id, d.sky_patch_id, d.mjd, d.ux, d.uy, d.uz);
+        */
+        print("{:11d} {:10d}.\n", d.detection_id, d.sky_patch_id);
     }
 }
 
 // *****************************************************************************
-void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id)
+void test_detection_table_by_sp(DetectionCandidateTable& dt, int sky_patch_id)
 {
     // Demonstrate searching by SkyPatchID
-    // Detection d = dt[sky_patch_id];
+    // DetectionCandidate d = dt[sky_patch_id];
     // int sky_patch_id = d.sky_patch_id;
     print("\nSearch detections with SkyPatchID={:d}:\n", sky_patch_id);
     for (int detection_id: dt.get_skypatch(sky_patch_id)) {print("{:d},", detection_id);}
@@ -361,7 +361,7 @@ void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt)
 }
 
 // *****************************************************************************
-void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn)
+void test_search(DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn)
 {
     print("\nRunning search function on {:d} asteroid segments and {:d} detections...\n", aspt.size(), dt.size());
     vector<DetectionNearAsteroidCandidate> cv;
@@ -391,15 +391,15 @@ void test_all()
     int d_max = sp_run_int(conn, "KS.GetMaxDetectionID");
     print("Max DetectionID: {:d}.\n", d_max);
 
-    // Inputs to build DetectionTable and AsteroidSkypatchTable
+    // Inputs to build DetectionCandidateTable and AsteroidSkypatchTable
     int d0 = 0;
     int d1 = 100;
     int n0 = 51000;
     int n1 = 51100;
     bool progbar = true;
 
-    // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
+    // Initialize DetectionCandidateTable
+    DetectionCandidateTable dt = DetectionCandidateTable(conn, d0, d1, progbar);
 
     // Build AsteroidSkyPatch table
     print_newline();

@@ -33,9 +33,9 @@
 namespace ks {
 
 // *****************************************************************************
-/**Data contained in one detection.
+/**Subset of data contained in one detection needed to search for candidate detections near an asteroid.
  * See DB table KS.Detection and stored procedure KS.GetDetectionObs.*/
-struct Detection
+struct DetectionCandidate
 {
     /// Integer ID of this detection
     int32_t detection_id;
@@ -43,35 +43,21 @@ struct Detection
     int32_t sky_patch_id;
     /// Integer ID of the detection time; FK to KS.HiResTime; the mjd converted to number of minutes.
     int32_t time_id;
-    /// Time of this detection
-    double mjd;
-    /// Direction of this position; x component
-    double ux;
-    /// Direction of this position; y component
-    double uy;
-    /// Direction of this position; z component
-    double uz;
-    /// Position of observatory; x component
-    double q_obs_x;
-    /// Position of observatory; x component
-    double q_obs_y;
-    /// Position of observatory; x component
-    double q_obs_z;
 };
 
 // *****************************************************************************
-class DetectionTable
+class DetectionCandidateTable
 {
 public:
-    /// Initialize a DetectionTable object with detections in the given range
-    DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar);
-    /// Initialize a DetectionTable object with all available detections
-    DetectionTable(db_conn_type &conn, bool progbar);
-    /// Destructor for DetectionTable.
-    ~DetectionTable();
+    /// Initialize a DetectionCandidateTable object with detections in the given range
+    DetectionCandidateTable(db_conn_type &conn, int d0, int d1, bool progbar);
+    /// Initialize a DetectionCandidateTable object with all available detections
+    DetectionCandidateTable(db_conn_type &conn, bool progbar);
+    /// Destructor for DetectionCandidateTable.
+    ~DetectionCandidateTable();
 
-    /// Get a detection given its ID
-    Detection operator[](int32_t id) const;
+    /// Get a detection candidate given its ID
+    DetectionCandidate operator[](int32_t id) const;
 
     /// Get vector of DetectionIDs matching a given SkyPatchID
     vector<int32_t> get_skypatch(int32_t spid) const;
@@ -85,7 +71,7 @@ public:
 
 private:
     /// Vector of detections; dt stands for "Detection Table"
-    vector<Detection> dt;
+    vector<DetectionCandidate> dt;
     /// Vector of detection ID vectors keyed by SkyPatchID; dtsp stands for "Detection Table [keyed by] SkyPatchID"
     vector< vector<int32_t> > dtsp;
 };
