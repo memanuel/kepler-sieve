@@ -39,6 +39,7 @@ n1 = n0+sz
 Example calls:
 ./detection_near_ast.x --jn 0 --sz 1000
 ./detection_near_ast.x 0 1000
+both of these will process asteroids in [0, 1000)
 )";
 
 // *****************************************************************************
@@ -171,8 +172,6 @@ void write_candidates_db(
     VALUES
     (?, ?);
     )";
-    // print("\nSQL string:\n");
-    // print(sql);
     // Create a SQL PreparedStatement for the insert
     sql_prepared_stmt_type stmt(conn->prepareStatement(sql));
 
@@ -252,12 +251,11 @@ int main(int argc, char* argv[])
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Inputs to build DetectionCandidateTable and AsteroidSkypatchTable
-    bool progbar = true;
-
     // Initialize DetectionCandidateTable
-    DetectionCandidateTable dt = DetectionCandidateTable(conn, 0, 1000, progbar);
-    // DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
+    bool progbar = true;
+    // DEBUG - set small test range of detections
+    // DetectionCandidateTable dt = DetectionCandidateTable(conn, 85600000, 86000000, progbar);
+    DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
 
     // Initialize an empty vector of candidates, cv (for "candidate vector")
     vector<DetectionNearAsteroidCandidate> cv;
@@ -276,8 +274,10 @@ int main(int argc, char* argv[])
     t.tick();
 
     // Column headers for progress updates
-    print("{:17s} : {:10s} : {:17s} : {:7s}\n", "Processed", "Average", "Remaining", "Matches");
-    print("{:6s} : {:8s} : {:10s} : {:6s} : {:8s} : {:7s}\n", "N_ast", "time", "sec/batch", "N_ast", "time", "Found" );
+    print("{:17s} : {:10s} : {:17s} : {:7s}\n", 
+          "Processed", "Average", "Remaining", "Matches");
+    print("{:6s} : {:8s} : {:10s} : {:6s} : {:8s} : {:7s}\n", 
+          "N_ast", "time", "sec/batch", "N_ast", "time", "Found" );
 
     // Iterate over batches of asteroids
     for (int i0=n0; i0<n1; i0+=batch_size)
@@ -321,8 +321,7 @@ int main(int argc, char* argv[])
     conn->close();
 
     // Normal program exit
-    return 0;
-    
+    return 0;    
 }
 
 // *****************************************************************************
@@ -344,10 +343,8 @@ void test_detection_table(DetectionCandidateTable& dt, int detection_id)
         // Holes in the detection vector indicated by d.detectio_id=0; skip these
         if (!d.detection_id) {continue;}
         // Print this detection
-        /*
-        print("{:11d} {:10d} {:8.3f} {:+9.6f} {:+9.6f} {:+9.6f}.\n", 
-            d.detection_id, d.sky_patch_id, d.mjd, d.ux, d.uy, d.uz);
-        */
+        // print("{:11d} {:10d} {:8.3f} {:+9.6f} {:+9.6f} {:+9.6f}.\n", 
+        //     d.detection_id, d.sky_patch_id, d.mjd, d.ux, d.uy, d.uz);
         print("{:11d} {:10d}.\n", d.detection_id, d.sky_patch_id);
     }
 }
@@ -356,8 +353,6 @@ void test_detection_table(DetectionCandidateTable& dt, int detection_id)
 void test_detection_table_by_sp(DetectionCandidateTable& dt, int sky_patch_id)
 {
     // Demonstrate searching by SkyPatchID
-    // DetectionCandidate d = dt[sky_patch_id];
-    // int sky_patch_id = d.sky_patch_id;
     print("\nSearch detections with SkyPatchID={:d}:\n", sky_patch_id);
     for (int detection_id: dt.get_skypatch(sky_patch_id)) {print("{:d},", detection_id);}
     print_newline();

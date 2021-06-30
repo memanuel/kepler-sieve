@@ -88,6 +88,8 @@ private:
     vector<Detection> dt;
     /// Vector of detection ID vectors keyed by SkyPatchID; dtsp stands for "Detection Table [keyed by] SkyPatchID"
     vector< vector<int32_t> > dtsp;
+    /// Helper function to process a batch of rows
+    void process_rows(db_conn_type& conn, int i0, int i1);
 };
 
 // *****************************************************************************

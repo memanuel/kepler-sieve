@@ -20,11 +20,11 @@ constexpr int batch_size = 1000000;
 // *****************************************************************************
 /**Helper function: Process a batch of rows, 
  * writing data from stored procedure output to vector of detections. */
-void process_rows(db_conn_type& conn, vector<DetectionCandidate>& dt, vector<vector<int32_t>>& dtsp, int d0, int d1)
+void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
 {
     // Run the stored procedure to get detections; does not need the observatory positions
     string sp_name = "KS.GetDetectionCandidates";
-    vector<string> params = {to_string(d0), to_string(d1)};
+    vector<string> params = {to_string(i0), to_string(i1)};
     ResultSet *rs = sp_run(conn, sp_name, params);
 
     // Loop through resultset
@@ -86,7 +86,7 @@ DetectionCandidateTable::DetectionCandidateTable(db_conn_type &conn, int d0, int
         // Upper limit for this batch
         int i1 = std::min(i0+batch_size, d1);
         // Process SQL data in this batch
-        process_rows(conn, dt, dtsp, i0, i1);
+        process_rows(conn, i0, i1);
         // Progress bar
         if (progbar) 
         {
@@ -96,7 +96,7 @@ DetectionCandidateTable::DetectionCandidateTable(db_conn_type &conn, int d0, int
     }
     if (progbar) 
     {
-        print("\nLoaded detection candidates table.\n");
+        print("\nLoaded detection candidates table with {:d} entries.\n", dt.size());
         t.tock_msg();
     }
 }
