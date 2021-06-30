@@ -194,14 +194,19 @@ int main(int argc, char* argv[])
     // Integers to store the two commandline arguments job number and batch size
     int jn;
     int sz;
+    // The asteroid range from commandline arguments
+    int n0;
+    int n1;
 
     // Set up parser for named commandline arguments ("options")
     po::options_description desc("Find detections near asteroids");
     desc.add_options()
         ("help,h", "Produce help message")
-        ("dryryn", "Dry run - report commandline arguments and quit early")
+        ("dryrun", "Dry run - report commandline arguments and quit early")
         ("jn,j", po::value<int>(&jn)->default_value(0), "Job number")
         ("sz,s", po::value<int>(&sz)->default_value(1000), "Batch size for jobs")
+        ("n0", po::value<int>(&n0)->default_value(-1), "First asteroid to process")
+        ("n1", po::value<int>(&n1)->default_value(-1), "Last asteroid to process")
     ;
     po::variables_map vm;
 
@@ -224,9 +229,15 @@ int main(int argc, char* argv[])
         return 0;
     }
     
-    // Calculate asteroid range from commandline arguments
-    int n0 = jn*sz;
-    int n1 = n0+sz;
+    // Calculate sz and set jn to a dummy value if asteroid numbers were set directly
+    if (n0>0 && n1>0) 
+    {
+        jn = -1;
+        sz = n1-n0;        
+    }
+    // Calculate asteroid range from jn and sz if not set directly
+    if (n0<0) {n0 = jn*sz;}
+    if (n1<0) {n1 = n0+sz;}    
 
     // Report commandline arguments and the resulting asteroid range
     print("Commandline arguments\n");
@@ -239,7 +250,7 @@ int main(int argc, char* argv[])
     // Quit early if it was a dry run 
     if (vm.count("dryrun")) 
     {
-        print("Dry run. Bye!\n");
+        print("This was a dry run. Bye!\n");
         return 0;
     }
 

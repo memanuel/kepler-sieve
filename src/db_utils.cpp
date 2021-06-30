@@ -19,17 +19,21 @@ namespace ks {
 // *****************************************************************************
 db_conn_type get_db_conn(bool verbose)
 {
-
     // Username and password for DB connection
     string db_host {"Thor"};
     string schema {"KS"};
     string user {"kepler"};
     string password {"kepler"};
 
-    // Wrap username/password into sql Properties object
+    // Default timeout of 30000 ms (30 seconds) too short; set to 5 minutes
+    int timeout_min = 5;
+    int timeout_ms = timeout_min * 60 * 1000;
+
+    // Wrap all of this into a sql Properties object
     pair<string, string> p1("user", user);
     pair<string, string> p2("password", password);
-    Properties properties({p1, p2});
+    pair<string, string> p3("connectTimeout", std::to_string(timeout_ms));
+    Properties properties({p1, p2, p3});
 
     // Configure DB connection
     string url = format("jdbc:mariadb://{:s}/{:s}", db_host, schema);
@@ -41,7 +45,8 @@ db_conn_type get_db_conn(bool verbose)
         print("DB host : {:s}\n", db_host);
         print("schema  : {:s}\n", schema);
         print("{:s}    : {:s}\n", p1.first, p1.second);
-        print("{:s}: {:s}\n", p2.first, p2.second);
+        print("{:s}    : {:s}\n", p2.first, p2.second);
+        print("{:s}    : {:s}\n", p3.first, p3.second);
     }
 
     // Instantiate DB driver
