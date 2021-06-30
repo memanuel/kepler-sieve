@@ -204,7 +204,7 @@ int main(int argc, char* argv[])
         ("help,h", "Produce help message")
         ("dryrun", "Dry run - report commandline arguments and quit early")
         ("jn,j", po::value<int>(&jn)->default_value(0), "Job number")
-        ("sz,s", po::value<int>(&sz)->default_value(1000), "Batch size for jobs")
+        ("sz,s", po::value<int>(&sz)->default_value(100000), "Batch size for jobs")
         ("n0", po::value<int>(&n0)->default_value(-1), "First asteroid to process")
         ("n1", po::value<int>(&n1)->default_value(-1), "Last asteroid to process")
     ;
