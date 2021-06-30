@@ -31,8 +31,8 @@
 namespace ks {
 
 // *****************************************************************************
-/**Data contained in one AsteroidSkyPatch entry.
- * See DB table KS.AsteroidSkyPatch and stored procedure KS.AsteroidSkyPatch.*/
+/** Data contained in one AsteroidSkyPatch entry.
+ *  See DB table KS.AsteroidSkyPatch and stored procedure KS.AsteroidSkyPatch.*/
 struct AsteroidSkyPatch
 {
     /// Integer ID of the asteroid whose path is described
@@ -65,11 +65,11 @@ public:
 
 private:
     // Data
-    //*First asteroid ID loaded
+    /// First asteroid ID loaded
     const int n0;
-    //*Last asteroid ID loaded
+    /// Last asteroid ID loaded
     const int n1;
-    //*Vector of AsteroidSkyPatch entries
+    /// Vector of AsteroidSkyPatch entries
     vector<AsteroidSkyPatch> aspt;
 };
 

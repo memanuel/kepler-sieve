@@ -18,6 +18,28 @@
  * Michael S. Emanuel
  * 2021-06-25
  * ****************************************************************************/
+#include <string>
+    using std::string;
+
+// Detailed help message for this program
+string help_message = 
+R"(
+detection_near_ast - 
+Batch program to calculate candidate pairs (AsteroidID, DetectionID)
+where an asteroid is in a neighboring skypatch of the detection.
+Results further refined downstream in detection_near_ast.py.
+
+Commandline arguments:
+jn: the job number; default to 0
+sz: the job size; defaults to 100000
+This will process asteroids with asteroid numbers in [n0, n1), where
+n0 = jn*sz
+n1 = n0+sz
+
+Example calls:
+./detection_near_ast.x --jn 0 --sz 1000
+./detection_near_ast.x 0 1000
+)";
 
 // *****************************************************************************
 // Library dependencies
@@ -44,11 +66,7 @@
     using ks::SkyPatch;
     using ks::SkyPatchNeighbor;
     using ks::sky_patch::N_sp;
-/*
-#include "Detection.hpp"
-    using ks::Detection;
-    using ks::DetectionTable;
-*/
+
 #include "DetectionCandidate.hpp"
     using ks::DetectionCandidate;
     using ks::DetectionCandidateTable;
@@ -83,10 +101,10 @@ void test_search(DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, SkyPa
 // *****************************************************************************
 /** Perform a search over detections in the detection table dt and
  *  AsteroidSkyPatch entries in the AsteroidSkyPatchTable aspt.
- * \param[in] dt - table of detection data to search over
- * \param[in] aspt - table of asteroid sky patch segments to search over
- * \param[in] spn- table with the 9 neighbors of each sky patch
- * \param[in] cv - vector of candidate detections near an asteroid
+ *  \param[in] dt - table of detection data to search over; "detection table"
+ *  \param[in] aspt - table of asteroid sky patch segments to search over; "asteroid sky patch table"
+ *  \param[in] spn - table with the 9 neighbors of each sky patch; "sky patch neighbor"
+ *  \param[in] cv - vector of candidate detections near an asteroid; "candidate vector"
  * */
 void search_asteroid_detection(
     DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, 
@@ -97,7 +115,7 @@ void search_asteroid_detection(
     // Reusable pointer to the 9 neighbors of a SkyPatch
     int32_t* ns;
 
-    // Iterate through all the AsteroidSkyPatch entries
+    // Iterate through all the AsteroidSkyPatch entries in the table
     for (int i=0; i<aspt.size(); i++)
     {
         // The AsteroidSkyPatch
@@ -111,7 +129,7 @@ void search_asteroid_detection(
         int32_t time_id_0 = asp.time_id_0;
         int32_t time_id_1 = asp.time_id_1;
 
-        // Iterate through all 9 neighbors
+        // Iterate through all 9 neighbors of this sky patch
         for (int j=0; j<9; j++)
         {
             // The neighboring SkyPatch
@@ -161,7 +179,7 @@ void write_candidates_db(
     // Iterate through the selected block of candidates in this batch
     for (int k=k0; k<k1; k++)
     {
-        // The candidate
+        // The candidate c is row k of the candidate vector cv
         DetectionNearAsteroidCandidate c = cv[k];
         // Bind two integer parameters to the prepared statement    
         stmt->setInt(1, c.detection_id);
@@ -172,35 +190,46 @@ void write_candidates_db(
 }
 
 // *****************************************************************************
-/// Parse the commandline arguments; report them and wrap into a map.
-std::map<string, int> parse_args(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
-    // Set up parser for commandline arguments
-    po::options_description desc(
-        "./detection_near_ast.x jn sz.\n"
-        "Process asteroids from n0=jn*sz to n1=(jn+1)*sz.\n");
+    // Integers to store the two commandline arguments job number and batch size
+    int jn;
+    int sz;
+
+    // Set up parser for named commandline arguments ("options")
+    po::options_description desc("Find detections near asteroids");
     desc.add_options()
-        ("jn", po::value<int>()->default_value(0), "Job number")
-        ("sz", po::value<int>()->default_value(1000), "Batch size for jobs");
+        ("help,h", "Produce help message")
+        ("dryryn", "Dry run - report commandline arguments and quit early")
+        ("jn,j", po::value<int>(&jn)->default_value(0), "Job number")
+        ("sz,s", po::value<int>(&sz)->default_value(1000), "Batch size for jobs")
+    ;
     po::variables_map vm;
 
-    po::positional_options_description p;
-    p.add("jn", 1);
-    p.add("sz", 2);
+    // Add positional arguments for jn and sz in first two positions
+    po::positional_options_description pos;
+    pos.add("jn", 1);
+    pos.add("sz", 2);
 
-    // Parse commandline arguments
+    // Parse commandline arguments including positional arguments
     // po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
-    notify(vm);
+    po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
     po::notify(vm);
 
-    // Unpack commandline arguments and calculate asteroid numbers
-    int jn = vm["jn"].as<int>();
-    int sz = vm["sz"].as<int>();
+    // If help requested, print description and quit early
+    extern std::string help_message;
+    if (vm.count("help")) 
+    {
+        std::cout << desc;
+        print(help_message);
+        return 0;
+    }
+    
+    // Calculate asteroid range from commandline arguments
     int n0 = jn*sz;
     int n1 = n0+sz;
 
-    // Report commandline arguments
+    // Report commandline arguments and the resulting asteroid range
     print("Commandline arguments\n");
     print("Job Number jn       : {:d}\n", jn);
     print("Batch Size sz       : {:d}\n", sz);
@@ -208,18 +237,12 @@ std::map<string, int> parse_args(int argc, char* argv[])
     print("End AsteroidID   n1 : {:d}\n", n1);
     print_newline();
 
-    // Wrap into standard map
-    std::map<string, int> args = {{"n0", n0},{"n1", n1}};
-    return args;
-}
-
-// *****************************************************************************
-int main(int argc, char* argv[])
-{
-    // Parse and unpack command line arguments
-    std::map<string, int> args = parse_args(argc, argv);
-    int n0 = args["n0"];
-    int n1 = args["n1"];
+    // Quit early if it was a dry run 
+    if (vm.count("dryrun")) 
+    {
+        print("Dry run. Bye!\n");
+        return 0;
+    }
 
     // Build the SkyPatchNeighbor table
     print("Building SkyPatch neighbors...\n");
@@ -233,8 +256,8 @@ int main(int argc, char* argv[])
     bool progbar = true;
 
     // Initialize DetectionCandidateTable
-    // DetectionCandidateTable dt = DetectionCandidateTable(conn, 0, 1000, progbar);
-    DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
+    DetectionCandidateTable dt = DetectionCandidateTable(conn, 0, 1000, progbar);
+    // DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
 
     // Initialize an empty vector of candidates, cv (for "candidate vector")
     vector<DetectionNearAsteroidCandidate> cv;
@@ -288,19 +311,18 @@ int main(int argc, char* argv[])
     // Report matches
     int matches = cv.size();
     print("\nFound {:d} matches.\n", matches);
-    /*
     if (matches) {print("{:12s} {:12s}\n", "DetectionID", "AsteroidID");}
     for (DetectionNearAsteroidCandidate c: cv)
     {
         print("{:11d} {:11d}\n", c.detection_id, c.asteroid_id);
     }
-    */
 
     // Close DB connection
     conn->close();
 
     // Normal program exit
     return 0;
+    
 }
 
 // *****************************************************************************

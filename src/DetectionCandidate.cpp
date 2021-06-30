@@ -35,6 +35,7 @@ void process_rows(db_conn_type& conn, vector<DetectionCandidate>& dt, vector<vec
         int32_t detection_id = rs->getInt("DetectionID");
         int32_t sky_patch_id = rs->getInt("SkyPatchID");
         int32_t time_id = rs->getInt("TimeID");
+
         // Initialize the DetectionCandidate at this location in dt
         int idx = detection_id - d0;
         dt[idx] = {
@@ -118,11 +119,12 @@ const int DetectionCandidateTable::size() const
 // *****************************************************************************
 DetectionCandidate DetectionCandidateTable::operator[](int32_t id) const
 {
-    return dt[id];
+    // Need to subtract d0 from id to get the index into the vector dt
+    return dt[id-d0];
 }
 
 // *****************************************************************************
 vector<int32_t> DetectionCandidateTable::get_skypatch(int32_t spid) const
 {
     return dtsp[spid];
-} // function
+}

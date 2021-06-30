@@ -14,13 +14,13 @@
 using ks::AsteroidSkyPatch;
 using ks::AsteroidSkyPatchTable;
 
-// Set batch size; this is in terms of the number of asteroids, not rows
+// Set batch size; this is the number of ASTEROIDS, not rows!
 constexpr int batch_size = 100;
 
 // *****************************************************************************
-/** Helper function: Process a batch of rows, 
+/**Helper function: Process a batch of rows, 
  * writing data from stored preocedure output to vector of detections. */
-void process_rows(db_conn_type &conn, vector<AsteroidSkyPatch> &aspt, int n0, int n1)
+void process_rows(db_conn_type& conn, vector<AsteroidSkyPatch>& aspt, int n0, int n1)
 {
     // Run the stored procedure to get detections including the observatory position
     string sp_name = "KS.GetAsteroidSkyPatch";
@@ -63,7 +63,7 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
     {
         int ast_count = n1-n0;
         int batch_count = std::max(ast_count/batch_size, 1);
-        print("Processing {:d} asteroids of AsteroidSkyPatch data from {:d} to {:d} in {:d} batches of {:d}...\n",
+        print("Processing {:d} asteroids of AsteroidSkyPatch data from {:d} to {:d} in {:d} batches of size {:d}...\n",
                 ast_count, n0, n1, batch_count, batch_size);
     }
 
@@ -71,7 +71,7 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
 	Timer t;
     t.tick();
 
-    // Iterate over the batches
+    // Iterate over the batches; i0 is the first asteroid number of the batch being processed
     for (int i0=n0; i0<n1; i0+=batch_size)
     {
         // Upper limit for this batch
