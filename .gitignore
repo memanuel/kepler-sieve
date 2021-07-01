@@ -3,6 +3,9 @@
 *.x
 obj/
 
+# Binary data files
+*.bin
+
 # Model weights
 *.h5
 

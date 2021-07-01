@@ -6,16 +6,17 @@
  */
 
 // *****************************************************************************
-// Included files
+// Local dependencies
 #include "DetectionCandidate.hpp"
+    using ks::DetectionCandidate;
+    using ks::DetectionCandidateTable;
 
 // *****************************************************************************
-// Local names used
-using ks::DetectionCandidate;
-using ks::DetectionCandidateTable;
-
 // Set batch size to one million
 constexpr int batch_size = 1000000;
+
+// Location of file with serialized data
+string path = "/data/cache/DetectionCandidateTable.bin";
 
 // *****************************************************************************
 void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
@@ -137,9 +138,44 @@ vector<int32_t> DetectionCandidateTable::get_skypatch(int32_t spid) const
 }
 
 // *****************************************************************************
-void serialize()
+void DetectionCandidateTable::serialize()
 {
-    // Name of file where this is saved
-    string file_path = __FILE__;
-    print("file_path={:s}\n", file_path);
+    // Open output filestream; binary output, truncate contents
+    std::ofstream fs;
+    auto file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
+    fs.open(path, file_mode);
+
+    // Write the rows to the file in binary
+    for (DetectionCandidate dc : dt)
+    {
+        // fs.write((char*) &dc.detection_id, sizeof(dc.detection_id));
+        // fs.write((char*) &dc.sky_patch_id, sizeof(dc.sky_patch_id));
+        // fs.write((char*) &dc.time_id, sizeof(dc.time_id));
+        fs.write((char*) &dc, sizeof(dc));
+    }
+
+    // Status
+    // print("Wrote data to {:s}\n", path);
+
+    // Close output filestream
+    fs.close();
+}
+
+// *****************************************************************************
+void DetectionCandidateTable::load()
+{
+    // Open input filestream; binary output
+    std::ifstream fs;
+    auto file_mode = (std::ios::in | std::ios::binary);
+    fs.open(path, file_mode);
+
+    // Read the rows from the file in binary
+    DetectionCandidate dc;
+    fs.read( (char*) &dc, sizeof(dc));
+
+    print("Read first row into DetectionCandidate dc.");
+    print("dc.detection_id = {:d}\n", dc.detection_id);
+    print("dc.sky_patch_id = {:d}\n", dc.sky_patch_id);
+    print("dc.time_id = {:d}\n", dc.time_id);
+
 }

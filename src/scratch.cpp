@@ -19,15 +19,17 @@ int main()
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Initialize DetectionCandidateTable
-    bool progbar = true;
-
     // Load the detection candidate table
     int d0 = 0;
     int d1 = 1000000;
     bool progbar = true;
-    DetectionCandidateTable dt = DetectionCandidateTable(conn, d0, d1, progbar);
+    // DetectionCandidateTable dt = DetectionCandidateTable(conn, d0, d1, progbar);
 
-    dt.serialize();
+    // Save detection table to disk
+    // dt.serialize();
+
+    // Load detection table from disk
+    DetectionCandidateTable dt;
+    dt.load();
 
 }

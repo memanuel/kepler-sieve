@@ -14,8 +14,14 @@
 #include <string>
     using std::string;
     using std::to_string;
+#include <fstream>
+    using std::ifstream;
+    using std::ofstream;
+#include<filesystem>
 #include <vector>
     using std::vector;
+#include <fmt/format.h>
+    using fmt::print;
 
 // Local dependencies
 #include "utils.hpp"
@@ -73,6 +79,9 @@ public:
 
     /// Serialize this object to disk
     void serialize();
+
+    /// Load this object from disk
+    void load();
 
 private:
     /// Vector of detections; dt stands for "Detection Table"

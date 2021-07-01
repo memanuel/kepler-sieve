@@ -25,7 +25,7 @@ void process_rows(db_conn_type& conn, vector<AsteroidSkyPatch>& aspt, int n0, in
     // Run the stored procedure to get detections including the observatory position
     string sp_name = "KS.GetAsteroidSkyPatch";
     vector<string> params = {to_string(n0), to_string(n1)};
-    ResultSet *rs = sp_run(conn, sp_name, params);
+    ResultSet* rs = sp_run(conn, sp_name, params);
 
     // Loop through resultset
     while (rs->next()) 
