@@ -92,8 +92,8 @@ SkyPatchNeighbor::SkyPatchNeighbor():
 /// Need to manually delete two arrays that were allocated manually
 SkyPatchNeighbor::~SkyPatchNeighbor()
 {
-    delete spn;
-    delete spnd;
+    delete [] spn;
+    delete [] spnd;
 }
 
 // *****************************************************************************

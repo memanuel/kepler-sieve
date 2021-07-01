@@ -55,14 +55,16 @@ db_conn_type get_db_conn(bool verbose=false);
 
 // *****************************************************************************
 /// Count the number of rows in a SQL resultset
-int result_set_size(ResultSet *rs);
+int result_set_size(ResultSet* rs);
 
 // *****************************************************************************
 /// Helper function for SQL stored procedures- bind parameters into one SQL string.
 string sql_sp_bind_params(const string sp_name, const vector<string> &params);
 
 // *****************************************************************************
-/// Execute a stored procedure and return a SQL resultset object
+/** Execute a stored procedure and return a SQL resultset object.
+ *  Import detail: consumers MUST run rs->close() and delete rs when the resultset no longer needed!
+ *  Otherwise program will have a memory leak. */
 ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params);
 
 // *****************************************************************************

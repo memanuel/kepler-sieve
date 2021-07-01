@@ -25,7 +25,7 @@ void DetectionTable::process_rows(db_conn_type& conn, int i0, int i1)
     // Run the stored procedure to get detections including the observatory position
     string sp_name = "KS.GetDetectionsObs";
     vector<string> params = {to_string(i0), to_string(i1)};
-    ResultSet *rs = sp_run(conn, sp_name, params);
+    ResultSet* rs = sp_run(conn, sp_name, params);
 
     // Loop through resultset
     while (rs->next()) 
@@ -64,9 +64,18 @@ void DetectionTable::process_rows(db_conn_type& conn, int i0, int i1)
         // Write this DetectionID to the vector keyed by this SkyPatchID
         (dtsp[sky_patch_id]).push_back(detection_id);
     }   // while rs
-    // Close the resultset
+    // Close the resultset and free memory
     rs->close();
+    delete rs;
 }
+
+// *****************************************************************************
+DetectionTable::DetectionTable(): 
+    d0(0),
+    d1(0),
+    dt(vector<Detection>(0)),
+    dtsp(vector<vector<int32_t>>(0))
+    {}
 
 // *****************************************************************************
 DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar): 

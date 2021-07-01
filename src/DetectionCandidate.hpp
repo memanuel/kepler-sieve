@@ -49,6 +49,8 @@ struct DetectionCandidate
 class DetectionCandidateTable
 {
 public:
+    /// Default constructor builds an empty table
+    DetectionCandidateTable();
     /// Initialize a DetectionCandidateTable object with detections in the given range
     DetectionCandidateTable(db_conn_type &conn, int d0, int d1, bool progbar);
     /// Initialize a DetectionCandidateTable object with all available detections
@@ -69,12 +71,15 @@ public:
     /// The size
     const int size() const;
 
+    /// Serialize this object to disk
+    void serialize();
+
 private:
     /// Vector of detections; dt stands for "Detection Table"
     vector<DetectionCandidate> dt;
     /// Vector of detection ID vectors keyed by SkyPatchID; dtsp stands for "Detection Table [keyed by] SkyPatchID"
     vector< vector<int32_t> > dtsp;
-    /// Helper function to process a batch of rows
+    /// Process a batch of rows, writing data from stored procedure output to vector of detections.
     void process_rows(db_conn_type& conn, int i0, int i1);
 };
 

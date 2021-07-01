@@ -48,8 +48,9 @@ void process_rows(db_conn_type& conn, vector<AsteroidSkyPatch>& aspt, int n0, in
         // Save it to the asteroid sky patch table
         aspt.push_back(asp);
     }   // while rs
-    // Close the resultset
+    // Close the resultset and free memory
     rs->close();
+    delete rs;
 }
 
 // *****************************************************************************

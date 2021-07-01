@@ -75,7 +75,7 @@ int result_set_size(ResultSet *rs)
 
 // *****************************************************************************
 //*Join a stored proecedure name and a vector of string parameters into a single SQL statement
-string sql_sp_bind_params(const string sp_name, const vector<string> &params)
+string sql_sp_bind_params(const string sp_name, const vector<string>& params)
 {
     return format("CALL {}({});", sp_name, join(params, ", "));
 }
@@ -90,16 +90,19 @@ ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string>
     // print("SP call with bound parameters:\n{:s}\n", sql);
 
     // Execute stored procedure into a SQL resultset object
-    ResultSet *rs = stmt->executeQuery(sql);
+    ResultSet* rs = stmt->executeQuery(sql);
+    // std::unique_ptr<ResultSet> rs(stmt->executeQuery(sql));
 
     // Workaround to MariaDB behavior complaining about statements being out of sync:
     // Make sure there are no more ResultSets
-    while (stmt->getMoreResults()) {
-        ResultSet *throwaway = stmt->getResultSet();
+    while (stmt->getMoreResults())
+    {
+        ResultSet* throwaway = stmt->getResultSet();
         throwaway->close();
+        delete throwaway;
     }
 
-    // Return the resultset
+    // Return the resultset; consumer MUST run rs->close() and delete rs when done!
     return rs;
 }
 
@@ -111,15 +114,20 @@ int sp_run_int(db_conn_type &conn, const string sp_name)
     // The SQL string
     string sql = format("CALL {:s}();", sp_name);
     // Execute stored procedure into a SQL resultset object
-    ResultSet *rs = stmt->executeQuery(sql);
+    ResultSet* rs = stmt->executeQuery(sql);
     // Workaround for MariaDB sync error
     while (stmt->getMoreResults()) {
-        ResultSet *throwaway = stmt->getResultSet();
+        ResultSet* throwaway = stmt->getResultSet();
         throwaway->close();
     }
-    // Return the result, which is the value in the first column of the [only] row in the output
+    // Get the result, which is the value in the first column of the [only] row in the output
     rs->next();
-    return rs->getInt(1);
+    int res = rs->getInt(1);
+    // Close resultset and free memory
+    rs->close();
+    delete rs;
+    // Now return the result
+    return res;
 }
 
 // *****************************************************************************

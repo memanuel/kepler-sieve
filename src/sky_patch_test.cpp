@@ -151,7 +151,7 @@ void test_sky_patch_neighbor()
         neighbors = spn[spid];
         // Iterate through the neibhbors, counting the real entries
         for (int j=0; j<9; j++){
-            if (spn[j]>= 0) 
+            if (neighbors[j]>= 0) 
             {
                 neighbor_count++;
             }

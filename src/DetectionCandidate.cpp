@@ -18,14 +18,12 @@ using ks::DetectionCandidateTable;
 constexpr int batch_size = 1000000;
 
 // *****************************************************************************
-/**Helper function: Process a batch of rows, 
- * writing data from stored procedure output to vector of detections. */
 void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
 {
     // Run the stored procedure to get detections; does not need the observatory positions
     string sp_name = "KS.GetDetectionCandidates";
     vector<string> params = {to_string(i0), to_string(i1)};
-    ResultSet *rs = sp_run(conn, sp_name, params);
+    ResultSet* rs = sp_run(conn, sp_name, params);
 
     // Loop through resultset
     while (rs->next()) 
@@ -47,9 +45,18 @@ void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
         // Write this DetectionID to the vector keyed by this SkyPatchID
         (dtsp[sky_patch_id]).push_back(detection_id);
     }   // while rs
-    // Close the resultset
+    // Close the resultset and free memory
     rs->close();
+    // delete rs;
 }
+
+// *****************************************************************************
+DetectionCandidateTable::DetectionCandidateTable(): 
+    d0(0),
+    d1(0),
+    dt(vector<DetectionCandidate>(0)),
+    dtsp(vector<vector<int32_t>>(0))
+    {}
 
 // *****************************************************************************
 DetectionCandidateTable::DetectionCandidateTable(db_conn_type &conn, int d0, int d1, bool progbar): 
@@ -127,4 +134,12 @@ DetectionCandidate DetectionCandidateTable::operator[](int32_t id) const
 vector<int32_t> DetectionCandidateTable::get_skypatch(int32_t spid) const
 {
     return dtsp[spid];
+}
+
+// *****************************************************************************
+void serialize()
+{
+    // Name of file where this is saved
+    string file_path = __FILE__;
+    print("file_path={:s}\n", file_path);
 }

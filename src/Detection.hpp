@@ -63,6 +63,8 @@ struct Detection
 class DetectionTable
 {
 public:
+    /// Default constructor builds an empty table
+    DetectionTable();
     /// Initialize a DetectionTable object with detections in the given range
     DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar);
     /// Initialize a DetectionTable object with all available detections
