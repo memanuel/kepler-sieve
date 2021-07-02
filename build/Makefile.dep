@@ -38,7 +38,7 @@ sky_patch_test.o: sky_patch_test.cpp
 detection_near_ast: obj/detection_near_ast.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/OrbitalElement.o \
+    obj/OrbitalElement.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 detection_near_ast_cand: obj/detection_near_ast_cand.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \

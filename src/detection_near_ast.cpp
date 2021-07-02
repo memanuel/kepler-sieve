@@ -89,6 +89,12 @@ both of these will process asteroids in [0, 1000)
     using ks::AsteroidSkyPatch;
     using ks::AsteroidSkyPatchTable;
 
+#include "OrbitalElement.hpp"
+    using ks::OrbitalElement;
+
+#include "AsteroidElement.hpp"
+    using ks::AsteroidElement;
+
 // *****************************************************************************
 // Data type to describe one detection near one known asteroid
 struct DetectionNearAsteroid
@@ -223,7 +229,7 @@ int main(int argc, char* argv[])
     // Run tests then quit early if in test mode
     if (is_test) 
     {
-        print("Running in test mode. Bye!\n");
+        print("Running in test mode:\n\n");
         test_all();
         return 0;
     }
@@ -452,47 +458,18 @@ void test_detection_table(DetectionTable& dt, int detection_id)
 }
 
 // *****************************************************************************
-void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id)
+void test_asteroid_element(AsteroidElement& elt)
 {
-    // Demonstrate searching by SkyPatchID
-    print("\nSearch detections with SkyPatchID={:d}:\n", sky_patch_id);
-    for (int detection_id: dt.get_skypatch(sky_patch_id)) {print("{:d},", detection_id);}
-    print_newline();
-}
 
-// *****************************************************************************
-void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt)
-{
-    // Display size
-    print("AsteroidSkyPatchTable contains {:d} entries.\n", aspt.size());
-    // Print first 10 entries
-    int i0 = 0;
-    int i1 = std::min(aspt.size(), 10);
+    // Read off some asteroid elements
+    print("\nAsteroidElement properties:\n");
+    print("N_ast    : {:d}\n", elt.N_ast);
+    print("N_t      : {:d}\n", elt.N_t);
 
-    print("\nSample data: first {:d} AsteroidSkyPatch entries:\n", i1-i0);
-    print("{:12s} {:12s} {:10s} {:10s}\n", "AsteroidID", "SkyPatchID", "TimeID_0", "TimeID_1");
-    for (int i=i0; i<i1;i++)
-    {
-        AsteroidSkyPatch asp = aspt[i];
-        print("{:10d} {:12d} {:10d} {:10d}\n", 
-            asp.asteroid_id, asp.sky_patch_id, asp.time_id_0, asp.time_id_1);
-    } // for / i
-}
+    // Read off elements of first asteroid
+    // int32_t* asteroid_ids = elt.get_asteroid_id();
+    // int32_t asteroid_id = asteroid_ids[0];
 
-// *****************************************************************************
-void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn)
-{
-    print("\nRunning search function on {:d} asteroid segments and {:d} detections...\n", aspt.size(), dt.size());
-    vector<DetectionNearAsteroid> cv;
-    search_candidates(dt, aspt, spn, cv);
-    int matches = cv.size();
-    long pairs = dt.size() * aspt.size() * 9;
-    print("Found {:d} matches in {:d} million possible detection / asteroid pairs.\n", matches, pairs/1000000);
-    if (matches) {print("{:12s} {:12s}\n", "DetectionID", "AsteroidID");}
-    for (DetectionNearAsteroid c: cv)
-    {
-        print("{:11d} {:11d}\n", c.detection_id, c.asteroid_id);
-    }
 }
 
 // *****************************************************************************
@@ -506,10 +483,6 @@ void test_all()
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Get last detection in database
-    int d_max = sp_run_int(conn, "KS.GetMaxDetectionID");
-    print("Max DetectionID: {:d}.\n", d_max);
-
     // Inputs to build DetectionCandidateTable and AsteroidSkypatchTable
     int d0 = 0;
     int d1 = 100;
@@ -517,26 +490,24 @@ void test_all()
     int n1 = 1100;
     bool progbar = true;
 
-    // Initialize DetectionCandidateTable
+    // Initialize DetectionTable
     DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
+
+    // Test DetectionTable
+    test_detection_table(dt, d0);
 
     // Build AsteroidSkyPatch table
     print_newline();
     AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
 
-    // Test values of detection_id and skypatch_id
-    int test_detection_id = 10;
-    int test_skypatch_id = dt[test_detection_id].sky_patch_id;
+    // Initialize AsteroidElement
+    int mjd0 = 58000;
+    int mjd1 = 61000;
+    AsteroidElement elt = AsteroidElement(conn, n0, n1, mjd0, mjd1, progbar);
 
-    // Test detection table and search of detections by SkyPatchID
-    test_detection_table(dt, test_detection_id);
-    test_detection_table_by_sp(dt, test_skypatch_id);
+    // Test asteroid elements
+    test_asteroid_element(elt);
 
-    // Test AsteroidSkyPatch table
-    test_asteroid_skypatch(aspt);
-
-    // Test search function for asteroid / detection matches
-    test_search(dt, aspt, spn);
 
     // Close DB connection
     conn->close();
