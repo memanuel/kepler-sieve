@@ -209,6 +209,9 @@ void DetectionTable::load()
         (dtsp[d.sky_patch_id]).push_back(d.detection_id);
     }
 
+    // Update paramater d1
+    d1 = dt.size();
+
     // Close input filestream
     fs.close();
 }

@@ -130,7 +130,7 @@ def insert_ast_skypatch(df: pd.DataFrame, jn: int) -> None:
     """
     # Arguments to df2db
     schema = 'KS'
-    table = f'AsteroidSkyPatch_Stage_{jn:02d}'
+    table = f'AsteroidSkyPatch'
     columns = ['AsteroidID', 'Segment', 'SkyPatchID', 'TimeID_0', 'TimeID_1']
     chunksize = 2**19
     verbose = False

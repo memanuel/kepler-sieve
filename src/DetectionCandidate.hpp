@@ -72,7 +72,7 @@ public:
     /// First detection ID loaded; base for indexing into arrays
     const int d0;
     /// Last detection ID loaded
-    const int d1;
+    int d1;
     /// The size
     const int size() const;
 

@@ -189,6 +189,9 @@ void DetectionCandidateTable::load()
         (dtsp[dc.sky_patch_id]).push_back(dc.detection_id);
     }
 
+    // Update paramater d1
+    d1 = dt.size();
+
     // Close input filestream
     fs.close();
 }

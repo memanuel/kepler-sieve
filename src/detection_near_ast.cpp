@@ -93,9 +93,7 @@ struct DetectionNearAsteroidCandidate
 };
 
 // Batch size used for processing asteroids
-// constexpr int batch_size = 1000;
-//DEBUG
-constexpr int batch_size = 100;
+constexpr int batch_size = 1000;
 
 // *****************************************************************************
 // Declare functions
@@ -224,15 +222,18 @@ int main(int argc, char* argv[])
     SkyPatchNeighbor spn = SkyPatchNeighbor();
     print("Completed SkyPatch neighbor table.\n\n");
 
+    // Initialize DetectionCandidateTable
+    // bool progbar = true;
+    // Load the detection candidate table; process either the selected manual range or all detections (default)
+    // DetectionCandidateTable dt = is_manual_detection_range ? 
+    //     DetectionCandidateTable(conn, d0, d1, progbar) :
+    //     DetectionCandidateTable(conn, progbar);
+    DetectionCandidateTable dt;
+    dt.load();
+    print("Loaded DetectionCandidate table from disk with {:d} detections.\n", dt.size());
+    
     // Establish DB connection
     db_conn_type conn = get_db_conn();
-
-    // Initialize DetectionCandidateTable
-    bool progbar = true;
-    // Load the detection candidate table; process either the selected manual range or all detections (default)
-    DetectionCandidateTable dt = is_manual_detection_range ? 
-        DetectionCandidateTable(conn, d0, d1, progbar) :
-        DetectionCandidateTable(conn, progbar);
 
     // Initialize an empty vector of candidates, cv (for "candidate vector")
     vector<DetectionNearAsteroidCandidate> cv;
