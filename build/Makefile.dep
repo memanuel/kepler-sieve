@@ -1,5 +1,5 @@
 # List of executables (prefix only)
-EXEC := detection_near_ast db_test sky_patch_test scratch
+EXEC := detection_near_ast serialize_detection db_test sky_patch_test
 
 # Miscellanoues utilities
 utils.o: utils.hpp utils.cpp
@@ -27,9 +27,9 @@ AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
 
 # Object files for executables
 detection_near_ast.o: detection_near_ast.cpp
+serialize_detection.o: serialize_detection.cpp
 db_test.o: db_test.cpp
 sky_patch_test.o: sky_patch_test.cpp
-scratch.o: scratch.cpp
 
 # Executables
 detection_near_ast: obj/detection_near_ast.o \
@@ -38,7 +38,8 @@ detection_near_ast: obj/detection_near_ast.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/DetectionCandidate.o \
     obj/AsteroidSkyPatch.o
+serialize_detection: obj/serialize_detection.o obj/utils.o obj/db_utils.o obj/Timer.o \
+    obj/Detection.o obj/DetectionCandidate.o 
 db_test: obj/db_test.o obj/db_utils.o
 sky_patch_test: obj/sky_patch_test.o obj/utils.o obj/astro_utils.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o
-scratch: obj/scratch.o obj/utils.o obj/db_utils.o obj/Timer.o obj/DetectionCandidate.o 

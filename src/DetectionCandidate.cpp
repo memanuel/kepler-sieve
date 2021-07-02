@@ -16,51 +16,18 @@
 constexpr int batch_size = 1000000;
 
 // Location of file with serialized data
-string path = "/data/cache/DetectionCandidateTable.bin";
-
-// *****************************************************************************
-void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
-{
-    // Run the stored procedure to get detections; does not need the observatory positions
-    string sp_name = "KS.GetDetectionCandidates";
-    vector<string> params = {to_string(i0), to_string(i1)};
-    ResultSet* rs = sp_run(conn, sp_name, params);
-
-    // Loop through resultset
-    while (rs->next()) 
-    {
-        // Unpack the fields in the resultset; 10 total fields
-        // 3 key fields
-        int32_t detection_id = rs->getInt("DetectionID");
-        int32_t sky_patch_id = rs->getInt("SkyPatchID");
-        int32_t time_id = rs->getInt("TimeID");
-
-        // Initialize the DetectionCandidate at this location in dt
-        int idx = detection_id - d0;
-        dt[idx] = {
-            .detection_id = detection_id,
-            .sky_patch_id = sky_patch_id,
-            .time_id = time_id,
-        };
-
-        // Write this DetectionID to the vector keyed by this SkyPatchID
-        (dtsp[sky_patch_id]).push_back(detection_id);
-    }   // while rs
-    // Close the resultset and free memory
-    rs->close();
-    // delete rs;
-}
+const string file_name = "data/cache/DetectionCandidateTable.bin";
 
 // *****************************************************************************
 DetectionCandidateTable::DetectionCandidateTable(): 
     d0(0),
     d1(0),
     dt(vector<DetectionCandidate>(0)),
-    dtsp(vector<vector<int32_t>>(0))
+    dtsp(vector<vector<int32_t>>(N_sp))
     {}
 
 // *****************************************************************************
-DetectionCandidateTable::DetectionCandidateTable(db_conn_type &conn, int d0, int d1, bool progbar): 
+DetectionCandidateTable::DetectionCandidateTable(db_conn_type& conn, int d0, int d1, bool progbar): 
     d0(d0),
     d1(d1),
     // Initialize dt to a vector with sz entries, one for each possible detection in the interval
@@ -110,9 +77,42 @@ DetectionCandidateTable::DetectionCandidateTable(db_conn_type &conn, int d0, int
 }
 
 // *****************************************************************************
-DetectionCandidateTable::DetectionCandidateTable(db_conn_type &conn, bool progbar): 
+DetectionCandidateTable::DetectionCandidateTable(db_conn_type& conn, bool progbar): 
     // Delegate to range constructor, using DB to compute d1
     DetectionCandidateTable(conn, 0, sp_run_int(conn, "KS.GetMaxDetectionID"), progbar) {}
+
+// *****************************************************************************
+void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
+{
+    // Run the stored procedure to get detections; does not need the observatory positions
+    string sp_name = "KS.GetDetectionCandidates";
+    vector<string> params = {to_string(i0), to_string(i1)};
+    ResultSet* rs = sp_run(conn, sp_name, params);
+
+    // Loop through resultset
+    while (rs->next()) 
+    {
+        // Unpack the fields in the resultset; 10 total fields
+        // 3 key fields
+        int32_t detection_id = rs->getInt("DetectionID");
+        int32_t sky_patch_id = rs->getInt("SkyPatchID");
+        int32_t time_id = rs->getInt("TimeID");
+
+        // Initialize the DetectionCandidate at this location in dt
+        int idx = detection_id - d0;
+        dt[idx] = {
+            .detection_id = detection_id,
+            .sky_patch_id = sky_patch_id,
+            .time_id = time_id,
+        };
+
+        // Write this DetectionID to the vector keyed by this SkyPatchID
+        (dtsp[sky_patch_id]).push_back(detection_id);
+    }   // while rs
+    // Close the resultset and free memory
+    rs->close();
+    // delete rs;
+}
 
 // *****************************************************************************
 ///Default destructor is OK here
@@ -138,24 +138,25 @@ vector<int32_t> DetectionCandidateTable::get_skypatch(int32_t spid) const
 }
 
 // *****************************************************************************
-void DetectionCandidateTable::serialize()
+void DetectionCandidateTable::save()
 {
-    // Open output filestream; binary output, truncate contents
+    // Open output filestream in binary output; truncate file contents
     std::ofstream fs;
-    auto file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
-    fs.open(path, file_mode);
+    std::ios_base::openmode file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
+    fs.open(file_name, file_mode);
+
+    // Write the number of rows in binary as long int
+    long sz = dt.size();
+    fs.write((char*) &sz, sizeof(sz));
 
     // Write the rows to the file in binary
     for (DetectionCandidate dc : dt)
     {
-        // fs.write((char*) &dc.detection_id, sizeof(dc.detection_id));
-        // fs.write((char*) &dc.sky_patch_id, sizeof(dc.sky_patch_id));
-        // fs.write((char*) &dc.time_id, sizeof(dc.time_id));
         fs.write((char*) &dc, sizeof(dc));
     }
 
     // Status
-    // print("Wrote data to {:s}\n", path);
+    // print("Wrote data to {:s}\n", file_name);
 
     // Close output filestream
     fs.close();
@@ -164,18 +165,30 @@ void DetectionCandidateTable::serialize()
 // *****************************************************************************
 void DetectionCandidateTable::load()
 {
-    // Open input filestream; binary output
+    // Open input filestream in binary mode
     std::ifstream fs;
-    auto file_mode = (std::ios::in | std::ios::binary);
-    fs.open(path, file_mode);
+    std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+    fs.open(file_name, file_mode);
+
+    // Read the number of rows
+    long sz=-1;
+    fs.read( (char*) &sz, sizeof(sz));
+
+    // Reserve space for the detection table
+    dt.reserve(sz);
 
     // Read the rows from the file in binary
     DetectionCandidate dc;
-    fs.read( (char*) &dc, sizeof(dc));
+    for (int i=0; i<sz; i++)
+    {
+        // Read this row into dc
+        fs.read( (char*) &dc, sizeof(dc));
+        // Save this element to dt
+        dt.push_back(dc);
+        // Write this DetectionID to the vector keyed by this SkyPatchID
+        (dtsp[dc.sky_patch_id]).push_back(dc.detection_id);
+    }
 
-    print("Read first row into DetectionCandidate dc.");
-    print("dc.detection_id = {:d}\n", dc.detection_id);
-    print("dc.sky_patch_id = {:d}\n", dc.sky_patch_id);
-    print("dc.time_id = {:d}\n", dc.time_id);
-
+    // Close input filestream
+    fs.close();
 }

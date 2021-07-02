@@ -17,7 +17,6 @@
 #include <fstream>
     using std::ifstream;
     using std::ofstream;
-#include<filesystem>
 #include <vector>
     using std::vector;
 #include <fmt/format.h>
@@ -58,9 +57,9 @@ public:
     /// Default constructor builds an empty table
     DetectionCandidateTable();
     /// Initialize a DetectionCandidateTable object with detections in the given range
-    DetectionCandidateTable(db_conn_type &conn, int d0, int d1, bool progbar);
+    DetectionCandidateTable(db_conn_type& conn, int d0, int d1, bool progbar);
     /// Initialize a DetectionCandidateTable object with all available detections
-    DetectionCandidateTable(db_conn_type &conn, bool progbar);
+    DetectionCandidateTable(db_conn_type& conn, bool progbar);
     /// Destructor for DetectionCandidateTable.
     ~DetectionCandidateTable();
 
@@ -77,9 +76,8 @@ public:
     /// The size
     const int size() const;
 
-    /// Serialize this object to disk
-    void serialize();
-
+    /// Save this object to disk
+    void save();
     /// Load this object from disk
     void load();
 

@@ -62,9 +62,10 @@ all: $(EXEC)
 # The PHONY command tells GNU Make than "clean" is a phony target
 .PHONY: clean
 
-# Define target "clean" to remove all the built files
+# Define target "clean" to remove all the built files.  
+# Use wildcards to ensure any "orphaned" object files or executables are also deleted.
 clean:
-	rm -f $(OBJ) $(EXEC_FILES)
+	rm -f $(wildcard $(OBJ_DIR)/*.o) $(wildcard *.x)
 
 # Set default goal to "all"
 .DEFAULT_GOAL := all

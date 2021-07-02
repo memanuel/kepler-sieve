@@ -17,68 +17,19 @@ using ks::DetectionTable;
 // Set batch size to one million
 constexpr int batch_size = 1000000;
 
-// *****************************************************************************
-/**Helper function: Process a batch of rows, 
- * writing data from stored procedure output to vector of detections. */
-void DetectionTable::process_rows(db_conn_type& conn, int i0, int i1)
-{
-    // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetDetectionsObs";
-    vector<string> params = {to_string(i0), to_string(i1)};
-    ResultSet* rs = sp_run(conn, sp_name, params);
-
-    // Loop through resultset
-    while (rs->next()) 
-    {
-        // Unpack the fields in the resultset; 10 total fields
-        // 3 key fields
-        int32_t detection_id = rs->getInt("DetectionID");
-        int32_t sky_patch_id = rs->getInt("SkyPatchID");
-        int32_t time_id = rs->getInt("TimeID");
-        // 1 time field
-        double mjd = rs->getDouble("mjd");
-        // 3 direction components
-        double ux = rs->getDouble("ux");
-        double uy = rs->getDouble("uy");
-        double uz = rs->getDouble("uz");
-        // 3 observatory position components
-        double q_obs_x = rs->getDouble("qObs_x");
-        double q_obs_y = rs->getDouble("qObs_y");
-        double q_obs_z = rs->getDouble("qObs_z");
-
-        // Initialize the Detection at this location in dt
-        int idx = detection_id - d0;
-        dt[idx] = {
-            .detection_id = detection_id,
-            .sky_patch_id = sky_patch_id,
-            .time_id = time_id,
-            .mjd = mjd,
-            .ux = ux,
-            .uy = uy,
-            .uz = uz,
-            .q_obs_x = q_obs_x,
-            .q_obs_y = q_obs_y,
-            .q_obs_z = q_obs_z,
-        };
-
-        // Write this DetectionID to the vector keyed by this SkyPatchID
-        (dtsp[sky_patch_id]).push_back(detection_id);
-    }   // while rs
-    // Close the resultset and free memory
-    rs->close();
-    delete rs;
-}
+// Location of file with serialized data
+const string file_name = "data/cache/DetectionCandidateTable.bin";
 
 // *****************************************************************************
 DetectionTable::DetectionTable(): 
     d0(0),
     d1(0),
     dt(vector<Detection>(0)),
-    dtsp(vector<vector<int32_t>>(0))
+    dtsp(vector<vector<int32_t>>(N_sp))
     {}
 
 // *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar): 
+DetectionTable::DetectionTable(db_conn_type& conn, int d0, int d1, bool progbar): 
     d0(d0),
     d1(d1),
     // Initialize dt to a vector with sz entries, one for each possible detection in the interval
@@ -133,6 +84,58 @@ DetectionTable::DetectionTable(db_conn_type &conn, bool progbar):
     DetectionTable(conn, 0, sp_run_int(conn, "KS.GetMaxDetectionID"), progbar) {}
 
 // *****************************************************************************
+/**Helper function: Process a batch of rows, 
+ * writing data from stored procedure output to vector of detections. */
+void DetectionTable::process_rows(db_conn_type& conn, int i0, int i1)
+{
+    // Run the stored procedure to get detections including the observatory position
+    string sp_name = "KS.GetDetectionsObs";
+    vector<string> params = {to_string(i0), to_string(i1)};
+    ResultSet* rs = sp_run(conn, sp_name, params);
+
+    // Loop through resultset
+    while (rs->next()) 
+    {
+        // Unpack the fields in the resultset; 10 total fields
+        // 3 key fields
+        int32_t detection_id = rs->getInt("DetectionID");
+        int32_t sky_patch_id = rs->getInt("SkyPatchID");
+        int32_t time_id = rs->getInt("TimeID");
+        // 1 time field
+        double mjd = rs->getDouble("mjd");
+        // 3 direction components
+        double ux = rs->getDouble("ux");
+        double uy = rs->getDouble("uy");
+        double uz = rs->getDouble("uz");
+        // 3 observatory position components
+        double q_obs_x = rs->getDouble("qObs_x");
+        double q_obs_y = rs->getDouble("qObs_y");
+        double q_obs_z = rs->getDouble("qObs_z");
+
+        // Initialize the Detection at this location in dt
+        int idx = detection_id - d0;
+        dt[idx] = {
+            .detection_id = detection_id,
+            .sky_patch_id = sky_patch_id,
+            .time_id = time_id,
+            .mjd = mjd,
+            .ux = ux,
+            .uy = uy,
+            .uz = uz,
+            .q_obs_x = q_obs_x,
+            .q_obs_y = q_obs_y,
+            .q_obs_z = q_obs_z,
+        };
+
+        // Write this DetectionID to the vector keyed by this SkyPatchID
+        (dtsp[sky_patch_id]).push_back(detection_id);
+    }   // while rs
+    // Close the resultset and free memory
+    rs->close();
+    delete rs;
+}
+
+// *****************************************************************************
 ///Default destructor is OK here
 DetectionTable::~DetectionTable() {}
 
@@ -153,3 +156,59 @@ vector<int32_t> DetectionTable::get_skypatch(int32_t spid) const
 {
     return dtsp[spid];
 } // function
+
+// *****************************************************************************
+void DetectionTable::save()
+{
+    // Open output filestream in binary output; truncate file contents
+    std::ofstream fs;
+    std::ios_base::openmode file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
+    fs.open(file_name, file_mode);
+
+    // Write the number of rows in binary as long int
+    long sz = dt.size();
+    fs.write((char*) &sz, sizeof(sz));
+
+    // Write the rows to the file in binary
+    for (Detection d : dt)
+    {
+        fs.write((char*) &d, sizeof(d));
+    }
+
+    // Status
+    // print("Wrote data to {:s}\n", file_name);
+
+    // Close output filestream
+    fs.close();
+}
+
+// *****************************************************************************
+void DetectionTable::load()
+{
+    // Open input filestream in binary mode
+    std::ifstream fs;
+    std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+    fs.open(file_name, file_mode);
+
+    // Read the number of rows
+    long sz=-1;
+    fs.read( (char*) &sz, sizeof(sz));
+
+    // Reserve space for the detection table
+    dt.reserve(sz);
+
+    // Read the rows from the file in binary
+    Detection d;
+    for (int i=0; i<sz; i++)
+    {
+        // Read this row into d
+        fs.read( (char*) &d, sizeof(d));
+        // Save this element to dt
+        dt.push_back(d);
+        // Write this DetectionID to the vector keyed by this SkyPatchID
+        (dtsp[d.sky_patch_id]).push_back(d.detection_id);
+    }
+
+    // Close input filestream
+    fs.close();
+}

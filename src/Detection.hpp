@@ -14,6 +14,9 @@
 #include <string>
     using std::string;
     using std::to_string;
+#include <fstream>
+    using std::ifstream;
+    using std::ofstream;
 #include <vector>
     using std::vector;
 
@@ -66,9 +69,9 @@ public:
     /// Default constructor builds an empty table
     DetectionTable();
     /// Initialize a DetectionTable object with detections in the given range
-    DetectionTable(db_conn_type &conn, int d0, int d1, bool progbar);
+    DetectionTable(db_conn_type& conn, int d0, int d1, bool progbar);
     /// Initialize a DetectionTable object with all available detections
-    DetectionTable(db_conn_type &conn, bool progbar);
+    DetectionTable(db_conn_type& conn, bool progbar);
     /// Destructor for DetectionTable.
     ~DetectionTable();
 
@@ -84,6 +87,11 @@ public:
     const int d1;
     /// The size
     const int size() const;
+
+    /// Save this object to disk
+    void save();
+    /// Load this object from disk
+    void load();
 
 private:
     /// Vector of detections; dt stands for "Detection Table"
