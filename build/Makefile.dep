@@ -13,6 +13,9 @@ db_utils.o: db_utils.hpp db_utils.cpp
 # Timing utilites
 Timer.o: Timer.hpp Timer.cpp
 
+# Orbital Elements and related classes
+OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
+
 # SkyPatch and related classes
 CubeFace.o: CubeFace.hpp CubeFace.cpp
 SkyPatch.o: SkyPatch.hpp SkyPatch.cpp
@@ -33,17 +36,14 @@ sky_patch_test.o: sky_patch_test.cpp
 
 # Executables
 detection_near_ast: obj/detection_near_ast.o \
-    obj/utils.o obj/db_utils.o \
-    obj/Timer.o \
+    obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/Detection.o \
-    obj/AsteroidSkyPatch.o
+    obj/OrbitalElement.o \
+    obj/Detection.o obj/AsteroidSkyPatch.o
 detection_near_ast_cand: obj/detection_near_ast_cand.o \
-    obj/utils.o obj/db_utils.o \
-    obj/Timer.o \
+    obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/DetectionCandidate.o \
-    obj/AsteroidSkyPatch.o
+    obj/DetectionCandidate.o obj/AsteroidSkyPatch.o
 save_detection: obj/save_detection.o obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/Detection.o obj/DetectionCandidate.o 
 db_test: obj/db_test.o obj/db_utils.o

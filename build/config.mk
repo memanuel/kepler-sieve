@@ -101,19 +101,22 @@ endif
 # Directory with library files (.a) for additional software libraries
 LD_FLAGS_USR := $(addprefix -L, $(addsuffix /lib, $(SOFTWARE_LIBRARY_DIR)))
 
-# Math library
-LD_LIB_MATH := -lm
-
-# BLAS/LAPACK for linear algebra
-LD_LIB_LAPACK := -llapack -lblas
+# fmt (string formattng and printing)
+LD_FMT := -lfmt
 
 # Boost
 LD_LIB_BOOST := -lboost_program_options
 
-# fmt formattng library
-LD_FMT := -lfmt
+# Math library
+LD_LIB_MATH := -lm
 
-# MariaDB
+# BLAS/LAPACK (linear algebra)
+LD_LIB_LAPACK := -llapack -lblas
+
+# GNU Scientific Library (numerical computing)
+LD_LIB_GSL := -lgsl -lgslcblas
+
+# MariaDB (database connectivity)
 LD_LIB_MARIADB := -lmariadbcpp
 
 # *************************************************************************************************
@@ -145,4 +148,4 @@ LD_FLAGS := $(LD_FLAGS_USR)
 # Additional libraries -l
 # LD_LIBS := \
 # \$(NEWLINE) $(TAB) $(LD_LIB_MARIADB)
-LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_MARIADB)
+LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_GSL) $(LD_LIB_MARIADB)

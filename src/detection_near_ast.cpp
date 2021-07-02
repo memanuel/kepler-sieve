@@ -30,9 +30,13 @@
 std::string help_message = 
 R"(
 detection_near_ast - 
-Batch program to calculate candidate pairs (AsteroidID, DetectionID)
-where an asteroid is in a neighboring skypatch of the detection.
-Results further refined downstream in detection_near_ast.py.
+Batch program to interactions where a known asteroid is within a close threshold
+(e.g. 10 arc seconds) of a detection.
+Data written to DB table KS.DetectionNearAsteroid, with one record taking the form
+(DetectionID, AsteroidID, s, LightTime)
+The two IDs identify the detection and asteroid.
+s is the cartesian distance between the two directions and light time is measured in minutes.
+The direction from asteroid to observatory calculated with splined orbital elements.
 
 Commandline arguments:
 jn: the job number
@@ -56,6 +60,7 @@ both of these will process asteroids in [0, 1000)
     using fmt::print;
 #include <boost/program_options.hpp>
     namespace po = boost::program_options;
+#include <gsl/gsl_spline.h>
 
 // Local dependencies
 #include "db_utils.hpp"
@@ -79,17 +84,13 @@ both of these will process asteroids in [0, 1000)
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-/*
-#include "DetectionCandidate.hpp"
-    using ks::DetectionCandidate;
-    using ks::DetectionCandidateTable;
-*/
+
 #include "AsteroidSkyPatch.hpp"
     using ks::AsteroidSkyPatch;
     using ks::AsteroidSkyPatchTable;
 
 // *****************************************************************************
-// Data type to describe one detection / asteroid candidate match
+// Data type to describe one detection near one known asteroid
 struct DetectionNearAsteroid
 {
     /// The integer ID of the detection
@@ -107,10 +108,12 @@ constexpr int batch_size = 1000;
 
 // *****************************************************************************
 // Declare functions
-void search_asteroid_detection(
+void search_candidates(
     DetectionTable& dt, AsteroidSkyPatchTable& aspt, 
     SkyPatchNeighbor& spn, vector<DetectionNearAsteroid>& cv);
-void write_candidates_db(db_conn_type& conn, const vector<DetectionNearAsteroid>& cv, int k0, int k1);
+void calculate_directions(
+    DetectionTable& dt, vector<DetectionNearAsteroid>& dv, int k0, int k1);
+void write_detections_db(db_conn_type& conn, const vector<DetectionNearAsteroid>& cv, int k0, int k1);
 void test_detection_table(DetectionTable& dt, int detection_id);
 void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id);
 void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
@@ -283,13 +286,13 @@ int main(int argc, char* argv[])
         // Build AsteroidSkyPatch table for this asteroid block
         bool progbar=false;
         AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, i0, i1, progbar);
-        // Search for detection matching this asteroid block
-        search_asteroid_detection(dt, aspt, spn, cv);
+        // Search for camdidate detections matching this asteroid block
+        search_candidates(dt, aspt, spn, cv);
         // Range of records to insert
         int k0 = n_cand;
         int k1 = cv.size();
         // Insert this batch of results to the database
-        write_candidates_db(conn, cv, k0, k1);
+        write_detections_db(conn, cv, k0, k1);
         // Update the candidate counter
         n_cand = cv.size();
 
@@ -341,7 +344,7 @@ int main(int argc, char* argv[])
  *  \param[in] spn - table with the 9 neighbors of each sky patch; "sky patch neighbor"
  *  \param[in] cv - vector of candidate detections near an asteroid; "candidate vector"
  * */
-void search_asteroid_detection(
+void search_candidates(
     DetectionTable& dt, AsteroidSkyPatchTable& aspt, 
     SkyPatchNeighbor& spn, vector<DetectionNearAsteroid>& cv)
 {
@@ -395,16 +398,16 @@ void search_asteroid_detection(
 
 // *****************************************************************************
 /// Write one batch of detection candidates to the databaes.
-void write_candidates_db(
-    db_conn_type& conn, const vector<DetectionNearAsteroid>& cv,
+void write_detections_db(
+    db_conn_type& conn, const vector<DetectionNearAsteroid>& dv,
     int k0, int k1)
 {
      // SQL to insert one record into DetectionNearAsteroid
     string sql = R"(
-    REPLACE INTO KS.DetectionNearAsteroidCandidate 
-    (DetectionID, AsteroidID) 
+    REPLACE INTO KS.DetectionNearAsteroid
+    (DetectionID, AsteroidID, s, LightTime) 
     VALUES
-    (?, ?);
+    (?, ?, ?, ?);
     )";
     // Create a SQL PreparedStatement for the insert
     sql_prepared_stmt_type stmt(conn->prepareStatement(sql));
@@ -413,10 +416,12 @@ void write_candidates_db(
     for (int k=k0; k<k1; k++)
     {
         // The candidate c is row k of the candidate vector cv
-        DetectionNearAsteroid c = cv[k];
+        DetectionNearAsteroid d = dv[k];
         // Bind two integer parameters to the prepared statement    
-        stmt->setInt(1, c.detection_id);
-        stmt->setInt(2, c.asteroid_id);
+        stmt->setInt(1, d.detection_id);
+        stmt->setInt(2, d.asteroid_id);
+        stmt->setDouble(3, d.s);
+        stmt->setDouble(4, d.light_time);
         // Execute the SQL statement
         stmt->executeQuery();
     } // for / k 
@@ -479,7 +484,7 @@ void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighb
 {
     print("\nRunning search function on {:d} asteroid segments and {:d} detections...\n", aspt.size(), dt.size());
     vector<DetectionNearAsteroid> cv;
-    search_asteroid_detection(dt, aspt, spn, cv);
+    search_candidates(dt, aspt, spn, cv);
     int matches = cv.size();
     long pairs = dt.size() * aspt.size() * 9;
     print("Found {:d} matches in {:d} million possible detection / asteroid pairs.\n", matches, pairs/1000000);

@@ -10,7 +10,7 @@
 #pragma once
 
 // *****************************************************************************
-// Included libraries
+// Library dependencies
 #include <string>
     using std::string;
     using std::to_string;

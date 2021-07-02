@@ -68,6 +68,19 @@ inline int sqr(int x)
 }
 
 // *****************************************************************************
+/// Sign of a number (double)
+inline double sign(double x)
+{
+    return x > 0 ? 1.0 : ( x < 0 ? -1.0 : 0.0);
+}
+
+/// Sign of a number (float)
+inline float sign(float x)
+{
+    return x > 0 ? 1.0 : ( x < 0 ? -1.0 : 0.0);
+}
+
+// *****************************************************************************
 /// Calculate Cartesian squared distance between two 3-vectors
 double norm2(const double *v0, const double *v1);
 
