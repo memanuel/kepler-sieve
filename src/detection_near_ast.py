@@ -46,7 +46,7 @@ cols_u_obs = ['uObs_x', 'uObs_y', 'uObs_z']
 cols_u_ast = ['uAst_x', 'uAst_y', 'uAst_z']
 
 # ********************************************************************************************************************* 
-def calc_det_near_ast(n0: int, n1: int, arcsec_max: float, jn: int):
+def calc_det_near_ast(n0: int, n1: int, arcsec_max: float):
     """Calculate asteroid detections near a batch of known asteroids """
     # Convert threshold from arc seconds to distance
     s_max = sec2dist(arcsec_max)
@@ -55,8 +55,7 @@ def calc_det_near_ast(n0: int, n1: int, arcsec_max: float, jn: int):
     sp_name = 'KS.GetDetectionNearAstCand'
     params = {
         'AsteroidID_0': n0,
-        'AsteroidID_1': n1,
-        'jn': jn,
+        'AsteroidID_1': n1
     }
     df = sp2df(sp_name=sp_name, params=params)
 
@@ -164,7 +163,7 @@ def main():
         n0: int = asteroid_id[i0]
         n1: int = asteroid_id[i1]
         # Calculate the asteroid skypatch IDs
-        df = calc_det_near_ast(n0=n0, n1=n1, arcsec_max=arcsec_max, jn=jn_asp)
+        df = calc_det_near_ast(n0=n0, n1=n1, arcsec_max=arcsec_max)
         # Insert results to database
         insert_det_near_ast(df=df)
 
