@@ -11,15 +11,31 @@ COMMENT "Get candidate detections near asteroids in the given range of asteroids
 
 BEGIN 
 
-	SELECT
+SELECT
+	-- Key fields: DetectionID and AsteroidID
+	dc.DetectionID,
 	dc.AsteroidID,
-	dc.DetectionID
+	-- Time of this detection
+	det.mjd AS tObs,
+	-- The position of the observatory
+	dt.qObs_x,
+	dt.qObs_y,
+	dt.qObs_z,
+	-- The direction of this detection
+	det.ux AS uObs_x,
+	det.uy AS uObs_y,
+	det.uz AS uObs_z
 FROM
+	-- Start with the detection candidates populated by C++ program detection_near_ast.cpp
 	KS.DetectionNearAsteroidCandidate AS dc
+	-- Join Detection to get the position
+	INNER JOIN KS.Detection AS det ON det.DetectionID = dc.DetectionID
+	-- Join DetectionTime to get the observatory position
+	INNER JOIN KS.DetectionTime AS dt ON dt.DetectionTimeID = det.DetectionTimeID
 WHERE
 	dc.AsteroidID BETWEEN AsteroidID_0 AND (AsteroidID_1-1)
 ORDER BY dc.AsteroidID, dc.DetectionID;
-	
+
 END
 $$
 
