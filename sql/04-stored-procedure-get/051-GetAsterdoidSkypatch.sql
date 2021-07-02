@@ -15,7 +15,9 @@ SELECT
 	asp.AsteroidID,
 	asp.Segment,
 	asp.SkyPatchID,
-	asp.TimeID_0,
+	-- Subtract 15 minutes from start TimeID to guarantee that the time 
+	-- when the asteroid occupies this sky patch contained in [TimeID_0, TimeID_1]
+	asp.TimeID_0-15 AS TimeID_0,
 	asp.TimeID_1
 FROM
 	KS.AsteroidSkyPatch AS asp

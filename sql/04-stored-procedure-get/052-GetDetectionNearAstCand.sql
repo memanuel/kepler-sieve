@@ -5,10 +5,33 @@ CREATE OR REPLACE
 DEFINER = kepler
 PROCEDURE KS.GetDetectionNearAstCand(
     IN AsteroidID_0 INT,
+    IN AsteroidID_1 INT
+)
+COMMENT "Get candidate detections near asteroids in the given range of asteroids.  Brute force implementation"
+
+BEGIN 
+
+	SELECT
+	dc.AsteroidID,
+	dc.DetectionID
+FROM
+	KS.DetectionNearAsteroidCandidate AS dc
+WHERE
+	dc.AsteroidID BETWEEN AsteroidID_0 AND (AsteroidID_1-1)
+ORDER BY dc.AsteroidID, dc.DetectionID;
+	
+END
+$$
+
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.GetDetectionNearAstCand_bf(
+    IN AsteroidID_0 INT,
     IN AsteroidID_1 INT,
     IN jn INT
 )
-COMMENT "Get candidate detections near asteroids in the given range of asteroids."
+COMMENT "Get candidate detections near asteroids in the given range of asteroids.  Brute force implementation"
 
 BEGIN 
 
@@ -35,37 +58,6 @@ CREATE OR REPLACE TEMPORARY TABLE KS.DNA_Candidate(
 	DetectionID INT NOT NULL,
 	PRIMARY KEY (AsteroidID, DetectionID)
 ) ENGINE=Memory;
-
--- SQL statement template
--- SET @sql_str =
--- "
--- INSERT INTO KS.ASP_Candidate
--- SELECT DISTINCT
--- 	spn.SkyPatchID_2 AS SkyPatchID,
--- 	asp.AsteroidID,
--- 	asp.Segment,
--- 	asp.TimeID_0-15 AS TimeID_0,
--- 	asp.TimeID_1
--- FROM
--- 	-- Start with AsteroidSkyPatch
--- 	@table_name AS asp
--- 	-- Neighboring SkyPatches
--- 	INNER JOIN KS.SkyPatchNeighbor AS spn ON
--- 		spn.SkyPatchID_1 = asp.SkyPatchID
--- WHERE
--- 	-- Only selected range of asteroids
--- 	asp.AsteroidID BETWEEN @AsteroidID_0 AND (@AsteroidID_1-1);
--- ";
-
--- Bind parameter values
--- SET @sql_str = REPLACE(@sql_str, '@AsteroidID_0', AsteroidID_0); 
--- SET @sql_str = REPLACE(@sql_str, '@AsteroidID_1', AsteroidID_1);
--- SET @sql_str = REPLACE(@sql_str, '@table_name', @table_name);
-
--- Batch of candidate skypatches including neighbors
--- PREPARE stmt FROM @sql_str;
--- EXECUTE stmt;
--- DEALLOCATE PREPARE stmt;
 
 -- Batch of candidate skypatches including neighbors
 INSERT INTO KS.ASP_Candidate

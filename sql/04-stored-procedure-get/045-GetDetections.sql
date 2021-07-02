@@ -81,4 +81,30 @@ ORDER BY d.DetectionID;
 END
 $$
 
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.GetDetectionCandidates(
+    IN d0 INT,
+    IN d1 INT
+)
+COMMENT "Get asteroid detections in a range of detection IDs; lightweight version with just integer IDs."
+
+BEGIN 
+
+SELECT
+	-- Integer ID fields
+	d.DetectionID,
+	d.SkyPatchID,
+	d.TimeID
+FROM
+	KS.Detection AS d
+WHERE
+	d.DetectionID BETWEEN d0 AND (d1-1)
+ORDER BY d.DetectionID;
+
+END
+$$
+
+-- ********************************************************************************
 DELIMITER ;
