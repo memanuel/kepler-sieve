@@ -26,7 +26,7 @@ import time
 # MSE imports
 from config import ks_root, mdbi_opt
 from utils import print_time
-from db_config import db_engine, db_url
+from db_config import db_engine
 
 # Types
 from typing import Optional, List, Dict
