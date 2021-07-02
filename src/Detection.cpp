@@ -18,7 +18,7 @@ using ks::DetectionTable;
 constexpr int batch_size = 1000000;
 
 // Location of file with serialized data
-const string file_name = "data/cache/DetectionCandidateTable.bin";
+const string file_name = "data/cache/DetectionTable.bin";
 
 // *****************************************************************************
 DetectionTable::DetectionTable(): 

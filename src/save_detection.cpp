@@ -10,8 +10,13 @@
 
 // *****************************************************************************
 // Library dependencies
+#include <filesystem>
+    using std::filesystem::exists;
 #include <fmt/format.h>
     using fmt::print;
+
+#include <boost/program_options.hpp>
+    namespace po = boost::program_options;
 
 // Local dependencies
 #include "utils.hpp"
@@ -32,18 +37,58 @@
 
 // *****************************************************************************
 // Declare functions
-void serialize_Detection(db_conn_type& conn);
-void serialize_DetectionCandidate(db_conn_type& conn);
+void save_Detection(db_conn_type& conn);
+void save_DetectionCandidate(db_conn_type& conn);
 void test(db_conn_type& conn);
 
 // *****************************************************************************
-int main()
+int main(int argc, char* argv[])
 {
+
+    // *****************************************************************************
+    // Process commandline arguments.
+    // *****************************************************************************
+
+    // Flags from commandline arguments
+    bool run_test = false;
+    bool run_save_Detection = false;
+    bool run_save_DetectionCandidate = false;
+
+    // Set up parser for named commandline arguments ("options")
+    po::options_description desc("Find detections near asteroids");
+    desc.add_options()
+        ("help,h", "Produce help message")
+        ("test", po::bool_switch(&run_test), "Run test")
+        ("Detection", po::bool_switch(&run_save_Detection), 
+            "Serialize contents of stored procedure KS.GetDetections on full range")
+        ("DetectionCandidate", po::bool_switch(&run_save_DetectionCandidate), 
+            "Serialize contents of stored procedure KS.GetCandidateDetections on full range")
+    ;
+    po::variables_map vm;
+
+    // Parse commandline arguments including positional arguments
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+
+    // If program called with no arguments, assume user wanted to run tests
+    // if !(run_save_Detection | run_save_DetectionCandidate) {run_test = true;}
+    run_test =  run_test | (!(run_save_Detection | run_save_DetectionCandidate));
+
+    // *****************************************************************************
+    // Program body
+    // *****************************************************************************
+
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Run test on DetectionCandidate
-    test(conn);
+    // Run test on DetectionCandidate if requested
+    if (run_test) {test(conn);}
+
+    // Save Detection if requested
+    if (run_save_Detection) {save_Detection(conn);}
+
+    // Save DetectionCandidate if requested
+    if (run_save_DetectionCandidate) {save_DetectionCandidate(conn);}
 
     // Close DB connection
     conn->close();
@@ -53,7 +98,7 @@ int main()
 }
 
 // *****************************************************************************
-void serialize_Detection(db_conn_type conn)
+void save_Detection(db_conn_type& conn)
 {
     // Load the detection candidate table
     bool progbar = true;
@@ -64,7 +109,7 @@ void serialize_Detection(db_conn_type conn)
 }
 
 // *****************************************************************************
-void serialize_DetectionCandidate(db_conn_type conn)
+void save_DetectionCandidate(db_conn_type& conn)
 {
     // Load the detection candidate table
     bool progbar = true;
@@ -82,6 +127,15 @@ void test(db_conn_type& conn)
     int d1 = 1000000;
     bool progbar = true;
     DetectionCandidateTable dt1 = DetectionCandidateTable(conn, d0, d1, progbar);
+
+    // Does the file with saved data exist?
+    const string file_name = "data/cache/DetectionCandidateTable.bin";
+    bool file_exists = std::filesystem::exists(file_name);
+    // If the file does not exist, save it
+    if (!file_exists)
+    {
+        dt1.save();
+    }
 
     // Example row
     int i=10;
@@ -108,5 +162,7 @@ void test(db_conn_type& conn)
     bool is_ok =    (dc1.detection_id == dc2.detection_id) && 
                     (dc1.sky_patch_id == dc2.sky_patch_id) &&
                     (dc1.time_id      == dc2.time_id);
-    report_test("Load DetectionCandidate", is_ok);
+
+    // Report test results
+    report_test("\nLoad DetectionCandidate", is_ok);
 }
