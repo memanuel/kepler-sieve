@@ -47,32 +47,55 @@ AsteroidElement::AsteroidElement(
     elt_omega(new double[N_t*N_ast]),
     elt_f(new double[N_t*N_ast]),
     elt_M(new double[N_t*N_ast]),
+
     // Initialize GSL objects
     acc(gsl_interp_accel_alloc() )
-    // elt_spline is a structure with one member for each of seven elements
-    // Each member of elt_spline is a vector of gsl_spline objects with one entry per asteroid)
-    // elt_spline(
-    //     ElementSpline {
-    //         .a = vector<gsl_spline*>(N_ast),
-    //         .e = vector<gsl_spline*>(N_ast),
-    //         .inc = vector<gsl_spline*>(N_ast),
-    //         .Omega = vector<gsl_spline*>(N_ast),
-    //         .omega = vector<gsl_spline*>(N_ast),
-    //         .f = vector<gsl_spline*>(N_ast),
-    //         .M = vector<gsl_spline*>(N_ast)
-    //     }
-    // )
 {
     // Populate asteroid_id
     for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
     // Populate mjd
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
+
+    // elt_spline is a structure with one member for each of seven elements
+    // Build the vector of splines up first for each element, then bind them at the end.
+    vector<gsl_spline*>spline_a;
+    vector<gsl_spline*>spline_e;
+    vector<gsl_spline*>spline_inc;
+    vector<gsl_spline*>spline_Omega;
+    vector<gsl_spline*>spline_omega;
+    vector<gsl_spline*>spline_f;
+    vector<gsl_spline*>spline_M;
     
-    // Initialize the interpolators for the elements of each asteroid
+    // Reserve space in vector of splines for each element    
+    spline_a.reserve(N_ast);
+    spline_e.reserve(N_ast);
+    spline_inc.reserve(N_ast);
+    spline_Omega.reserve(N_ast);
+    spline_omega.reserve(N_ast);
+    spline_f.reserve(N_ast);
+    spline_M.reserve(N_ast);
+
+    // Initialize the splines for the elements of each asteroid; one spline for each asteroid and element
     for (int i=0; i<N_ast; i++)
     {
-        // elt_spline.a[i] = gsl_spline_alloc(gsl_interp_cspline, N_t);
+        spline_a.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        spline_e.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        spline_inc.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        spline_Omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        spline_omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        spline_f.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        spline_M.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
     }
+
+    // Save splines to elt_spline
+    elt_spline.a = spline_a;
+    elt_spline.e = spline_e;
+    elt_spline.inc = spline_inc;
+    elt_spline.Omega = spline_Omega;
+    elt_spline.omega = spline_omega;
+    elt_spline.f = spline_f;
+    elt_spline.M = spline_M;
+
 } // end function
 
 // *****************************************************************************
@@ -95,13 +118,27 @@ AsteroidElement::~AsteroidElement()
     gsl_free();
 }
 
+// *****************************************************************************
+// GSL resources that need to be freed before exit are
+// (1) The interpolation accelerator
+// (2) One spline for each asteroid / element pair
 void AsteroidElement::gsl_free()
 {
+
+    // One interpolator for each asteroid and each element
+    for (int i=0; i<N_ast; i++)
+    {
+        gsl_spline_free(elt_spline.a[i]);
+        gsl_spline_free(elt_spline.e[i]);
+        gsl_spline_free(elt_spline.inc[i]);
+        gsl_spline_free(elt_spline.Omega[i]);
+        gsl_spline_free(elt_spline.omega[i]);
+        gsl_spline_free(elt_spline.f[i]);
+        gsl_spline_free(elt_spline.M[i]);
+    }
+
     // Just one acceleartor object
     gsl_interp_accel_free(acc);
-    // One interpolator for each asteroid and each element
-
-
 }
 
 
@@ -166,13 +203,13 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         // The time
         // double mjd = rs->getDouble("mjd");
         // Seven orbital elements
+        // MariaDB SQL Connector appears to match strings using case insensitive collation.
+        // This brutally disregards the database collation (case sensitive) and is also different from Pandas.
+        // This causes field "omega" to receive the value of "Omega".
+        // As a workaround, use the integer column number instead of the column name.
         double a = rs->getDouble("a");
         double e = rs->getDouble("e");
         double inc = rs->getDouble("inc");
-        // MariaDB SQL Connector appears to match strings using case insensitive collation
-        // This brutally disregards the database collation (case sensitive) and is also different from Pandas
-        // This causes field "omega" to receive the value of "Omega".
-        // As a workaround, use the integer column number
         double Omega = rs->getDouble("Omega");
         // double omega = rs->getDouble("omega");
         double omega = rs->getDouble(8);

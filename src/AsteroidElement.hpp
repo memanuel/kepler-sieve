@@ -124,7 +124,7 @@ private:
 
     // GSL objects for splined orbital elements
     gsl_interp_accel* acc;
-    // ElementSpline elt_spline;
+    ElementSpline elt_spline;
 
     // ********************************************************************************************
     // Private Methods
