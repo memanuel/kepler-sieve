@@ -93,6 +93,7 @@ both of these will process asteroids in [0, 1000)
 
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
+    using ks::norm;
 
 #include "AsteroidElement.hpp"
     using ks::AsteroidElement;
@@ -436,7 +437,7 @@ void write_detections_db(
 }
 
 // *****************************************************************************
-// Tests: DetectionTable, AsteroidSkyPatch, and search
+// Tests: DetectionTable and AsteroidElement
 // *****************************************************************************
 
 // *****************************************************************************
@@ -460,6 +461,7 @@ void test_detection_table(DetectionTable& dt, int detection_id)
 }
 
 // *****************************************************************************
+/// Test that AsteroidElement instance splines orbital elements that match copy / pasted values for Ceres @ 58400.
 void test_asteroid_element(AsteroidElement& ast_elt)
 {
     // This test is designed to check Ceres (asteroid_id=1) at mjd 58400 (time_idx=100)
@@ -467,17 +469,17 @@ void test_asteroid_element(AsteroidElement& ast_elt)
     int time_idx = 100;
 
     // Expected results, copy / pasted from database from KS.GetAsteroidElements(1, 2, 58400, 58400);
-    double a0 = 2.7673528257126296;
-    double e0 = 0.07561068735641437;
-    double inc0 = 0.18489327222145555;
+    double a0     = 2.7673528257126296;
+    double e0     = 0.07561068735641437;
+    double inc0   = 0.18489327222145555;
     double Omega0 = 1.4016429441591765;
     double omega0 = 1.2779179332926616;
-    double f0 = 38.4030882294433;
-    double M0 = 38.30932258771573;
+    double f0     = 38.4030882294433;
+    double M0     = 38.30932258771573;
     
     // Tolerance for tests
-    double tol_a = 1.0E-12;
-    double tol_e = 1.0E-12;
+    double tol_a = 1.0E-14;
+    double tol_e = 1.0E-14;
     double tol_angle = 1.0E-12;
 
     // Read off some asteroid elements
@@ -492,52 +494,21 @@ void test_asteroid_element(AsteroidElement& ast_elt)
     int32_t asteroid_id = asteroid_ids[asteroid_idx];
     double mjd = mjds[time_idx];
 
-    // // Read off orbital elements this asteroid and time that were loaded from DB
-    // double a1 = ast_elt.get_a(asteroid_id)[time_idx];
-    // double e1 = ast_elt.get_e(asteroid_id)[time_idx];
-    // double inc1 = ast_elt.get_inc(asteroid_id)[time_idx];
-    // double Omega1 = ast_elt.get_Omega(asteroid_id)[time_idx];
-    // double omega1 = ast_elt.get_omega(asteroid_id)[time_idx];
-    // double f1 = ast_elt.get_f(asteroid_id)[time_idx];
-    // double M1 = ast_elt.get_M(asteroid_id)[time_idx];
-
-    // // Report loaded orbital elements
-    // print("\nLoaded Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
-    // print("AsteroidID: {:9d}\n", asteroid_id);
-    // print("mjd:        {:9.2f}\n", mjd);
-    // print("a:          {:9.6f}\n", a1);
-    // print("e:          {:9.6f}\n", e1);
-    // print("inc:        {:9.6f}\n", inc1);
-    // print("Omega:      {:9.6f}\n", Omega1);
-    // print("omega:      {:9.6f}\n", omega1);
-    // print("f:          {:9.6f}\n", f1);
-    // print("M:          {:9.6f}\n", M1);
-
-    // // Test that results match expected resuts
-    // bool is_ok = true;
-    // is_ok = is_ok && is_close_abs(a0,     a1, tol_a);
-    // is_ok = is_ok && is_close_abs(e0,     e1, tol_e);
-    // is_ok = is_ok && is_close_abs(inc0,   inc1, tol_angle);
-    // is_ok = is_ok && is_close_abs(Omega0, Omega1, tol_angle);
-    // is_ok = is_ok && is_close_abs(omega0, omega1, tol_angle);
-    // is_ok = is_ok && is_close_abs(f0,     f1, tol_angle);
-    // is_ok = is_ok && is_close_abs(M0,     M1, tol_angle);
-    // report_test("\nTest AsteroidElement::load() matches database", is_ok);
-
-    // // Report splined orbital elements
-    // print("\nSplined Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
-    // print("AsteroidID: {:9d}\n", asteroid_id);
-    // print("mjd:        {:9.2f}\n", mjd);
-    // print("a:          {:9.6f}\n", a1);
-    // print("e:          {:9.6f}\n", e1);
-    // print("inc:        {:9.6f}\n", inc1);
-    // print("Omega:      {:9.6f}\n", Omega1);
-    // print("omega:      {:9.6f}\n", omega1);
-    // print("f:          {:9.6f}\n", f1);
-    // print("M:          {:9.6f}\n", M1);
-
     // Calulate splined orbital elements; these should match
-    OrbitalElement elt = ast_elt.interp(asteroid_id, mjd);
+    OrbitalElement elt = ast_elt.interp_elt(asteroid_id, mjd);
+
+    // Report splined orbital elements
+    print("\nSplined Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
+    print("AsteroidID: {:9d}\n", asteroid_id);
+    print("mjd:        {:9.2f}\n", mjd);
+    print("a:          {:9.6f}\n", elt.a);
+    print("e:          {:9.6f}\n", elt.e);
+    print("inc:        {:9.6f}\n", elt.inc);
+    print("Omega:      {:9.6f}\n", elt.Omega);
+    print("omega:      {:9.6f}\n", elt.omega);
+    print("f:          {:9.6f}\n", elt.f);
+    print("M:          {:9.6f}\n", elt.M);
+
     // Test that splined orbital elements match expected results
     bool is_ok = true;
     is_ok = is_ok && is_close_abs(a0,     elt.a, tol_a);
@@ -547,9 +518,94 @@ void test_asteroid_element(AsteroidElement& ast_elt)
     is_ok = is_ok && is_close_abs(omega0, elt.omega, tol_angle);
     is_ok = is_ok && is_close_abs(f0,     elt.f, tol_angle);
     is_ok = is_ok && is_close_abs(M0,     elt.M, tol_angle);
-    report_test("\nTest AsteroidElement::interp() splined elements match database", is_ok);
+    report_test("\nTest AsteroidElement::interp_elt() splined elements match database", is_ok);
 }
 
+// *****************************************************************************
+/// Test that AsteroidElement instance splines state vectors that match copy / pasted values for Ceres @ 58400.
+void test_asteroid_element_vectors(AsteroidElement& ast_elt)
+{
+    // This test is designed to check Ceres (asteroid_id=1) at mjd 58400 (time_idx=100)
+    int asteroid_idx = 1;
+    int time_idx = 100;
+
+    // Read the two 1D arrays
+    int32_t* asteroid_ids = ast_elt.get_asteroid_id();
+    double* mjds = ast_elt.get_mjd();
+    // The selected asteroid_id and time
+    int32_t asteroid_id = asteroid_ids[asteroid_idx];
+    double mjd = mjds[time_idx];
+    
+    // Asteroid position; copy / pasted from database from KS.GetAsteroidElements(1, 2, 58400, 58400);
+    double qx_ast = -2.485854955060206;
+    double qy_ast = -0.6229239033462274;
+    double qz_ast =  0.4383572489736212;
+    double vx_ast =  0.0020617208493692073;
+    double vy_ast = -0.010756337836425017;
+    double vz_ast = -0.0007200628373353;
+    // State vectors of the sun; copy / pasted from KS.GetStateVectors_Sun(58400, 58400, 1);
+    double qx_sun = -0.0001095835967748;
+    double qy_sun =  0.007235858951602957;
+    double qz_sun = -0.0000736284237584;
+    double vx_sun = -0.0000075730407095;
+    double vy_sun =  0.0000026357733813;
+    double vz_sun =  0.0000001892676823;
+    // Expected results; heliocentric position of asteroid
+    double qx = qx_ast - qx_sun;
+    double qy = qy_ast - qy_sun;
+    double qz = qz_ast - qz_sun;
+    double vx = vx_ast - vx_sun;
+    double vy = vy_ast - vy_sun;
+    double vz = vz_ast - vz_sun;
+    // Wrap expected results into Position and Vector objects
+    Position pos0 = Position 
+    {
+        .qx = qx,
+        .qy = qy,
+        .qz = qz
+    };
+    StateVector vec0 = StateVector
+    {
+        .qx = qx,
+        .qy = qy,
+        .qz = qz,
+        .vx = vx,
+        .vy = vy,
+        .vz = vz
+    };
+
+    // Tolerance for tests
+    double tol_q = 1.0E-8;
+    double tol_vec = 1.0E-8;
+    // double tol_v = 1.0E-10;
+
+    // Calulate splined position and state vector
+    Position pos = ast_elt.interp_pos(asteroid_id, mjd);
+    StateVector vec = ast_elt.interp_vec(asteroid_id, mjd);
+
+    // Report splined orbital elements
+    print("\nSplined Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
+    print("AsteroidID: {:9d}\n", asteroid_id);
+    print("mjd:        {:9.2f}\n", mjd);
+    print("qx:         {:+9.6f}\n", vec.qx);
+    print("qy:         {:+9.6f}\n", vec.qy);
+    print("qz:         {:+9.6f}\n", vec.qz);
+    print("vx:         {:+9.6f}\n", vec.vx);
+    print("vy:         {:+9.6f}\n", vec.vy);
+    print("vz:         {:+9.6f}\n", vec.vz);
+
+    // Test that splined orbital elements match expected results (position only)
+    {
+    bool is_ok = norm(pos0, pos) < tol_q;
+    report_test("\nTest AsteroidElement::interp_pos() splined state vectors match database", is_ok);
+    }
+
+    // Test that splined orbital elements match expected results
+    {
+    bool is_ok = norm(vec0, vec) < tol_vec;
+    report_test("\nTest AsteroidElement::interp_vec() splined state vectors match database", is_ok);
+    }
+}    
 // *****************************************************************************
 void test_all()
 {
@@ -585,8 +641,11 @@ void test_all()
     AsteroidElement elt = AsteroidElement(n0, n1, mjd0, mjd1, time_step);
     elt.load(conn, progbar);
 
-    // Test asteroid elements
+    // Test asteroid elements - splining orbital elements
     test_asteroid_element(elt);
+
+    // Test asteroid elements - state vectors from splined elements
+    test_asteroid_element_vectors(elt);
 
     // Close DB connection
     conn->close();

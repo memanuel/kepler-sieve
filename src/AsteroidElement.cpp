@@ -321,7 +321,7 @@ double* AsteroidElement::get_M(int32_t asteroid_id) const
 }
 
 // *****************************************************************************
-OrbitalElement AsteroidElement::interp(int32_t asteroid_id, double mjd)
+OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd)
 {
     // The interpolators for each orbital element for this asteroid
     gsl_spline* gsl_interp_a = elt_spline.a[asteroid_id];
@@ -344,4 +344,23 @@ OrbitalElement AsteroidElement::interp(int32_t asteroid_id, double mjd)
         .M = gsl_spline_eval(gsl_interp_M, mjd, acc)
     };
     return elt;
+}
+
+// *****************************************************************************
+Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd)
+{
+    // Delegate to interp_elt to spline the elements
+    OrbitalElement elt = interp_elt(asteroid_id, mjd);
+    // Call elt2pos to calculate a position
+    return elt2pos(elt);
+}
+
+// *****************************************************************************
+StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd)
+{
+    // Delegate to interp_elt to spline the elements
+    OrbitalElement elt = interp_elt(asteroid_id, mjd);
+    // Call elt2pos to calculate a position
+    return elt2vec(elt);
+   
 }

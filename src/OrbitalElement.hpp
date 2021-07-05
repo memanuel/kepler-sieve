@@ -123,11 +123,23 @@ double anomaly_M2f(double M, double e);
 // Functions for converting between orbital elements and state vectors
 // *****************************************************************************
 
-// Convert from orbital elements to a position vector
+/// Convert from orbital elements to a position vector. See SSD page 51, equation 2.122.
 Position elt2pos(OrbitalElement& elt);
 
-// Convert from orbital elements to a state vector
+/// Convert from orbital elements to a state vector. See SSD page 51, equation 2.122.
 StateVector elt2vec(OrbitalElement& elt);
+
+// *****************************************************************************
+// Utility function - norm of two positions
+// *****************************************************************************
+// Return the distance between two position vectors
+double norm(Position p1, Position p2);
+
+// Return the distance between two position vectors
+double norm(Velocity v1, Velocity v2);
+
+// Return a norm between two state vectors
+double norm(StateVector v1, StateVector v2);
 
 // *****************************************************************************
 } // namespace ks

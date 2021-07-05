@@ -21,6 +21,11 @@
 // Local dependencies
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
+    using ks::Position;
+    using ks::Velocity;
+    using ks::StateVector;
+    using ks::elt2pos;
+    using ks::elt2vec;
 #include "utils.hpp"
     using ks::flush_console;
 #include "db_utils.hpp"
@@ -85,7 +90,16 @@ public:
     double* get_mjd() const;
 
     /// Calculate the interpolated orbital elements of the given asteroid at time mjd
-    OrbitalElement interp(int32_t asteroid_id, double mjd);
+    OrbitalElement interp_elt(int32_t asteroid_id, double mjd);
+
+    /// Calculate the interpolated position of the given asteroid at time mjd
+    Position interp_pos(int32_t asteroid_id, double mjd);
+
+    // Calculate the interpolated velocity of the given asteroid at time mjd
+    // Position interp_vel(int32_t asteroid_id, double mjd);
+
+    /// Calculate the interpolated state vector of the given asteroid at time mjd
+    StateVector interp_vec(int32_t asteroid_id, double mjd);
 
 private:
     // ********************************************************************************************
@@ -149,19 +163,6 @@ private:
     // Free up GSL resources
     void gsl_free();
 };
-
-// // *****************************************************************************
-// /// Encapsulate all seven 2D arrays into one structure for code legibility
-// struct ElementArray
-// {
-//     double* a;
-//     double* e;
-//     double* inc;
-//     double* Omega;
-//     double* omega;
-//     double* f;
-//     double* M;
-// };
 
 // *****************************************************************************
 } // namespace ks
