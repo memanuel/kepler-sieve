@@ -16,6 +16,7 @@
     using std::to_string;
 #include <vector>
     using std::vector;
+#include <gsl/gsl_spline.h>
 
 // Local dependencies
 #include "utils.hpp"
@@ -31,16 +32,38 @@
 namespace ks {
 
 // *****************************************************************************
+/** Encapsulate all seven vectors of GSL interpolators into one structure for code legibility
+ *  One vector for each of seven orbital elements a, e, inc, Omega, omega, f, M.
+ *  Each asteroid has one one entry in each vector. */
+struct ElementSpline
+{
+    vector<gsl_spline*> a;
+    vector<gsl_spline*> e;
+    vector<gsl_spline*> inc;
+    vector<gsl_spline*> Omega;
+    vector<gsl_spline*> omega;
+    vector<gsl_spline*> f;
+    vector<gsl_spline*> M;
+};
+
+// *****************************************************************************
 class AsteroidElement
 {
 public:
+    // ********************************************************************************************
+    // Constructor and destructor
+    // ********************************************************************************************
+
     /// Constructor in terms of ranges delegate to native constructor for memory allocation
     AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt);
 
     /// Destructor - delete manually created arrays
     ~AsteroidElement();
 
-    // Data
+    // ********************************************************************************************
+    // Public Data Members
+    // ********************************************************************************************
+
     /// The number of asteroids
     const int N_ast;
     /// The number of times
@@ -56,6 +79,10 @@ public:
     int mjd1;
     /// Time step
     int dt;
+
+    // ********************************************************************************************
+    // Public Methods
+    // ********************************************************************************************
 
     /// Load data from the database
     void load(db_conn_type &conn, bool progbar);
@@ -75,6 +102,9 @@ public:
     double* get_M(int32_t asteroid_id) const; 
 
 private:
+    // ********************************************************************************************
+    // Private Data Members
+    // ********************************************************************************************
 
     // One shared array for the distinct asteroid IDs (typically a sequence, possibly with some holes)
     int32_t* asteroid_id;
@@ -92,6 +122,14 @@ private:
     double* elt_f;
     double* elt_M;    
 
+    // GSL objects for splined orbital elements
+    gsl_interp_accel* acc;
+    // ElementSpline elt_spline;
+
+    // ********************************************************************************************
+    // Private Methods
+    // ********************************************************************************************
+
     // Process a batch of rows
     void process_rows(db_conn_type& conn, int i0, int i1);
     // Function to return the asteroid index given an asteroid_id
@@ -99,37 +137,14 @@ private:
     // Function to return the row index given an asteroid_id
     int32_t asteroid_row(int32_t asteroid_id) const;
 
+    // Free up GSL resources
+    void gsl_free();
+
 };
 
 // // *****************************************************************************
-// /// Data contained in one AsteroidElement entry from output of SP KS.GetAsteroidElements.
-// struct AsteroidElementEntry
-// {
-//     /// Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime
-//     int32_t time_id;
-//     /// The asteroid whose orbital elements are described; FK to KS.Asteroid
-//     int32_t asteroid_id;
-//     /// The Modified Julian Date in the TDB (barycentric dynamical time) frame
-//     double mjd;
-//     /// The semimajor axis in AU
-//     double a;
-//     /// The eccentricity; dimensionless
-//     double e;
-//     /// The inclination in radians
-//     double inc;
-//     /// The longitude of the ascending node in radians
-//     double Omega;
-//     /// The argument of periapsis in radians
-//     double omega;
-//     /// The true anomaly in radians
-//     double f;
-//     /// The mean anomaly in radians
-//     double M;
-// };
-
-// // *****************************************************************************
 // /// Encapsulate all seven 2D arrays into one structure for code legibility
-// struct ElementArrays
+// struct ElementArray
 // {
 //     double* a;
 //     double* e;

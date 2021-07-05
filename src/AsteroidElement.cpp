@@ -19,7 +19,6 @@ constexpr int mpd = 1440;
 // *****************************************************************************
 // Local names used
 using ks::AsteroidElement;
-// using ks::AsteroidElementEntry;
 // using ks::ElementArrays;
 
 // *****************************************************************************
@@ -47,12 +46,33 @@ AsteroidElement::AsteroidElement(
     elt_Omega(new double[N_t*N_ast]),
     elt_omega(new double[N_t*N_ast]),
     elt_f(new double[N_t*N_ast]),
-    elt_M(new double[N_t*N_ast])
+    elt_M(new double[N_t*N_ast]),
+    // Initialize GSL objects
+    acc(gsl_interp_accel_alloc() )
+    // elt_spline is a structure with one member for each of seven elements
+    // Each member of elt_spline is a vector of gsl_spline objects with one entry per asteroid)
+    // elt_spline(
+    //     ElementSpline {
+    //         .a = vector<gsl_spline*>(N_ast),
+    //         .e = vector<gsl_spline*>(N_ast),
+    //         .inc = vector<gsl_spline*>(N_ast),
+    //         .Omega = vector<gsl_spline*>(N_ast),
+    //         .omega = vector<gsl_spline*>(N_ast),
+    //         .f = vector<gsl_spline*>(N_ast),
+    //         .M = vector<gsl_spline*>(N_ast)
+    //     }
+    // )
 {
     // Populate asteroid_id
     for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
     // Populate mjd
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
+    
+    // Initialize the interpolators for the elements of each asteroid
+    for (int i=0; i<N_ast; i++)
+    {
+        // elt_spline.a[i] = gsl_spline_alloc(gsl_interp_cspline, N_t);
+    }
 } // end function
 
 // *****************************************************************************
@@ -70,7 +90,20 @@ AsteroidElement::~AsteroidElement()
     delete [] elt_omega;
     delete [] elt_f;
     delete [] elt_M;
+
+    // Free GSL resources
+    gsl_free();
 }
+
+void AsteroidElement::gsl_free()
+{
+    // Just one acceleartor object
+    gsl_interp_accel_free(acc);
+    // One interpolator for each asteroid and each element
+
+
+}
+
 
 // *****************************************************************************
 void AsteroidElement::load(db_conn_type &conn, bool progbar)

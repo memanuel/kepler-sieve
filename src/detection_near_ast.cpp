@@ -460,8 +460,11 @@ void test_detection_table(DetectionTable& dt, int detection_id)
 }
 
 // *****************************************************************************
-void test_asteroid_element(AsteroidElement& elt, int asteroid_idx, int time_idx)
+void test_asteroid_element(AsteroidElement& elt)
 {
+    // This test is designed to check Ceres (asteroid_id=1) at mjd 58400 (time_idx=100)
+    int asteroid_idx = 1;
+    int time_idx = 100;
 
     // Read off some asteroid elements
     print("\nAsteroidElement properties:\n");
@@ -517,7 +520,6 @@ void test_asteroid_element(AsteroidElement& elt, int asteroid_idx, int time_idx)
     is_ok = is_ok && is_close_abs(f, f0, tol_angle);
     is_ok = is_ok && is_close_abs(M, M0, tol_angle);
     report_test("\nTest AsteroidElement::load() matches database", is_ok);
-
 }
 
 // *****************************************************************************
@@ -556,9 +558,7 @@ void test_all()
     elt.load(conn, progbar);
 
     // Test asteroid elements
-    int asteroid_idx = 1;
-    int time_idx = 100;
-    test_asteroid_element(elt, asteroid_idx, time_idx);
+    test_asteroid_element(elt);
 
     // Close DB connection
     conn->close();
