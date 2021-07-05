@@ -61,6 +61,8 @@ def calc_det_near_ast(n0: int, n1: int, arcsec_max: float):
 
     # Handle corner case where t_obs has no entries
     if df.shape[0]==0:
+        df['s'] = np.array([])
+        df['LightTime'] = np.array([])
         return df
     
     # Extract arrays from candidates DataFrame
