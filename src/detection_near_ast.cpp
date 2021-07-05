@@ -460,45 +460,13 @@ void test_detection_table(DetectionTable& dt, int detection_id)
 }
 
 // *****************************************************************************
-void test_asteroid_element(AsteroidElement& elt)
+void test_asteroid_element(AsteroidElement& ast_elt)
 {
     // This test is designed to check Ceres (asteroid_id=1) at mjd 58400 (time_idx=100)
     int asteroid_idx = 1;
     int time_idx = 100;
 
-    // Read off some asteroid elements
-    print("\nAsteroidElement properties:\n");
-    print("N_ast    : {:d}\n", elt.N_ast);
-    print("N_t      : {:d}\n", elt.N_t);
-
-    // Read the two 1D arrays
-    int32_t* asteroid_ids = elt.get_asteroid_id();
-    double* mjds = elt.get_mjd();
-
-    // Read off elements of selected asteroid at the selected time
-    int32_t asteroid_id = asteroid_ids[asteroid_idx];
-    double mjd = mjds[time_idx];
-    double a = elt.get_a(asteroid_id)[time_idx];
-    double e = elt.get_e(asteroid_id)[time_idx];
-    double inc = elt.get_inc(asteroid_id)[time_idx];
-    double Omega = elt.get_Omega(asteroid_id)[time_idx];
-    double omega = elt.get_omega(asteroid_id)[time_idx];
-    double f = elt.get_f(asteroid_id)[time_idx];
-    double M = elt.get_M(asteroid_id)[time_idx];
-
-    // Report elements
-    print("\nSample Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
-    print("AsteroidID: {:9d}\n", asteroid_id);
-    print("mjd:        {:9.2f}\n", mjd);
-    print("a:          {:9.6f}\n", a);
-    print("e:          {:9.6f}\n", e);
-    print("inc:        {:9.6f}\n", inc);
-    print("Omega:      {:9.6f}\n", Omega);
-    print("omega:      {:9.6f}\n", omega);
-    print("f:          {:9.6f}\n", f);
-    print("M:          {:9.6f}\n", M);
-
-    // Expected results, copy / pasted from database
+    // Expected results, copy / pasted from database from KS.GetAsteroidElements(1, 2, 58400, 58400);
     double a0 = 2.7673528257126296;
     double e0 = 0.07561068735641437;
     double inc0 = 0.18489327222145555;
@@ -507,19 +475,79 @@ void test_asteroid_element(AsteroidElement& elt)
     double f0 = 38.4030882294433;
     double M0 = 38.30932258771573;
     
-    // Test that results match expected results
+    // Tolerance for tests
     double tol_a = 1.0E-12;
     double tol_e = 1.0E-12;
     double tol_angle = 1.0E-12;
+
+    // Read off some asteroid elements
+    print("\nAsteroidElement properties:\n");
+    print("N_ast    : {:d}\n", ast_elt.N_ast);
+    print("N_t      : {:d}\n", ast_elt.N_t);
+
+    // Read the two 1D arrays
+    int32_t* asteroid_ids = ast_elt.get_asteroid_id();
+    double* mjds = ast_elt.get_mjd();
+    // The selected asteroid_id and time
+    int32_t asteroid_id = asteroid_ids[asteroid_idx];
+    double mjd = mjds[time_idx];
+
+    // // Read off orbital elements this asteroid and time that were loaded from DB
+    // double a1 = ast_elt.get_a(asteroid_id)[time_idx];
+    // double e1 = ast_elt.get_e(asteroid_id)[time_idx];
+    // double inc1 = ast_elt.get_inc(asteroid_id)[time_idx];
+    // double Omega1 = ast_elt.get_Omega(asteroid_id)[time_idx];
+    // double omega1 = ast_elt.get_omega(asteroid_id)[time_idx];
+    // double f1 = ast_elt.get_f(asteroid_id)[time_idx];
+    // double M1 = ast_elt.get_M(asteroid_id)[time_idx];
+
+    // // Report loaded orbital elements
+    // print("\nLoaded Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
+    // print("AsteroidID: {:9d}\n", asteroid_id);
+    // print("mjd:        {:9.2f}\n", mjd);
+    // print("a:          {:9.6f}\n", a1);
+    // print("e:          {:9.6f}\n", e1);
+    // print("inc:        {:9.6f}\n", inc1);
+    // print("Omega:      {:9.6f}\n", Omega1);
+    // print("omega:      {:9.6f}\n", omega1);
+    // print("f:          {:9.6f}\n", f1);
+    // print("M:          {:9.6f}\n", M1);
+
+    // // Test that results match expected resuts
+    // bool is_ok = true;
+    // is_ok = is_ok && is_close_abs(a0,     a1, tol_a);
+    // is_ok = is_ok && is_close_abs(e0,     e1, tol_e);
+    // is_ok = is_ok && is_close_abs(inc0,   inc1, tol_angle);
+    // is_ok = is_ok && is_close_abs(Omega0, Omega1, tol_angle);
+    // is_ok = is_ok && is_close_abs(omega0, omega1, tol_angle);
+    // is_ok = is_ok && is_close_abs(f0,     f1, tol_angle);
+    // is_ok = is_ok && is_close_abs(M0,     M1, tol_angle);
+    // report_test("\nTest AsteroidElement::load() matches database", is_ok);
+
+    // // Report splined orbital elements
+    // print("\nSplined Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
+    // print("AsteroidID: {:9d}\n", asteroid_id);
+    // print("mjd:        {:9.2f}\n", mjd);
+    // print("a:          {:9.6f}\n", a1);
+    // print("e:          {:9.6f}\n", e1);
+    // print("inc:        {:9.6f}\n", inc1);
+    // print("Omega:      {:9.6f}\n", Omega1);
+    // print("omega:      {:9.6f}\n", omega1);
+    // print("f:          {:9.6f}\n", f1);
+    // print("M:          {:9.6f}\n", M1);
+
+    // Calulate splined orbital elements; these should match
+    OrbitalElement elt = ast_elt.interp(asteroid_id, mjd);
+    // Test that splined orbital elements match expected results
     bool is_ok = true;
-    is_ok = is_ok && is_close_abs(a, a0, tol_a);
-    is_ok = is_ok && is_close_abs(e, e0, tol_e);
-    is_ok = is_ok && is_close_abs(inc, inc0, tol_angle);
-    is_ok = is_ok && is_close_abs(Omega, Omega0, tol_angle);
-    is_ok = is_ok && is_close_abs(omega, omega0, tol_angle);
-    is_ok = is_ok && is_close_abs(f, f0, tol_angle);
-    is_ok = is_ok && is_close_abs(M, M0, tol_angle);
-    report_test("\nTest AsteroidElement::load() matches database", is_ok);
+    is_ok = is_ok && is_close_abs(a0,     elt.a, tol_a);
+    is_ok = is_ok && is_close_abs(e0,     elt.e, tol_e);
+    is_ok = is_ok && is_close_abs(inc0,   elt.inc, tol_angle);
+    is_ok = is_ok && is_close_abs(Omega0, elt.Omega, tol_angle);
+    is_ok = is_ok && is_close_abs(omega0, elt.omega, tol_angle);
+    is_ok = is_ok && is_close_abs(f0,     elt.f, tol_angle);
+    is_ok = is_ok && is_close_abs(M0,     elt.M, tol_angle);
+    report_test("\nTest AsteroidElement::interp() splined elements match database", is_ok);
 }
 
 // *****************************************************************************

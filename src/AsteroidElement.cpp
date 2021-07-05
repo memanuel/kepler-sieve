@@ -123,7 +123,6 @@ void AsteroidElement::gsl_free()
     gsl_interp_accel_free(acc);
 }
 
-
 // *****************************************************************************
 void AsteroidElement::load(db_conn_type &conn, bool progbar)
 {
@@ -158,6 +157,8 @@ void AsteroidElement::load(db_conn_type &conn, bool progbar)
         print("\nLoaded AsteroidSkyPatch table.\n");
         t.tock_msg();
     }
+    // Delegate to build_splines method to initialize the gsl_spline* objects
+    build_splines();
 }   // end function
 
 // *****************************************************************************
@@ -215,7 +216,23 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
     }   // while rs
     // Close the resultset and free memory
     rs->close();
-    delete rs;    
+    delete rs;
+}
+
+// *****************************************************************************
+void AsteroidElement::build_splines()
+{
+    // One interpolator for each asteroid and each element
+    for (int i=0; i<N_ast; i++)
+    {
+        gsl_spline_init(elt_spline.a[i], mjd, get_a(i), N_t);
+        gsl_spline_init(elt_spline.e[i], mjd, get_e(i), N_t);
+        gsl_spline_init(elt_spline.inc[i], mjd, get_inc(i), N_t);
+        gsl_spline_init(elt_spline.Omega[i], mjd, get_Omega(i), N_t);
+        gsl_spline_init(elt_spline.omega[i], mjd, get_omega(i), N_t);
+        gsl_spline_init(elt_spline.f[i], mjd, get_f(i), N_t);
+        gsl_spline_init(elt_spline.M[i], mjd, get_M(i), N_t);
+    }
 }
 
 // *****************************************************************************
@@ -301,4 +318,30 @@ double* AsteroidElement::get_f(int32_t asteroid_id) const
 double* AsteroidElement::get_M(int32_t asteroid_id) const
 {
     return elt_M + asteroid_row(asteroid_id);
+}
+
+// *****************************************************************************
+OrbitalElement AsteroidElement::interp(int32_t asteroid_id, double mjd)
+{
+    // The interpolators for each orbital element for this asteroid
+    gsl_spline* gsl_interp_a = elt_spline.a[asteroid_id];
+    gsl_spline* gsl_interp_e = elt_spline.e[asteroid_id];
+    gsl_spline* gsl_interp_inc = elt_spline.inc[asteroid_id];
+    gsl_spline* gsl_interp_Omega = elt_spline.Omega[asteroid_id];
+    gsl_spline* gsl_interp_omega = elt_spline.omega[asteroid_id];
+    gsl_spline* gsl_interp_f = elt_spline.f[asteroid_id];
+    gsl_spline* gsl_interp_M = elt_spline.M[asteroid_id];
+
+    // Evaluate the splines at the selected time
+    OrbitalElement elt 
+    {
+        .a = gsl_spline_eval(gsl_interp_a, mjd, acc),
+        .e = gsl_spline_eval(gsl_interp_e, mjd, acc),
+        .inc = gsl_spline_eval(gsl_interp_inc, mjd, acc),
+        .Omega = gsl_spline_eval(gsl_interp_Omega, mjd, acc),
+        .omega = gsl_spline_eval(gsl_interp_omega, mjd, acc),
+        .f = gsl_spline_eval(gsl_interp_f, mjd, acc),
+        .M = gsl_spline_eval(gsl_interp_M, mjd, acc)
+    };
+    return elt;
 }
