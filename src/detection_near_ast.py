@@ -59,6 +59,10 @@ def calc_det_near_ast(n0: int, n1: int, arcsec_max: float):
     }
     df = sp2df(sp_name=sp_name, params=params)
 
+    # Handle corner case where t_obs has no entries
+    if df.shape[0]==0:
+        return df
+    
     # Extract arrays from candidates DataFrame
     asteroid_id: np.ndarray = df.AsteroidID.values
     t_obs: np.ndarray = df.tObs.values
