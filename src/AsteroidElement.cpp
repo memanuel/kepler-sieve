@@ -57,44 +57,26 @@ AsteroidElement::AsteroidElement(
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
 
     // elt_spline is a structure with one member for each of seven elements
-    // Build the vector of splines up first for each element, then bind them at the end.
-    vector<gsl_spline*>spline_a;
-    vector<gsl_spline*>spline_e;
-    vector<gsl_spline*>spline_inc;
-    vector<gsl_spline*>spline_Omega;
-    vector<gsl_spline*>spline_omega;
-    vector<gsl_spline*>spline_f;
-    vector<gsl_spline*>spline_M;
-    
     // Reserve space in vector of splines for each element    
-    spline_a.reserve(N_ast);
-    spline_e.reserve(N_ast);
-    spline_inc.reserve(N_ast);
-    spline_Omega.reserve(N_ast);
-    spline_omega.reserve(N_ast);
-    spline_f.reserve(N_ast);
-    spline_M.reserve(N_ast);
+    elt_spline.a.reserve(N_ast);
+    elt_spline.e.reserve(N_ast);
+    elt_spline.inc.reserve(N_ast);
+    elt_spline.Omega.reserve(N_ast);
+    elt_spline.omega.reserve(N_ast);
+    elt_spline.f.reserve(N_ast);
+    elt_spline.M.reserve(N_ast);
 
     // Initialize the splines for the elements of each asteroid; one spline for each asteroid and element
     for (int i=0; i<N_ast; i++)
     {
-        spline_a.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        spline_e.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        spline_inc.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        spline_Omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        spline_omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        spline_f.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        spline_M.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.a.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.e.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.inc.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.Omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.f.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.M.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
     }
-
-    // Save splines to elt_spline
-    elt_spline.a = spline_a;
-    elt_spline.e = spline_e;
-    elt_spline.inc = spline_inc;
-    elt_spline.Omega = spline_Omega;
-    elt_spline.omega = spline_omega;
-    elt_spline.f = spline_f;
-    elt_spline.M = spline_M;
 
 } // end function
 
@@ -105,6 +87,7 @@ AsteroidElement::~AsteroidElement()
     // Delete two 1D arrays
     delete [] asteroid_id;
     delete [] mjd;
+
     // Delete seven 2D arrays, one for each orbital element
     delete [] elt_a;
     delete [] elt_e;
@@ -120,11 +103,10 @@ AsteroidElement::~AsteroidElement()
 
 // *****************************************************************************
 // GSL resources that need to be freed before exit are
-// (1) The interpolation accelerator
-// (2) One spline for each asteroid / element pair
+// (1) One spline for each asteroid / element pair
+// (2) The interpolation accelerator
 void AsteroidElement::gsl_free()
 {
-
     // One interpolator for each asteroid and each element
     for (int i=0; i<N_ast; i++)
     {
@@ -137,7 +119,7 @@ void AsteroidElement::gsl_free()
         gsl_spline_free(elt_spline.M[i]);
     }
 
-    // Just one acceleartor object
+    // Just one accelerator object
     gsl_interp_accel_free(acc);
 }
 
