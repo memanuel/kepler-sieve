@@ -31,66 +31,34 @@
 namespace ks {
 
 // *****************************************************************************
-/// Data contained in one AsteroidElement entry from output of SP KS.GetAsteroidElements.
-struct AsteroidElementEntry
-{
-    /// Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime
-    int32_t time_id;
-    /// The asteroid whose orbital elements are described; FK to KS.Asteroid
-    int32_t asteroid_id;
-    /// The Modified Julian Date in the TDB (barycentric dynamical time) frame
-    double mjd;
-    /// The semimajor axis in AU
-    double a;
-    /// The eccentricity; dimensionless
-    double e;
-    /// The inclination in radians
-    double inc;
-    /// The longitude of the ascending node in radians
-    double Omega;
-    /// The argument of periapsis in radians
-    double omega;
-    /// The true anomaly in radians
-    double f;
-    /// The mean anomaly in radians
-    double M;
-};
-
-// *****************************************************************************
-/// Encapsulate all seven 2D arrays into one structure for code legibility
-struct ElementArrays
-{
-    double* a;
-    double* e;
-    double* inc;
-    double* Omega;
-    double* omega;
-    double* f;
-    double* M;
-};
-
-// *****************************************************************************
 class AsteroidElement
 {
 public:
-    /// Native constructor - just allocate memory
-    AsteroidElement(int n0, int N_ast, int mjd0, int N_t);
-
-    /// Database constructor - delegate to native constructor for memory allocation, then write from DB
-    AsteroidElement(db_conn_type &conn, int n0, int n1, int mjd0, int mjd1, bool progbar);
+    /// Constructor in terms of ranges delegate to native constructor for memory allocation
+    AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt);
 
     /// Destructor - delete manually created arrays
     ~AsteroidElement();
 
     // Data
-    /// First asteroid ID loaded (inclusive)
-    const int n0;
-    /// First date loaded (inclusive); an integer and divisible by 4
-    const int mjd0;
     /// The number of asteroids
     const int N_ast;
     /// The number of times
     const int N_t;
+
+    /// First asteroid ID loaded (inclusive)
+    int n0;
+    /// Last asteroid ID loaded (exclusive)
+    int n1;
+    /// First date loaded (inclusive); an integer divisible by time_step
+    int mjd0;
+    /// Last date loaded (inclusive); an integer divisible by time_step
+    int mjd1;
+    /// Time step
+    int dt;
+
+    /// Load data from the database
+    void load(db_conn_type &conn, bool progbar);
 
     /// Get the array of asteroid IDs whose elements are in this table
     int32_t* get_asteroid_id() const;
@@ -127,11 +95,50 @@ private:
     // Process a batch of rows
     void process_rows(db_conn_type& conn, int i0, int i1);
     // Function to return the asteroid index given an asteroid_id
-    int32_t asteroid_idx(int32_t asteroid_id);
+    int32_t asteroid_idx(int32_t asteroid_id) const;
     // Function to return the row index given an asteroid_id
-    int32_t row_idx(int32_t asteroid_id);
+    int32_t asteroid_row(int32_t asteroid_id) const;
 
 };
+
+// // *****************************************************************************
+// /// Data contained in one AsteroidElement entry from output of SP KS.GetAsteroidElements.
+// struct AsteroidElementEntry
+// {
+//     /// Integer ID for the timestamp of these state vectors; FK to KS.IntegrationTime
+//     int32_t time_id;
+//     /// The asteroid whose orbital elements are described; FK to KS.Asteroid
+//     int32_t asteroid_id;
+//     /// The Modified Julian Date in the TDB (barycentric dynamical time) frame
+//     double mjd;
+//     /// The semimajor axis in AU
+//     double a;
+//     /// The eccentricity; dimensionless
+//     double e;
+//     /// The inclination in radians
+//     double inc;
+//     /// The longitude of the ascending node in radians
+//     double Omega;
+//     /// The argument of periapsis in radians
+//     double omega;
+//     /// The true anomaly in radians
+//     double f;
+//     /// The mean anomaly in radians
+//     double M;
+// };
+
+// // *****************************************************************************
+// /// Encapsulate all seven 2D arrays into one structure for code legibility
+// struct ElementArrays
+// {
+//     double* a;
+//     double* e;
+//     double* inc;
+//     double* Omega;
+//     double* omega;
+//     double* f;
+//     double* M;
+// };
 
 // *****************************************************************************
 } // namespace ks

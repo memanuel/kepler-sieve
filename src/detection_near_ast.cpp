@@ -458,7 +458,7 @@ void test_detection_table(DetectionTable& dt, int detection_id)
 }
 
 // *****************************************************************************
-void test_asteroid_element(AsteroidElement& elt)
+void test_asteroid_element(AsteroidElement& elt, int asteroid_idx, int time_idx)
 {
 
     // Read off some asteroid elements
@@ -466,9 +466,32 @@ void test_asteroid_element(AsteroidElement& elt)
     print("N_ast    : {:d}\n", elt.N_ast);
     print("N_t      : {:d}\n", elt.N_t);
 
-    // Read off elements of first asteroid
-    // int32_t* asteroid_ids = elt.get_asteroid_id();
-    // int32_t asteroid_id = asteroid_ids[0];
+    // Read the two 1D arrays
+    int32_t* asteroid_ids = elt.get_asteroid_id();
+    double* mjds = elt.get_mjd();
+
+    // Read off elements of selected asteroid at the selected time
+    int32_t asteroid_id = asteroid_ids[asteroid_idx];
+    double mjd = mjds[time_idx];
+    double a = elt.get_a(asteroid_id)[time_idx];
+    double e = elt.get_e(asteroid_id)[time_idx];
+    double inc = elt.get_inc(asteroid_id)[time_idx];
+    double Omega = elt.get_Omega(asteroid_id)[time_idx];
+    double omega = elt.get_omega(asteroid_id)[time_idx];
+    double f = elt.get_f(asteroid_id)[time_idx];
+    double M = elt.get_M(asteroid_id)[time_idx];
+
+    // Report elements
+    print("\nSample Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
+    print("AsteroidID: {:9d}\n", asteroid_id);
+    print("mjd:        {:9.2f}\n", mjd);
+    print("a:          {:9.6f}\n", a);
+    print("e:          {:9.6f}\n", e);
+    print("inc:        {:9.6f}\n", inc);
+    print("Omega:      {:9.6f}\n", Omega);
+    print("omega:      {:9.6f}\n", omega);
+    print("f:          {:9.6f}\n", f);
+    print("M:          {:9.6f}\n", M);
 
 }
 
@@ -483,11 +506,14 @@ void test_all()
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Inputs to build DetectionCandidateTable and AsteroidSkypatchTable
+    // Inputs to build DetectionCandidateTable, AsteroidSkypatchTable and AsteroidElement
     int d0 = 0;
     int d1 = 100;
-    int n0 = 1000;
-    int n1 = 1100;
+    int n0 = 0;
+    int n1 = 100;
+    int mjd0 = 58000;
+    int mjd1 = 61000;
+    int time_step = 4;
     bool progbar = true;
 
     // Initialize DetectionTable
@@ -501,13 +527,13 @@ void test_all()
     AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
 
     // Initialize AsteroidElement
-    int mjd0 = 58000;
-    int mjd1 = 61000;
-    AsteroidElement elt = AsteroidElement(conn, n0, n1, mjd0, mjd1, progbar);
+    AsteroidElement elt = AsteroidElement(n0, n1, mjd0, mjd1, time_step);
+    elt.load(conn, progbar);
 
     // Test asteroid elements
-    test_asteroid_element(elt);
-
+    int asteroid_idx = 1;
+    int time_idx = 100;
+    test_asteroid_element(elt, asteroid_idx, time_idx);
 
     // Close DB connection
     conn->close();
