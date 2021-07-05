@@ -136,8 +136,13 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         double a = rs->getDouble("a");
         double e = rs->getDouble("e");
         double inc = rs->getDouble("inc");
+        // MariaDB SQL Connector appears to match strings using case insensitive collation
+        // This brutally disregards the database collation (case sensitive) and is also different from Pandas
+        // This causes field "omega" to receive the value of "Omega".
+        // As a workaround, use the integer column number
         double Omega = rs->getDouble("Omega");
-        double omega = rs->getDouble("omega");
+        // double omega = rs->getDouble("omega");
+        double omega = rs->getDouble(8);
         double f = rs->getDouble("f");
         double M = rs->getDouble("M");
 

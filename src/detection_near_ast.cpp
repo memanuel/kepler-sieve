@@ -72,8 +72,10 @@ both of these will process asteroids in [0, 1000)
     using ks::sp_run_int;
 
 #include "utils.hpp"
+    using ks::is_close_abs;
     using ks::print_stars;
     using ks::print_newline;
+    using ks::report_test;
     using ks::time2hms;
 
 #include "SkyPatchNeighbor.hpp"
@@ -492,6 +494,29 @@ void test_asteroid_element(AsteroidElement& elt, int asteroid_idx, int time_idx)
     print("omega:      {:9.6f}\n", omega);
     print("f:          {:9.6f}\n", f);
     print("M:          {:9.6f}\n", M);
+
+    // Expected results, copy / pasted from database
+    double a0 = 2.7673528257126296;
+    double e0 = 0.07561068735641437;
+    double inc0 = 0.18489327222145555;
+    double Omega0 = 1.4016429441591765;
+    double omega0 = 1.2779179332926616;
+    double f0 = 38.4030882294433;
+    double M0 = 38.30932258771573;
+    
+    // Test that results match expected results
+    double tol_a = 1.0E-12;
+    double tol_e = 1.0E-12;
+    double tol_angle = 1.0E-12;
+    bool is_ok = true;
+    is_ok = is_ok && is_close_abs(a, a0, tol_a);
+    is_ok = is_ok && is_close_abs(e, e0, tol_e);
+    is_ok = is_ok && is_close_abs(inc, inc0, tol_angle);
+    is_ok = is_ok && is_close_abs(Omega, Omega0, tol_angle);
+    is_ok = is_ok && is_close_abs(omega, omega0, tol_angle);
+    is_ok = is_ok && is_close_abs(f, f0, tol_angle);
+    is_ok = is_ok && is_close_abs(M, M0, tol_angle);
+    report_test("\nTest AsteroidElement::load() matches database", is_ok);
 
 }
 

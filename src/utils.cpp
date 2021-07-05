@@ -59,7 +59,19 @@ void report_test(const string test_name, bool is_ok)
 }
 
 // *****************************************************************************
-/// Calculate Cartesian squared distance between two 3-vectors
+bool is_close_abs(double x, double y, double tol)
+{
+    return fabs(x-y) < tol;
+}
+
+// *****************************************************************************
+bool is_close_rel(double x, double y, double rel_tol)
+{
+    double tol = std::max(fabs(x), fabs(y)) * rel_tol;
+    return is_close_abs(x, y, tol);
+}
+
+// *****************************************************************************
 double norm2(const double *v0, const double *v1)
 {
     // Get the three distance components out

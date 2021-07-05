@@ -49,6 +49,14 @@ const string test_message(bool is_ok);
 void report_test(const string test_name, bool is_ok);
 
 // *****************************************************************************
+/// Test if two numbers are close together in absolute distance
+bool is_close_abs(double x, double y, double tol);
+
+// *****************************************************************************
+/// Test if two numbers are close together in relative distance
+bool is_close_rel(double x, double y, double rel_tol);
+
+// *****************************************************************************
 /// Square a number (double)
 inline double sqr(double x)
 {
@@ -81,11 +89,11 @@ inline float sign(float x)
 }
 
 // *****************************************************************************
-/// Calculate Cartesian squared distance between two 3-vectors
+/// Calculate Cartesian squared distance between two 3-vectors represented as arrays
 double norm2(const double *v0, const double *v1);
 
 // *****************************************************************************
-/// Calculate Cartesian squared distance between two 3-vectors
+/// Calculate Cartesian squared distance between two 3-vectors represented as arrays
 double norm(const double *v0, const double *v1);
 
 // *****************************************************************************
