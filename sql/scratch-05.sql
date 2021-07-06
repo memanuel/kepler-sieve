@@ -1,11 +1,1 @@
-SELECT
-	min(dna.DetectionID) AS MinDetectionID
-FROM
-	KS.DetectionNearAsteroid_v1 dna;
-	
-SELECT
-	dna.DetectionID,
-	dna.AsteroidID
-FROM
-	KS.DetectionNearAsteroid_v1 dna
-WHERE dna.DetectionId=3;
+CALL KS.GetAsteroidElements(1, 2, 58004, 58004);

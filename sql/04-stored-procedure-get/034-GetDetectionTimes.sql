@@ -10,7 +10,7 @@ BEGIN
 
 SELECT
 	dt.DetectionTimeID,
-	dt.DetectionTimeSliceID,
+	dt.HiResTimeID AS TimeID,
 	dt.mjd,
 	dt.DataSourceID,
 	dt.ObservatoryID,
@@ -23,6 +23,22 @@ SELECT
 FROM
 	KS.DetectionTime AS dt
 ORDER BY dt.DetectionTimeID;
+
+END
+$$
+
+-- ********************************************************************************
+CREATE OR REPLACE 
+DEFINER = kepler
+PROCEDURE KS.GetDetectionTimeMaxID()
+COMMENT "Get maximum DetectionTimeID."
+
+BEGIN 
+
+SELECT
+	max(dt.DetectionTimeID) AS MaxDetectionTimeID	
+FROM
+	KS.DetectionTime AS dt;
 
 END
 $$

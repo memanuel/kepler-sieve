@@ -1,9 +1,3 @@
-CALL KS.GetAsteroid();
-CALL KS.GetMaxDetectionID();
-CALL KS.GetDetections(0, 100);
-CALL KS.GetDetectionsObs(348750, 348800);
+CALL KS.GetDetectionNearAstCand(1, 2);
 
-
-CALL KS.GetAsteroidSkyPatch(0, 1000);
-CALL KS.GetAsteroidSkyPatch(1217000, 1218000);
-
+CALL KS.GetAsteroidElements(1, 2, 58000, 58010);

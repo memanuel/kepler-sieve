@@ -1,0 +1,1 @@
+CALL KS.GetAsteroidElements(1, 2, 59000, 59010);
