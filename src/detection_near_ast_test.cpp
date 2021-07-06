@@ -306,13 +306,13 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
 // *****************************************************************************
 void test_all()
 {
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
+
     // Build the SkyPatchNeighbor table
     print("Building SkyPatch neighbors...\n");
     SkyPatchNeighbor spn = SkyPatchNeighbor();
     print("Completed SkyPatch neighbor table.\n");
-
-    // Establish DB connection
-    db_conn_type conn = get_db_conn();
 
     // Inputs to build DetectionCandidateTable, AsteroidSkypatchTable and AsteroidElement
     int d0 = 0;
@@ -337,9 +337,12 @@ void test_all()
     // Rebuild BodyVectors from DB and save to disk
     // save_vectors("Sun");
     // save_vectors("Earth");
+    // print("Saved vectors for Earth.\n");
 
     // Initialize BodyVector for the Sun from disk
+    print("Loading BodyVector object with saved vectors for Sun.\n");
     BodyVector bv("Sun");
+    print("Loaded BodyVector object with saved vectors for Sun.\n");
 
     // Test body vectors for Sun
     test_body_vector(bv);

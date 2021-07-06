@@ -137,6 +137,8 @@ private:
     int32_t row(int32_t time_id) const;
     /// Name of database stored procedure to fetch state vectors for this body
     const string sp_name_from_body();
+    /// Process a batch of rows from the databse SP
+    void process_rows(db_conn_type& conn, int mjd0, int mjd1);
     /// Name of filename with serialized data for this body
     const string file_name_from_body();
 

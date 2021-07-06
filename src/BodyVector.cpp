@@ -9,6 +9,8 @@
 // Included files
 #include "BodyVector.hpp"
 
+// *****************************************************************************
+// Constants used in this module
 // Number of minutes in one day
 constexpr int mpd = 1440;
 // One day as a floating point number of minutes
@@ -17,18 +19,19 @@ constexpr double dpm = 1.0 / mpd;
 constexpr int mjd0_db = 48000;
 constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and Earth
-constexpr int stride_db_min = 30;
-
+constexpr int stride_db_min = 5;
+// Batch size for loading dates from DB
+constexpr int batch_size = 1000;
 // Location of file with serialized data
 const string file_name_fmt = "data/cache/BodyVector_{:s}.bin";
 
 // *****************************************************************************
-// Local names used
+// Local names used in this module
 using ks::BodyVector;
 
 // *****************************************************************************
-// The constructor just allocates memory.  
-// It does not load data from database, that is done with the load() method.
+// The constructor just allocates memory and initializes GSL splines.  
+// It does not load data from database or file, that is done with the load() or load_db() methods.
 BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, string body_name):
     // Name of the body
     body_name(body_name),
@@ -157,12 +160,26 @@ void BodyVector::gsl_free()
 // *****************************************************************************
 void BodyVector::load_db(db_conn_type &conn)
 {
+    // Iterate over the batches
+    for (int t0=mjd0; t0<mjd1; t0+=batch_size)
+    {
+        // Upper limit for this batch
+        int t1 = std::min(t0+batch_size, mjd1);
+        // Process SQL data in this batch
+        process_rows(conn, t0, t1);
+        // Status
+        print("Loaded rows for mjd in [{:d}, {:d}].\n", t0, t1);
+    }   // for / t0
+}   // end function
+
+// *****************************************************************************
+void BodyVector::process_rows(db_conn_type& conn, int t0, int t1)
+{
     // Choose correct SP name from body_name
     string sp_name = sp_name_from_body();
-    // string sp_name = "KS.GetStateVectors_Sun";
 
-    // Run the stored procedure to get detections including the observatory position
-    vector<string> params = {to_string(mjd0), to_string(mjd1), to_string(dt_min)};
+    // Run the stored procedure to get state vectors in [t0, t1]
+    vector<string> params = {to_string(t0), to_string(t1), to_string(dt_min)};
     ResultSet* rs = sp_run(conn, sp_name, params);
 
     // The time_id corresponding to mjd0
@@ -170,25 +187,23 @@ void BodyVector::load_db(db_conn_type &conn)
 
     // Loop through resultset
     while (rs->next()) 
-    {
-        // The TimeID
+    {   // The TimeID
         int32_t time_id = rs->getInt("TimeID");
         // The row where this data is written
-        int idx = (time_id-time_id0)/dt_min;
+        int i = (time_id-time_id0)/dt_min;
         // Write to mjd array
-        mjd[idx] = rs->getDouble("mjd");
+        mjd[i] = rs->getDouble("mjd");
         // Write state vector components to arrays
-        qx[idx] = rs->getDouble("qx");
-        qy[idx] = rs->getDouble("qy");
-        qz[idx] = rs->getDouble("qz");
-        vx[idx] = rs->getDouble("vx");
-        vy[idx] = rs->getDouble("vy");
-        vz[idx] = rs->getDouble("vz");
-
+        qx[i] = rs->getDouble("qx");
+        qy[i] = rs->getDouble("qy");
+        qz[i] = rs->getDouble("qz");
+        vx[i] = rs->getDouble("vx");
+        vy[i] = rs->getDouble("vy");
+        vz[i] = rs->getDouble("vz");
     }   // while rs
     // Close the resultset and free memory
     rs->close();
-    delete rs;
+    delete rs;   
 }   // end function
 
 // *****************************************************************************
@@ -330,13 +345,16 @@ void BodyVector::load()
 }
 
 // *****************************************************************************
+// Additional functions for working with BodyVector objects
+// *****************************************************************************
+
 /// Helper function - build and save vectors
 void ks::save_vectors(string body_name)
 {
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Initialize BodyVector for the this body
+    // Initialize BodyVector for this body using DataBase
     print("Loading BodyVector for {:s} from DB...\n", body_name);
     BodyVector bv(conn, body_name);
     // Save to disk
