@@ -49,6 +49,7 @@
 
 #include "BodyVector.hpp"
     using ks::BodyVector;
+    using ks::save_vectors;
 
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
@@ -134,7 +135,7 @@ void test_body_vector(BodyVector& bv)
     StateVector vec = bv.interp_vec(mjd);
 
     // Report splined orbital elements
-    print("\nSplined Sun state vectors at mjd {8.2f} :\n", mjd);
+    print("\nSplined Sun state vectors at mjd {:8.2f} :\n", mjd);
     print("qx:         {:+9.6f}\n", vec.qx);
     print("qy:         {:+9.6f}\n", vec.qy);
     print("qz:         {:+9.6f}\n", vec.qz);
@@ -142,13 +143,13 @@ void test_body_vector(BodyVector& bv)
     print("vy:         {:+9.6f}\n", vec.vy);
     print("vz:         {:+9.6f}\n", vec.vz);
 
-    // Test that splined orbital elements match expected results (position only)
+    // Test that splined position matches expected results
     {
     bool is_ok = norm(pos0, pos) < tol_q;
     report_test("\nTest BodyVector::interp_pos() splined position matches database", is_ok);
     }
 
-    // Test that splined orbital elements match expected results
+    // Test that splined state vectors match expected results
     {
     bool is_ok = norm(vec0, vec) < tol_vec;
     report_test("\nTest BodyVector::interp_vec() splined state vectors match database", is_ok);
@@ -324,27 +325,33 @@ void test_all()
     bool progbar = true;
 
     // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
+    // DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
 
     // Test DetectionTable
-    test_detection_table(dt, d0);
+    // test_detection_table(dt, d0);
 
     // Build AsteroidSkyPatch table
-    print_newline();
-    AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
+    // print_newline();
+    // AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
 
-    // Initialize BodyVector for the Sun
-    BodyVector bv(conn, "Sun");
+    // Rebuild BodyVectors from DB and save to disk
+    save_vectors();
+
+    // Initialize BodyVector for the Sun from disk
+    BodyVector bv("Sun");
+
+    // Test body vectors
+    test_body_vector(bv);
 
     // Initialize AsteroidElement
-    AsteroidElement elt = AsteroidElement(n0, n1, mjd0, mjd1, time_step);
-    elt.load(conn, progbar);
+    // AsteroidElement elt(n0, n1, mjd0, mjd1, time_step);
+    // elt.load(conn, progbar);
 
     // Test asteroid elements - splining orbital elements
-    test_asteroid_element(elt);
+    // test_asteroid_element(elt);
 
     // Test asteroid elements - state vectors from splined elements
-    test_asteroid_element_vectors(elt);
+    // test_asteroid_element_vectors(elt);
 
     // Close DB connection
     conn->close();

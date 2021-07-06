@@ -180,7 +180,7 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
     {
         // Unpack the fields in the resultset; 10 total fields
         // Two integer IDs
-        int32_t time_id = rs->getInt("TimeID");
+        int32_t time_id     = rs->getInt("TimeID");
         int32_t asteroid_id = rs->getInt("AsteroidID");
         // The time
         // double mjd = rs->getDouble("mjd");
@@ -189,14 +189,14 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         // This brutally disregards the database collation (case sensitive) and is also different from Pandas.
         // This causes field "omega" to receive the value of "Omega".
         // As a workaround, use the integer column number instead of the column name.
-        double a = rs->getDouble("a");
-        double e = rs->getDouble("e");
-        double inc = rs->getDouble("inc");
-        double Omega = rs->getDouble("Omega");
+        double a        = rs->getDouble("a");
+        double e        = rs->getDouble("e");
+        double inc      = rs->getDouble("inc");
+        double Omega    = rs->getDouble("Omega");
         // double omega = rs->getDouble("omega");
-        double omega = rs->getDouble(8);
-        double f = rs->getDouble("f");
-        double M = rs->getDouble("M");
+        double omega    = rs->getDouble(8);
+        double f        = rs->getDouble("f");
+        double M        = rs->getDouble("M");
 
         // The index (row number) has two terms.
         // The base is the asteroid_row, which is asteroid index times the number of times each asteroid.
@@ -204,13 +204,13 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         int idx = asteroid_row(asteroid_id) + (time_id-time_id0)/dt_min;
 
         // Save the data fields to the member arrays
-        elt_a[idx] = a;
-        elt_e[idx] = e;
-        elt_inc[idx] = inc;
-        elt_Omega[idx] = Omega;
-        elt_omega[idx] = omega;
-        elt_f[idx] = f;
-        elt_M[idx] = M;
+        elt_a[idx]      = a;
+        elt_e[idx]      = e;
+        elt_inc[idx]    = inc;
+        elt_Omega[idx]  = Omega;
+        elt_omega[idx]  = omega;
+        elt_f[idx]      = f;
+        elt_M[idx]      = M;
 
     }   // while rs
     // Close the resultset and free memory
@@ -224,13 +224,13 @@ void AsteroidElement::build_splines()
     // One interpolator for each asteroid and each element
     for (int i=0; i<N_ast; i++)
     {
-        gsl_spline_init(elt_spline.a[i], mjd, get_a(i), N_t);
-        gsl_spline_init(elt_spline.e[i], mjd, get_e(i), N_t);
-        gsl_spline_init(elt_spline.inc[i], mjd, get_inc(i), N_t);
+        gsl_spline_init(elt_spline.a[i],     mjd, get_a(i), N_t);
+        gsl_spline_init(elt_spline.e[i],     mjd, get_e(i), N_t);
+        gsl_spline_init(elt_spline.inc[i],   mjd, get_inc(i), N_t);
         gsl_spline_init(elt_spline.Omega[i], mjd, get_Omega(i), N_t);
         gsl_spline_init(elt_spline.omega[i], mjd, get_omega(i), N_t);
-        gsl_spline_init(elt_spline.f[i], mjd, get_f(i), N_t);
-        gsl_spline_init(elt_spline.M[i], mjd, get_M(i), N_t);
+        gsl_spline_init(elt_spline.f[i],     mjd, get_f(i), N_t);
+        gsl_spline_init(elt_spline.M[i],     mjd, get_M(i), N_t);
     }
 }
 
@@ -335,12 +335,12 @@ OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd)
     OrbitalElement elt 
     {
         .a = gsl_spline_eval(gsl_interp_a, mjd, acc),
-        .e = gsl_spline_eval(gsl_interp_e, mjd, acc),
-        .inc = gsl_spline_eval(gsl_interp_inc, mjd, acc),
-        .Omega = gsl_spline_eval(gsl_interp_Omega, mjd, acc),
-        .omega = gsl_spline_eval(gsl_interp_omega, mjd, acc),
-        .f = gsl_spline_eval(gsl_interp_f, mjd, acc),
-        .M = gsl_spline_eval(gsl_interp_M, mjd, acc)
+        .e      = gsl_spline_eval(gsl_interp_e, mjd, acc),
+        .inc    = gsl_spline_eval(gsl_interp_inc, mjd, acc),
+        .Omega  = gsl_spline_eval(gsl_interp_Omega, mjd, acc),
+        .omega  = gsl_spline_eval(gsl_interp_omega, mjd, acc),
+        .f      = gsl_spline_eval(gsl_interp_f, mjd, acc),
+        .M      = gsl_spline_eval(gsl_interp_M, mjd, acc)
     };
     return elt;
 }

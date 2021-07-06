@@ -15,10 +15,15 @@
 #include <string>
     using std::string;
     using std::to_string;
+#include <fstream>
+    using std::ifstream;
+    using std::ofstream;
 #include <vector>
     using std::vector;
 #include <numeric>
     using std::lcm;
+#include <algorithm>
+    using std::count;
 #include <stdexcept>
     using std::domain_error;
 #include <gsl/gsl_spline.h>
@@ -58,7 +63,10 @@ public:
     // ********************************************************************************************
 
     /// Constructor takes time range, time step and allocates memory
-    BodyVector(int mjd0, int mjd1, int dt_min);
+    BodyVector(int mjd0, int mjd1, int dt_min, string body_name);
+
+    /// Constructor - load data from file on disk
+    BodyVector(string body_name);
 
     /// Constructor - take a DB connection and a body_name which must be one of "Sun", "Earth"
     BodyVector(db_conn_type& conn, string body_name);
@@ -69,19 +77,27 @@ public:
     // ********************************************************************************************
     // Public Data Members
     // ********************************************************************************************
+    const string body_name;
 
     // ********************************************************************************************
     // Public Methods
     // ********************************************************************************************
 
-    /// Get the array of times; this is shared by all the asteroids
+    /// Get the array of times used to build the spline (times with known state vectors)
     double* get_mjd() const;
 
-    /// Calculate the interpolated position of the given asteroid at time mjd
+    /// Calculate the interpolated position of the body at time mjd
     Position interp_pos(double mjd);
 
-    /// Calculate the interpolated state vector of the given asteroid at time mjd
+    /// Calculate the interpolated state vector of the body at time mjd
     StateVector interp_vec(double mjd);
+
+    /// Load data from the database and construct interpolating splines
+    void load_db(db_conn_type& conn);
+    /// Load data from disk and construct interpolating splines
+    void load();
+    /// Save this object to disk
+    void save();
 
 private:
     // ********************************************************************************************
@@ -90,17 +106,17 @@ private:
 
     /// The number of times
     const int N_t;
-    /// First date loaded (inclusive); an integer divisible by time_step
+    /// First date loaded (inclusive); an integer
     int mjd0;
-    /// Last date loaded (inclusive); an integer divisible by time_step
+    /// Last date loaded (inclusive); an integer
     int mjd1;
     /// Time step in minutes
     int dt_min;
 
-    /// One shared array for the times as of which orbital elements apply (every 4th day)
+    /// One shared array for the times when splined elements are available; size N_t
     double* mjd;
 
-    // One array for state vector component; array size is N_t
+    // One array for state vector component; size N_t
     double* qx;
     double* qy;
     double* qz;
@@ -110,23 +126,29 @@ private:
 
     // GSL spline interpolators for splined orbital elements
     StateVectorSpline vec_spline;
-    // Get a GSL cubic spline accelerator for lookups on orbital element splines
+    // Get a GSL cubic spline accelerator for lookups on orbital element splines; shared by all six splines
     gsl_interp_accel* acc;
     
     // ********************************************************************************************
     // Private Methods
     // ********************************************************************************************
 
-    /// Load data from the database and construct interpolating splines
-    void load(db_conn_type& conn, const string sp_name);
     // Function to return the row index given a time_id
     int32_t row(int32_t time_id) const;
+    /// Name of database stored procedure to fetch state vectors for this body
+    const string sp_name_from_body();
+    /// Name of filename with serialized data for this body
+    const string file_name_from_body();
 
     // Build GSL splines
     void build_splines();
     // Free up GSL resources
     void gsl_free();
 };
+
+// *****************************************************************************
+/// Helper function - build and save vectors for Sun and Earth
+void save_vectors();
 
 // *****************************************************************************
 } // namespace ks

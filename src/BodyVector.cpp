@@ -14,10 +14,20 @@ constexpr int mpd = 1440;
 // One day as a floating point number of minutes
 constexpr double dpm = 1.0 / mpd;
 // Start and end date for database
-constexpr int mjd0_db = 48000;
-constexpr int mjd1_db = 63000;
+// constexpr int mjd0_db = 48000;
+// constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and Earth
-constexpr int stride_db_min = 5;
+// constexpr int stride_db_min = 5;
+
+// DEBUG
+// Start and end date for database
+constexpr int mjd0_db = 58000;
+constexpr int mjd1_db = 61000;
+// Stride in minutes for database vectors for Sun and Earth
+constexpr int stride_db_min = 1440;
+
+// Location of file with serialized data
+const string file_name_fmt = "data/cache/BodyVector_{:s}.bin";
 
 // *****************************************************************************
 // Local names used
@@ -26,7 +36,9 @@ using ks::BodyVector;
 // *****************************************************************************
 // The constructor just allocates memory.  
 // It does not load data from database, that is done with the load() method.
-BodyVector::BodyVector(int mjd0, int mjd1, int dt_min):
+BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, string body_name):
+    // Name of the body
+    body_name(body_name),
     // number of times (data size)
     N_t((mjd1-mjd0)*mpd/dt_min+1),
     // Date range
@@ -48,10 +60,9 @@ BodyVector::BodyVector(int mjd0, int mjd1, int dt_min):
     // Initialize GSL accelerator
     acc(gsl_interp_accel_alloc() )
 {
-    // Populate mjd
-    for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt_min*dpm;}
+    // Validate the body_name field
 
-    // Initialize the splines for the elements of each asteroid; one spline for each asteroid and element
+    // Initialize the splines for the six state vector components
     vec_spline.qx = gsl_spline_alloc(gsl_interp_cspline, N_t);
     vec_spline.qy = gsl_spline_alloc(gsl_interp_cspline, N_t);
     vec_spline.qz = gsl_spline_alloc(gsl_interp_cspline, N_t);
@@ -62,24 +73,57 @@ BodyVector::BodyVector(int mjd0, int mjd1, int dt_min):
 } // end function
 
 // *****************************************************************************
+BodyVector::BodyVector(string body_name) :
+    // Delegate to memory allocating constructor with database inputs 
+    BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name)
+{
+    // Load data from disk
+    load();
+
+    // Initialize the gsl_spline objects
+    build_splines();
+}
+
+// *****************************************************************************
 BodyVector::BodyVector(db_conn_type& conn, string body_name) :
     // Delegate to memory allocating constructor with database inputs 
-    BodyVector(mjd0_db, mjd1_db, stride_db_min)
+    BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name)
 {
-    // Choose correct SP name from body_name
-    string sp_name;
-    if (body_name == "Sun")
-        {sp_name = "KS.GetStateVectors_Sun";}
-    else if (body_name == "Earth")
-        {sp_name = "KS.GetStateVectors_Earth";}
-    else
-        {throw domain_error("Bad body_name! Must be one of 'Sun', 'Earth'.\n");}
+    // Load data from database
+    load_db(conn);
 
-    // Call load() method with validated stored procedure name
-    load(conn, sp_name);
-
-    // Initialize the gsl_spline* objects
+    // Initialize the gsl_spline objects
     build_splines();
+}
+
+// *****************************************************************************
+const string BodyVector::sp_name_from_body()
+{
+    // List of supported body names
+    std::array<std::string, 2> body_names= {"Sun", "Earth"};
+    // Count number of matches
+    int match_count = std::count(std::begin(body_names), std::end(body_names), body_name);
+    // If we get a match, return the SP name
+    if (match_count > 0)
+        {return format("KS.GetStateVectors_{:s}", body_name);}
+    // If it's not a match, throw a domain error
+    else
+        {throw domain_error("Bad body_name! Must be one of \"Sun\", \"Earth\".\n");}
+}
+
+// *****************************************************************************
+const string BodyVector::file_name_from_body()
+{
+    // List of supported body names
+    std::array<std::string, 2> body_names= {"Sun", "Earth"};
+    // Count number of matches
+    int match_count = std::count(std::begin(body_names), std::end(body_names), body_name);
+    // If we get a match, return the file_name
+    if (match_count > 0)
+        {return format(file_name_fmt, body_name);}
+    // If it's not a match, throw a domain error
+    else
+        {throw domain_error("Bad body_name! Must be one of \"Sun\", \"Earth\".\n");}
 }
 
 // *****************************************************************************
@@ -118,10 +162,13 @@ void BodyVector::gsl_free()
 }
 
 // *****************************************************************************
-void BodyVector::load(db_conn_type &conn, const string sp_name)
+void BodyVector::load_db(db_conn_type &conn)
 {
-    // Run the stored procedure to get detections including the observatory position
+    // Choose correct SP name from body_name
+    string sp_name = sp_name_from_body();
     // string sp_name = "KS.GetStateVectors_Sun";
+
+    // Run the stored procedure to get detections including the observatory position
     vector<string> params = {to_string(mjd0), to_string(mjd1), to_string(dt_min)};
     ResultSet* rs = sp_run(conn, sp_name, params);
 
@@ -179,8 +226,8 @@ Position BodyVector::interp_pos(double mjd)
     return Position
     {
         .qx = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .qy = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .qz = gsl_spline_eval(vec_spline.qx, mjd, acc)
+        .qy = gsl_spline_eval(vec_spline.qy, mjd, acc),
+        .qz = gsl_spline_eval(vec_spline.qz, mjd, acc)
     };
 }
 
@@ -190,10 +237,143 @@ StateVector BodyVector::interp_vec(double mjd)
     return StateVector
     {
         .qx = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .qy = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .qz = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .vx = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .vy = gsl_spline_eval(vec_spline.qx, mjd, acc),
-        .vz = gsl_spline_eval(vec_spline.qx, mjd, acc)
+        .qy = gsl_spline_eval(vec_spline.qy, mjd, acc),
+        .qz = gsl_spline_eval(vec_spline.qz, mjd, acc),
+        .vx = gsl_spline_eval(vec_spline.vx, mjd, acc),
+        .vy = gsl_spline_eval(vec_spline.vy, mjd, acc),
+        .vz = gsl_spline_eval(vec_spline.vz, mjd, acc)
     };
 }
+
+// *****************************************************************************
+// Save to and load from disk (much faster than DB)
+// *****************************************************************************
+
+// *****************************************************************************
+void BodyVector::save()
+{
+    // Build file_name from file_name_base and body_name
+    string file_name = file_name_from_body();
+    // Open output filestream in binary output; truncate file contents
+    std::ofstream fs;
+    std::ios_base::openmode file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
+    fs.open(file_name, file_mode);
+
+    // Write the number of rows in binary as long int
+    fs.write((char*) &N_t, sizeof(N_t));
+
+    // The time_id corresponding to mjd0
+    // const int time_id0 = mpd * mjd0;
+    // All the data elements except time_id are doubles
+    int data_sz = sizeof(double);
+    // Write the rows to the file in binary
+    for (int i=0; i<N_t; i++)
+    {
+        // Write the time as a time_id
+        // int32_t time_id = time_id0 + i*dt_min;
+        // fs.write((char*) &time_id, sizeof(time_id));
+
+        // Write the time as an mjd
+        fs.write((char*) (mjd+i), data_sz);
+        // Write the six components of the state vector
+        fs.write((char*) (qx+i), data_sz);
+        fs.write((char*) (qy+i), data_sz);
+        fs.write((char*) (qz+i), data_sz);
+        fs.write((char*) (vx+i), data_sz);
+        fs.write((char*) (vy+i), data_sz);
+        fs.write((char*) (vz+i), data_sz);
+    }
+
+    // Status
+    // print("Wrote {:d} rows of data to {:s}\n", N_t, file_name);
+
+    // Close output filestream
+    fs.close();
+}
+
+// *****************************************************************************
+void BodyVector::load()
+{
+    // Build file_name from file_name_base and body_name
+    string file_name = file_name_from_body();
+    // Open input filestream in binary mode
+    std::ifstream fs;
+    std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+    fs.open(file_name, file_mode);
+
+    // Read the number of rows according to the file
+    int N_t_file=-1;
+    fs.read( (char*) &N_t_file, sizeof(N_t_file));
+    // Check that the number of rows agrees with the constexpr specification in this file
+    if (N_t_file != N_t)
+    {throw domain_error("Bad data file! N_t does not match specification.\n");}
+
+    // All the data elements except time_id are doubles
+    int data_sz = sizeof(double);
+
+    // The time_id corresponding to mjd0
+    // const int time_id0 = mpd * mjd0;
+    // The time_id on this loop
+    // int32_t time_id
+
+    // Loop through the file
+    for (int i=0; i<N_t; i++)
+    {
+        // Read the time_id
+        // fs.read( (char*) &time_id, sizeof(time_id));
+        // Write to mjd array
+        fs.read( (char*) (mjd+i), data_sz);
+        // Write state vector components to arrays
+        fs.read( (char*) (qx+i), data_sz);
+        fs.read( (char*) (qy+i), data_sz);
+        fs.read( (char*) (qz+i), data_sz);
+        fs.read( (char*) (vx+i), data_sz);
+        fs.read( (char*) (vy+i), data_sz);
+        fs.read( (char*) (vz+i), data_sz);
+    }
+
+    // Close input filestream
+    fs.close();
+}
+
+// *****************************************************************************
+/// Helper function - build and save vectors
+void ks::save_vectors()
+{
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
+
+    // Initialize BodyVector for the Sun
+    print("Loading BodyVector for Sun from DB...\n");
+    BodyVector bv_sun(conn, "Sun");
+    // Save to disk
+    bv_sun.save();
+    print("Saved BodyVector to disk for Sun.\n");
+
+    // // Initialize BodyVector for the Sun
+    // print("Loading BodyVector for Earth from DB...\n");
+    // BodyVector bv_earth(conn, "Earth");
+    // // Save to disk
+    // bv_earth.save();
+    // print("Saved BodyVector to disk for Earth.\n");
+
+    // Close DB connection
+    conn->close();
+}
+
+// *****************************************************************************
+/// Factory function - load vectors from disk
+// BodyVector ks::load_vectors(string body_name)
+// {
+//     // Build file_name from file_name_base and body_name
+//     string file_name = format("KS.GetStateVectors_{:s}", body_name);
+//     // Open input filestream in binary mode
+//     std::ifstream fs;
+//     std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+//     fs.open(file_name, file_mode);
+
+//     // Read the number of rows
+//     int N_t_file=-1;
+//     fs.read( (char*) &N_t_file, sizeof(N_t_file));
+
+// }
