@@ -148,7 +148,7 @@ private:
 
 // *****************************************************************************
 /// Helper function - build and save vectors for Sun and Earth
-void save_vectors();
+void save_vectors(string body_name);
 
 // *****************************************************************************
 } // namespace ks

@@ -14,17 +14,10 @@ constexpr int mpd = 1440;
 // One day as a floating point number of minutes
 constexpr double dpm = 1.0 / mpd;
 // Start and end date for database
-// constexpr int mjd0_db = 48000;
-// constexpr int mjd1_db = 63000;
+constexpr int mjd0_db = 48000;
+constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and Earth
-// constexpr int stride_db_min = 5;
-
-// DEBUG
-// Start and end date for database
-constexpr int mjd0_db = 58000;
-constexpr int mjd1_db = 61000;
-// Stride in minutes for database vectors for Sun and Earth
-constexpr int stride_db_min = 1440;
+constexpr int stride_db_min = 30;
 
 // Location of file with serialized data
 const string file_name_fmt = "data/cache/BodyVector_{:s}.bin";
@@ -338,24 +331,17 @@ void BodyVector::load()
 
 // *****************************************************************************
 /// Helper function - build and save vectors
-void ks::save_vectors()
+void ks::save_vectors(string body_name)
 {
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Initialize BodyVector for the Sun
-    print("Loading BodyVector for Sun from DB...\n");
-    BodyVector bv_sun(conn, "Sun");
+    // Initialize BodyVector for the this body
+    print("Loading BodyVector for {:s} from DB...\n", body_name);
+    BodyVector bv(conn, body_name);
     // Save to disk
-    bv_sun.save();
-    print("Saved BodyVector to disk for Sun.\n");
-
-    // // Initialize BodyVector for the Sun
-    // print("Loading BodyVector for Earth from DB...\n");
-    // BodyVector bv_earth(conn, "Earth");
-    // // Save to disk
-    // bv_earth.save();
-    // print("Saved BodyVector to disk for Earth.\n");
+    bv.save();
+    print("Saved BodyVector to disk for {:s}.\n", body_name);
 
     // Close DB connection
     conn->close();

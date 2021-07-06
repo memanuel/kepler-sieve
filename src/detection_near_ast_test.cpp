@@ -325,33 +325,34 @@ void test_all()
     bool progbar = true;
 
     // Initialize DetectionTable
-    // DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
+    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
 
     // Test DetectionTable
-    // test_detection_table(dt, d0);
+    test_detection_table(dt, d0);
 
     // Build AsteroidSkyPatch table
-    // print_newline();
-    // AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
+    print_newline();
+    AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
 
     // Rebuild BodyVectors from DB and save to disk
-    save_vectors();
+    // save_vectors("Sun");
+    // save_vectors("Earth");
 
     // Initialize BodyVector for the Sun from disk
     BodyVector bv("Sun");
 
-    // Test body vectors
+    // Test body vectors for Sun
     test_body_vector(bv);
 
     // Initialize AsteroidElement
-    // AsteroidElement elt(n0, n1, mjd0, mjd1, time_step);
-    // elt.load(conn, progbar);
+    AsteroidElement elt(n0, n1, mjd0, mjd1, time_step);
+    elt.load(conn, progbar);
 
     // Test asteroid elements - splining orbital elements
-    // test_asteroid_element(elt);
+    test_asteroid_element(elt);
 
     // Test asteroid elements - state vectors from splined elements
-    // test_asteroid_element_vectors(elt);
+    test_asteroid_element_vectors(elt);
 
     // Close DB connection
     conn->close();
