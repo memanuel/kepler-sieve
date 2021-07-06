@@ -91,6 +91,9 @@ both of these will process asteroids in [0, 1000)
     using ks::AsteroidSkyPatch;
     using ks::AsteroidSkyPatchTable;
 
+#include "BodyVector.hpp"
+    using ks::BodyVector;
+
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::norm;
@@ -123,6 +126,8 @@ void search_candidates(
 void calculate_directions(
     DetectionTable& dt, vector<DetectionNearAsteroid>& dv, int k0, int k1);
 void write_detections_db(db_conn_type& conn, const vector<DetectionNearAsteroid>& cv, int k0, int k1);
+
+// Test functions
 void test_detection_table(DetectionTable& dt, int detection_id);
 void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id);
 void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
@@ -461,6 +466,67 @@ void test_detection_table(DetectionTable& dt, int detection_id)
 }
 
 // *****************************************************************************
+/// Test that BodyVector class for Sun splines state vectors that match copy / pasted values for Sun @ 58400.
+void test_body_vector(BodyVector& bv)
+{
+    // This test checks state vectors for Sun at mjd 58400
+    double mjd = 58400.0;
+    
+    // State vectors of the sun; copy / pasted from KS.GetStateVectors_Sun(58400, 58400, 1);
+    double qx = -0.0001095835967748;
+    double qy =  0.007235858951602957;
+    double qz = -0.0000736284237584;
+    double vx = -0.0000075730407095;
+    double vy =  0.0000026357733813;
+    double vz =  0.0000001892676823;
+    // Wrap expected results into Position and Vector objects
+    Position pos0 = Position 
+    {
+        .qx = qx,
+        .qy = qy,
+        .qz = qz
+    };
+    StateVector vec0 = StateVector
+    {
+        .qx = qx,
+        .qy = qy,
+        .qz = qz,
+        .vx = vx,
+        .vy = vy,
+        .vz = vz
+    };
+
+    // Tolerance for tests
+    double tol_q = 1.0E-8;
+    double tol_vec = 1.0E-8;
+
+    // Calulate splined position and state vector
+    Position pos = bv.interp_pos(mjd);
+    StateVector vec = bv.interp_vec(mjd);
+
+    // Report splined orbital elements
+    print("\nSplined Sun state vectors at mjd {8.2f} :\n", mjd);
+    print("qx:         {:+9.6f}\n", vec.qx);
+    print("qy:         {:+9.6f}\n", vec.qy);
+    print("qz:         {:+9.6f}\n", vec.qz);
+    print("vx:         {:+9.6f}\n", vec.vx);
+    print("vy:         {:+9.6f}\n", vec.vy);
+    print("vz:         {:+9.6f}\n", vec.vz);
+
+    // Test that splined orbital elements match expected results (position only)
+    {
+    bool is_ok = norm(pos0, pos) < tol_q;
+    report_test("\nTest BodyVector::interp_pos() splined position matches database", is_ok);
+    }
+
+    // Test that splined orbital elements match expected results
+    {
+    bool is_ok = norm(vec0, vec) < tol_vec;
+    report_test("\nTest BodyVector::interp_vec() splined state vectors match database", is_ok);
+    }
+}    
+
+// *****************************************************************************
 /// Test that AsteroidElement instance splines orbital elements that match copy / pasted values for Ceres @ 58400.
 void test_asteroid_element(AsteroidElement& ast_elt)
 {
@@ -606,6 +672,7 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
     report_test("\nTest AsteroidElement::interp_vec() splined state vectors match database", is_ok);
     }
 }    
+
 // *****************************************************************************
 void test_all()
 {
@@ -636,6 +703,8 @@ void test_all()
     // Build AsteroidSkyPatch table
     print_newline();
     AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
+
+    // Initialize BodyVector
 
     // Initialize AsteroidElement
     AsteroidElement elt = AsteroidElement(n0, n1, mjd0, mjd1, time_step);

@@ -24,8 +24,7 @@ using ks::AsteroidElement;
 // *****************************************************************************
 // The constructor just allocates memory.  
 // It does not load data from database, that is done with the load() method.
-AsteroidElement::AsteroidElement(
-    int n0, int n1, int mjd0, int mjd1, int dt):
+AsteroidElement::AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt):
     // Data size
     N_ast(n1-n0),
     N_t((mjd1-mjd0)/dt+1),

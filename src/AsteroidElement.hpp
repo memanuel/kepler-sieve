@@ -1,6 +1,7 @@
-/** @file AsteroidSkyPatch.hpp
- *  @brief Class to load a batch of AsteroidSkyPatch entries in memory and look them up by SkyPatchID.
- *  See DB table AsteroidSkyPatch and stored procedure GetDetectionDire.
+/** @file AsteroidElement.hpp
+ *  @brief Class to load a batch of orbital elements for a block of asteroids into memory.
+ *  Supports interpolation of orbital elements and state vectors.
+ *  See DB table KS.AsteroidElements and stored procedure KS.GetAsteroidElements.
  *  
  *  @author Michael S. Emanuel
  *  @date 2021-07-02
@@ -114,7 +115,7 @@ private:
     int mjd0;
     /// Last date loaded (inclusive); an integer divisible by time_step
     int mjd1;
-    /// Time step
+    /// Time step in days
     int dt;
 
     // One shared array for the distinct asteroid IDs (typically a sequence, possibly with some holes)
