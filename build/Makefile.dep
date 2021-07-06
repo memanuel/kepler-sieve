@@ -1,6 +1,6 @@
 # List of executables (prefix only)
 EXEC := detection_near_ast detection_near_ast_cand save_detection \
-        db_test sky_patch_test detection_near_ast_test
+        db_test sky_patch_test detection_near_ast_test detection_near_elt_test
 
 # Miscellanoues utilities
 utils.o: utils.hpp utils.cpp
@@ -38,6 +38,7 @@ save_detection.o: save_detection.cpp
 db_test.o: db_test.cpp
 sky_patch_test.o: sky_patch_test.cpp
 detection_near_ast_test.o: detection_near_ast.cpp
+detection_near_elt_test.o: detection_near_elt_test.cpp
 
 # Executables
 detection_near_ast: obj/detection_near_ast.o \
@@ -45,17 +46,27 @@ detection_near_ast: obj/detection_near_ast.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/BodyVector.o obj/OrbitalElement.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
+
 detection_near_ast_cand: obj/detection_near_ast_cand.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/DetectionCandidate.o obj/AsteroidSkyPatch.o
+
 save_detection: obj/save_detection.o obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/Detection.o obj/DetectionCandidate.o 
+
 db_test: obj/db_test.o obj/db_utils.o
+
 sky_patch_test: obj/sky_patch_test.o obj/utils.o obj/astro_utils.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o
+
 detection_near_ast_test: obj/detection_near_ast_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/BodyVector.o obj/OrbitalElement.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
+
+detection_near_elt_test: obj/detection_near_elt_test.o \
+    obj/utils.o obj/db_utils.o obj/Timer.o \
+    obj/CubeFace.o obj/SkyPatch.o \
+    obj/Detection.o

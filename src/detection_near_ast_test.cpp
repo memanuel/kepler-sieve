@@ -9,10 +9,6 @@
  * ****************************************************************************/
 
 // *****************************************************************************
-// Tests: DetectionTable and AsteroidElement
-// *****************************************************************************
-
-// *****************************************************************************
 // Library dependencies
 #include <fmt/format.h>
     using fmt::print;
@@ -21,11 +17,7 @@
 // Local dependencies
 #include "db_utils.hpp"
     using ks::db_conn_type;
-    using ks::sql_stmt_type;
-    using ks::sql_prepared_stmt_type;
     using ks::get_db_conn;
-    using ks::sp_run;
-    using ks::sp_run_int;
 
 #include "utils.hpp"
     using ks::is_close_abs;
@@ -42,8 +34,6 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-    using ks::DetectionTime;
-    using ks::DetectionTimeTable;
 
 #include "AsteroidSkyPatch.hpp"
     using ks::AsteroidSkyPatch;
@@ -61,21 +51,12 @@
     using ks::AsteroidElement;
 
 // *****************************************************************************
-// Declare functions
-// void search_candidates(
-//     DetectionTable& dt, AsteroidSkyPatchTable& aspt, 
-//     SkyPatchNeighbor& spn, vector<DetectionNearAsteroid>& cv);
-// void calculate_directions(
-//     DetectionTable& dt, vector<DetectionNearAsteroid>& dv, int k0, int k1);
-// void write_detections_db(db_conn_type& conn, const vector<DetectionNearAsteroid>& cv, int k0, int k1);
-
-// Test functions
+// Declare functions defined in this module
 void test_detection_table(DetectionTable& dt, int detection_id);
 void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id);
 void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
 void test_all();
 void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn);
-
 
 // *****************************************************************************
 void test_detection_table(DetectionTable& dt, int detection_id)
@@ -318,9 +299,6 @@ void test_all()
 
     // Test DetectionTable
     test_detection_table(dt, d0);
-
-    // Initialize DetectionTimeTable
-    DetectionTimeTable dtt = DetectionTimeTable(conn);
 
     // Build AsteroidSkyPatch table
     print_newline();
