@@ -87,17 +87,17 @@ public:
     double* get_mjd() const;
 
     /// Calculate the interpolated position of the body at time mjd
-    Position interp_pos(double mjd);
+    Position interp_pos(double mjd) const;
 
     /// Calculate the interpolated state vector of the body at time mjd
-    StateVector interp_vec(double mjd);
+    StateVector interp_vec(double mjd) const;
 
     /// Load data from the database and construct interpolating splines
     void load_db(db_conn_type& conn);
     /// Load data from disk and construct interpolating splines
     void load();
     /// Save this object to disk
-    void save();
+    void save() const;
 
 private:
     // ********************************************************************************************
@@ -136,12 +136,12 @@ private:
     // Function to return the row index given a time_id
     int32_t row(int32_t time_id) const;
     /// Name of database stored procedure to fetch state vectors for this body
-    const string sp_name_from_body();
+    const string sp_name_from_body() const;
+    /// Name of filename with serialized data for this body
+    const string file_name_from_body() const;
+
     /// Process a batch of rows from the databse SP
     void process_rows(db_conn_type& conn, int mjd0, int mjd1);
-    /// Name of filename with serialized data for this body
-    const string file_name_from_body();
-
     // Build GSL splines
     void build_splines();
     // Free up GSL resources

@@ -93,7 +93,7 @@ BodyVector::BodyVector(db_conn_type& conn, string body_name) :
 }
 
 // *****************************************************************************
-const string BodyVector::sp_name_from_body()
+const string BodyVector::sp_name_from_body() const
 {
     // List of supported body names
     std::array<std::string, 2> body_names= {"Sun", "Earth"};
@@ -108,7 +108,7 @@ const string BodyVector::sp_name_from_body()
 }
 
 // *****************************************************************************
-const string BodyVector::file_name_from_body()
+const string BodyVector::file_name_from_body() const
 {
     // List of supported body names
     std::array<std::string, 2> body_names= {"Sun", "Earth"};
@@ -229,7 +229,7 @@ double* BodyVector::get_mjd() const
 }
 
 // *****************************************************************************
-Position BodyVector::interp_pos(double mjd)
+Position BodyVector::interp_pos(double mjd) const
 {
     return Position
     {
@@ -240,7 +240,7 @@ Position BodyVector::interp_pos(double mjd)
 }
 
 // *****************************************************************************
-StateVector BodyVector::interp_vec(double mjd)
+StateVector BodyVector::interp_vec(double mjd) const
 {
     return StateVector
     {
@@ -258,7 +258,7 @@ StateVector BodyVector::interp_vec(double mjd)
 // *****************************************************************************
 
 // *****************************************************************************
-void BodyVector::save()
+void BodyVector::save() const
 {
     // Build file_name from file_name_base and body_name
     string file_name = file_name_from_body();

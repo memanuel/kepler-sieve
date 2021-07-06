@@ -27,6 +27,8 @@
     using ks::StateVector;
     using ks::elt2pos;
     using ks::elt2vec;
+#include "BodyVector.hpp"
+    using ks::BodyVector;
 #include "utils.hpp"
     using ks::flush_console;
 #include "db_utils.hpp"
@@ -91,16 +93,19 @@ public:
     double* get_mjd() const;
 
     /// Calculate the interpolated orbital elements of the given asteroid at time mjd
-    OrbitalElement interp_elt(int32_t asteroid_id, double mjd);
+    OrbitalElement interp_elt(int32_t asteroid_id, double mjd) const;
 
-    /// Calculate the interpolated position of the given asteroid at time mjd
-    Position interp_pos(int32_t asteroid_id, double mjd);
+    /// Calculate the interpolated position of the given asteroid at time mjd in the heliocentric frame
+    Position interp_pos_hel(int32_t asteroid_id, double mjd) const;
 
-    // Calculate the interpolated velocity of the given asteroid at time mjd
-    // Position interp_vel(int32_t asteroid_id, double mjd);
+    /// Calculate the interpolated state vector of the given asteroid at time mjd in the heliocentric frame
+    StateVector interp_vec_hel(int32_t asteroid_id, double mjd) const;
 
-    /// Calculate the interpolated state vector of the given asteroid at time mjd
-    StateVector interp_vec(int32_t asteroid_id, double mjd);
+    /// Calculate the interpolated position of the given asteroid at time mjd in the BME frame
+    Position interp_pos(int32_t asteroid_id, double mjd) const;
+
+    /// Calculate the interpolated state vector of the given asteroid at time mjd in the BME frame
+    StateVector interp_vec(int32_t asteroid_id, double mjd) const;
 
 private:
     // ********************************************************************************************
@@ -134,10 +139,12 @@ private:
     double* elt_f;
     double* elt_M;
 
-    // GSL spline interpolators for splined orbital elements
+    /// GSL spline interpolators for splined orbital elements
     ElementSpline elt_spline;
-    // Get a GSL cubic spline accelerator for lookups on orbital element splines
+    /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
+    /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
+    const BodyVector bv;
     
     // ********************************************************************************************
     // Private Methods

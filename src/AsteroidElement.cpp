@@ -46,9 +46,10 @@ AsteroidElement::AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt):
     elt_omega(new double[N_t*N_ast]),
     elt_f(new double[N_t*N_ast]),
     elt_M(new double[N_t*N_ast]),
-
     // Initialize GSL objects
-    acc(gsl_interp_accel_alloc() )
+    acc(gsl_interp_accel_alloc() ),
+    // BodyVector object for interpolated Sun state vectors
+    bv(BodyVector("Sun"))
 {
     // Populate asteroid_id
     for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
@@ -320,7 +321,7 @@ double* AsteroidElement::get_M(int32_t asteroid_id) const
 }
 
 // *****************************************************************************
-OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd)
+OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) const
 {
     // The interpolators for each orbital element for this asteroid
     gsl_spline* gsl_interp_a = elt_spline.a[asteroid_id];
@@ -346,7 +347,9 @@ OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd)
 }
 
 // *****************************************************************************
-Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd)
+// This calculation returns the position in the HELIOCENTRIC frame, NOT the BME!
+// The orbital element describes the relative position of the asteroid vs. the primary, which is the Sun here.
+Position AsteroidElement::interp_pos_hel(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(asteroid_id, mjd);
@@ -355,11 +358,51 @@ Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd)
 }
 
 // *****************************************************************************
-StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd)
+// This calculation returns the state vector in the HELIOCENTRIC frame, NOT the BME!
+// The orbital element describes the relative vectors of the asteroid vs. the primary, which is the Sun here.
+StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(asteroid_id, mjd);
     // Call elt2pos to calculate a position
-    return elt2vec(elt);
-   
+    return elt2vec(elt);   
+}
+
+// *****************************************************************************
+// Add the heliocentric position from splined orbital elements to the Sun's state vectors
+// to get the position in the BME frame.
+Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd) const
+{
+    // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
+    Position ast = interp_pos_hel(asteroid_id, mjd);
+    // Delegate to bv.interp_pos to get interpolated position of Sun in BME
+    Position sun = bv.interp_pos(mjd);
+    // Add the two components
+    return Position
+    {
+        .qx = ast.qx + sun.qx,
+        .qy = ast.qy + sun.qy,
+        .qz = ast.qz + sun.qz
+    };
+}
+
+// *****************************************************************************
+// Add the heliocentric state vectors from splined orbital elements to the Sun's state vectors
+// to get the state vectors in the BME frame.
+StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd) const
+{
+    // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
+    StateVector ast = interp_vec_hel(asteroid_id, mjd);
+    // Delegate to bv.interp_pos to get interpolated position of Sun in BME
+    StateVector sun = bv.interp_vec(mjd);
+    // Add the two components
+    return StateVector
+    {
+        .qx = ast.qx + sun.qx,
+        .qy = ast.qy + sun.qy,
+        .qz = ast.qz + sun.qz,
+        .vx = ast.vx + sun.vx,
+        .vy = ast.vy + sun.vy,
+        .vz = ast.vz + sun.vz
+    };
 }

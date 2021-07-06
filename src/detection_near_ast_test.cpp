@@ -233,26 +233,13 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
     double mjd = mjds[time_idx];
     
     // Asteroid position; copy / pasted from database from KS.GetAsteroidElements(1, 2, 58400, 58400);
-    double qx_ast = -2.485854955060206;
-    double qy_ast = -0.6229239033462274;
-    double qz_ast =  0.4383572489736212;
-    double vx_ast =  0.0020617208493692073;
-    double vy_ast = -0.010756337836425017;
-    double vz_ast = -0.0007200628373353;
-    // State vectors of the sun; copy / pasted from KS.GetStateVectors_Sun(58400, 58400, 1);
-    double qx_sun = -0.0001095835967748;
-    double qy_sun =  0.007235858951602957;
-    double qz_sun = -0.0000736284237584;
-    double vx_sun = -0.0000075730407095;
-    double vy_sun =  0.0000026357733813;
-    double vz_sun =  0.0000001892676823;
-    // Expected results; heliocentric position of asteroid
-    double qx = qx_ast - qx_sun;
-    double qy = qy_ast - qy_sun;
-    double qz = qz_ast - qz_sun;
-    double vx = vx_ast - vx_sun;
-    double vy = vy_ast - vy_sun;
-    double vz = vz_ast - vz_sun;
+    double qx = -2.485854955060206;
+    double qy = -0.6229239033462274;
+    double qz =  0.4383572489736212;
+    double vx =  0.0020617208493692073;
+    double vy = -0.010756337836425017;
+    double vz = -0.0007200628373353;
+
     // Wrap expected results into Position and Vector objects
     Position pos0 = Position 
     {
@@ -290,18 +277,18 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
     print("vy:         {:+9.6f}\n", vec.vy);
     print("vz:         {:+9.6f}\n", vec.vz);
 
-    // Test that splined orbital elements match expected results (position only)
+    // Test that splined position from orbital elements match expected results
     {
     bool is_ok = norm(pos0, pos) < tol_q;
     report_test("\nTest AsteroidElement::interp_pos() splined state vectors match database", is_ok);
     }
 
-    // Test that splined orbital elements match expected results
+    // Test that splined state vectors from orbital elements match expected results
     {
     bool is_ok = norm(vec0, vec) < tol_vec;
     report_test("\nTest AsteroidElement::interp_vec() splined state vectors match database", is_ok);
     }
-}    
+}
 
 // *****************************************************************************
 void test_all()
