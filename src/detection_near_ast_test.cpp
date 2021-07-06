@@ -42,6 +42,8 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
+    using ks::DetectionTime;
+    using ks::DetectionTimeTable;
 
 #include "AsteroidSkyPatch.hpp"
     using ks::AsteroidSkyPatch;
@@ -316,6 +318,9 @@ void test_all()
 
     // Test DetectionTable
     test_detection_table(dt, d0);
+
+    // Initialize DetectionTimeTable
+    DetectionTimeTable dtt = DetectionTimeTable(conn);
 
     // Build AsteroidSkyPatch table
     print_newline();

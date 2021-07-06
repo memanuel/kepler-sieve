@@ -13,12 +13,18 @@
 // Local names used
 using ks::Detection;
 using ks::DetectionTable;
+using ks::DetectionTime;
+using ks::DetectionTimeTable;
 
 // Set batch size to one million
 constexpr int batch_size = 1000000;
 
 // Location of file with serialized data
 const string file_name = "data/cache/DetectionTable.bin";
+
+// *****************************************************************************
+// Class DetectionTable
+// *****************************************************************************
 
 // *****************************************************************************
 DetectionTable::DetectionTable(): 
@@ -214,4 +220,87 @@ void DetectionTable::load()
 
     // Close input filestream
     fs.close();
+}
+
+// *****************************************************************************
+// Class DetectionTimeTable
+// *****************************************************************************
+
+// *****************************************************************************
+DetectionTimeTable::DetectionTimeTable(int max_id):
+    dtv(vector<DetectionTime>(max_id+1)),
+    dtm(map<int32_t, vector<int32_t> >{})
+    {}
+
+// *****************************************************************************
+DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
+    DetectionTimeTable(sp_run_int(conn, "KS.GetDetectionTimeMaxID"))
+    {
+        // Now load data from the database
+        load(conn);
+    }
+
+// Default destructor is OK
+// *****************************************************************************
+DetectionTimeTable::~DetectionTimeTable()
+{}
+
+// *****************************************************************************
+void DetectionTimeTable::load(db_conn_type& conn)
+{
+    // Run the stored procedure to get detections including the observatory position
+    string sp_name = "KS.GetDetectionTimes";
+    vector<string> params = {};
+    ResultSet* rs = sp_run(conn, sp_name, params);
+
+    // Loop through resultset
+    while (rs->next())
+    {
+        // Get the DetectionTimeID and TimeID
+        int32_t detection_time_id = rs->getInt("DetectionTimeID");
+        int32_t time_id = rs->getInt("TimeID");
+        // Get the doubles
+        double mjd = rs->getDouble("mjd");
+        double q_obs_x = rs->getDouble("qObs_x");
+        double q_obs_y = rs->getDouble("qObs_y");
+        double q_obs_z = rs->getDouble("qObs_z");
+        double q_sun_x = rs->getDouble("qSun_x");
+        double q_sun_y = rs->getDouble("qSun_y");
+        double q_sun_z = rs->getDouble("qSun_z");
+        // Wrap this entry into one DetectionTime
+        DetectionTime dt = DetectionTime
+        {
+            .detection_time_id = detection_time_id,
+            .time_id = time_id,
+            .data_source_id = rs->getByte("DataSourceID"),
+            .observatory_id = rs->getByte("ObservatoryID"),
+            .mjd        = mjd,
+            .q_obs_x    = q_obs_x,
+            .q_obs_y    = q_obs_y,
+            .q_obs_z    = q_obs_z,
+            .q_sun_x    = q_sun_x,
+            .q_sun_y    = q_sun_y,
+            .q_sun_z    = q_sun_z
+        };
+
+        // Write this DetectionTime into the vector dtv
+        dtv.push_back(dt);
+        // Add this detection time to the map keyed by TimeID
+        (dtm[time_id]).push_back(detection_time_id);
+    }
+    // Close the resultset and free memory
+    rs->close();
+    delete rs;
+}
+
+// *****************************************************************************
+DetectionTime DetectionTimeTable::operator[](int32_t id) const
+{
+    return dtv[id];
+}
+
+// *****************************************************************************
+vector<int32_t> DetectionTimeTable::get_time(int32_t time_id)
+{
+    return dtm[time_id];
 }
