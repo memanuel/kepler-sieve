@@ -19,6 +19,8 @@
     using std::vector;
 #include <numeric>
     using std::lcm;
+#include <stdexcept>
+    using std::domain_error;
 #include <gsl/gsl_spline.h>
 
 // Local dependencies
@@ -55,8 +57,11 @@ public:
     // Constructor and destructor
     // ********************************************************************************************
 
-    /// Constructor in terms of ranges delegate to native constructor for memory allocation
+    /// Constructor takes time range, time step and allocates memory
     BodyVector(int mjd0, int mjd1, int dt_min);
+
+    /// Constructor - take a DB connection and a body_name which must be one of "Sun", "Earth"
+    BodyVector(db_conn_type& conn, string body_name);
 
     /// Destructor - delete manually created arrays
     ~BodyVector();
@@ -113,9 +118,7 @@ private:
     // ********************************************************************************************
 
     /// Load data from the database and construct interpolating splines
-    void load(db_conn_type &conn, bool progbar);
-    // Process a batch of rows
-    void process_rows(db_conn_type& conn);
+    void load(db_conn_type& conn, const string sp_name);
     // Function to return the row index given a time_id
     int32_t row(int32_t time_id) const;
 

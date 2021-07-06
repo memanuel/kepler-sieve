@@ -13,6 +13,9 @@
 constexpr int mpd = 1440;
 // One day as a floating point number of minutes
 constexpr double dpm = 1.0 / mpd;
+// Start and end date for database
+constexpr int mjd0_db = 48000;
+constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and Earth
 constexpr int stride_db_min = 5;
 
@@ -59,6 +62,27 @@ BodyVector::BodyVector(int mjd0, int mjd1, int dt_min):
 } // end function
 
 // *****************************************************************************
+BodyVector::BodyVector(db_conn_type& conn, string body_name) :
+    // Delegate to memory allocating constructor with database inputs 
+    BodyVector(mjd0_db, mjd1_db, stride_db_min)
+{
+    // Choose correct SP name from body_name
+    string sp_name;
+    if (body_name == "Sun")
+        {sp_name = "KS.GetStateVectors_Sun";}
+    else if (body_name == "Earth")
+        {sp_name = "KS.GetStateVectors_Earth";}
+    else
+        {throw domain_error("Bad body_name! Must be one of 'Sun', 'Earth'.\n");}
+
+    // Call load() method with validated stored procedure name
+    load(conn, sp_name);
+
+    // Initialize the gsl_spline* objects
+    build_splines();
+}
+
+// *****************************************************************************
 /// Need a non-trivial destructor to release all manually allocated memory
 BodyVector::~BodyVector()
 {
@@ -94,35 +118,10 @@ void BodyVector::gsl_free()
 }
 
 // *****************************************************************************
-void BodyVector::load(db_conn_type &conn, bool progbar)
-{
-    // Status update
-    if (progbar) 
-    {
-        print("Processing body vectors data from mjd {:d} to {:d}...\n", mjd0, mjd1);
-    }
-
-    // Timer for processing from DB
-	// Timer t;
-    // t.tick();
-
-    // Process SQL data
-    process_rows(conn);
-
-    if (progbar) 
-    {
-        print("\nLoaded BodyVector data.\n");
-        // t.tock_msg();
-    }
-    // Delegate to build_splines method to initialize the gsl_spline* objects
-    build_splines();
-}   // end function
-
-// *****************************************************************************
-void BodyVector::process_rows(db_conn_type& conn)
+void BodyVector::load(db_conn_type &conn, const string sp_name)
 {
     // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetStateVectors_Sun";
+    // string sp_name = "KS.GetStateVectors_Sun";
     vector<string> params = {to_string(mjd0), to_string(mjd1), to_string(dt_min)};
     ResultSet* rs = sp_run(conn, sp_name, params);
 
@@ -150,7 +149,7 @@ void BodyVector::process_rows(db_conn_type& conn)
     // Close the resultset and free memory
     rs->close();
     delete rs;
-}
+}   // end function
 
 // *****************************************************************************
 void BodyVector::build_splines()
