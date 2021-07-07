@@ -32,11 +32,13 @@ SELECT
 	d.DetectionID,
 	d.SkyPatchID,
 	d.TimeID,
+	d.DetectionTimeID,
 	-- Data payload
 	d.mjd,
 	d.ux,
 	d.uy,
-	d.uz
+	d.uz,
+	d.mag
 FROM
 	KS.Detection AS d
 WHERE
@@ -62,11 +64,13 @@ SELECT
 	d.DetectionID,
 	d.SkyPatchID,
 	d.TimeID,
-	d.mjd,
+	d.DetectionTimeID,
 	-- Data payload
+	d.mjd,
 	d.ux,
 	d.uy,
 	d.uz,
+	d.mag,
 	-- Location of observatory - from join to DetectionTime
 	dt.qObs_x,
 	dt.qObs_y,
