@@ -22,6 +22,9 @@
 // Local dependencies
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
+    using ks::mean_motion;
+    using ks::anomaly_M2f;
+    using ks::elt2vec;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
@@ -52,8 +55,8 @@ public:
 private:
     /// Number of detection times
     const int N;
-    /// Array of mjds when detections taken; size N
-    double* mjds;
+    /// Array of mjd when detections were observed (print time); size N
+    double* mjd;
     /// Array of positions of observatory; size 3N
     double* q_obs;
     /// Array of positions of an asteroid with these candidate elements; size 3N

@@ -71,7 +71,7 @@ public:
     /// Default constructor builds a table and populates it from disk
     DetectionTimeTable();
     /// Constructor builds an empty table with the requested size
-    DetectionTimeTable(int max_id);
+    DetectionTimeTable(int N);
     /// This constructor builds an empty table, then loads it using the given database connection
     DetectionTimeTable(db_conn_type& conn);
     /// Destructor for DetectionTimeTable.
@@ -86,7 +86,7 @@ public:
     /// Vector of all detection time objects
     const vector<DetectionTime> detection_times() const;
     /// Get read-only copy of mjds
-    const double* get_mjds() const;
+    const double* get_mjd() const;
     /// Get read-only copy of q_obs
     const double* get_q_obs() const;
    
@@ -106,7 +106,7 @@ private:
     /// Map of detection ID vectors keyed by TimeID; dtm stands for "DetectionTime map"
     map<int32_t, vector<int32_t> > dtm;
     // Array of mjds when detections taken; size N
-    double* mjds;
+    double* mjd;
     // Array of observatory positions in HELIOCENTRIC frame
     double* q_obs;
 };

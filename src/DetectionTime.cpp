@@ -13,29 +13,33 @@
 // Local names used
 using ks::DetectionTime;
 using ks::DetectionTimeTable;
-
+// Declare helper functions
+int file_length();
 // Location of file with serialized data
 const string file_name = "data/cache/DetectionTimeTable.bin";
 
 // *****************************************************************************
 DetectionTimeTable::DetectionTimeTable():
-    // Delegate to size constructor with a placeholder size of zero
-    DetectionTimeTable(0)
+    // Delegate to size constructor, looking up the file size
+    DetectionTimeTable(file_length())
 {
-    // Load data from disk; this resizes dtv to match size on disk
+    // Load data from disk
     load();
+    // Calculate observatory position in heliocentric frame
+    calc_q_obs();
 }
 
 // *****************************************************************************
-DetectionTimeTable::DetectionTimeTable(int max_id):
-    // dtv is a vector of DetectionTimes; size is max_id+1 because we index by detection_time_id
-    dtv(vector<DetectionTime>(max_id+1)),
+DetectionTimeTable::DetectionTimeTable(int N):
+    // dtv is a vector of DetectionTimes
+    // size is N+1 because we index by detection_time_id, which starts at 1.
+    dtv(vector<DetectionTime>(N+1)),
     // dtm is an empty map keyed by TimeID; it will be populated later
     dtm(map<int32_t, vector<int32_t> >{}),
     // mjds is an array of doubles of size N (size of dtv)
-    mjds(new double[max_id+1]),
+    mjd(new double[N+1]),
     // q_obs is an array of doubles with 3N entries for the HELIOCENTRIC observatory position
-    q_obs(new double[max_id+1])
+    q_obs(new double[3*(N+1)])
     {}
 
 // *****************************************************************************
@@ -44,13 +48,15 @@ DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
     {
         // Now load data from the database
         load(conn);
+        // Calculate observatory position in heliocentric frame
+        calc_q_obs();
     }
 
 // *****************************************************************************
 // Delete manually allocated arrays
 DetectionTimeTable::~DetectionTimeTable()
 {
-    delete [] mjds;
+    delete [] mjd;
     delete [] q_obs;
 }
 
@@ -93,11 +99,12 @@ void DetectionTimeTable::load(db_conn_type& conn)
         };
 
         // Write this DetectionTime into the vector dtv
-        dtv.push_back(dt);
+        // dtv.push_back(dt);
+        dtv[detection_time_id] = dt;
         // Add this detection time to the map keyed by TimeID
         (dtm[time_id]).push_back(detection_time_id);
         // Save mjd to the array
-        mjds[detection_time_id] = mjd;
+        this->mjd[detection_time_id] = mjd;
     }
     // Close the resultset and free memory
     rs->close();
@@ -129,9 +136,9 @@ const vector<DetectionTime> DetectionTimeTable::detection_times() const
 }
 
 // *****************************************************************************
-const double* DetectionTimeTable::get_mjds() const
+const double* DetectionTimeTable::get_mjd() const
 {
-    return mjds;
+    return mjd;
 }
 
 // *****************************************************************************
@@ -163,6 +170,22 @@ void DetectionTimeTable::save()
 }
 
 // *****************************************************************************
+int file_length()
+{
+    // Open input filestream in binary mode
+    std::ifstream fs;
+    std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+    fs.open(file_name, file_mode);
+    // Read the number of rows in the file
+    long sz=-1;
+    fs.read( (char*) &sz, sizeof(sz));
+    // Close input filestream
+    fs.close();
+    // Return file as an int, not a long
+    return (int) sz;
+}
+
+// *****************************************************************************
 void DetectionTimeTable::load()
 {
     // Open input filestream in binary mode
@@ -175,15 +198,6 @@ void DetectionTimeTable::load()
     fs.read( (char*) &sz, sizeof(sz));
     // Status
     // print("Opened file {:s} with {:d} rows of DetectionTime data.\n", file_name, sz);
-
-    // Resize the detection time vector
-    dtv.resize(sz+1);
-    // Need to free memory from the placeholder arrays of mjds and q_obs to avoid a memory leak
-    delete [] mjds;
-    delete [] q_obs;
-    // Allocate new storage for arrays mjds and q_obs now that we know their size
-    mjds = new double[sz+1];
-    q_obs = new double[3*(sz+1)];
 
     // Read the rows from the file in binary
     DetectionTime dt;
@@ -198,14 +212,11 @@ void DetectionTimeTable::load()
         // Add this detection time to the map keyed by TimeID
         (dtm[dt.time_id]).push_back(detection_time_id);
         // Save the mjd to the array mjds
-        mjds[detection_time_id] = dt.mjd;
+        mjd[detection_time_id] = dt.mjd;
     }
 
     // Close input filestream
     fs.close();
-
-    // Calculate observatory position in heliocentric frame
-    calc_q_obs();
 }
 
 // *****************************************************************************

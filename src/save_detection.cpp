@@ -4,8 +4,11 @@
  *  @author Michael S. Emanuel
  *  @date 2021-07-01
  * 
- * Example call:
- * ./save_detection.x
+ * Example calls:
+ * ./save_detection.x --DetectionTime
+ * ./save_detection.x --DetectionCandidate
+ * ./save_detection.x --Detection
+ * ./save_detection.x --test
  * ****************************************************************************/
 
 // *****************************************************************************
@@ -20,6 +23,7 @@
 
 // Local dependencies
 #include "utils.hpp"
+    using ks::print_stars;
     using ks::report_test;
 #include "db_utils.hpp"
     using ks::db_conn_type;
@@ -41,9 +45,10 @@ void save_DetectionTime(db_conn_type& conn);
 void save_DetectionCandidate(db_conn_type& conn);
 void save_Detection(db_conn_type& conn);
 
-void test_DetectionCandidate(db_conn_type& conn);
-void test_Detection(db_conn_type& conn);
-void test_all(db_conn_type& conn);
+bool test_DetectionTime(db_conn_type& conn);
+bool test_DetectionCandidate(db_conn_type& conn);
+bool test_Detection(db_conn_type& conn);
+bool test_all(db_conn_type& conn);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -117,7 +122,7 @@ void save_DetectionTime(db_conn_type& conn)
     DetectionTimeTable dtt = DetectionTimeTable(conn);
     // Save detection time table to disk
     dtt.save();
-    print("Saved DetectionTime to disk.");
+    print("Saved DetectionTime to disk.\n");
 }
 
 // *****************************************************************************
@@ -145,14 +150,67 @@ void save_Detection(db_conn_type& conn)
 // *****************************************************************************
 
 // *****************************************************************************
-void test_all(db_conn_type& conn)
+bool test_all(db_conn_type& conn)
 {
-    test_DetectionCandidate(conn);
-    test_Detection(conn);
+    // Flag with overall test result
+    bool is_ok = true;
+
+    // Test DetectionTime
+    print_stars();
+    is_ok = is_ok && test_DetectionTime(conn);
+    // Test DetectionCandidate
+    print_stars();    
+    is_ok = is_ok && test_DetectionCandidate(conn);
+    // Test Detection
+    print_stars();
+    is_ok = is_ok && test_Detection(conn);
+
+    // Report overall results
+    print_stars();
+    report_test("\nOverall DetectionTime, Detection, and DetectionCandidate", is_ok);
+    return is_ok;
 }
 
 // *****************************************************************************
-void test_DetectionCandidate(db_conn_type& conn)
+bool test_DetectionTime(db_conn_type& conn)
+{
+    // Example row to test
+    int i=10;
+
+    // Load DetectionTimeTable from database
+    DetectionTimeTable dtt1 = DetectionTimeTable(conn);
+    print("\nLoaded DetectionTimeTable from DB with {:d} detection times.\n", dtt1.N());
+
+    // Version loaded from DB
+    DetectionTime dt1 = dtt1[i];
+    print("Row {:d} of dtt1 (loaded from database):\n", i);
+    print("detection_time_id = {:d}\n", dt1.detection_time_id);
+    print("time_id           = {:d}\n", dt1.time_id);
+    print("mjd               = {:9.4f}\n", dt1.mjd);
+
+    // Load DetectionTimeTable from disk
+    DetectionTimeTable dtt2 = DetectionTimeTable();
+    print("\nLoaded DetectionTimeTable from disk with {:d} detection times.\n", dtt2.N());
+
+    // Version loaded from disk
+    DetectionTime dt2 = dtt2[i];
+    print("Row {:d} of dtt2 (loaded from disk):\n", i);
+    print("detection_time_id = {:d}\n", dt2.detection_time_id);
+    print("time_id           = {:d}\n", dt2.time_id);
+    print("mjd               = {:9.4f}\n", dt2.mjd);
+
+    // Test if the two records are identical
+    bool is_ok =    (dt1.detection_time_id == dt2.detection_time_id) && 
+                    (dt1.time_id           == dt2.time_id) &&
+                    (dt1.mjd               == dt2.mjd);
+
+    // Report test results and return status
+    report_test("\nLoad DetectionTime", is_ok);
+    return is_ok;
+}
+
+// *****************************************************************************
+bool test_DetectionCandidate(db_conn_type& conn)
 {
     // Range of detections to test
     int d0 = 0;
@@ -168,9 +226,9 @@ void test_DetectionCandidate(db_conn_type& conn)
     // Version loaded from DB
     DetectionCandidate dc1 = dt1[i];
     print("\nRow {:d} of dt1 (loaded from database):\n", i);
-    print("dc.detection_id = {:d}\n", dc1.detection_id);
-    print("dc.sky_patch_id = {:d}\n", dc1.sky_patch_id);
-    print("dc.time_id = {:d}\n", dc1.time_id);
+    print("detection_id = {:d}\n", dc1.detection_id);
+    print("sky_patch_id = {:d}\n", dc1.sky_patch_id);
+    print("time_id = {:d}\n", dc1.time_id);
 
     // Load detection table from disk
     DetectionCandidateTable dt2 = DetectionCandidateTable(d0, d1);
@@ -180,21 +238,22 @@ void test_DetectionCandidate(db_conn_type& conn)
     // Version loaded from disk
     DetectionCandidate dc2 = dt2[i];
     print("\nRow {:d} of dt2 (loaded from disk):\n", i);
-    print("dc.detection_id = {:d}\n", dc2.detection_id);
-    print("dc.sky_patch_id = {:d}\n", dc2.sky_patch_id);
-    print("dc.time_id = {:d}\n", dc2.time_id);
+    print("detection_id = {:d}\n", dc2.detection_id);
+    print("sky_patch_id = {:d}\n", dc2.sky_patch_id);
+    print("time_id = {:d}\n", dc2.time_id);
 
     // Test if the two records are identical
     bool is_ok =    (dc1.detection_id == dc2.detection_id) && 
                     (dc1.sky_patch_id == dc2.sky_patch_id) &&
                     (dc1.time_id      == dc2.time_id);
 
-    // Report test results
+    // Report test results and return status
     report_test("\nLoad DetectionCandidate", is_ok);
+    return is_ok;
 }
 
 // *****************************************************************************
-void test_Detection(db_conn_type& conn)
+bool test_Detection(db_conn_type& conn)
 {
     // Range of detections to test
     int d0 = 0;
@@ -239,6 +298,7 @@ void test_Detection(db_conn_type& conn)
                     (det1.uy           == det2.uy) &&
                     (det1.uz           == det2.uz);
 
-    // Report test results
+    // Report test results and return status
     report_test("\nLoad Detection", is_ok);
+    return is_ok;
 }

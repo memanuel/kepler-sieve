@@ -11,6 +11,7 @@
 // *****************************************************************************
 // Library dependencies
 #include <cmath>
+#include <concepts>
 #include <string>
     using std::string;
 #include <iostream>
@@ -20,6 +21,11 @@
 #include <fmt/chrono.h>
     using fmt::print;
     using fmt::format;
+
+// *****************************************************************************
+// Create a concept for a numeric type
+template<typename T>
+concept numeric = std::integral<T> or std::floating_point<T>;
 
 // *****************************************************************************
 namespace ks {
@@ -57,33 +63,49 @@ bool is_close_abs(double x, double y, double tol);
 bool is_close_rel(double x, double y, double rel_tol);
 
 // *****************************************************************************
-/// Square a number (double)
+/// Square a number (any numeric type)
+template<typename T>
+requires numeric<T>
+inline T sqr(T x)
+{
+    return x*x;
+} 
+
+/// Specialize template of sqr for double
+template<>
 inline double sqr(double x)
 {
     return x*x;
-}
-
-/// Square a number (float)
-inline float sqr(float x)
-{
-    return x*x;
-}
-
-/// Square a number (integer)
-inline int sqr(int x)
-{
-    return x*x;
-}
+} 
 
 // *****************************************************************************
-/// Sign of a number (double)
-inline double sign(double x)
+/// Cube a number (any numeric type)
+template<typename T>
+requires numeric<T>
+inline T cube(T x)
 {
-    return x > 0 ? 1.0 : ( x < 0 ? -1.0 : 0.0);
-}
+    return x*x*x;
+} 
 
-/// Sign of a number (float)
-inline float sign(float x)
+/// Specialize template of cube for double
+template<>
+inline double cube(double x)
+{
+    return x*x*x;
+} 
+
+// *****************************************************************************
+/// Sign of a number (any numeric type)
+template<typename T>
+requires numeric<T>
+inline T sign(T x)
+{
+    return x > 0 ? 1 : ( x < 0 ? -1 : 0);
+} 
+
+/// Specialize template of sign for double
+template<>
+inline double sign(double x)
 {
     return x > 0 ? 1.0 : ( x < 0 ? -1.0 : 0.0);
 }

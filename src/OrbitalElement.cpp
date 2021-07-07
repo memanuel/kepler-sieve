@@ -11,6 +11,10 @@
 // Local dependencies
 #include "OrbitalElement.hpp"
 
+// Constants
+// tau = 2pi
+constexpr double tau = 2.0 * pi;
+
 // *****************************************************************************
 namespace ks {
 
@@ -135,22 +139,39 @@ double anomaly_M2f(double M, double e)
     return anomaly_E2f(E, e);
 }
 
+// *****************************************************************************
+double period(double a)
+{
+    // T^2 = 4pi^2 a^3 / mu (SSD 2.22)
+    // Solve for T and obtain
+    // T = 2pi * Sqrt(a^3 / mu)
+    return tau * sqrt(cube(a) / mu);
+}
 
 // *****************************************************************************
-Position elt2pos(OrbitalElement& elt)
+double mean_motion(double a)
+{
+    // mu = n^2 * a^3 (SSD 2.26)
+    // Solve this for n and obtain
+    // n = sqrt(mu / a^3)
+    return sqrt(mu / cube(a));
+}
+
+// *****************************************************************************
+Position elt2pos(double a, double e, double inc, double Omega, double omega, double f)
 {
     // Distance from the center, r; SSD equation 2.20
-    double r = elt.a * (1.0 - sqr(elt.e) ) / (1.0 + elt.e * cos(elt.f));
+    double r = a * (1.0 - sqr(e) ) / (1.0 + e * cos(f));
 
     // Intermediate resluts used for angular rotations
     // The angle in the elliptic plane, measured from the reference direction
-    double theta = elt.omega + elt.f;
+    double theta = omega + f;
 
     // Trigonometric functions of the angles
-    double cos_inc = cos(elt.inc);
-    double sin_inc = sin(elt.inc);
-    double cos_Omega = cos(elt.Omega);
-    double sin_Omega = sin(elt.Omega);
+    double cos_inc = cos(inc);
+    double sin_inc = sin(inc);
+    double cos_Omega = cos(Omega);
+    double sin_Omega = sin(Omega);
     double cos_theta = cos(theta);
     double sin_theta = sin(theta);
 
@@ -164,29 +185,36 @@ Position elt2pos(OrbitalElement& elt)
 }
 
 // *****************************************************************************
-StateVector elt2vec(OrbitalElement& elt)
+Position elt2pos(OrbitalElement& elt)
+{
+    return elt2pos(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);
+}
+
+// *****************************************************************************
+StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f)
 {
     // The equations used here were taken from the rebound library
     // The position calculations are equivalent to the ones above from SSD.
     // The velocity calculations are a bit more involved, and I did not see them with explicit equations in SSD.
 
     // sine and cosine of the angles inc, Omega, omega, and f
-    double ci = cos(elt.inc);
-    double si = sin(elt.inc);
-    double cO = cos(elt.Omega);
-    double sO = sin(elt.Omega);
-    double co = cos(elt.omega);
-    double so = sin(elt.omega);
-    double cf = cos(elt.f);
-    double sf = sin(elt.f);
+    double ci = cos(inc);
+    double si = sin(inc);
+    double cO = cos(Omega);
+    double sO = sin(Omega);
+    double co = cos(omega);
+    double so = sin(omega);
+    double cf = cos(f);
+    double sf = sin(f);
 
     // Distance from center
-    double one_minus_e2 = 1.0 - sqr(elt.e);
-    double one_plus_e_cos_f = 1.0 + elt.e*cos(elt.f);
-    double r = elt.a * one_minus_e2 / one_plus_e_cos_f;
+    double one_minus_e2 = 1.0 - sqr(e);
+    double one_plus_e_cos_f = 1.0 + e*cos(f);
+    double r = a * one_minus_e2 / one_plus_e_cos_f;
 
     // Current speed
-    double v0 = sqrt(mu / elt.a / one_minus_e2);
+    // double v0 = sqrt(mu / a / one_minus_e2);
+    double v0 = sqrt(mu / (a * one_minus_e2));
 
     // Position
     // qx = r*(cO*(co*cf-so*sf) - sO*(so*cf+co*sf)*ci)
@@ -205,7 +233,7 @@ StateVector elt2vec(OrbitalElement& elt)
     // vy = v0*((e+cf)*(ci*co*cO - sO*so)  - sf*(co*sO + ci*so*cO))
     // vz = v0*((e+cf)*co*si - sf*si*so)
     // The term e+cf appears three times
-    double epcf = elt.e + cf;
+    double epcf = e + cf;
     // The term cocO appears twice
     double cocO = co*cO;
     // The term cosO appears twice
@@ -230,6 +258,12 @@ StateVector elt2vec(OrbitalElement& elt)
         .vy = vy,
         .vz = vz
     };
+}
+
+// *****************************************************************************
+StateVector elt2vec(OrbitalElement& elt)
+{
+    return elt2vec(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);
 }
 
 // *****************************************************************************

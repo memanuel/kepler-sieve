@@ -13,6 +13,8 @@
 // *****************************************************************************
 // Library dependencies
 #include <cmath>
+#include <numbers>
+    using std::numbers::pi;    
 #include <fmt/format.h>
     using fmt::print;
 
@@ -20,6 +22,7 @@
 #include "utils.hpp"
     using ks::sign;
     using ks::sqr;
+    using ks::cube;
 
 // *****************************************************************************
 namespace ks {
@@ -122,11 +125,26 @@ double anomaly_M2E(double M, double e);
 double anomaly_M2f(double M, double e);
 
 // *****************************************************************************
+// Functions for calculating additional elements e.g period T, mean motion n
+// *****************************************************************************
+/// Calculate the orbital period, T, from the semimajor axis; uses mu for Sun
+double period(double a);
+
+/// Calculate the mean motion, n, from the semimajor axis; uses mu for Sun
+double mean_motion(double a);
+
+// *****************************************************************************
 // Functions for converting between orbital elements and state vectors
 // *****************************************************************************
 
+/// Convert from orbital elements (six doubles) to a position vector. See SSD page 51, equation 2.122.
+Position elt2pos(double a, double e, double inc, double Omega, double omega, double f);
+
 /// Convert from orbital elements to a position vector. See SSD page 51, equation 2.122.
 Position elt2pos(OrbitalElement& elt);
+
+/// Convert from orbital elements (six doubles) to a state vector. See SSD page 51, equation 2.122.
+StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f);
 
 /// Convert from orbital elements to a state vector. See SSD page 51, equation 2.122.
 StateVector elt2vec(OrbitalElement& elt);

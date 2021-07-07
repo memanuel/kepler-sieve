@@ -76,21 +76,25 @@ void test_all()
     // Values copy / pasted from CALL KS.GetAsteroidElements(3, 4, 59000, 59000);
     OrbitalElement elt
     {
-        .mjd    =59000.0,
-        .a      =2.6682852999999986,
-        .e      =0.25693643000000027,
-        .inc    =0.22673642125828372,
-        .Omega  =2.9644675653853,
+        .mjd    = 59000.0,
+        .a      = 2.6682852999999986,
+        .e      = 0.25693643000000027,
+        .inc    = 0.22673642125828372,
+        .Omega  = 2.9644675653853,
         .omega  =-1.9536135288017569,
-        .f      =46.517431678528794,
+        .f      = 46.517431678528794,
         .M      = 46.171557086433715
     };
     print("\nConstructed OrbitalElement for Juno @ {:f}\n", elt.mjd);
     print_orbital_element(elt);
 
     // Build CandidateElement for these elements
-    CandidateElement celt(elt, dtt);
-    print("\nConstructed CandidateOrbitalElement from OrbitalElement.\n");
+    CandidateElement ce(elt, dtt);
+    print("\nConstructed CandidateElement from OrbitalElement.\n");
+
+    // Calculate the trajectory of the elements matching Juno
+    ce.calc_trajectory();
+    print("Calculated trajectory of CandidateElement.\n");
 
     // Close DB connection
     conn->close();
