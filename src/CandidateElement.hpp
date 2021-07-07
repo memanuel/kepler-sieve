@@ -17,15 +17,14 @@
     using std::string;
 #include <vector>
     using std::vector;
-
+#include <cstring>
+    // memcpy
 // Local dependencies
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
-// #include "BodyVector.hpp"
-//     using ks::BodyVector;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
@@ -39,10 +38,12 @@ class CandidateElement
 {
 public:
     // Build a CandidateElement from an OrbitalElement and a DetectionTime table
-    CandidateElement(OrbitalElement elt, DetectionTimeTable dtt);
+    CandidateElement(OrbitalElement& elt, DetectionTimeTable& dtt);
     /// Destructor for CandidateElement.
     ~CandidateElement();
 
+    /// The underlying OrbitalElement
+    OrbitalElement elt;
     /// Calculate asteroid trajectory (positions and velocity)
     void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
@@ -52,13 +53,15 @@ private:
     /// Number of detection times
     const int N;
     /// Array of mjds when detections taken; size N
-    double *mjds;
+    double* mjds;
+    /// Array of positions of observatory; size 3N
+    double* q_obs;
     /// Array of positions of an asteroid with these candidate elements; size 3N
-    double *q_ast;
+    double* q_ast;
     /// Array of velocities of an asteroid with these candidate elements; size 3N
-    double *v_ast;
+    double* v_ast;
     /// Array of directions to an asteroid with these candidate elements; size 3N
-    double *u_ast;
+    double* u_ast;
 };
 
 // *****************************************************************************

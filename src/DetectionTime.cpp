@@ -129,6 +129,18 @@ const vector<DetectionTime> DetectionTimeTable::detection_times() const
 }
 
 // *****************************************************************************
+const double* DetectionTimeTable::get_mjds() const
+{
+    return mjds;
+}
+
+// *****************************************************************************
+const double* DetectionTimeTable::get_q_obs() const
+{
+    return q_obs;
+}
+
+// *****************************************************************************
 void DetectionTimeTable::save()
 {
     // Open output filestream in binary output; truncate file contents

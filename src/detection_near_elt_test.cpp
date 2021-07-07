@@ -39,19 +39,18 @@ void test_all();
 void test_load_detection(db_conn_type& conn);
 
 // *****************************************************************************
-void test_load_detection(DetectionTable& dt)
+void print_detection(DetectionTable& dt)
 {
     Detection d = dt[10];
     print("\nExample Detection:\n");
-    print("d.detection_id = {:d}\n", d.detection_id);
-    print("d.sky_patch_id = {:d}\n", d.sky_patch_id);
-    print("d.time_id = {:d}\n", d.time_id);
-    print("d.ux      = {:+8.6f}\n", d.ux);
-    print("d.uy      = {:+8.6f}\n", d.uy);
-    print("d.uz      = {:+8.6f}\n", d.uz);
-    print("d.mag     = {:8.4f}\n", d.mag);
+    print("detection_id = {:d}\n", d.detection_id);
+    print("sky_patch_id = {:d}\n", d.sky_patch_id);
+    print("time_id = {:d}\n", d.time_id);
+    print("ux      = {:+8.6f}\n", d.ux);
+    print("uy      = {:+8.6f}\n", d.uy);
+    print("uz      = {:+8.6f}\n", d.uz);
+    print("mag     = {:8.4f}\n", d.mag);
 }
-
 
 // *****************************************************************************
 void test_all()
@@ -71,7 +70,7 @@ void test_all()
     DetectionTable dt = DetectionTable(d0, d1);
     dt.load();
     print("Loaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
-    // test_load_detection(dt);
+    // print_detection(dt);
 
     // Build orbital elements for asteroid 3 (Juno), which has 8 hits
     // Values copy / pasted from CALL KS.GetAsteroidElements(3, 4, 59000, 59000);
