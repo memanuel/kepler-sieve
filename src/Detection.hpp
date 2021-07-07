@@ -1,6 +1,6 @@
 /** @file Detection.hpp
  *  @brief Class to load a batch of detections in memory and look them up by SkyPatchID.
- *  See DB table Detection and stored procedure GetDetectionDire.
+ *  See DB table Detection and stored procedures KS.GetDetections and KS.GetDetectionsObs.
  *  
  *  @author Michael S. Emanuel
  *  @date 2021-06-28
@@ -19,8 +19,8 @@
     using std::ofstream;
 #include <vector>
     using std::vector;
-#include <map>
-    using std::map;
+#include <algorithm>
+    using std::min;
 
 // Local dependencies
 #include "utils.hpp"
@@ -68,10 +68,10 @@ struct Detection
 class DetectionTable
 {
 public:
-    /// Default constructor builds an empty table
+    /// Default constructor builds an empty table, then loads from disk
     DetectionTable();
-    /// Initialize a DetectionTable object with detections in the given range
-    DetectionTable(db_conn_type& conn, int d0, int d1, bool progbar);
+    /// Initialize an empty DetectionTable object with detections in the given range
+    DetectionTable(int d0, int d1);
     /// Initialize a DetectionTable object with all available detections
     DetectionTable(db_conn_type& conn, bool progbar);
     /// Destructor for DetectionTable.
@@ -79,7 +79,6 @@ public:
 
     /// Get a detection given its ID
     Detection operator[](int32_t id) const;
-
     /// Get vector of DetectionIDs matching a given SkyPatchID
     vector<int32_t> get_skypatch(int32_t spid) const;
 
@@ -90,6 +89,8 @@ public:
     /// The size
     const int size() const;
 
+    /// Load this object with from database
+    void load(db_conn_type& conn, bool progbar);
     /// Save this object to disk
     void save();
     /// Load this object from disk
@@ -102,61 +103,6 @@ private:
     vector< vector<int32_t> > dtsp;
     /// Helper function to process a batch of rows
     void process_rows(db_conn_type& conn, int i0, int i1);
-};
-
-// *****************************************************************************
-/**Data contained in one detection time.
- * See DB table KS.DetectionTime and stored procedure KS.GetDetectionTimes.*/
-struct DetectionTime
-{
-    /// Integer ID of this detection time
-    int32_t detection_time_id;
-    /// Integer ID of the detection time; FK to KS.HiResTime; the mjd converted to number of minutes.
-    int32_t time_id;
-    /// Data source of this detection
-    int8_t data_source_id;
-    /// Observatory where this detection was made
-    int8_t observatory_id;
-    /// Time of this detection
-    double mjd;
-    /// Position of observatory; x component
-    double q_obs_x;
-    /// Position of observatory; y component
-    double q_obs_y;
-    /// Position of observatory; z component
-    double q_obs_z;
-    /// Position of Sun; x component
-    double q_sun_x;
-    /// Position of Sun; y component
-    double q_sun_y;
-    /// Position of Sun; z component
-    double q_sun_z;
-};
-
-// *****************************************************************************
-class DetectionTimeTable
-{
-public:
-    /// Default constructor builds an empty table with the requested size
-    DetectionTimeTable(int max_id);
-    /// This constructor builds an empty table, then loads it using the given database connection
-    DetectionTimeTable(db_conn_type& conn);
-    /// Destructor for DetectionTable.
-    ~DetectionTimeTable();
-    /// Load all available detections using the DB connection
-    void load(db_conn_type& conn);
-
-    /// Get a detection given its ID
-    DetectionTime operator[](int32_t id) const;
-    /// Get vector of DetectionIDs matching a given TimeID
-    vector<int32_t> get_time(int32_t time_id);
-
-private:
-    /// Vector of detections; dt stands for "DetectionTime Vector"
-    vector<DetectionTime> dtv;
-    /// Map of detection ID vectors keyed by TimeID; dtm stands for "DetectionTime map"
-    map<int32_t, vector<int32_t> > dtm;
-    /// Smallest TimeID
 };
 
 // *****************************************************************************

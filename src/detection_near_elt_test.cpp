@@ -21,13 +21,12 @@
 
 #include "utils.hpp"
     using ks::report_test;
-
+#include "DetectionTime.hpp"
+    using ks::DetectionTime;
+    using ks::DetectionTimeTable;
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-    using ks::DetectionTime;
-    using ks::DetectionTimeTable;
-
 #include "SkyPatchNeighbor.hpp"
     using ks::SkyPatch;
 
@@ -44,16 +43,18 @@ void test_all()
 
     // Inputs to build DetectionTable
     int d0 = 0;
-    int d1 = 1000;
-    bool progbar = true;
+    int d1 = 1000000;
 
     // Initialize DetectionTimeTable
-    DetectionTimeTable dtt = DetectionTimeTable(conn);
-    print("Loaded DetectionTimeTable.\n");
+    // DetectionTimeTable dtt = DetectionTimeTable(conn);
+    DetectionTimeTable dtt = DetectionTimeTable();
+    print("Loaded DetectionTimeTable with {:d} detection times.\n", 0);
 
     // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
-    print("Loaded DetectionTable.\n");
+    DetectionTable dt = DetectionTable(d0, d1);
+    // dt.load(conn, progbar);
+    dt.load();
+    print("Loaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
 
     // Close DB connection
     conn->close();

@@ -24,16 +24,34 @@ DetectionCandidateTable::DetectionCandidateTable():
     d1(0),
     dt(vector<DetectionCandidate>(0)),
     dtsp(vector<vector<int32_t>>(N_sp))
-    {}
+{
+    // Load data from disk
+    load();
+}
 
 // *****************************************************************************
-DetectionCandidateTable::DetectionCandidateTable(db_conn_type& conn, int d0, int d1, bool progbar): 
+// This constructor is used for loading data in chunks from the database in conjunction with load.
+DetectionCandidateTable::DetectionCandidateTable(int d0, int d1): 
     d0(d0),
     d1(d1),
     // Initialize dt to a vector with sz entries, one for each possible detection in the interval
     dt(vector<DetectionCandidate>(d1-d0)),
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
     dtsp(vector<vector<int32_t>>(N_sp))
+    {}
+
+// *****************************************************************************
+DetectionCandidateTable::DetectionCandidateTable(db_conn_type& conn, bool progbar): 
+    // Delegate to range constructor, using DB to compute d1
+    DetectionCandidateTable(0, sp_run_int(conn, "KS.GetMaxDetectionID")) 
+{
+    // Load data from database
+    load(conn, progbar);
+}
+
+
+// *****************************************************************************
+void DetectionCandidateTable::load(db_conn_type& conn, bool progbar)
 {
     // Write 0 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
     int sz = d1-d0;
@@ -75,11 +93,6 @@ DetectionCandidateTable::DetectionCandidateTable(db_conn_type& conn, int d0, int
         t.tock_msg();
     }
 }
-
-// *****************************************************************************
-DetectionCandidateTable::DetectionCandidateTable(db_conn_type& conn, bool progbar): 
-    // Delegate to range constructor, using DB to compute d1
-    DetectionCandidateTable(conn, 0, sp_run_int(conn, "KS.GetMaxDetectionID"), progbar) {}
 
 // *****************************************************************************
 void DetectionCandidateTable::process_rows(db_conn_type& conn, int i0, int i1)
@@ -171,8 +184,13 @@ void DetectionCandidateTable::load()
     fs.open(file_name, file_mode);
 
     // Read the number of rows
-    long sz=-1;
-    fs.read( (char*) &sz, sizeof(sz));
+    long sz_file=-1;
+    fs.read( (char*) &sz_file, sizeof(sz_file));
+
+    // Two modes of operation.
+    // (1) auto mode: d1==0, load the whole file
+    // (2) manual mode: d1>0 was previously set; load only this chunk    
+    int sz = (d1>0) ? min(d1, (int) sz_file) : sz_file;
 
     // Reserve space for the detection table
     dt.reserve(sz);
@@ -183,6 +201,9 @@ void DetectionCandidateTable::load()
     {
         // Read this row into dc
         fs.read( (char*) &dc, sizeof(dc));
+        // If the detection_id not in the requested range [d0, d1), skip it
+        if (dc.detection_id < d0) {continue;}
+        if (dc.detection_id >= d1) {break;}
         // Save this element to dt
         dt.push_back(dc);
         // Write this DetectionID to the vector keyed by this SkyPatchID

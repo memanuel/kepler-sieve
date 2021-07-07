@@ -19,6 +19,8 @@
     using std::ofstream;
 #include <vector>
     using std::vector;
+#include <algorithm>
+    using std::min;
 #include <fmt/format.h>
     using fmt::print;
 
@@ -54,10 +56,10 @@ struct DetectionCandidate
 class DetectionCandidateTable
 {
 public:
-    /// Default constructor builds an empty table
+    /// Default constructor builds an empty table, then loads from disk
     DetectionCandidateTable();
-    /// Initialize a DetectionCandidateTable object with detections in the given range
-    DetectionCandidateTable(db_conn_type& conn, int d0, int d1, bool progbar);
+    /// Initialize an empty DetectionCandidateTable object with detections in the given range
+    DetectionCandidateTable(int d0, int d1);
     /// Initialize a DetectionCandidateTable object with all available detections
     DetectionCandidateTable(db_conn_type& conn, bool progbar);
     /// Destructor for DetectionCandidateTable.
@@ -76,6 +78,8 @@ public:
     /// The size
     const int size() const;
 
+    /// Load this object with from database
+    void load(db_conn_type& conn, bool progbar);
     /// Save this object to disk
     void save();
     /// Load this object from disk

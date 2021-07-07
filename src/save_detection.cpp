@@ -21,22 +21,23 @@
 // Local dependencies
 #include "utils.hpp"
     using ks::report_test;
-
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
-
+#include "DetectionTime.hpp"
+    using ks::DetectionTime;
+    using ks::DetectionTimeTable;
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-
 #include "DetectionCandidate.hpp"
     using ks::DetectionCandidate;
     using ks::DetectionCandidateTable;
 
 // *****************************************************************************
 // Declare functions
+void save_DetectionTime(db_conn_type& conn);
 void save_Detection(db_conn_type& conn);
 void save_DetectionCandidate(db_conn_type& conn);
 void test(db_conn_type& conn);
@@ -51,6 +52,7 @@ int main(int argc, char* argv[])
 
     // Flags from commandline arguments
     bool run_test = false;
+    bool run_save_DetectionTime = false;
     bool run_save_Detection = false;
     bool run_save_DetectionCandidate = false;
 
@@ -59,6 +61,8 @@ int main(int argc, char* argv[])
     desc.add_options()
         ("help,h", "Produce help message")
         ("test", po::bool_switch(&run_test), "Run test")
+        ("DetectionTime", po::bool_switch(&run_save_DetectionTime), 
+            "Serialize contents of stored procedure KS.GetDetectionTimes")
         ("Detection", po::bool_switch(&run_save_Detection), 
             "Serialize contents of stored procedure KS.GetDetections on full range")
         ("DetectionCandidate", po::bool_switch(&run_save_DetectionCandidate), 
@@ -71,8 +75,7 @@ int main(int argc, char* argv[])
     po::notify(vm);
 
     // If program called with no arguments, assume user wanted to run tests
-    // if !(run_save_Detection | run_save_DetectionCandidate) {run_test = true;}
-    run_test =  run_test | (!(run_save_Detection | run_save_DetectionCandidate));
+    run_test = run_test | (!(run_save_Detection | run_save_DetectionCandidate));
 
     // *****************************************************************************
     // Program body
@@ -83,6 +86,9 @@ int main(int argc, char* argv[])
 
     // Run test on DetectionCandidate if requested
     if (run_test) {test(conn);}
+
+    // Save DetectionTime if requested
+    if (run_save_DetectionTime) {save_DetectionTime(conn);}
 
     // Save Detection if requested
     if (run_save_Detection) {save_Detection(conn);}
@@ -98,12 +104,20 @@ int main(int argc, char* argv[])
 }
 
 // *****************************************************************************
+void save_DetectionTime(db_conn_type& conn)
+{
+    // Load the detection time table from database
+    DetectionTimeTable dtt = DetectionTimeTable(conn);
+    // Save detection time table to disk
+    dtt.save();
+}
+
+// *****************************************************************************
 void save_Detection(db_conn_type& conn)
 {
-    // Load the detection candidate table
+    // Load the detection candidate table from database
     bool progbar = true;
     DetectionTable dt = DetectionTable(conn, progbar);
-
     // Save detection table to disk
     dt.save();
 }
@@ -111,11 +125,10 @@ void save_Detection(db_conn_type& conn)
 // *****************************************************************************
 void save_DetectionCandidate(db_conn_type& conn)
 {
-    // Load the detection candidate table
+    // Load the detection candidate table from database
     bool progbar = true;
     DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
-
-    // Save detection table to disk
+    // Save detection candidate table to disk
     dt.save();
 }
 
@@ -126,7 +139,8 @@ void test(db_conn_type& conn)
     int d0 = 0;
     int d1 = 1000000;
     bool progbar = true;
-    DetectionCandidateTable dt1 = DetectionCandidateTable(conn, d0, d1, progbar);
+    DetectionCandidateTable dt1 = DetectionCandidateTable(d0, d1);
+    dt1.load(conn, progbar);
 
     // Does the file with saved data exist?
     const string file_name = "data/cache/DetectionCandidateTable.bin";

@@ -93,7 +93,7 @@ public:
     StateVector interp_vec(double mjd) const;
 
     /// Load data from the database and construct interpolating splines
-    void load_db(db_conn_type& conn);
+    void load(db_conn_type& conn);
     /// Load data from disk and construct interpolating splines
     void load();
     /// Save this object to disk

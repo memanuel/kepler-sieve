@@ -31,7 +31,7 @@ using ks::BodyVector;
 
 // *****************************************************************************
 // The constructor just allocates memory and initializes GSL splines.  
-// It does not load data from database or file, that is done with the load() or load_db() methods.
+// It does not load data from database or file, that is done with the load() method.
 BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, string body_name):
     // Name of the body
     body_name(body_name),
@@ -86,7 +86,7 @@ BodyVector::BodyVector(db_conn_type& conn, string body_name) :
     BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name)
 {
     // Load data from database
-    load_db(conn);
+    load(conn);
 
     // Initialize the gsl_spline objects
     build_splines();
@@ -158,7 +158,7 @@ void BodyVector::gsl_free()
 }
 
 // *****************************************************************************
-void BodyVector::load_db(db_conn_type &conn)
+void BodyVector::load(db_conn_type &conn)
 {
     // Iterate over the batches
     for (int t0=mjd0; t0<mjd1; t0+=batch_size)

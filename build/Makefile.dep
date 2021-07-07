@@ -26,6 +26,7 @@ SkyPatch.o: SkyPatch.hpp SkyPatch.cpp
 SkyPatchNeighbor.o: SkyPatchNeighbor.hpp SkyPatchNeighbor.cpp
 
 # Detections and related classes
+DetectionTime.o: DetectionTime.hpp DetectionTime.cpp
 Detection.o: Detection.hpp Detection.cpp
 DetectionCandidate.o: DetectionCandidate.hpp DetectionCandidate.cpp
 
@@ -41,32 +42,41 @@ detection_near_ast_test.o: detection_near_ast.cpp
 detection_near_elt_test.o: detection_near_elt_test.cpp
 
 # Executables
-detection_near_ast: obj/detection_near_ast.o \
+detection_near_ast: \
+    obj/detection_near_ast.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/BodyVector.o obj/OrbitalElement.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 
-detection_near_ast_cand: obj/detection_near_ast_cand.o \
+detection_near_ast_cand: \
+    obj/detection_near_ast_cand.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/DetectionCandidate.o obj/AsteroidSkyPatch.o
 
-save_detection: obj/save_detection.o obj/utils.o obj/db_utils.o obj/Timer.o \
-    obj/Detection.o obj/DetectionCandidate.o 
+save_detection: \
+    obj/save_detection.o \
+    obj/utils.o obj/db_utils.o obj/Timer.o \
+    obj/DetectionTime.o obj/Detection.o obj/DetectionCandidate.o 
 
-db_test: obj/db_test.o obj/db_utils.o
+db_test: \
+    obj/db_test.o obj/db_utils.o
 
-sky_patch_test: obj/sky_patch_test.o obj/utils.o obj/astro_utils.o \
+sky_patch_test: \
+    obj/sky_patch_test.o \
+    obj/utils.o obj/astro_utils.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o
 
-detection_near_ast_test: obj/detection_near_ast_test.o \
+detection_near_ast_test: \
+    obj/detection_near_ast_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
     obj/BodyVector.o obj/OrbitalElement.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 
-detection_near_elt_test: obj/detection_near_elt_test.o \
+detection_near_elt_test: \
+    obj/detection_near_elt_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
-    obj/Detection.o
+    obj/DetectionTime.o obj/Detection.o 

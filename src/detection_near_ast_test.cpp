@@ -295,7 +295,8 @@ void test_all()
     bool progbar = true;
 
     // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(conn, d0, d1, progbar);
+    DetectionTable dt = DetectionTable(d0, d1);
+    dt.load();
 
     // Test DetectionTable
     test_detection_table(dt, d0);

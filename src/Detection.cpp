@@ -13,8 +13,6 @@
 // Local names used
 using ks::Detection;
 using ks::DetectionTable;
-using ks::DetectionTime;
-using ks::DetectionTimeTable;
 
 // Set batch size to one million
 constexpr int batch_size = 1000000;
@@ -32,16 +30,33 @@ DetectionTable::DetectionTable():
     d1(0),
     dt(vector<Detection>(0)),
     dtsp(vector<vector<int32_t>>(N_sp))
-    {}
+{
+    // Load data from disk
+    load();
+}
 
 // *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type& conn, int d0, int d1, bool progbar): 
+// This constructor is used for loading data in chunks from the database in conjunction with load.
+DetectionTable::DetectionTable(int d0, int d1): 
     d0(d0),
     d1(d1),
     // Initialize dt to a vector with sz entries, one for each possible detection in the interval
     dt(vector<Detection>(d1-d0)),
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
     dtsp(vector<vector<int32_t>>(N_sp))
+    {}
+
+// *****************************************************************************
+DetectionTable::DetectionTable(db_conn_type &conn, bool progbar): 
+    // Delegate to range constructor, using DB to compute d1
+    DetectionTable(0, sp_run_int(conn, "KS.GetMaxDetectionID")) 
+{
+    // Load data from database
+    load(conn, progbar);
+}
+
+// *****************************************************************************
+void DetectionTable::load(db_conn_type& conn, bool progbar)
 {
     // Write 0 into DetectionID field so we can later ignore any holes (e.g. DetectionID=0)
     int sz = d1-d0;
@@ -85,13 +100,7 @@ DetectionTable::DetectionTable(db_conn_type& conn, int d0, int d1, bool progbar)
 }
 
 // *****************************************************************************
-DetectionTable::DetectionTable(db_conn_type &conn, bool progbar): 
-    // Delegate to range constructor, using DB to compute d1
-    DetectionTable(conn, 0, sp_run_int(conn, "KS.GetMaxDetectionID"), progbar) {}
-
-// *****************************************************************************
-/**Helper function: Process a batch of rows, 
- * writing data from stored procedure output to vector of detections. */
+/// Helper function: Process a batch of rows, writing data from stored procedure output to vector of detections.
 void DetectionTable::process_rows(db_conn_type& conn, int i0, int i1)
 {
     // Run the stored procedure to get detections including the observatory position
@@ -196,9 +205,14 @@ void DetectionTable::load()
     std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
     fs.open(file_name, file_mode);
 
-    // Read the number of rows
-    long sz=-1;
-    fs.read( (char*) &sz, sizeof(sz));
+    // Read the number of rows in the file
+    long sz_file=-1;
+    fs.read( (char*) &sz_file, sizeof(sz_file));
+
+    // Two modes of operation.
+    // (1) auto mode: d1==0, load the whole file
+    // (2) manual mode: d1>0 was previously set; load only this chunk    
+    int sz = (d1>0) ? min(d1, (int) sz_file) : sz_file;
 
     // Reserve space for the detection table
     dt.reserve(sz);
@@ -209,98 +223,18 @@ void DetectionTable::load()
     {
         // Read this row into d
         fs.read( (char*) &d, sizeof(d));
+        // If the detection_id not in the requested range [d0, d1), skip it
+        if (d.detection_id < d0) {continue;}
+        if (d.detection_id >= d1) {break;}
         // Save this element to dt
         dt.push_back(d);
         // Write this DetectionID to the vector keyed by this SkyPatchID
         (dtsp[d.sky_patch_id]).push_back(d.detection_id);
     }
 
-    // Update paramater d1
+    // Update parameter d1
     d1 = dt.size();
 
     // Close input filestream
     fs.close();
-}
-
-// *****************************************************************************
-// Class DetectionTimeTable
-// *****************************************************************************
-
-// *****************************************************************************
-DetectionTimeTable::DetectionTimeTable(int max_id):
-    dtv(vector<DetectionTime>(max_id+1)),
-    dtm(map<int32_t, vector<int32_t> >{})
-    {}
-
-// *****************************************************************************
-DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
-    DetectionTimeTable(sp_run_int(conn, "KS.GetDetectionTimeMaxID"))
-    {
-        // Now load data from the database
-        load(conn);
-    }
-
-// Default destructor is OK
-// *****************************************************************************
-DetectionTimeTable::~DetectionTimeTable()
-{}
-
-// *****************************************************************************
-void DetectionTimeTable::load(db_conn_type& conn)
-{
-    // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetDetectionTimes";
-    vector<string> params = {};
-    ResultSet* rs = sp_run(conn, sp_name, params);
-
-    // Loop through resultset
-    while (rs->next())
-    {
-        // Get the DetectionTimeID and TimeID
-        int32_t detection_time_id = rs->getInt("DetectionTimeID");
-        int32_t time_id = rs->getInt("TimeID");
-        // Get the doubles
-        double mjd = rs->getDouble("mjd");
-        double q_obs_x = rs->getDouble("qObs_x");
-        double q_obs_y = rs->getDouble("qObs_y");
-        double q_obs_z = rs->getDouble("qObs_z");
-        double q_sun_x = rs->getDouble("qSun_x");
-        double q_sun_y = rs->getDouble("qSun_y");
-        double q_sun_z = rs->getDouble("qSun_z");
-        // Wrap this entry into one DetectionTime
-        DetectionTime dt = DetectionTime
-        {
-            .detection_time_id = detection_time_id,
-            .time_id = time_id,
-            .data_source_id = rs->getByte("DataSourceID"),
-            .observatory_id = rs->getByte("ObservatoryID"),
-            .mjd        = mjd,
-            .q_obs_x    = q_obs_x,
-            .q_obs_y    = q_obs_y,
-            .q_obs_z    = q_obs_z,
-            .q_sun_x    = q_sun_x,
-            .q_sun_y    = q_sun_y,
-            .q_sun_z    = q_sun_z
-        };
-
-        // Write this DetectionTime into the vector dtv
-        dtv.push_back(dt);
-        // Add this detection time to the map keyed by TimeID
-        (dtm[time_id]).push_back(detection_time_id);
-    }
-    // Close the resultset and free memory
-    rs->close();
-    delete rs;
-}
-
-// *****************************************************************************
-DetectionTime DetectionTimeTable::operator[](int32_t id) const
-{
-    return dtv[id];
-}
-
-// *****************************************************************************
-vector<int32_t> DetectionTimeTable::get_time(int32_t time_id)
-{
-    return dtm[time_id];
 }

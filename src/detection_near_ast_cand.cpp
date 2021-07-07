@@ -494,7 +494,8 @@ void test_all()
     bool progbar = true;
 
     // Initialize DetectionCandidateTable
-    DetectionCandidateTable dt = DetectionCandidateTable(conn, d0, d1, progbar);
+    DetectionCandidateTable dt = DetectionCandidateTable(d0, d1);
+    dt.load(conn, progbar);
 
     // Build AsteroidSkyPatch table
     print_newline();
