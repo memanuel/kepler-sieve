@@ -251,14 +251,9 @@ int main(int argc, char* argv[])
     SkyPatchNeighbor spn = SkyPatchNeighbor();
     print("Completed SkyPatch neighbor table.\n\n");
 
-    // Initialize DetectionCandidateTable
-    // bool progbar = true;
-    // Load the detection candidate table; process either the selected manual range or all detections (default)
-    // DetectionTable dt = is_manual_detection_range ? 
-    //     DetectionTable(conn, d0, d1, progbar) :
-    //     DetectionTable(conn, progbar);
-    DetectionTable dt;
-    dt.load();
+    // Initialize DetectionTable with all available detections
+    DetectionTable dt = DetectionTable();
+    // dt.load();
     print("Loaded Detection table from disk with {:d} detections.\n", dt.size());
     
     // Establish DB connection
@@ -354,8 +349,6 @@ void search_candidates(
     DetectionTable& dt, AsteroidSkyPatchTable& aspt, 
     SkyPatchNeighbor& spn, vector<DetectionNearAsteroid>& cv)
 {
-    // Counter for the number of matches found and pairs examined
-    // int pairs = 0;
     // Reusable pointer to the 9 neighbors of a SkyPatch
     int32_t* ns;
 

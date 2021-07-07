@@ -74,7 +74,7 @@ public:
     DetectionTimeTable(int max_id);
     /// This constructor builds an empty table, then loads it using the given database connection
     DetectionTimeTable(db_conn_type& conn);
-    /// Destructor for DetectionTable.
+    /// Destructor for DetectionTimeTable.
     ~DetectionTimeTable();
 
     /// Get a detection given its ID
@@ -83,9 +83,9 @@ public:
     vector<int32_t> get_time(int32_t time_id);
     // Size of this table
     const int size() const;
-    // Vector of all detection times
+    // Vector of all detection time objects
     const vector<DetectionTime> detection_times() const;
-
+   
     /// Load all available detections using the DB connection
     void load(db_conn_type& conn);
     /// Save this object to disk
@@ -98,6 +98,8 @@ private:
     vector<DetectionTime> dtv;
     /// Map of detection ID vectors keyed by TimeID; dtm stands for "DetectionTime map"
     map<int32_t, vector<int32_t> > dtm;
+    // Array of mjds when detections taken; size N
+    double *mjds;
 };
 
 // *****************************************************************************

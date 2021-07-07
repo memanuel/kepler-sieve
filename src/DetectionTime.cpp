@@ -28,8 +28,12 @@ DetectionTimeTable::DetectionTimeTable():
 
 // *****************************************************************************
 DetectionTimeTable::DetectionTimeTable(int max_id):
+    // dtv is a vector of DetectionTimes; size is max_id+1 because we index by detection_time_id
     dtv(vector<DetectionTime>(max_id+1)),
-    dtm(map<int32_t, vector<int32_t> >{})
+    // dtm is an empty map keyed by TimeID; it will be populated later
+    dtm(map<int32_t, vector<int32_t> >{}),
+    // mjds is an array of doubles with same size at dtv
+    mjds(new double[max_id+1])
     {}
 
 // *****************************************************************************
@@ -40,10 +44,12 @@ DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
         load(conn);
     }
 
-// Default destructor is OK
 // *****************************************************************************
+// Delete manually allocated arrays
 DetectionTimeTable::~DetectionTimeTable()
-{}
+{
+    delete [] mjds;
+}
 
 // *****************************************************************************
 void DetectionTimeTable::load(db_conn_type& conn)
@@ -87,6 +93,8 @@ void DetectionTimeTable::load(db_conn_type& conn)
         dtv.push_back(dt);
         // Add this detection time to the map keyed by TimeID
         (dtm[time_id]).push_back(detection_time_id);
+        // Save mjd to the array
+        mjds[detection_time_id] = mjd;
     }
     // Close the resultset and free memory
     rs->close();
@@ -151,19 +159,26 @@ void DetectionTimeTable::load()
     long sz=-1;
     fs.read( (char*) &sz, sizeof(sz));
 
-    // Reserve space for the detection time vector
-    dtv.reserve(sz);
+    // Resize the detection time vector and allocate storage for mjds array
+    dtv.resize(sz+1);
+    // Need to free memory from the placeholder array of mjds to avoid a (small) memory leak
+    delete [] mjds;
+    mjds = new double[sz+1];
 
-    // // Read the rows from the file in binary
+    // Read the rows from the file in binary
     DetectionTime dt;
     for (int i=0; i<sz; i++)
     {
-        // Read this row into d
+        // Read this row into dt
         fs.read( (char*) &dt, sizeof(dt));
+        // Get the detection_time_id
+        int32_t detection_time_id = dt.detection_time_id;
         // Write this DetectionTime into the vector dtv
-        dtv.push_back(dt);
+        dtv[detection_time_id] = dt;
         // Add this detection time to the map keyed by TimeID
-        (dtm[dt.time_id]).push_back(dt.detection_time_id);
+        (dtm[dt.time_id]).push_back(detection_time_id);
+        // Save the mjd to the array mjds
+        mjds[detection_time_id] = dt.mjd;        
     }
 
     // Close input filestream

@@ -104,44 +104,43 @@ void DetectionTable::load(db_conn_type& conn, bool progbar)
 void DetectionTable::process_rows(db_conn_type& conn, int i0, int i1)
 {
     // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetDetectionsObs";
+    // string sp_name = "KS.GetDetectionsObs";
+    string sp_name = "KS.GetDetections";
     vector<string> params = {to_string(i0), to_string(i1)};
     ResultSet* rs = sp_run(conn, sp_name, params);
 
     // Loop through resultset
     while (rs->next()) 
     {
-        // Unpack the fields in the resultset; 10 total fields
+        // Unpack the fields in the resultset
         // 3 key fields
         int32_t detection_id = rs->getInt("DetectionID");
         int32_t sky_patch_id = rs->getInt("SkyPatchID");
         int32_t time_id = rs->getInt("TimeID");
-        // 1 time field
+        int32_t detection_time_id = rs->getInt("DetectionTimeID");
+        // The detection time
         double mjd = rs->getDouble("mjd");
         // 3 direction components
         double ux = rs->getDouble("ux");
         double uy = rs->getDouble("uy");
         double uz = rs->getDouble("uz");
-        // 3 observatory position components
-        double q_obs_x = rs->getDouble("qObs_x");
-        double q_obs_y = rs->getDouble("qObs_y");
-        double q_obs_z = rs->getDouble("qObs_z");
+        // Magnitude
+        double mag = rs->getDouble("mag");
 
         // Initialize the Detection at this location in dt
         int idx = detection_id - d0;
-        dt[idx] = {
+        dt[idx] = 
+        {
             .detection_id = detection_id,
             .sky_patch_id = sky_patch_id,
             .time_id = time_id,
+            .detection_time_id = detection_time_id,
             .mjd = mjd,
             .ux = ux,
             .uy = uy,
             .uz = uz,
-            .q_obs_x = q_obs_x,
-            .q_obs_y = q_obs_y,
-            .q_obs_z = q_obs_z,
+            .mag = mag,
         };
-
         // Write this DetectionID to the vector keyed by this SkyPatchID
         (dtsp[sky_patch_id]).push_back(detection_id);
     }   // while rs

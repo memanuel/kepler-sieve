@@ -48,20 +48,18 @@ struct Detection
     int32_t sky_patch_id;
     /// Integer ID of the detection time; FK to KS.HiResTime; the mjd converted to number of minutes.
     int32_t time_id;
+    /// Integer ID of the detection time; FK to KS.DetectionTime; unique ID for times
+    int32_t detection_time_id;
     /// Time of this detection
     double mjd;
-    /// Direction of this position; x component
+    /// Direction of this detection; x component
     double ux;
-    /// Direction of this position; y component
+    /// Direction of this detection; y component
     double uy;
-    /// Direction of this position; z component
+    /// Direction of this detection; z component
     double uz;
-    /// Position of observatory; x component
-    double q_obs_x;
-    /// Position of observatory; y component
-    double q_obs_y;
-    /// Position of observatory; z component
-    double q_obs_z;
+    /// Magnitude of this detection
+    double mag;
 };
 
 // *****************************************************************************
