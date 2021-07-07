@@ -82,7 +82,7 @@ public:
     /// Get vector of DetectionIDs matching a given TimeID
     vector<int32_t> get_time(int32_t time_id);
     // Size of this table
-    const int size() const;
+    const int N() const;
     // Vector of all detection time objects
     const vector<DetectionTime> detection_times() const;
    
@@ -93,6 +93,9 @@ public:
     /// Load this object from disk
     void load();
 
+    // Add heliocentric observatory position; speeds up calculation of directions to candidate elements
+    void calc_q_obs();
+
 private:
     /// Vector of detections; dt stands for "DetectionTime Vector"
     vector<DetectionTime> dtv;
@@ -100,6 +103,8 @@ private:
     map<int32_t, vector<int32_t> > dtm;
     // Array of mjds when detections taken; size N
     double *mjds;
+    // Array of observatory positions in HELIOCENTRIC frame
+    double *q_obs;
 };
 
 // *****************************************************************************

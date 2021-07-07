@@ -24,6 +24,8 @@
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
+// #include "BodyVector.hpp"
+//     using ks::BodyVector;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
@@ -43,7 +45,8 @@ public:
 
     /// Calculate asteroid trajectory (positions and velocity)
     void calc_trajectory();
-    /// Calculate direction from 
+    /// Calculate direction from asteroid trajectory to observatory
+    void calc_direction();
 
 private:
     /// Number of detection times

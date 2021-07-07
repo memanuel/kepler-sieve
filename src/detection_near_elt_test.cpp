@@ -46,9 +46,8 @@ void test_all()
     int d1 = 1000000;
 
     // Initialize DetectionTimeTable
-    // DetectionTimeTable dtt = DetectionTimeTable(conn);
     DetectionTimeTable dtt = DetectionTimeTable();
-    print("Loaded DetectionTimeTable with {:d} detection times.\n", 0);
+    print("Loaded DetectionTimeTable with {:d} detection times.\n", dtt.N());
 
     // Initialize DetectionTable
     DetectionTable dt = DetectionTable(d0, d1);

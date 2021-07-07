@@ -184,16 +184,17 @@ void DetectionCandidateTable::load()
     fs.open(file_name, file_mode);
 
     // Read the number of rows
-    long sz_file=-1;
-    fs.read( (char*) &sz_file, sizeof(sz_file));
+    long sz=-1;
+    fs.read( (char*) &sz, sizeof(sz));
 
     // Two modes of operation.
     // (1) auto mode: d1==0, load the whole file
     // (2) manual mode: d1>0 was previously set; load only this chunk    
-    int sz = (d1>0) ? min(d1, (int) sz_file) : sz_file;
-
-    // Reserve space for the detection table
-    dt.reserve(sz);
+    // Update paramater d1; if placeholder of 0, update it to sz; otherwise it is min(d1, sz)
+    d1 = (d1>0) ? min(d1, (int) sz) : sz;
+    
+    // Allocate space for the detection table
+    dt.resize(sz);
 
     // Read the rows from the file in binary
     DetectionCandidate dc;
@@ -201,17 +202,17 @@ void DetectionCandidateTable::load()
     {
         // Read this row into dc
         fs.read( (char*) &dc, sizeof(dc));
+        // Get the detection_id
+        int32_t detection_id = dc.detection_id;
         // If the detection_id not in the requested range [d0, d1), skip it
-        if (dc.detection_id < d0) {continue;}
-        if (dc.detection_id >= d1) {break;}
+        if (detection_id < d0) {continue;}
+        if (detection_id >= d1) {break;}
         // Save this element to dt
-        dt.push_back(dc);
+        // dt.push_back(dc);
+        dt[detection_id-d0] = dc;
         // Write this DetectionID to the vector keyed by this SkyPatchID
-        (dtsp[dc.sky_patch_id]).push_back(dc.detection_id);
+        (dtsp[dc.sky_patch_id]).push_back(detection_id);
     }
-
-    // Update paramater d1
-    d1 = dt.size();
 
     // Close input filestream
     fs.close();
