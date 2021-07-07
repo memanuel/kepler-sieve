@@ -33,6 +33,9 @@ DetectionCandidate.o: DetectionCandidate.hpp DetectionCandidate.cpp
 # AsteroidSkyPatch and related classes
 AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
 
+# CandidateElement
+CandidateElement.o: CandidateElement.hpp CandidateElement.cpp
+
 # Object files for executables
 detection_near_ast.o: detection_near_ast.cpp
 save_detection.o: save_detection.cpp
@@ -79,4 +82,5 @@ detection_near_elt_test: \
     obj/detection_near_elt_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
-    obj/DetectionTime.o obj/Detection.o 
+    obj/DetectionTime.o obj/Detection.o \
+    obj/OrbitalElement.o obj/CandidateElement.o

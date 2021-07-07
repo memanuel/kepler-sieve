@@ -13,6 +13,8 @@
 // *****************************************************************************
 // Library dependencies
 #include <cmath>
+#include <fmt/format.h>
+    using fmt::print;
 
 // Local dependencies
 #include "utils.hpp"
@@ -128,6 +130,10 @@ Position elt2pos(OrbitalElement& elt);
 
 /// Convert from orbital elements to a state vector. See SSD page 51, equation 2.122.
 StateVector elt2vec(OrbitalElement& elt);
+
+// *****************************************************************************
+/// Print a description of an orbital element
+void print_orbital_element(OrbitalElement& elt);
 
 // *****************************************************************************
 // Utility function - norm of two positions

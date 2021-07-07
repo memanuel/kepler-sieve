@@ -44,6 +44,7 @@ DetectionTable::DetectionTable(int d0, int d1):
     dt(vector<Detection>(d1-d0)),
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
     dtsp(vector<vector<int32_t>>(N_sp))
+    // This constructor does NOT automatically load data from disk! Only default constructor does that.
     {}
 
 // *****************************************************************************

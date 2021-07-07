@@ -233,6 +233,19 @@ StateVector elt2vec(OrbitalElement& elt)
 }
 
 // *****************************************************************************
+void print_orbital_element(OrbitalElement& elt)
+{
+    print("mjd      = {:9.3f}\n", elt.mjd);
+    print("a        = {:9.6f}\n", elt.a);
+    print("e        = {:9.6f}\n", elt.e);
+    print("inc      = {:+8.6f}\n", elt.inc);
+    print("Omega    = {:+8.6f}\n", elt.Omega);
+    print("omega    = {:+8.6f}\n", elt.omega);
+    print("f        = {:+8.6f}\n", elt.f);
+    print("M        = {:+8.6f}\n", elt.M);
+}
+
+// *****************************************************************************
 double norm(Position p1, Position p2)
 {
     double dq2 = sqr(p1.qx-p2.qx) + sqr(p1.qy-p2.qy) + sqr(p1.qz-p2.qz);
