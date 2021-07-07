@@ -16,6 +16,8 @@
 // Local dependencies
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
+    using ks::Position;
+    using ks::Velocity;
     using ks::print_orbital_element;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
@@ -30,6 +32,7 @@
     using ks::get_db_conn;
     using ks::sp_run;
 #include "utils.hpp"
+    using ks::norm;
     using ks::report_test;
 
 // *****************************************************************************
@@ -50,6 +53,53 @@ void print_detection(DetectionTable& dt)
     print("uy      = {:+8.6f}\n", d.uy);
     print("uz      = {:+8.6f}\n", d.uz);
     print("mag     = {:8.4f}\n", d.mag);
+}
+
+// *****************************************************************************
+void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
+{
+    // Build CandidateElement for these elements
+    CandidateElement ce(elt, dtt);
+
+    // Choose an example date that is available in DB for testing
+    double mjd_test = 58000.0;
+    // Overwrite first slot of mjd array in CandidateElement object
+    // Need to abuse const double pointer by casting it to non-const
+    double* mjd = (double*) ce.get_mjd();
+    mjd[0] = mjd_test;
+
+    // Calculate trajectory of the asteroid in Kepler approximation
+    ce.calc_trajectory();
+    // Get the predicted position of the asteroid on the first date
+    const double* q_ast = ce.get_q_ast();
+    Position pos
+    {
+        .qx = q_ast[0],
+        .qy = q_ast[1],
+        .qz = q_ast[2]
+    };
+
+    // Expected state vector components - location of Juno at this time.  
+    // Copy / paste from KS.GetAsteroidVectors(3, 4, 58000, 58000);
+    double qx =  1.0693547365201785;
+    double qy = -2.684939245391761;
+    double qz =  0.5674675777224312;
+    // double vx =  0.007764282851412018;
+    // double vy =  0.005217549084953882;
+    // double vz = -0.001498976011266847;
+    // Wrap expected position object
+    Position pos0
+    {
+        .qx = qx,
+        .qy = qy,
+        .qz = qz
+    };
+
+    // Calculate norm
+    double dq = norm(pos0, pos);
+    print("Distance between predicted position and DB values for Juno @ {:9.4f}.\n", mjd_test);
+    print("{:5.2e}\n", dq);
+
 }
 
 // *****************************************************************************
@@ -95,6 +145,9 @@ void test_all()
     // Calculate the trajectory of the elements matching Juno
     ce.calc_trajectory();
     print("Calculated trajectory of CandidateElement.\n");
+
+    // Test the calculated trajectory
+    test_calc_traj(elt, dtt);
 
     // Close DB connection
     conn->close();

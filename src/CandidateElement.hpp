@@ -25,6 +25,7 @@
     using ks::mean_motion;
     using ks::anomaly_M2f;
     using ks::elt2vec;
+    using ks::norm;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
@@ -51,6 +52,17 @@ public:
     void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
     void calc_direction();
+
+    /// Read access to array of mjd when detections were observed (print time); size N
+    double* get_mjd() const;
+    /// Read access to array of positions of observatory; size 3N
+    double* get_q_obs() const;
+    /// Read access to array of positions of an asteroid with these candidate elements; size 3N
+    double* get_q_ast() const;
+    /// Read access to array of velocities of an asteroid with these candidate elements; size 3N
+    double* get_v_ast() const;
+    /// Read access to array of directions of an asteroid with these candidate elements; size 3N
+    double* get_u_ast() const;
 
 private:
     /// Number of detection times
