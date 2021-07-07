@@ -70,7 +70,8 @@ void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
 
     // Calculate trajectory of the asteroid in Kepler approximation
     ce.calc_trajectory();
-    // Get the predicted position of the asteroid on the first date
+
+    // Get the predicted position of the asteroid on the test date
     const double* q_ast = ce.get_q_ast();
     Position pos
     {
@@ -78,28 +79,45 @@ void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
         .qy = q_ast[1],
         .qz = q_ast[2]
     };
+    // Get the predicted velocity of the asteroid on the test date
+    const double* v_ast = ce.get_v_ast();
+    Velocity vel
+    {
+        .vx = v_ast[0],
+        .vy = v_ast[1],
+        .vz = v_ast[2]
+    };
 
     // Expected state vector components - location of Juno at this time.  
     // Copy / paste from KS.GetAsteroidVectors(3, 4, 58000, 58000);
     double qx =  1.0693547365201785;
     double qy = -2.684939245391761;
     double qz =  0.5674675777224312;
-    // double vx =  0.007764282851412018;
-    // double vy =  0.005217549084953882;
-    // double vz = -0.001498976011266847;
-    // Wrap expected position object
+    double vx =  0.007764282851412018;
+    double vy =  0.005217549084953882;
+    double vz = -0.001498976011266847;
+    // Wrap expected position and velocity objects
     Position pos0
     {
         .qx = qx,
         .qy = qy,
         .qz = qz
     };
+    Velocity vel0
+    {
+        .vx = vx,
+        .vy = vy,
+        .vz = vz
+    };
 
-    // Calculate norm
+    // Calculate norm of position and velocity difference
     double dq = norm(pos0, pos);
-    print("Distance between predicted position and DB values for Juno @ {:9.4f}.\n", mjd_test);
-    print("{:5.2e}\n", dq);
+    double dv = norm(vel0, vel);
 
+    // Report results
+    print("Distance between predicted state vectros in Kepler model and DB values for Juno @ {:9.4f}.\n", mjd_test);
+    print("dq: {:8.2e} AU\n", dq);
+    print("dv: {:8.2e} AU/day\n", dv);
 }
 
 // *****************************************************************************

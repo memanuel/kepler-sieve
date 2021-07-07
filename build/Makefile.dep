@@ -1,6 +1,7 @@
 # List of executables (prefix only)
 EXEC := detection_near_ast detection_near_ast_cand save_detection \
-        db_test sky_patch_test detection_near_ast_test detection_near_elt_test
+        db_test sky_patch_test detection_near_ast_test detection_near_elt_test \
+        rebound_example
 
 # Miscellanoues utilities
 utils.o: utils.hpp utils.cpp
@@ -43,6 +44,7 @@ db_test.o: db_test.cpp
 sky_patch_test.o: sky_patch_test.cpp
 detection_near_ast_test.o: detection_near_ast.cpp
 detection_near_elt_test.o: detection_near_elt_test.cpp
+rebound_example.o: rebound_example.cpp
 
 # Executables
 detection_near_ast: \
@@ -84,3 +86,6 @@ detection_near_elt_test: \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
     obj/OrbitalElement.o obj/CandidateElement.o
+
+rebound_example: \
+    obj/rebound_example.o

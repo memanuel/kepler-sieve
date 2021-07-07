@@ -58,12 +58,6 @@ MAKEFLAGS=--warn-undefined-variables --jobs=$(MAKE_JOBS)
 $(info Running make with up to $(MAKE_JOBS) parallel jobs.$(NEWLINE))
 
 # *************************************************************************************************
-# Load required modules (e.g. boost)
-# *************************************************************************************************
-
-# TODO figure this out
-
-# *************************************************************************************************
 # Compiler settings
 # *************************************************************************************************
 # C++ compiler
@@ -92,8 +86,11 @@ endif
 
 # Boost flags are read using environment variable BOOST_DIR
 ifdef BOOST_DIR
-	INCLUDE_BOOST=$(addprefix -I,$(BOOST_DIR))
+	INCLUDE_BOOST := $(addprefix -I,$(BOOST_DIR))
 endif
+
+# Include directory for the rebound library
+INCLUDE_REBOUND := -I/usr/include/rebound
 
 # *************************************************************************************************
 # LD: Linker flags for additional libraries
@@ -119,6 +116,9 @@ LD_LIB_GSL := -lgsl -lgslcblas
 # MariaDB (database connectivity)
 LD_LIB_MARIADB := -lmariadbcpp
 
+# rebound (integration of gravitational problem)
+LD_LIB_REBOUND := -lrebound
+
 # *************************************************************************************************
 # Generate command line arguments 
 # -I: additional include directories
@@ -126,19 +126,22 @@ LD_LIB_MARIADB := -lmariadbcpp
 # -l: additional libraries in library search path named lib<library_name>.a
 # *************************************************************************************************
 # Additional include directories -I
-# Initialize INCLUDE to an empty string
-INCLUDE := 
+# Initialize INCLUDE to default usr/include directory
+INCLUDE := -I/usr/include
 
 # Include user software libraries if provided
 ifdef SOFTWARE_LIBRARY_DIR
-	INCLUDE := $(INCLUDE) \$(NEWLINE) $(TAB) $(INCLUDE_USR)
+	INCLUDE := $(INCLUDE) $(INCLUDE_USR)
 endif
 
 # Only include boost if it was supplied manually
 # Note: on Ubuntu, if Boost was installed using b2, this is not necessary
 ifdef BOOST_DIR
-	INCLUDE := $(INCLUDE) \$(NEWLINE) $(TAB) $(INCLUDE_BOOST)
+	INCLUDE := $(INCLUDE) $(INCLUDE_BOOST)
 endif
+
+# Assemble the entire include command
+INCLUDE := $(INCLUDE) $(INCLUDE_REBOUND)
 
 # Additional library directories -L
 # LD_FLAGS := \
@@ -148,4 +151,4 @@ LD_FLAGS := $(LD_FLAGS_USR)
 # Additional libraries -l
 # LD_LIBS := \
 # \$(NEWLINE) $(TAB) $(LD_LIB_MARIADB)
-LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_GSL) $(LD_LIB_MARIADB)
+LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_GSL) $(LD_LIB_MARIADB) $(LD_LIB_REBOUND)
