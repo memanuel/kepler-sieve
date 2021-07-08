@@ -15,8 +15,12 @@
 #include <cmath>
 #include <numbers>
     using std::numbers::pi;    
+#include <vector>
+    using std::vector;
 #include <fmt/format.h>
     using fmt::print;
+#include <gsl/gsl_spline.h>
+    // gsl_spline
 
 // Local dependencies
 #include "utils.hpp"
@@ -28,7 +32,7 @@
 namespace ks {
 
 // *****************************************************************************
-// Data types for OrbitalElement, Position, Velocity, StateVector
+// Data types for OrbitalElement and a collection of orbital element splines
 // *****************************************************************************
 
 // *****************************************************************************
@@ -53,6 +57,25 @@ struct OrbitalElement
     /// The mean anomaly in radians
     double M;
 };
+
+// *****************************************************************************
+/** Encapsulate all seven vectors of GSL interpolators into one structure for code legibility
+ *  One vector for each of seven orbital elements a, e, inc, Omega, omega, f, M.
+ *  Each asteroid has one one entry in each vector. */
+struct ElementSpline
+{
+    vector<gsl_spline*> a;
+    vector<gsl_spline*> e;
+    vector<gsl_spline*> inc;
+    vector<gsl_spline*> Omega;
+    vector<gsl_spline*> omega;
+    vector<gsl_spline*> f;
+    vector<gsl_spline*> M;
+};
+
+// *****************************************************************************
+// Data types for Position, Velocity, StateVector
+// *****************************************************************************
 
 // *****************************************************************************
 /// Position of an object in the solar system
@@ -94,6 +117,18 @@ struct StateVector
     double vy;
     /// Velocity of body (z coordinate) in AU/day in the barcycentric mean ecliptic frame
     double vz;
+};
+
+// *****************************************************************************
+/// Encapsulate six GSL interpolators, one for each component, into one structure
+struct StateVectorSpline
+{
+    gsl_spline* qx;
+    gsl_spline* qy;
+    gsl_spline* qz;
+    gsl_spline* vx;
+    gsl_spline* vy;
+    gsl_spline* vz;
 };
 
 // *****************************************************************************

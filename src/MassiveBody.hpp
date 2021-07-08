@@ -1,9 +1,9 @@
-/** @file MassiveBody.hpp
- *  @brief Class to load all massive bodies in the DE-435 integration.
+/** @file   MassiveBody.hpp
+ *  @brief  Class to load all massive bodies in the DE-435 integration.
  *  See DB table KS.MassiveBody and stored procedure KS.GetMassiveBodies.
  *  
  *  @author Michael S. Emanuel
- *  @date 2021-07-08
+ *  @date   2021-07-08
  */
 
 // *****************************************************************************

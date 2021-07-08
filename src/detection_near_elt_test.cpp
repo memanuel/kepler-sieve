@@ -1,8 +1,8 @@
-/** @file detection_near_elt_test.cpp
- *  @brief Test harness for functions used in finding detections near candidate orbital elements.
+/** @file   detection_near_elt_test.cpp
+ *  @brief  Test harness for functions used in finding detections near candidate orbital elements.
  *
  *  @author Michael S. Emanuel
- *  @date 2021-07-06
+ *  @date   2021-07-06
  * 
  * Example call:
  * ./detection_near_elt_test.x
@@ -28,6 +28,8 @@
 #include "MassiveBody.hpp"
     using ks::MassiveBody;
     using ks::MassiveBodyTable;
+#include "PlanetElement.hpp"
+    using ks::PlanetElement;    
 #include "CandidateElement.hpp"
     using ks::CandidateElement;
 #include "db_utils.hpp"
@@ -41,8 +43,11 @@
 // *****************************************************************************
 // Declare functions defined in this module
 int main(int argc, char* argv[]);
-void test_all();
+void print_detection(DetectionTable& dt);
+void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt);
+void test_massive_body();
 void test_load_detection(db_conn_type& conn);
+void test_all();
 
 // *****************************************************************************
 void print_detection(DetectionTable& dt)
@@ -99,19 +104,10 @@ void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
     double vx =  0.007764282851412018;
     double vy =  0.005217549084953882;
     double vz = -0.001498976011266847;
+
     // Wrap expected position and velocity objects
-    Position pos0
-    {
-        .qx = qx,
-        .qy = qy,
-        .qz = qz
-    };
-    Velocity vel0
-    {
-        .vx = vx,
-        .vy = vy,
-        .vz = vz
-    };
+    Position pos0 {.qx = qx, .qy = qy, .qz = qz};
+    Velocity vel0 {.vx = vx, .vy = vy, .vz = vz};
 
     // Calculate norm of position and velocity difference
     double dq = norm(pos0, pos);
@@ -124,14 +120,101 @@ void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
 }
 
 // *****************************************************************************
-void test_all()
+void test_massive_body()
 {
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Inputs to build DetectionTable
+    // Instantiate a MassiveBodyTable
+    MassiveBodyTable mbt1(false);
+    // Load it from DB
+    mbt1.load(conn);
+    // Save it
+    mbt1.save();
+
+    // Load from disk
+    MassiveBodyTable mbt = MassiveBodyTable();
+
+    // Print contents
+    print("{:8s} : {:8s} : {:8s}\n", "BodyID", "M", "GM");
+    for (int32_t body_id: mbt.get_body_id())
+    {
+        // Only print the planets; don't show the heavy asteroids
+        if (body_id > 1000000) {continue;}
+        // Access this body and print it
+        MassiveBody mb = mbt[body_id];
+        print("{:8d} : {:8.2e} : {:8.2e}\n", mb.body_id, mb.M, mb.GM);
+    }
+
+    // Close DB connection
+    conn->close();
+}
+
+// *****************************************************************************
+void test_planet_element(PlanetElement& pe)
+{
+    // Test state vectors of Earth @ 58000
+    double mjd_test = 58000.0;
+
+    // Calculate interpolated position and state vector of Earth
+    constexpr int32_t body_id_earth = 399;
+    Position pos = pe.interp_pos(body_id_earth, mjd_test);
+    StateVector vec = pe.interp_vec(body_id_earth, mjd_test);
+    // Wrap velocity of earth
+    Velocity vel {.vx = vec.vx, .vy = vec.vy, .vz = vec.vz};
+
+    // Expected state vector components - location of Juno at this time.  
+    // Copy / paste from KS.GetStateVectors_Earth(58000, 58000, 1440);
+    double qx =  0.9583774949482733;
+    double qy = -0.31579917956842507;
+    double qz = -0.0001266099206526;
+    double vx =  0.005191609325627999;
+    double vy =  0.016244467239388778;
+    double vz = -0.0000000527623193;
+
+    // Wrap expected position and velocity objects
+    Position pos0 {.qx = qx, .qy = qy, .qz = qz};
+    Velocity vel0 {.vx = vx, .vy = vy, .vz = vz};
+
+    // Calculate norm of position and velocity difference
+    double dq = norm(pos0, pos);
+    double dv = norm(vel0, vel);
+
+    // Report results
+    print("Distance between interpolated state vectors and DB values for Earth @ {:9.4f}.\n", mjd_test);
+    print("dq: {:8.2e} AU\n", dq);
+    print("dv: {:8.2e} AU/day\n", dv);
+}
+
+// *****************************************************************************
+void test_all()
+{
+    // Inputs used in testing
     int d0 = 0;
     int d1 = 1000000;
+    int mjd0 = 58000;
+    int mjd1 = 59000;
+    int dt_min = 1440;
+
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
+
+    // Build PlanetElement
+    PlanetElement pe(mjd0, mjd1, dt_min);
+    print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
+            mjd0, mjd1, dt_min);
+
+    // Test state vectors of Earth @ 58000
+    double mjd_test = 58000.0;
+
+    // Calculate interpolated position and state vector of Earth
+    constexpr int32_t body_id_earth = 399;
+    Position pos = pe.interp_pos(body_id_earth, mjd_test);
+    print("Calculated interpolated position.\n");
+    StateVector vec = pe.interp_vec(body_id_earth, mjd_test);
+    print("Calculated interpolated velocity.\n");
+    // Wrap velocity of earth
+    Velocity vel {.vx = vec.vx, .vy = vec.vy, .vz = vec.vz};
 
     // Initialize DetectionTimeTable
     DetectionTimeTable dtt = DetectionTimeTable();
@@ -142,6 +225,8 @@ void test_all()
     dt.load();
     print("Loaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
     // print_detection(dt);
+
+    // test_planet_element(pe);
 
     // Build orbital elements for asteroid 3 (Juno), which has 8 hits
     // Values copy / pasted from CALL KS.GetAsteroidElements(3, 4, 59000, 59000);
@@ -175,40 +260,8 @@ void test_all()
 }
 
 // *****************************************************************************
-void test_massive_body()
-{
-    // Establish DB connection
-    db_conn_type conn = get_db_conn();
-
-    // Instantiate a MassiveBodyTable
-    MassiveBodyTable mbt1(false);
-    // Load it from DB
-    mbt1.load(conn);
-    // Save it
-    mbt1.save();
-
-    // Load from disk
-    MassiveBodyTable mbt = MassiveBodyTable();
-
-    // Print contents
-    print("{:8s} : {:8s} : {:8s}\n", "BodyID", "M", "GM");
-    for (int32_t body_id: mbt.get_body_id())
-    {
-        // Only print the planets; don't show the heavy asteroids
-        if (body_id > 1000000) {continue;}
-        // Access this body and print it
-        MassiveBody mb = mbt[body_id];
-        print("{:8d} : {:8.2e} : {:8.2e}\n", mb.body_id, mb.M, mb.GM);
-    }
-
-
-    // Close DB connection
-    conn->close();
-}
-
-// *****************************************************************************
 int main(int argc, char* argv[])
 {
-    // test_all();
-    test_massive_body();
+    test_all();
+    // test_massive_body();
 }

@@ -1,10 +1,10 @@
-/** @file BodyVector.hpp
- *  @brief Class to state vectors of one astronomical body in memory and perform interpolation on them.
+/** @file   BodyVector.hpp
+ *  @brief  Class to state vectors of one astronomical body in memory and perform interpolation on them.
  *  See DB tables KS.StateVectors_Sun, KS.StateVectors_Earth.
  *  See stored procedures Ks.GetStateVectors_Sun and KS.GetStateVectors_Earth.
  * 
  *  @author Michael S. Emanuel
- *  @date 2021-07-05
+ *  @date   2021-07-05
  */
 
 // *****************************************************************************
@@ -34,6 +34,7 @@
     using ks::Position;
     // using ks::Velocity;
     using ks::StateVector;
+    using ks::StateVectorSpline;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
@@ -43,16 +44,6 @@
 namespace ks {
 
 // *****************************************************************************
-/// Encapsulate six GSL interpolators, one for each component, into one structure
-struct StateVectorSpline
-{
-    gsl_spline* qx;
-    gsl_spline* qy;
-    gsl_spline* qz;
-    gsl_spline* vx;
-    gsl_spline* vy;
-    gsl_spline* vz;
-};
 
 // *****************************************************************************
 class BodyVector

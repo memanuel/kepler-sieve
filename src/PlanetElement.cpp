@@ -1,88 +1,107 @@
-/** @file AsteroidElement.cpp
- *  @brief Implmentation of AsteroidElement class.
+/** @file   PlanetElement.cpp
+ *  @brief  Implmentation of PlanetElement class.
  *  
  *  @author Michael S. Emanuel
- *  @date 2021-07-02
+ *  @date   2021-07-08
  */
 
 // *****************************************************************************
 // Included files
-#include "AsteroidElement.hpp"
+#include "PlanetElement.hpp"
 
-// Set batch size; this is the number of ASTEROIDS, not rows!
-constexpr int batch_size = 100;
+// *****************************************************************************
+// Constants used in this module
+
 // Number of minutes in one day
 constexpr int mpd = 1440;
+// Number of days in one minute
+constexpr double dpm = 1.0 / mpd;
+
+// Number of massive bodies in Planets collection: Sun + 9 planets + moon = 11 bodies
+// But the Sun is the primary so it has no elements.  There are *10* bodies with orbital elements.
+constexpr int N_body_planets = 10;
+// Array of body_id in this problem
+constexpr int32_t body_id_planets[10] = {1, 2, 4, 5, 6, 7, 8, 9, 301, 399};
+// The body_id of the sun
+constexpr int32_t body_id_sun = 10;
+// The position and state vector of the sun in the heliocentric frame are zero by definition
+constexpr Position pos_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0};
+constexpr StateVector vec_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0, .vx=0.0, .vy=0.0, .vz=0.0};
+
+// Stride in minutes for database vectors for Sun and planets
+constexpr int stride_db_min = 5;
+// Batch size for loading dates from DB
+constexpr int batch_size = 1000;
 
 // *****************************************************************************
 // Local names used
-using ks::AsteroidElement;
+using ks::PlanetElement;
 
 // *****************************************************************************
 // The constructor just allocates memory.  
 // It does not load data from database, that is done with the load() method.
-AsteroidElement::AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt):
+PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Data size
-    N_ast(n1-n0),
-    N_t((mjd1-mjd0)/dt+1),
-    // Asteroid range
-    n0(n0),
-    n1(n1),
+    N_body(N_body_planets),
+    // number of times (data size)
+    N_t((mjd1-mjd0)*mpd/lcm(dt_min, stride_db_min)+1),
     // Date range
-    mjd0((mjd0/dt)*dt),
-    mjd1((mjd1/dt)*dt),
-    dt(dt),
-    // Allocate the one dimensional arrays for asteroid_id and mjd
-    asteroid_id(new int32_t[N_ast]),
+    mjd0(mjd0),
+    mjd1(mjd1),
+    // Stride in minutes between consecutive entries
+    // database resolution is every 5 minutes, so apply LCM function to the input to ensure validity.
+    dt_min(lcm(dt_min, stride_db_min)),
+    // Allocate the one dimensional arrays for body_id and mjd
+    body_id(new int32_t[N_body]),
     mjd(new double[N_t]),
     // Allocate a two dimensional array for each orbital element
-    elt_a(new double[N_t*N_ast]),
-    elt_e(new double[N_t*N_ast]),
-    elt_inc(new double[N_t*N_ast]),
-    elt_Omega(new double[N_t*N_ast]),
-    elt_omega(new double[N_t*N_ast]),
-    elt_f(new double[N_t*N_ast]),
-    elt_M(new double[N_t*N_ast]),
+    elt_a(      new double[N_t*N_body]),
+    elt_e(      new double[N_t*N_body]),
+    elt_inc(    new double[N_t*N_body]),
+    elt_Omega(  new double[N_t*N_body]),
+    elt_omega(  new double[N_t*N_body]),
+    elt_f(      new double[N_t*N_body]),
+    elt_M(      new double[N_t*N_body]),
     // Initialize GSL objects
     acc(gsl_interp_accel_alloc() ),
     // BodyVector object for interpolated Sun state vectors
     bv(BodyVector("Sun"))
 {
-    // Populate asteroid_id
-    for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
-    // Populate mjd
+    // Populate body_id - this is a copy from body_id_planets
+    for (int i=0; i<N_body; i++) {body_id[i]=body_id_planets[i];}
+    // Populate mjd; these are on a fixed schedule spaced dt_min minutes apart from mjd0 to mjd1
+    const double dt = dt_min * dpm;
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
 
     // elt_spline is a structure with one member for each of seven elements
     // Reserve space in vector of splines for each element    
-    elt_spline.a.reserve(N_ast);
-    elt_spline.e.reserve(N_ast);
-    elt_spline.inc.reserve(N_ast);
-    elt_spline.Omega.reserve(N_ast);
-    elt_spline.omega.reserve(N_ast);
-    elt_spline.f.reserve(N_ast);
-    elt_spline.M.reserve(N_ast);
+    elt_spline.a.reserve(     N_body);
+    elt_spline.e.reserve(     N_body);
+    elt_spline.inc.reserve(   N_body);
+    elt_spline.Omega.reserve( N_body);
+    elt_spline.omega.reserve( N_body);
+    elt_spline.f.reserve(     N_body);
+    elt_spline.M.reserve(     N_body);
 
-    // Initialize the splines for the elements of each asteroid; one spline for each asteroid and element
-    for (int i=0; i<N_ast; i++)
+    // Initialize the splines for the elements of each body; one spline for each asteroid and element
+    for (int i=0; i<N_body; i++)
     {
-        elt_spline.a.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.e.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.inc.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.Omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.omega.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.f.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.M.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
-    }
-
+        elt_spline.a.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.e.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.inc.push_back(   gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.Omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.f.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.M.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
+    }   // for / i (loop over massive bodies)
 } // end function
 
 // *****************************************************************************
 /// Need a non-trivial destructor to release all manually allocated memory
-AsteroidElement::~AsteroidElement()
+PlanetElement::~PlanetElement()
 {
     // Delete two 1D arrays
-    delete [] asteroid_id;
+    delete [] body_id;
     delete [] mjd;
 
     // Delete seven 2D arrays, one for each orbital element
@@ -102,10 +121,10 @@ AsteroidElement::~AsteroidElement()
 // GSL resources that need to be freed before exit are
 // (1) One spline for each asteroid / element pair
 // (2) The interpolation accelerator
-void AsteroidElement::gsl_free()
+void PlanetElement::gsl_free()
 {
-    // One interpolator for each asteroid and each element
-    for (int i=0; i<N_ast; i++)
+    // One interpolator for each body and each element
+    for (int i=0; i<N_body; i++)
     {
         gsl_spline_free(elt_spline.a[i]);
         gsl_spline_free(elt_spline.e[i]);
@@ -121,65 +140,39 @@ void AsteroidElement::gsl_free()
 }
 
 // *****************************************************************************
-void AsteroidElement::load(db_conn_type &conn, bool progbar)
+void PlanetElement::load(db_conn_type &conn)
 {
-    // Status update
-    if (progbar) 
-    {
-        int batch_count = std::max(N_ast/batch_size, 1);
-        print("Processing {:d} asteroids of AsteroidElement data from {:d} to {:d} in {:d} batches of size {:d}...\n",
-                N_ast, n0, n1, batch_count, batch_size);
-    }
-
-    // Timer for processing from DB
-	Timer t;
-    t.tick();
-
-    // Iterate over the batches; i0 is the first asteroid number of the batch being processed
-    for (int i0=n0; i0<n1; i0+=batch_size)
+    // Iterate over the batches
+    for (int t0=mjd0; t0<mjd1; t0+=batch_size)
     {
         // Upper limit for this batch
-        int i1 = std::min(i0+batch_size, n1);
+        int t1 = std::min(t0+batch_size, mjd1);
         // Process SQL data in this batch
-        process_rows(conn, i0, i1);
-        // Progress bar
-        if (progbar) 
-        {
-            print(".");
-            flush_console();            
-        }
-    } // for / i (batches of asteroids)
-    if (progbar) 
-    {
-        print("\nLoaded AsteroidSkyPatch table.\n");
-        t.tock_msg();
-    }
-    // Delegate to build_splines method to initialize the gsl_spline* objects
-    build_splines();
+        process_rows(conn, t0, t1);
+        // Status
+        print("Loaded rows for mjd in [{:d}, {:d}].\n", t0, t1);
+    }   // for / t0
 }   // end function
 
 // *****************************************************************************
-void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
+void PlanetElement::process_rows(db_conn_type& conn, int t0, int t1)
 {
     // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetAsteroidElements";
-    int mjd1 = mjd0 + N_t*4;
-    vector<string> params = {to_string(i0), to_string(i1), to_string(mjd0), to_string(mjd1)};
+    string sp_name = "KS.GetPlanetElements";
+    // Run the stored procedure to get planet elements in [t0, t1]
+    vector<string> params = {to_string(t0), to_string(t1), to_string(dt_min)};
     ResultSet* rs = sp_run(conn, sp_name, params);
 
     // The time_id corresponding to mjd0
     const int time_id0 = mpd * mjd0;
-    // The space in minutes between entries in mjd array.
-    // Used to calculate the index in the time array from the mjd field
-    const int dt_min = mpd * dt;
 
     // Loop through resultset
     while (rs->next()) 
     {
         // Unpack the fields in the resultset; 10 total fields
         // Two integer IDs
-        int32_t time_id     = rs->getInt("TimeID");
-        int32_t asteroid_id = rs->getInt("AsteroidID");
+        int32_t time_id = rs->getInt("TimeID");
+        int32_t body_id = rs->getInt("BodyID");
         // The time
         // double mjd = rs->getDouble("mjd");
         // Seven orbital elements
@@ -199,7 +192,7 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         // The index (row number) has two terms.
         // The base is the asteroid_row, which is asteroid index times the number of times each asteroid.
         // The offset is the time_row, which is the number of rows written for earlier times on this asteroid.
-        int idx = asteroid_row(asteroid_id) + (time_id-time_id0)/dt_min;
+        int idx = body_row(body_id) + (time_id-time_id0)/dt_min;
 
         // Save the data fields to the member arrays
         elt_a[idx]      = a;
@@ -209,7 +202,6 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         elt_omega[idx]  = omega;
         elt_f[idx]      = f;
         elt_M[idx]      = M;
-
     }   // while rs
     // Close the resultset and free memory
     rs->close();
@@ -217,10 +209,10 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
 }
 
 // *****************************************************************************
-void AsteroidElement::build_splines()
+void PlanetElement::build_splines()
 {
     // One interpolator for each asteroid and each element
-    for (int i=0; i<N_ast; i++)
+    for (int i=0; i<N_body; i++)
     {
         gsl_spline_init(elt_spline.a[i],     mjd, get_a(i), N_t);
         gsl_spline_init(elt_spline.e[i],     mjd, get_e(i), N_t);
@@ -233,100 +225,99 @@ void AsteroidElement::build_splines()
 }
 
 // *****************************************************************************
-// The asteroids are laid out in contiguous order.
-// The asteroid_id determines the offset into the array.
-// If there is a hole in the sequence, those memory locations are left in whatever
-// random state they were initialized with by operator new.
-// This allows for fastest memory access in O(1) steps, bypassing the need
-// to do a binary search when accessing the elements of an asteroid identified
-// by its asteroid_id field.  
-// There are very few gaps in the asteroid_id sequence except between 545135 
-// (last numbered asteroid) and 1000001 (first unnumbered asteroid).
-
-// *****************************************************************************
-const int AsteroidElement::asteroid_idx(int32_t asteroid_id) const 
+const int PlanetElement::body_idx(int32_t body_id) const
 {
-    return asteroid_id - n0;
+    // Bodies are laid out in the order 1, 2, 4, 5, 6, 7, 8, 9, 301, 399
+    if ((0 < body_id) && (body_id < 3)) {return body_id-1;}
+    else if ((3 < body_id) && (body_id < 10)) {return body_id-2;}
+    else if (body_id==301) {return 8;}
+    else if (body_id==399) {return 9;}
+    else {throw domain_error(
+        "Bad body_id! Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 301, 399 (planet barycenters, earth and moon.\n");}
 }
 
 // *****************************************************************************
-const int AsteroidElement::asteroid_row(int32_t asteroid_id) const
+const int PlanetElement::body_row(int32_t body_id) const
 {
-    return asteroid_idx(asteroid_id)*N_t;
+    return body_idx(body_id)*N_t;
 }
 
 // *****************************************************************************
-// Get 1D arrays of asteroid_id and times
+// Get 1D arrays of body_id and times
 // *****************************************************************************
 
 // *****************************************************************************
-int32_t* AsteroidElement::get_asteroid_id() const {return asteroid_id;}
+int32_t* PlanetElement::get_body_id() const {return body_id;}
 
 // *****************************************************************************
-double* AsteroidElement::get_mjd() const {return mjd;}
+double* PlanetElement::get_mjd() const {return mjd;}
 
 // *****************************************************************************
-// Get 1D array of each orbital element given an asteroid_id
+// Get 1D array of each orbital element given a body_id
 // *****************************************************************************
 
 // *****************************************************************************
-double* AsteroidElement::get_a(int32_t asteroid_id) const
+double* PlanetElement::get_a(int32_t body_id) const 
 {
-    return elt_a + asteroid_row(asteroid_id);
+    return elt_a + body_row(body_id);
 }
 
 // *****************************************************************************
-double* AsteroidElement::get_e(int32_t asteroid_id) const
+double* PlanetElement::get_e(int32_t body_id) const
 {
-    return elt_e + asteroid_row(asteroid_id);
+    return elt_e + body_row(body_id);
 }
 
 // *****************************************************************************
-double* AsteroidElement::get_inc(int32_t asteroid_id) const
+double* PlanetElement::get_inc(int32_t body_id) const
 {
-    return elt_inc + asteroid_row(asteroid_id);
+    return elt_inc + body_row(body_id);
 }
 
 // *****************************************************************************
-double* AsteroidElement::get_Omega(int32_t asteroid_id) const
+double* PlanetElement::get_Omega(int32_t body_id) const
 {
-    return elt_Omega + asteroid_row(asteroid_id);
+    return elt_Omega + body_row(body_id);
 }
 
 // *****************************************************************************
-double* AsteroidElement::get_omega(int32_t asteroid_id) const
+double* PlanetElement::get_omega(int32_t body_id) const
 {
-    return elt_omega + asteroid_row(asteroid_id);
+    return elt_omega + body_row(body_id);
 }
 
 // *****************************************************************************
-double* AsteroidElement::get_f(int32_t asteroid_id) const
+double* PlanetElement::get_f(int32_t body_id) const
 {
-    return elt_f + asteroid_row(asteroid_id);
+    return elt_f + body_row(body_id);
 }
 
 // *****************************************************************************
-double* AsteroidElement::get_M(int32_t asteroid_id) const
+double* PlanetElement::get_M(int32_t body_id) const
 {
-    return elt_M + asteroid_row(asteroid_id);
+    return elt_M + body_row(body_id);
 }
 
 // *****************************************************************************
-OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) const
+OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
 {
-    // The interpolators for each orbital element for this asteroid
-    gsl_spline* gsl_interp_a = elt_spline.a[asteroid_id];
-    gsl_spline* gsl_interp_e = elt_spline.e[asteroid_id];
-    gsl_spline* gsl_interp_inc = elt_spline.inc[asteroid_id];
-    gsl_spline* gsl_interp_Omega = elt_spline.Omega[asteroid_id];
-    gsl_spline* gsl_interp_omega = elt_spline.omega[asteroid_id];
-    gsl_spline* gsl_interp_f = elt_spline.f[asteroid_id];
-    gsl_spline* gsl_interp_M = elt_spline.M[asteroid_id];
+    // Get the row number of this asteroid
+    int idx = body_idx(body_id);
+    // The interpolators for each orbital element for this body
+    // The array index into the elt_spline members is idx, NOT body_id;
+    // body_id will go over the end, e.g. for Earth body_id=399 and idx=9.
+    gsl_spline* gsl_interp_a     = elt_spline.a[idx];
+    gsl_spline* gsl_interp_e     = elt_spline.e[idx];
+    gsl_spline* gsl_interp_inc   = elt_spline.inc[idx];
+    gsl_spline* gsl_interp_Omega = elt_spline.Omega[idx];
+    gsl_spline* gsl_interp_omega = elt_spline.omega[idx];
+    gsl_spline* gsl_interp_f     = elt_spline.f[idx];
+    gsl_spline* gsl_interp_M     = elt_spline.M[idx];
 
     // Evaluate the splines at the selected time
     OrbitalElement elt 
     {
-        .a = gsl_spline_eval(gsl_interp_a, mjd, acc),
+        .a      = gsl_spline_eval(gsl_interp_a, mjd, acc),
         .e      = gsl_spline_eval(gsl_interp_e, mjd, acc),
         .inc    = gsl_spline_eval(gsl_interp_inc, mjd, acc),
         .Omega  = gsl_spline_eval(gsl_interp_Omega, mjd, acc),
@@ -339,22 +330,26 @@ OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) cons
 
 // *****************************************************************************
 // This calculation returns the position in the HELIOCENTRIC frame, NOT the BME!
-// The orbital element describes the relative position of the asteroid vs. the primary, which is the Sun here.
-Position AsteroidElement::interp_pos_hel(int32_t asteroid_id, double mjd) const
+// The orbital element describes the relative position of the body vs. the primary, which is the Sun here.
+Position PlanetElement::interp_pos_hel(int32_t body_id, double mjd) const
 {
+    // Peel off special case that the body is the sun; then the position is zero
+    if (body_id==body_id_sun){return pos_sun_hel;}
     // Delegate to interp_elt to spline the elements
-    OrbitalElement elt = interp_elt(asteroid_id, mjd);
+    OrbitalElement elt = interp_elt(body_id, mjd);
     // Call elt2pos to calculate a position
     return elt2pos(elt);
 }
 
 // *****************************************************************************
 // This calculation returns the state vector in the HELIOCENTRIC frame, NOT the BME!
-// The orbital element describes the relative vectors of the asteroid vs. the primary, which is the Sun here.
-StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mjd) const
+// The orbital element describes the relative vectors of the body vs. the primary, which is the Sun here.
+StateVector PlanetElement::interp_vec_hel(int32_t body_id, double mjd) const
 {
+    // Peel off special case that the body is the sun; then the state vector is zero
+    if (body_id==body_id_sun){return vec_sun_hel;}
     // Delegate to interp_elt to spline the elements
-    OrbitalElement elt = interp_elt(asteroid_id, mjd);
+    OrbitalElement elt = interp_elt(body_id, mjd);
     // Call elt2pos to calculate a position
     return elt2vec(elt);   
 }
@@ -362,10 +357,10 @@ StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mjd) con
 // *****************************************************************************
 // Add the heliocentric position from splined orbital elements to the Sun's state vectors
 // to get the position in the BME frame.
-Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd) const
+Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
-    Position ast = interp_pos_hel(asteroid_id, mjd);
+    Position ast = interp_pos_hel(body_id, mjd);
     // Delegate to bv.interp_pos to get interpolated position of Sun in BME
     Position sun = bv.interp_pos(mjd);
     // Add the two components
@@ -380,10 +375,10 @@ Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd) const
 // *****************************************************************************
 // Add the heliocentric state vectors from splined orbital elements to the Sun's state vectors
 // to get the state vectors in the BME frame.
-StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd) const
+StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
-    StateVector ast = interp_vec_hel(asteroid_id, mjd);
+    StateVector ast = interp_vec_hel(body_id, mjd);
     // Delegate to bv.interp_pos to get interpolated position of Sun in BME
     StateVector sun = bv.interp_vec(mjd);
     // Add the two components

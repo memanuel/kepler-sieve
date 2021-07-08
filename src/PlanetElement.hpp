@@ -1,27 +1,29 @@
-/** @file AsteroidElement.hpp
- *  @brief Class to load a batch of orbital elements for a block of asteroids into memory.
+/** @file   PlanetElement.hpp
+ *  @brief  Class to load orbital elements for all the planets.
  *  Supports interpolation of orbital elements and state vectors.
  *  See DB table KS.AsteroidElements and stored procedure KS.GetAsteroidElements.
  *  
  *  @author Michael S. Emanuel
- *  @date 2021-07-02
+ *  @date   2021-07-08
  */
 
 // *****************************************************************************
 #pragma once
 
 // *****************************************************************************
-// Included libraries
+// Library dependencies
 #include <string>
     using std::string;
     using std::to_string;
 #include <vector>
     using std::vector;
+#include <stdexcept>
+    using std::domain_error;
 #include <gsl/gsl_spline.h>
 
 // Local dependencies
 #include "OrbitalElement.hpp"
-    using ks::OrbitalElement;    
+    using ks::OrbitalElement;
     using ks::ElementSpline;
     using ks::Position;
     using ks::Velocity;
@@ -43,79 +45,83 @@
 namespace ks {
 
 // *****************************************************************************
-class AsteroidElement
+class PlanetElement
 {
 public:
     // ********************************************************************************************
     // Constructor and destructor
     // ********************************************************************************************
 
-    /// Constructor takes a range of asteroids and dates
-    AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt);
+    /// Constructor
+    PlanetElement(int mjd0, int mjd1, int dt_min);
 
     /// Destructor - delete manually created arrays
-    ~AsteroidElement();
+    ~PlanetElement();
 
     // ********************************************************************************************
     // Public Data Members
     // ********************************************************************************************
 
-    /// The number of asteroids
-    const int N_ast;
+    /// The number of bodies
+    const int N_body;
     /// The number of times
     const int N_t;
 
     // ********************************************************************************************
-    // Public Methods
+    // Public Methods - Load and Save
     // ********************************************************************************************
 
     /// Load data from the database and construct interpolating splines
-    void load(db_conn_type &conn, bool progbar);
+    void load(db_conn_type &conn);
+    /// Load data from disk and construct interpolating splines
+    void load();
+    /// Save this object to disk
+    void save() const;
 
-    /// Get the array of asteroid IDs whose elements are in this table
-    int32_t* get_asteroid_id() const;
+    // ********************************************************************************************
+    // Public Methods - Get Data
+    // ********************************************************************************************
 
-    /// Get the array of times; this is shared by all the asteroids
+    /// Get the array of body IDs whose elements are in this table
+    int32_t* get_body_id() const;
+
+    /// Get the array of times; this is shared by all the bodies
     double* get_mjd() const;
 
-    /// Calculate the interpolated orbital elements of the given asteroid at time mjd
-    OrbitalElement interp_elt(int32_t asteroid_id, double mjd) const;
+    /// Calculate the interpolated orbital elements of the given body at time mjd
+    OrbitalElement interp_elt(int32_t body_id, double mjd) const;
 
-    /// Calculate the interpolated position of the given asteroid at time mjd in the heliocentric frame
-    Position interp_pos_hel(int32_t asteroid_id, double mjd) const;
+    /// Calculate the interpolated position of the given body at time mjd in the heliocentric frame
+    Position interp_pos_hel(int32_t body_id, double mjd) const;
 
-    /// Calculate the interpolated state vector of the given asteroid at time mjd in the heliocentric frame
-    StateVector interp_vec_hel(int32_t asteroid_id, double mjd) const;
+    /// Calculate the interpolated state vector of the given body at time mjd in the heliocentric frame
+    StateVector interp_vec_hel(int32_t body_id, double mjd) const;
 
-    /// Calculate the interpolated position of the given asteroid at time mjd in the BME frame
-    Position interp_pos(int32_t asteroid_id, double mjd) const;
+    /// Calculate the interpolated position of the given body at time mjd in the BME frame
+    Position interp_pos(int32_t body_id, double mjd) const;
 
-    /// Calculate the interpolated state vector of the given asteroid at time mjd in the BME frame
-    StateVector interp_vec(int32_t asteroid_id, double mjd) const;
+    /// Calculate the interpolated state vector of the given body at time mjd in the BME frame
+    StateVector interp_vec(int32_t body_id, double mjd) const;
 
 private:
     // ********************************************************************************************
     // Private Data Members
     // ********************************************************************************************
 
-    /// First asteroid ID loaded (inclusive)
-    int n0;
-    /// Last asteroid ID loaded (exclusive)
-    int n1;
     /// First date loaded (inclusive); an integer divisible by time_step
     int mjd0;
     /// Last date loaded (inclusive); an integer divisible by time_step
     int mjd1;
-    /// Time step in days
-    int dt;
+    /// Time step in minutes
+    int dt_min;
 
-    // One shared array for the distinct asteroid IDs (typically a sequence, possibly with some holes)
-    int32_t* asteroid_id;
-    /// One shared array for the times as of which orbital elements apply (every 4th day)
+    // One shared array for the body_id; always the same here, the sun, 9 planets, and the moon
+    int32_t* body_id;
+    /// One shared array for the times as of which orbital elements apply
     double* mjd;
 
-    // One array for each orbital element; array size is N_ast * N_t
-    // Array is laid out first by asteroid, then by time (same order that SP returns data).
+    // One array for each orbital element; array size is N_body * N_t
+    // Array is laid out first by body, then by time (same order that SP returns data).
     // This is the required layout to spline each asteroid vs. time.
     double* elt_a;
     double* elt_e;
@@ -137,11 +143,11 @@ private:
     // ********************************************************************************************
 
     // Process a batch of rows
-    void process_rows(db_conn_type& conn, int i0, int i1);
-    // Function to return the asteroid index given an asteroid_id
-    const int asteroid_idx(int32_t asteroid_id) const;
-    // Function to return the row index given an asteroid_id
-    const int asteroid_row(int32_t asteroid_id) const;
+    void process_rows(db_conn_type& conn, int t0, int t1);
+    // Function to return the body_idx given a body_id; this is the row number of the body on a sorted list of bodies
+    const int body_idx(int32_t body_id) const;
+    // Function to return the row index of a body_id; this is the index into the data arrays
+    const int body_row(int32_t body_id) const;
 
     // Get an array (pointer to double) of orbital elements given an asteroid_id
     double* get_a(int32_t asteroid_id) const;

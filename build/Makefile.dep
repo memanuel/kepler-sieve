@@ -15,14 +15,18 @@ db_utils.o: db_utils.hpp db_utils.cpp
 # Timing utilites
 Timer.o: Timer.hpp Timer.cpp
 
+# Miscellaneous small data classes
+MassiveBody.o: MassiveBody.hpp MassiveBody.cpp
+
+# Orbital Elements and state vectors
+OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
+
 # Splined state vectors - BodyVector class
 BodyVector.o: BodyVector.hpp BodyVector.cpp
 
-# Orbital Elements and related classes
-OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
-
-# Miscellaneous small data classes
-MassiveBody.o: MassiveBody.hpp MassiveBody.cpp
+# Splined orbital elements for planets and asteroids
+PlanetElement.o: PlanetElement.hpp PlanetElement.cpp
+AsteroidElement.o: AsteroidElement.hpp AsteroidElement.cpp
 
 # SkyPatch and related classes
 CubeFace.o: CubeFace.hpp CubeFace.cpp
@@ -88,8 +92,9 @@ detection_near_elt_test: \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
-    obj/OrbitalElement.o obj/CandidateElement.o \
-    obj/MassiveBody.o
+    obj/OrbitalElement.o obj/MassiveBody.o \
+    obj/BodyVector.o obj/PlanetElement.o \
+    obj/CandidateElement.o
 
 rebound_example: \
     obj/rebound_example.o
