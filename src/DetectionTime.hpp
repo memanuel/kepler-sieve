@@ -105,10 +105,12 @@ private:
     vector<DetectionTime> dtv;
     /// Map of detection ID vectors keyed by TimeID; dtm stands for "DetectionTime map"
     map<int32_t, vector<int32_t> > dtm;
-    // Array of mjds when detections taken; size N
+    /// Array of mjds when detections taken; size N
     double* mjd;
-    // Array of observatory positions in HELIOCENTRIC frame
+    /// Array of observatory positions in HELIOCENTRIC frame
     double* q_obs;
+    /// Number of rows in data file
+    const int file_length() const;
 };
 
 // *****************************************************************************

@@ -21,6 +21,9 @@ BodyVector.o: BodyVector.hpp BodyVector.cpp
 # Orbital Elements and related classes
 OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
 
+# Miscellaneous small data classes
+MassiveBody.o: MassiveBody.hpp MassiveBody.cpp
+
 # SkyPatch and related classes
 CubeFace.o: CubeFace.hpp CubeFace.cpp
 SkyPatch.o: SkyPatch.hpp SkyPatch.cpp
@@ -85,7 +88,8 @@ detection_near_elt_test: \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
-    obj/OrbitalElement.o obj/CandidateElement.o
+    obj/OrbitalElement.o obj/CandidateElement.o \
+    obj/MassiveBody.o
 
 rebound_example: \
     obj/rebound_example.o

@@ -170,7 +170,7 @@ void DetectionTimeTable::save()
 }
 
 // *****************************************************************************
-int file_length()
+const int DetectionTimeTable::file_length() const
 {
     // Open input filestream in binary mode
     std::ifstream fs;

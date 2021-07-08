@@ -25,6 +25,9 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
+#include "MassiveBody.hpp"
+    using ks::MassiveBody;
+    using ks::MassiveBodyTable;
 #include "CandidateElement.hpp"
     using ks::CandidateElement;
 #include "db_utils.hpp"
@@ -172,7 +175,40 @@ void test_all()
 }
 
 // *****************************************************************************
+void test_massive_body()
+{
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
+
+    // Instantiate a MassiveBodyTable
+    MassiveBodyTable mbt1(false);
+    // Load it from DB
+    mbt1.load(conn);
+    // Save it
+    mbt1.save();
+
+    // Load from disk
+    MassiveBodyTable mbt = MassiveBodyTable();
+
+    // Print contents
+    print("{:8s} : {:8s} : {:8s}\n", "BodyID", "M", "GM");
+    for (int32_t body_id: mbt.get_body_id())
+    {
+        // Only print the planets; don't show the heavy asteroids
+        if (body_id > 1000000) {continue;}
+        // Access this body and print it
+        MassiveBody mb = mbt[body_id];
+        print("{:8d} : {:8.2e} : {:8.2e}\n", mb.body_id, mb.M, mb.GM);
+    }
+
+
+    // Close DB connection
+    conn->close();
+}
+
+// *****************************************************************************
 int main(int argc, char* argv[])
 {
-    test_all();
+    // test_all();
+    test_massive_body();
 }

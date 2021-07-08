@@ -10,16 +10,13 @@
 #include "AsteroidElement.hpp"
 
 // Set batch size; this is the number of ASTEROIDS, not rows!
-// constexpr int batch_size = 100;
-// DEBUG
-constexpr int batch_size = 10;
+constexpr int batch_size = 100;
 // Number of minutes in one day
 constexpr int mpd = 1440;
 
 // *****************************************************************************
 // Local names used
 using ks::AsteroidElement;
-// using ks::ElementArrays;
 
 // *****************************************************************************
 // The constructor just allocates memory.  
