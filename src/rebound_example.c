@@ -1,20 +1,15 @@
-// *****************************************************************************
-// Library dependencies
+/**
+ * Solar System
+ *
+ * This example integrates all planets of the Solar
+ * System. The data comes from the NASA HORIZONS system. 
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
-#include <fmt/format.h>
-    using fmt::print;
+#include "rebound.h"
 
-// *****************************************************************************
-// C Library dependencies
-extern "C" {
-#include <rebound.hpp>
-}
-
-// *****************************************************************************
-// Starting data
 double ss_pos[10][3] = 
 {
     {3.256101656448802E-03  , -1.951205394420489E-04 , -1.478264728548705E-04},  
@@ -27,6 +22,7 @@ double ss_pos[10][3] =
     {1.917757033372740E+01  , 5.671738750949031E+00  , -2.273858614425555E-01},  
     {2.767031517959636E+01  , -1.150331645280942E+01 , -4.008018419157927E-01},  
     {7.765250227278298E+00  , -3.190996242617413E+01 , 1.168394015703735E+00 }, 
+
 };
 double ss_vel[10][3] = 
 {
@@ -56,15 +52,11 @@ double ss_mass[10] =
     1.4639248e+22,
 };
 
-// *****************************************************************************
-// Declarations of functions in this module
 void heartbeat(struct reb_simulation* r);
 double e_init;
 double tmax;
 
-// *****************************************************************************
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]){
     struct reb_simulation* r = reb_create_simulation();
     // Setup constants
     r->dt             = 4;                // in days
@@ -72,10 +64,10 @@ int main(int argc, char* argv[])
     r->G            = 1.4880826e-34;        // in AU^3 / kg / day^2.
     r->ri_whfast.safe_mode     = 0;        // Turn off safe mode. Need to call reb_integrator_synchronize() before outputs. 
     r->ri_whfast.corrector     = 11;        // 11th order symplectic corrector
-    r->integrator        = reb_simulation::REB_INTEGRATOR_WHFAST;
-    // r->integrator        = reb_simulation::REB_INTEGRATOR_IAS15;        // Alternative non-symplectic integrator
+    r->integrator        = REB_INTEGRATOR_WHFAST;
     r->heartbeat        = heartbeat;
     r->exact_finish_time = 1; // Finish exactly at tmax in reb_integrate(). Default is already 1.
+    //r->integrator        = REB_INTEGRATOR_IAS15;        // Alternative non-symplectic integrator
 
     // Initial conditions
     for (int i=0;i<10;i++){
@@ -87,15 +79,11 @@ int main(int argc, char* argv[])
     }
     reb_move_to_com(r);
     e_init = reb_tools_energy(r);
-    int status = system("rm -f energy.txt");
+    system("rm -f energy.txt");
     reb_integrate(r, tmax);
-    // Normal program exit
-    return status > 0 ? 1 : 0;
 }
 
-// *****************************************************************************
-void heartbeat(struct reb_simulation* r)
-{
+void heartbeat(struct reb_simulation* r){
     if (reb_output_check(r, 10000.)){
         reb_output_timing(r, tmax);
         reb_integrator_synchronize(r);

@@ -25,7 +25,7 @@ SRC_DIR := src
 OBJ_DIR := obj
 
 # Set verbosity flag; uncomment this line to show lists of source files, object files and executables.
-# VERBOSE := true
+# VERBOSE := 1
 
 # *************************************************************************************************
 # Source, object and executable files

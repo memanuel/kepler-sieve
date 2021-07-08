@@ -64,7 +64,7 @@ $(info Running make with up to $(MAKE_JOBS) parallel jobs.$(NEWLINE))
 CXX=g++
 
 # Compilation flags
-CXX_FLAGS= \$(NEWLINE) $(TAB) -Wall -std=c++20 -O3
+CXX_FLAGS= \$(NEWLINE) $(TAB) -std=c++20 -Wall -O3
 
 # Output command for object files
 # Note $< is a shorthand for the first dependency
@@ -78,7 +78,7 @@ CXX_OUT_EXE = -o $@.$(EXEC_SUFFIX) \$(NEWLINE) $(TAB) $^
 # *************************************************************************************************
 # INCLUDE: Include paths for additional software libraries 
 # *************************************************************************************************
-# Root directory for manually installed software libraries; 
+# Root directory for manually installed software libraries;
 # found in environment variable SOFTWARE_LIBRARY_DIR
 ifdef SOFTWARE_LIBRARY_DIR
 	INCLUDE_USR := $(addprefix -I,$(SOFTWARE_LIBRARY_DIR))
@@ -120,35 +120,35 @@ LD_LIB_MARIADB := -lmariadbcpp
 LD_LIB_REBOUND := -lrebound
 
 # *************************************************************************************************
-# Generate command line arguments 
-# -I: additional include directories
-# -L: additional library directories
-# -l: additional libraries in library search path named lib<library_name>.a
+# Gather additional include directories with -I flag
 # *************************************************************************************************
-# Additional include directories -I
+
 # Initialize INCLUDE to default usr/include directory
 INCLUDE := -I/usr/include
 
-# Include user software libraries if provided
+# Include user software libraries if SOFTWARE_LIBRARY_DIR environment variable was set
 ifdef SOFTWARE_LIBRARY_DIR
 	INCLUDE := $(INCLUDE) $(INCLUDE_USR)
 endif
 
-# Only include boost if it was supplied manually
+# Only include boost if BOOST_DIR environment variable was set
 # Note: on Ubuntu, if Boost was installed using b2, this is not necessary
+# Loading a boost module will set this, e.g. $ module load boost/1.75
 ifdef BOOST_DIR
 	INCLUDE := $(INCLUDE) $(INCLUDE_BOOST)
 endif
 
-# Assemble the entire include command
+# Add rebound to the include directory
 INCLUDE := $(INCLUDE) $(INCLUDE_REBOUND)
 
+# *************************************************************************************************
+# Generate linker flags
+# -L: additional library directories
+# -l: additional libraries in library search path named lib<library_name>.a
+# *************************************************************************************************
+
 # Additional library directories -L
-# LD_FLAGS := \
-# \$(NEWLINE) $(TAB) $(LD_FLAGS_USR) 
 LD_FLAGS := $(LD_FLAGS_USR) 
 
 # Additional libraries -l
-# LD_LIBS := \
-# \$(NEWLINE) $(TAB) $(LD_LIB_MARIADB)
 LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_GSL) $(LD_LIB_MARIADB) $(LD_LIB_REBOUND)
