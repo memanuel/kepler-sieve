@@ -52,8 +52,14 @@ public:
     // Constructor and destructor
     // ********************************************************************************************
 
-    /// Constructor
+    /// Constructor takes time range, time step and allocates memory
     PlanetElement(int mjd0, int mjd1, int dt_min);
+
+    /// Default Constructor - load data from file on disk
+    PlanetElement();
+
+    /// Constructor - take a DB connection
+    PlanetElement(db_conn_type& conn);
 
     /// Destructor - delete manually created arrays
     ~PlanetElement();
@@ -103,8 +109,8 @@ public:
     /// Calculate the interpolated state vector of the given body at time mjd in the BME frame
     StateVector interp_vec(int32_t body_id, double mjd) const;
 
-// private:
-//DEBUG - make these methods public
+private:
+// DEBUG
 public:
     // ********************************************************************************************
     // Private Data Members

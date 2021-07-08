@@ -28,6 +28,9 @@ constexpr int32_t body_id_sun = 10;
 constexpr Position pos_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0};
 constexpr StateVector vec_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0, .vx=0.0, .vy=0.0, .vz=0.0};
 
+// Start and end date for database
+constexpr int mjd0_db = 48000;
+constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and planets
 constexpr int stride_db_min = 5;
 // Batch size for loading dates from DB
@@ -95,6 +98,30 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
         elt_spline.M.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
     }   // for / i (loop over massive bodies)
 } // end function
+
+// *****************************************************************************
+PlanetElement::PlanetElement() :
+    // Delegate to memory allocating constructor with database inputs 
+    PlanetElement(mjd0_db, mjd1_db, stride_db_min)
+{
+    // Load data from disk
+    load();
+
+    // Initialize the gsl_spline objects
+    build_splines();
+}
+
+// *****************************************************************************
+PlanetElement::PlanetElement(db_conn_type& conn) :
+    // Delegate to memory allocating constructor with database inputs 
+    PlanetElement(mjd0_db, mjd1_db, stride_db_min)
+{
+    // Load data from database
+    load(conn);
+
+    // Initialize the gsl_spline objects
+    build_splines();
+}
 
 // *****************************************************************************
 /// Need a non-trivial destructor to release all manually allocated memory
@@ -374,3 +401,98 @@ StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
         .vz = ast.vz + sun.vz
     };
 }
+
+// *****************************************************************************
+void PlanetElement::save() const
+{
+    // Open output filestream in binary output; truncate file contents
+    std::ofstream fs;
+    std::ios_base::openmode file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
+    fs.open(file_name, file_mode);
+
+    // Write the number of bodies and times in binary as long int
+    fs.write((char*) &N_body, sizeof(N_body));
+    fs.write((char*) &N_t, sizeof(N_t));
+
+    // The time_id corresponding to mjd0
+    // const int time_id0 = mpd * mjd0;
+    // All the data elements except time_id are doubles
+    int data_sz = sizeof(double);
+    // Write the rows to the file in binary
+
+    // Iterate over the N_body bodies in this collection
+    for (int idx=0; idx<N_body; idx++)
+    {
+        // The body_id for this idx
+        int32_t body_id = body_id[idx];
+        // Iterate over the N_t times
+        for (int i=0; i<N_t; i++)
+        {
+            // Write the time_id and body_id
+            int32_t time_id = time_id0 + i*dt_min;
+            fs.write((char*) &time_id, sizeof(time_id));
+
+            // Write the time as an mjd
+            fs.write((char*) (mjd+i), data_sz);
+            // Write the six components of the state vector
+            fs.write((char*) (qx+i), data_sz);
+            fs.write((char*) (qy+i), data_sz);
+            fs.write((char*) (qz+i), data_sz);
+            fs.write((char*) (vx+i), data_sz);
+            fs.write((char*) (vy+i), data_sz);
+            fs.write((char*) (vz+i), data_sz);
+        }
+    } // for / idx (loop over bodies)
+
+    // Status
+    // print("Wrote {:d} rows of data to {:s}\n", N_t, file_name);
+
+    // Close output filestream
+    fs.close();
+}
+
+// // *****************************************************************************
+// void PlanetElement::load()
+// {
+//     // Build file_name from file_name_base and body_name
+//     string file_name = file_name_from_body();
+//     // Open input filestream in binary mode
+//     std::ifstream fs;
+//     std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+//     fs.open(file_name, file_mode);
+
+//     // Read the number of rows according to the file
+//     int N_t_file=-1;
+//     fs.read( (char*) &N_t_file, sizeof(N_t_file));
+//     // Check that the number of rows agrees with the constexpr specification in this file
+//     if (N_t_file != N_t)
+//     {throw domain_error("Bad data file! N_t does not match specification.\n");}
+
+//     // All the data elements except time_id are doubles
+//     int data_sz = sizeof(double);
+
+//     // The time_id corresponding to mjd0
+//     // const int time_id0 = mpd * mjd0;
+//     // The time_id on this loop
+//     // int32_t time_id
+
+//     // Loop through the file
+//     for (int i=0; i<N_t; i++)
+//     {
+//         // Read the time_id
+//         // fs.read( (char*) &time_id, sizeof(time_id));
+//         // Write to mjd array
+//         fs.read( (char*) (mjd+i), data_sz);
+//         // Write state vector components to arrays
+//         fs.read( (char*) (qx+i), data_sz);
+//         fs.read( (char*) (qy+i), data_sz);
+//         fs.read( (char*) (qz+i), data_sz);
+//         fs.read( (char*) (vx+i), data_sz);
+//         fs.read( (char*) (vy+i), data_sz);
+//         fs.read( (char*) (vz+i), data_sz);
+//     }
+
+//     // Close input filestream
+//     fs.close();
+// }
+

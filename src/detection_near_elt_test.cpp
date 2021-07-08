@@ -218,11 +218,12 @@ void test_all()
     // Inputs used in testing
     int d0 = 0;
     int d1 = 1000000;
-    // int mjd0 = 58000;
-    // int mjd1 = 59000;
-    int mjd0 = 57990;
-    int mjd1 = 58010;
-    int dt_min = 1440;
+    int mjd0 = 58000;
+    int mjd1 = 59000;
+    int dt_min = 60;
+    // int mjd0 = 57990;
+    // int mjd1 = 58010;
+    // int dt_min = 1440;
 
     // Establish DB connection
     db_conn_type conn = get_db_conn();
