@@ -130,7 +130,7 @@ private:
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
     /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
-    const BodyVector bv;
+    const BodyVector bv_sun;
     
     // ********************************************************************************************
     // Private Methods

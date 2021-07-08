@@ -46,7 +46,7 @@ AsteroidElement::AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt):
     // Initialize GSL objects
     acc(gsl_interp_accel_alloc() ),
     // BodyVector object for interpolated Sun state vectors
-    bv(BodyVector("Sun"))
+    bv_sun(BodyVector("Sun"))
 {
     // Populate asteroid_id
     for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
@@ -366,8 +366,8 @@ Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     Position ast = interp_pos_hel(asteroid_id, mjd);
-    // Delegate to bv.interp_pos to get interpolated position of Sun in BME
-    Position sun = bv.interp_pos(mjd);
+    // Delegate to bv_sun to get interpolated position of Sun in BME
+    Position sun = bv_sun.interp_pos(mjd);
     // Add the two components
     return Position
     {
@@ -384,8 +384,8 @@ StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     StateVector ast = interp_vec_hel(asteroid_id, mjd);
-    // Delegate to bv.interp_pos to get interpolated position of Sun in BME
-    StateVector sun = bv.interp_vec(mjd);
+    // Delegate to bv_sun to get interpolated state vector of Sun in BME
+    StateVector sun = bv_sun.interp_vec(mjd);
     // Add the two components
     return StateVector
     {

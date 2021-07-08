@@ -103,7 +103,9 @@ public:
     /// Calculate the interpolated state vector of the given body at time mjd in the BME frame
     StateVector interp_vec(int32_t body_id, double mjd) const;
 
-private:
+// private:
+//DEBUG - make these methods public
+public:
     // ********************************************************************************************
     // Private Data Members
     // ********************************************************************************************
@@ -136,7 +138,7 @@ private:
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
     /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
-    const BodyVector bv;
+    const BodyVector bv_sun;
     
     // ********************************************************************************************
     // Private Methods
@@ -149,14 +151,15 @@ private:
     // Function to return the row index of a body_id; this is the index into the data arrays
     const int body_row(int32_t body_id) const;
 
-    // Get an array (pointer to double) of orbital elements given an asteroid_id
-    double* get_a(int32_t asteroid_id) const;
-    double* get_e(int32_t asteroid_id) const;
-    double* get_inc(int32_t asteroid_id) const;
-    double* get_Omega(int32_t asteroid_id) const;
-    double* get_omega(int32_t asteroid_id) const;
-    double* get_f(int32_t asteroid_id) const;
-    double* get_M(int32_t asteroid_id) const;
+    // Get an array (pointer to double) of orbital elements given a body index number
+    // Note the argument is body_idx (ranging from 0 to 9), NOT body_id!
+    double* get_a(int idx) const;
+    double* get_e(int idx) const;
+    double* get_inc(int idx) const;
+    double* get_Omega(int idx) const;
+    double* get_omega(int idx) const;
+    double* get_f(int idx) const;
+    double* get_M(int idx) const;
 
     // Build GSL splines
     void build_splines();

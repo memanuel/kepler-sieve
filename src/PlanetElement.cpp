@@ -65,7 +65,7 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Initialize GSL objects
     acc(gsl_interp_accel_alloc() ),
     // BodyVector object for interpolated Sun state vectors
-    bv(BodyVector("Sun"))
+    bv_sun(BodyVector("Sun"))
 {
     // Populate body_id - this is a copy from body_id_planets
     for (int i=0; i<N_body; i++) {body_id[i]=body_id_planets[i];}
@@ -158,7 +158,7 @@ void PlanetElement::load(db_conn_type &conn)
 void PlanetElement::process_rows(db_conn_type& conn, int t0, int t1)
 {
     // Run the stored procedure to get detections including the observatory position
-    string sp_name = "KS.GetPlanetElements";
+    string sp_name = "KS.GetElements_Planets";
     // Run the stored procedure to get planet elements in [t0, t1]
     vector<string> params = {to_string(t0), to_string(t1), to_string(dt_min)};
     ResultSet* rs = sp_run(conn, sp_name, params);
@@ -212,15 +212,17 @@ void PlanetElement::process_rows(db_conn_type& conn, int t0, int t1)
 void PlanetElement::build_splines()
 {
     // One interpolator for each asteroid and each element
-    for (int i=0; i<N_body; i++)
+    // idx is the body index (i.e. counter from 0 to 9), NOT the body_id!
+    for (int idx=0; idx<N_body; idx++)
     {
-        gsl_spline_init(elt_spline.a[i],     mjd, get_a(i), N_t);
-        gsl_spline_init(elt_spline.e[i],     mjd, get_e(i), N_t);
-        gsl_spline_init(elt_spline.inc[i],   mjd, get_inc(i), N_t);
-        gsl_spline_init(elt_spline.Omega[i], mjd, get_Omega(i), N_t);
-        gsl_spline_init(elt_spline.omega[i], mjd, get_omega(i), N_t);
-        gsl_spline_init(elt_spline.f[i],     mjd, get_f(i), N_t);
-        gsl_spline_init(elt_spline.M[i],     mjd, get_M(i), N_t);
+        // Evaluate the interpolation spline for each orbital element of this body
+        gsl_spline_init(elt_spline.a[idx],     mjd, get_a(idx),     N_t);
+        gsl_spline_init(elt_spline.e[idx],     mjd, get_e(idx),     N_t);
+        gsl_spline_init(elt_spline.inc[idx],   mjd, get_inc(idx),   N_t);
+        gsl_spline_init(elt_spline.Omega[idx], mjd, get_Omega(idx), N_t);
+        gsl_spline_init(elt_spline.omega[idx], mjd, get_omega(idx), N_t);
+        gsl_spline_init(elt_spline.f[idx],     mjd, get_f(idx),     N_t);
+        gsl_spline_init(elt_spline.M[idx],     mjd, get_M(idx),     N_t);
     }
 }
 
@@ -257,52 +259,32 @@ double* PlanetElement::get_mjd() const {return mjd;}
 // *****************************************************************************
 
 // *****************************************************************************
-double* PlanetElement::get_a(int32_t body_id) const 
-{
-    return elt_a + body_row(body_id);
-}
+double* PlanetElement::get_a(int idx) const {return elt_a + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_e(int32_t body_id) const
-{
-    return elt_e + body_row(body_id);
-}
+double* PlanetElement::get_e(int idx) const {return elt_e + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_inc(int32_t body_id) const
-{
-    return elt_inc + body_row(body_id);
-}
+double* PlanetElement::get_inc(int idx) const {return elt_inc + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_Omega(int32_t body_id) const
-{
-    return elt_Omega + body_row(body_id);
-}
+double* PlanetElement::get_Omega(int idx) const {return elt_Omega + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_omega(int32_t body_id) const
-{
-    return elt_omega + body_row(body_id);
-}
+double* PlanetElement::get_omega(int idx) const {return elt_omega + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_f(int32_t body_id) const
-{
-    return elt_f + body_row(body_id);
-}
+double* PlanetElement::get_f(int idx) const {return elt_f + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_M(int32_t body_id) const
-{
-    return elt_M + body_row(body_id);
-}
+double* PlanetElement::get_M(int idx) const {return elt_M + N_t*idx;}
 
 // *****************************************************************************
 OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
 {
-    // Get the row number of this asteroid
+    // Get the index number of this body
     int idx = body_idx(body_id);
+
     // The interpolators for each orbital element for this body
     // The array index into the elt_spline members is idx, NOT body_id;
     // body_id will go over the end, e.g. for Earth body_id=399 and idx=9.
@@ -317,13 +299,13 @@ OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
     // Evaluate the splines at the selected time
     OrbitalElement elt 
     {
-        .a      = gsl_spline_eval(gsl_interp_a, mjd, acc),
-        .e      = gsl_spline_eval(gsl_interp_e, mjd, acc),
-        .inc    = gsl_spline_eval(gsl_interp_inc, mjd, acc),
+        .a      = gsl_spline_eval(gsl_interp_a,     mjd, acc),
+        .e      = gsl_spline_eval(gsl_interp_e,     mjd, acc),
+        .inc    = gsl_spline_eval(gsl_interp_inc,   mjd, acc),
         .Omega  = gsl_spline_eval(gsl_interp_Omega, mjd, acc),
         .omega  = gsl_spline_eval(gsl_interp_omega, mjd, acc),
-        .f      = gsl_spline_eval(gsl_interp_f, mjd, acc),
-        .M      = gsl_spline_eval(gsl_interp_M, mjd, acc)
+        .f      = gsl_spline_eval(gsl_interp_f,     mjd, acc),
+        .M      = gsl_spline_eval(gsl_interp_M,     mjd, acc)
     };
     return elt;
 }
@@ -361,8 +343,8 @@ Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     Position ast = interp_pos_hel(body_id, mjd);
-    // Delegate to bv.interp_pos to get interpolated position of Sun in BME
-    Position sun = bv.interp_pos(mjd);
+    // Delegate to bv_sun to get interpolated position of Sun in BME
+    Position sun = bv_sun.interp_pos(mjd);
     // Add the two components
     return Position
     {
@@ -379,8 +361,8 @@ StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     StateVector ast = interp_vec_hel(body_id, mjd);
-    // Delegate to bv.interp_pos to get interpolated position of Sun in BME
-    StateVector sun = bv.interp_vec(mjd);
+    // Delegate to bv_sun to get interpolated state vectors of Sun in BME
+    StateVector sun = bv_sun.interp_vec(mjd);
     // Add the two components
     return StateVector
     {

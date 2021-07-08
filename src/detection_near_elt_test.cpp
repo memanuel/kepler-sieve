@@ -154,12 +154,38 @@ void test_massive_body()
 void test_planet_element(PlanetElement& pe)
 {
     // Test state vectors of Earth @ 58000
+    int32_t body_id=399;
     double mjd_test = 58000.0;
+    // Calculate idx from body_id
+    // int idx = pe.body_idx(body_id);
+    // print("Earth has body_id={:d}, idx={:d}.\n", body_id, idx);
+
+    // // Print the MJDs at the spline nodes
+    // print("PlanetElement has {:d} MJDs forming spline nodes:\n", pe.N_t);
+    // double* mjd = pe.get_mjd();
+    // for (int i=0; i<pe.N_t; i++) {print("{:8.2f}, ", mjd[i]);}
+
+    // // Print the element a at the spline nodes
+    // print("\nValues of a at these nodes for Earth:\n");
+    // double* a = pe.get_a(idx);
+    // for (int i=0; i<pe.N_t; i++) {print("{:8.6f}, ", a[i]);}
+    // print("\n");
+
+    // // Manual spline of a
+    // print("Manually splining a on gsl_spline.\n");
+    // gsl_spline* gsl_interp_a = pe.elt_spline.a[idx];
+    // gsl_interp_accel* acc = pe.acc;
+    // double a_out = gsl_spline_eval(gsl_interp_a, mjd_test, acc);
+    // print("a_out={:8.6f}.\n", a_out);
+
+    // // Calculate interpolated elements
+    // print("Splining orbital elements at {:8.4f}.\n", mjd_test);
+    // OrbitalElement elt = pe.interp_elt(body_id, mjd_test);
+    // print("a={:f}\n.", elt.a);
 
     // Calculate interpolated position and state vector of Earth
-    constexpr int32_t body_id_earth = 399;
-    Position pos = pe.interp_pos(body_id_earth, mjd_test);
-    StateVector vec = pe.interp_vec(body_id_earth, mjd_test);
+    Position pos = pe.interp_pos(body_id, mjd_test);
+    StateVector vec = pe.interp_vec(body_id, mjd_test);
     // Wrap velocity of earth
     Velocity vel {.vx = vec.vx, .vy = vec.vy, .vz = vec.vz};
 
@@ -192,8 +218,10 @@ void test_all()
     // Inputs used in testing
     int d0 = 0;
     int d1 = 1000000;
-    int mjd0 = 58000;
-    int mjd1 = 59000;
+    // int mjd0 = 58000;
+    // int mjd1 = 59000;
+    int mjd0 = 57990;
+    int mjd1 = 58010;
     int dt_min = 1440;
 
     // Establish DB connection
@@ -201,20 +229,12 @@ void test_all()
 
     // Build PlanetElement
     PlanetElement pe(mjd0, mjd1, dt_min);
+    pe.load(conn);
+    pe.build_splines();
     print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
             mjd0, mjd1, dt_min);
 
-    // Test state vectors of Earth @ 58000
-    double mjd_test = 58000.0;
-
-    // Calculate interpolated position and state vector of Earth
-    constexpr int32_t body_id_earth = 399;
-    Position pos = pe.interp_pos(body_id_earth, mjd_test);
-    print("Calculated interpolated position.\n");
-    StateVector vec = pe.interp_vec(body_id_earth, mjd_test);
-    print("Calculated interpolated velocity.\n");
-    // Wrap velocity of earth
-    Velocity vel {.vx = vec.vx, .vy = vec.vy, .vz = vec.vz};
+    test_planet_element(pe);
 
     // Initialize DetectionTimeTable
     DetectionTimeTable dtt = DetectionTimeTable();
