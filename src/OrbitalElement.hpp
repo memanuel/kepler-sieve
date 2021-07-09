@@ -62,7 +62,7 @@ struct OrbitalElement
 /** Encapsulate all seven vectors of GSL interpolators into one structure for code legibility
  *  One vector for each of seven orbital elements a, e, inc, Omega, omega, f, M.
  *  Each asteroid has one one entry in each vector. */
-struct ElementSpline
+struct ElementSplines
 {
     vector<gsl_spline*> a;
     vector<gsl_spline*> e;
@@ -130,6 +130,21 @@ struct StateVectorSpline
     gsl_spline* vy;
     gsl_spline* vz;
 };
+
+// *****************************************************************************
+/** Encapsulate six vectors of GSL interpolators into one structure for code legibility
+ *  One vector for each component qx, qy, qz, vx, vy, vz.
+ *  Each body has one one entry in each vector. */
+struct StateVectorSplines
+{
+    vector<gsl_spline*> qx;
+    vector<gsl_spline*> qy;
+    vector<gsl_spline*> qz;
+    vector<gsl_spline*> vx;
+    vector<gsl_spline*> vy;
+    vector<gsl_spline*> vz;
+};
+
 
 // *****************************************************************************
 // Functions for converting one type of anomaly to another

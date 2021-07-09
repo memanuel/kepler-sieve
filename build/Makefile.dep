@@ -1,3 +1,4 @@
+# *************************************************************************************************
 # Executable console programs (prefix only)
 EXEC_CONSOLE := \
     detection_near_ast detection_near_ast_cand save_db2disk \
@@ -11,6 +12,7 @@ EXEC_TEST := \
 # Combined list of executables
 EXEC := $(EXEC_CONSOLE) $(EXEC_TEST)
 
+# *************************************************************************************************
 # Miscellanoues utilities
 utils.o: utils.hpp utils.cpp
 
@@ -29,10 +31,8 @@ MassiveBody.o: MassiveBody.hpp MassiveBody.cpp
 # Orbital Elements and state vectors
 OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
 
-# Splined state vectors - BodyVector class
+# Splined orbital elements for one body or a collection
 BodyVector.o: BodyVector.hpp BodyVector.cpp
-
-# Splined orbital elements for planets and asteroids
 PlanetElement.o: PlanetElement.hpp PlanetElement.cpp
 AsteroidElement.o: AsteroidElement.hpp AsteroidElement.cpp
 
@@ -52,11 +52,15 @@ AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
 # CandidateElement
 CandidateElement.o: CandidateElement.hpp CandidateElement.cpp
 
+# *************************************************************************************************
 # Object files for executables
-detection_near_ast.o: detection_near_ast.cpp
 save_detection.o: save_detection.cpp
+detection_near_ast_candidate.o: detection_near_ast_candidate.cpp
+detection_near_ast.o: detection_near_ast.cpp
 db_test.o: db_test.cpp
 sky_patch_test.o: sky_patch_test.cpp
+detection_test.o: detection_test.cpp
+planet_element_test.o: planet_element_test.cpp
 detection_near_ast_test.o: detection_near_ast.cpp
 detection_near_elt_test.o: detection_near_elt_test.cpp
 rebound_example.o: rebound_example.cpp

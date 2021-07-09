@@ -1,7 +1,6 @@
-/** @file   PlanetElement.hpp
- *  @brief  Class to load orbital elements for all the planets.
- *  Supports interpolation of orbital elements and state vectors.
- *  See DB table KS.OrbitalElements_Planets and stored procedure KS.GetElements_Planets.
+/** @file   PlanetVector.hpp
+ *  @brief  Class to load state vectors for all the planets. Supports interpolation of state vectors.
+ *  See DB table KS.StateVectors_Planet and stored procedure KS.GetStateVectors_Planets.
  *  
  *  @author Michael S. Emanuel
  *  @date   2021-07-08
@@ -31,15 +30,10 @@
 // Local dependencies
 #include "constants.hpp"
 #include "OrbitalElement.hpp"
-    using ks::OrbitalElement;
-    using ks::ElementSplines;
     using ks::Position;
     using ks::Velocity;
     using ks::StateVector;
-    using ks::elt2pos;
-    using ks::elt2vec;
-#include "BodyVector.hpp"
-    using ks::BodyVector;
+    using ks::StateVectorSpline;
 #include "utils.hpp"
     using ks::flush_console;
 #include "db_utils.hpp"
@@ -53,7 +47,7 @@
 namespace ks {
 
 // *****************************************************************************
-class PlanetElement
+class PlanetVector
 {
 public:
     // ********************************************************************************************
@@ -61,16 +55,16 @@ public:
     // ********************************************************************************************
 
     /// Constructor takes time range, time step and allocates memory
-    PlanetElement(int mjd0, int mjd1, int dt_min);
+    PlanetVector(int mjd0, int mjd1, int dt_min);
 
     /// Default Constructor - load data from file on disk
-    PlanetElement();
+    PlanetVector();
 
     /// Constructor - take a DB connection
-    PlanetElement(db_conn_type& conn);
+    PlanetVector(db_conn_type& conn);
 
     /// Destructor - delete manually created arrays
-    ~PlanetElement();
+    ~PlanetVector();
 
     // ********************************************************************************************
     // Public Data Members
@@ -111,15 +105,6 @@ public:
     /// Get the array of times; this is shared by all the bodies
     double* get_mjd() const;
 
-    /// Calculate the interpolated orbital elements of the given body at time mjd
-    OrbitalElement interp_elt(int32_t body_id, double mjd) const;
-
-    /// Calculate the interpolated position of the given body at time mjd in the heliocentric frame
-    Position interp_pos_hel(int32_t body_id, double mjd) const;
-
-    /// Calculate the interpolated state vector of the given body at time mjd in the heliocentric frame
-    StateVector interp_vec_hel(int32_t body_id, double mjd) const;
-
     /// Calculate the interpolated position of the given body at time mjd in the BME frame
     Position interp_pos(int32_t body_id, double mjd) const;
 
@@ -143,23 +128,20 @@ private:
     /// One shared array for the times as of which orbital elements apply
     double* mjd;
 
-    // One array for each orbital element; array size is N_body * N_t
+    // One array for each state vector component; array size is N_body * N_t
     // Array is laid out first by body, then by time (same order that SP returns data).
-    // This is the required layout to spline each asteroid vs. time.
-    double* elt_a;
-    double* elt_e;
-    double* elt_inc;
-    double* elt_Omega;
-    double* elt_omega;
-    double* elt_f;
-    double* elt_M;
+    // This is the required layout to spline each body vs. time.
+    double* qx;
+    double* qy;
+    double* qz;
+    double* vx;
+    double* vy;
+    double* vz;
 
     /// GSL spline interpolators for splined orbital elements
-    ElementSplines elt_spline;
+    StateVectorSplines vec_spline;
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
-    /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
-    const BodyVector bv_sun;
     
     // ********************************************************************************************
     // Private Methods
@@ -176,15 +158,14 @@ private:
     /// The row index into the data array as a function of both body_id and time_id
     inline const int row_id(int32_t body_id, int32_t time_id) {return body_row(body_id) + time_row(time_id);};
 
-    // Get an array (pointer to double) of orbital elements given a body index number
+    // Get an array (pointer to double) of state vector components given a body index number
     // Note the argument is body_idx (ranging from 0 to 9), NOT body_id!
-    double* get_a(int idx) const;
-    double* get_e(int idx) const;
-    double* get_inc(int idx) const;
-    double* get_Omega(int idx) const;
-    double* get_omega(int idx) const;
-    double* get_f(int idx) const;
-    double* get_M(int idx) const;
+    double* get_qx(int idx) const;
+    double* get_qy(int idx) const;
+    double* get_qz(int idx) const;
+    double* get_vx(int idx) const;
+    double* get_vy(int idx) const;
+    double* get_vz(int idx) const;
 
     // Free up GSL resources
     void gsl_free();

@@ -22,7 +22,7 @@
 // Local dependencies
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;    
-    using ks::ElementSpline;
+    using ks::ElementSplines;
     using ks::Position;
     using ks::Velocity;
     using ks::StateVector;
@@ -126,7 +126,7 @@ private:
     double* elt_M;
 
     /// GSL spline interpolators for splined orbital elements
-    ElementSpline elt_spline;
+    ElementSplines elt_spline;
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
     /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
