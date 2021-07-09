@@ -125,13 +125,6 @@ void test_massive_body()
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Instantiate a MassiveBodyTable
-    MassiveBodyTable mbt1(false);
-    // Load it from DB
-    mbt1.load(conn);
-    // Save it
-    mbt1.save();
-
     // Load from disk
     MassiveBodyTable mbt = MassiveBodyTable();
 
@@ -156,32 +149,30 @@ void test_planet_element(PlanetElement& pe)
     // Test state vectors of Earth @ 58000
     int32_t body_id=399;
     double mjd_test = 58000.0;
+
     // Calculate idx from body_id
     // int idx = pe.body_idx(body_id);
     // print("Earth has body_id={:d}, idx={:d}.\n", body_id, idx);
 
-    // // Print the MJDs at the spline nodes
+    // Print the MJDs at the spline nodes
     // print("PlanetElement has {:d} MJDs forming spline nodes:\n", pe.N_t);
     // double* mjd = pe.get_mjd();
     // for (int i=0; i<pe.N_t; i++) {print("{:8.2f}, ", mjd[i]);}
 
-    // // Print the element a at the spline nodes
-    // print("\nValues of a at these nodes for Earth:\n");
-    // double* a = pe.get_a(idx);
-    // for (int i=0; i<pe.N_t; i++) {print("{:8.6f}, ", a[i]);}
-    // print("\n");
+    // Calculate and report interpolated elements on spline nodes
+    OrbitalElement elt = pe.interp_elt(body_id, mjd_test);
+    print("\nSplined orbital elements at {:8.4f}.\n", mjd_test);
+    print("{:8s} : {:8s} : {:9s} : {:9s} : {:9s} : {:9s} : {:9s} \n", 
+        "a", "e", "inc", "Omega", "omega", "f", "M");
+    print("{:8.6f} : {:8.6f} : {:+9.6f} : {:+9.6f} : {:+9.6f} : {:9.4f} : {:9.4f}\n", 
+        elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f, elt.M);
 
-    // // Manual spline of a
-    // print("Manually splining a on gsl_spline.\n");
-    // gsl_spline* gsl_interp_a = pe.elt_spline.a[idx];
-    // gsl_interp_accel* acc = pe.acc;
-    // double a_out = gsl_spline_eval(gsl_interp_a, mjd_test, acc);
-    // print("a_out={:8.6f}.\n", a_out);
-
-    // // Calculate interpolated elements
-    // print("Splining orbital elements at {:8.4f}.\n", mjd_test);
-    // OrbitalElement elt = pe.interp_elt(body_id, mjd_test);
-    // print("a={:f}\n.", elt.a);
+    // double* mjd = pe.get_mjd();
+    // for (int i=0; i<pe.N_t; i++) 
+    // {
+    //     OrbitalElement elt = pe.interp_elt(body_id, mjd[i]);
+    //     print("{:10.4f} : {:8.6f} : {:8.6f}\n", mjd[i], elt.a, elt.e);
+    // }
 
     // Calculate interpolated position and state vector of Earth
     Position pos = pe.interp_pos(body_id, mjd_test);
@@ -207,7 +198,7 @@ void test_planet_element(PlanetElement& pe)
     double dv = norm(vel0, vel);
 
     // Report results
-    print("Distance between interpolated state vectors and DB values for Earth @ {:9.4f}.\n", mjd_test);
+    print("\nDistance between interpolated state vectors and DB values for Earth @ {:9.4f}.\n", mjd_test);
     print("dq: {:8.2e} AU\n", dq);
     print("dv: {:8.2e} AU/day\n", dv);
 }
@@ -218,46 +209,44 @@ void test_all()
     // Inputs used in testing
     int d0 = 0;
     int d1 = 1000000;
-    int mjd0 = 58000;
-    int mjd1 = 59000;
-    int dt_min = 60;
-    // int mjd0 = 57990;
-    // int mjd1 = 58010;
-    // int dt_min = 1440;
+    // int mjd0 = 57995;
+    // int mjd1 = 58005;
+    // int dt_min = 5;
 
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // Build PlanetElement
-    PlanetElement pe(mjd0, mjd1, dt_min);
-    pe.load(conn);
-    pe.build_splines();
-    print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
-            mjd0, mjd1, dt_min);            
+    // Timer object
+    Timer t;
 
+    // Build PlanetElement    
+    t.tick();
+    // PlanetElement pe(mjd0, mjd1, dt_min);
+    // pe.load();
+    // pe.build_splines();
+    PlanetElement pe = PlanetElement();
+    print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
+            pe.mjd0, pe.mjd1, pe.dt_min);
+    t.tock_msg();
     test_planet_element(pe);
 
-    // Save
-    pe.save();
-    print("Saved PlanetElement to disk\n");
-    // Reload
-    PlanetElement pe2();
-    print("Loaded PlanetElement from disk.\n");
-
     // Initialize DetectionTimeTable
+    t.tick();
     DetectionTimeTable dtt = DetectionTimeTable();
     print("Loaded DetectionTimeTable with {:d} detection times.\n", dtt.N());
+    t.tock_msg();
 
     // Initialize DetectionTable
+    t.tick();
     DetectionTable dt = DetectionTable(d0, d1);
     dt.load();
     print("Loaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
+    t.tock_msg();
     // print_detection(dt);
-
-    // test_planet_element(pe);
 
     // Build orbital elements for asteroid 3 (Juno), which has 8 hits
     // Values copy / pasted from CALL KS.GetAsteroidElements(3, 4, 59000, 59000);
+    t.tick();
     OrbitalElement elt
     {
         .mjd    = 59000.0,
@@ -282,6 +271,8 @@ void test_all()
 
     // Test the calculated trajectory
     test_calc_traj(elt, dtt);
+    print("Calculated asteroid trajectory.\n");
+    t.tock_msg();
 
     // Close DB connection
     conn->close();

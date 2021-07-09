@@ -34,7 +34,7 @@ constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and planets
 constexpr int stride_db_min = 5;
 // Number of times expected in database
-constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min;
+constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min+1;
 // Batch size for loading dates from DB; this is a block of dates e.g. [48000, 49000]
 constexpr int batch_size = 1000;
 // Location of file with serialized data
@@ -51,14 +51,17 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Data size: number of bodies and number of times
     N_body(N_body_planets),
     N_t((mjd1-mjd0)*mpd/lcm(dt_min, stride_db_min)+1),
-    N_row(N_body*N_t),
     // Date range
     mjd0(mjd0),
     mjd1(mjd1),
-    time_id0(mjd0*mpd),
     // Stride in minutes between consecutive entries
     // database resolution is every 5 minutes, so apply LCM function to the input to ensure validity.
     dt_min(lcm(dt_min, stride_db_min)),
+    // Number of rows- used for array initialization
+    N_row(N_body*N_t),
+    // time_id range - for fast loading from file
+    time_id0(mjd0*mpd),
+    time_id1(mjd1*mpd),
     // Allocate the one dimensional arrays for body_id and mjd
     body_id(new int32_t[N_body]),
     mjd(new double[N_t]),
@@ -221,19 +224,20 @@ void PlanetElement::process_rows(db_conn_type& conn, int t0, int t1)
         double f        = rs->getDouble("f");
         double M        = rs->getDouble("M");
 
-        // The index (row number) has two terms.
-        // The base is the asteroid_row, which is asteroid index times the number of times each asteroid.
-        // The offset is the time_row, which is the number of rows written for earlier times on this asteroid.
-        int idx = body_row(body_id) + (time_id-time_id0)/dt_min;
+        // The row number j into the data arrays has two terms.
+        // The base is the body_row, which is body index times the number of times each body.
+        // The offset is the time_row, which is the number of rows written for earlier times on this body.
+        // int j = body_row(body_id) + time_row(time_id);
+        int j = row_id(body_id, time_id);
 
         // Save the data fields to the member arrays
-        elt_a[idx]      = a;
-        elt_e[idx]      = e;
-        elt_inc[idx]    = inc;
-        elt_Omega[idx]  = Omega;
-        elt_omega[idx]  = omega;
-        elt_f[idx]      = f;
-        elt_M[idx]      = M;
+        elt_a[j]      = a;
+        elt_e[j]      = e;
+        elt_inc[j]    = inc;
+        elt_Omega[j]  = Omega;
+        elt_omega[j]  = omega;
+        elt_f[j]      = f;
+        elt_M[j]      = M;
     }   // while rs
     // Close the resultset and free memory
     rs->close();
@@ -274,6 +278,12 @@ const int PlanetElement::body_idx(int32_t body_id) const
 const int PlanetElement::body_row(int32_t body_id) const
 {
     return body_idx(body_id)*N_t;
+}
+
+// *****************************************************************************
+const int PlanetElement::time_row(int32_t time_id) const
+{
+    return (time_id-time_id0)/dt_min;
 }
 
 // *****************************************************************************
@@ -374,15 +384,15 @@ StateVector PlanetElement::interp_vec_hel(int32_t body_id, double mjd) const
 Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
-    Position ast = interp_pos_hel(body_id, mjd);
+    Position tgt = interp_pos_hel(body_id, mjd);
     // Delegate to bv_sun to get interpolated position of Sun in BME
     Position sun = bv_sun.interp_pos(mjd);
     // Add the two components
     return Position
     {
-        .qx = ast.qx + sun.qx,
-        .qy = ast.qy + sun.qy,
-        .qz = ast.qz + sun.qz
+        .qx = tgt.qx + sun.qx,
+        .qy = tgt.qy + sun.qy,
+        .qz = tgt.qz + sun.qz
     };
 }
 
@@ -391,19 +401,19 @@ Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 // to get the state vectors in the BME frame.
 StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
 {
-    // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
-    StateVector ast = interp_vec_hel(body_id, mjd);
+    // Delegate to interp_pos_hel for the relative position of body vs. the Sun
+    StateVector tgt = interp_vec_hel(body_id, mjd);
     // Delegate to bv_sun to get interpolated state vectors of Sun in BME
     StateVector sun = bv_sun.interp_vec(mjd);
     // Add the two components
     return StateVector
     {
-        .qx = ast.qx + sun.qx,
-        .qy = ast.qy + sun.qy,
-        .qz = ast.qz + sun.qz,
-        .vx = ast.vx + sun.vx,
-        .vy = ast.vy + sun.vy,
-        .vz = ast.vz + sun.vz
+        .qx = tgt.qx + sun.qx,
+        .qy = tgt.qy + sun.qy,
+        .qz = tgt.qz + sun.qz,
+        .vx = tgt.vx + sun.vx,
+        .vy = tgt.vy + sun.vy,
+        .vz = tgt.vz + sun.vz
     };
 }
 
@@ -437,6 +447,10 @@ void PlanetElement::save() const
     // Write the number of bodies and times in binary as int
     fs.write((char*) &N_body, sizeof(N_body));
     fs.write((char*) &N_t, sizeof(N_t));
+    // Write the date range; used to support loading in a time interval
+    fs.write((char*) &mjd0, sizeof(mjd0));
+    fs.write((char*) &mjd1, sizeof(mjd1));
+    fs.write((char*) &dt_min, sizeof(dt_min));
 
     // Write the rows to the file in binary
     // Iterate over the N_body bodies in this collection
@@ -444,15 +458,15 @@ void PlanetElement::save() const
     {
         // The body_id for this idx
         int32_t body_id = (this->body_id)[idx];
-        // The row_id for this idx
-        int row_id = N_t * idx;
+        // The row offset for this body
+        int body_row = N_t * idx;
         // Iterate over the N_t times
         for (int i=0; i<N_t; i++)
         {
             // Calculate the time_id
             int32_t time_id = time_id0 + i*dt_min;
             // The array address for the 2D data elements
-            int j = row_id + i;
+            int j = body_row + i;
             // Initialize a PlanetElementEntry
             PlanetElementEntry pe
             {
@@ -484,11 +498,19 @@ void PlanetElement::load()
     std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
     fs.open(file_name, file_mode);
 
-    // Read the number of bodies and times in binary as int
+    // Read the number of bodies and times
     auto N_body_file=N_body;
     auto N_t_file=N_t;
-    fs.read( (char*) &N_body_file, sizeof(N_body_file));
-    fs.read( (char*) &N_t_file, sizeof(N_t_file));
+    fs.read( (char*) &N_body_file, sizeof(N_body));
+    fs.read( (char*) &N_t_file, sizeof(N_t));
+
+    // Read the date range
+    auto mjd0_file=mjd0;
+    auto mjd1_file=mjd1;
+    auto dt_min_file=dt_min;
+    fs.read( (char*) &mjd0_file, sizeof(mjd0));
+    fs.read( (char*) &mjd1_file, sizeof(mjd1));
+    fs.read( (char*) &dt_min_file, sizeof(dt_min));
 
     // Check that the number of rows agrees with the constexpr specification in this file
     if (N_body_file != N_body_planets)
@@ -502,23 +524,33 @@ void PlanetElement::load()
     int N_row_file = N_body_file * N_t_file;
     // PlanetElementEntry object used to read rows and its size
     PlanetElementEntry pe;
-   
+    //DEBUG
+    // print("Reading input file for mjd in [{:d}, {:d}], dt_min={:d}.\n", mjd0, mjd1, dt_min);
+    // print("{:10s} : {:8s} : {:8s}\n", "mjd", "a", "e");
+
     // Iterate through the rows in the file
     for (int i=0; i<N_row_file; i++)
     {
         // Read the PlanetElementEntry
-        fs.read( (char*) &pe, entry_sz);       
+        fs.read( (char*) &pe, entry_sz);
+        // Only load dates in the selected time_id range
+        bool in_range = (time_id0 <= pe.time_id) && (pe.time_id <= time_id1);
+        bool in_stride = (pe.time_id % dt_min == 0);
+        bool process_row = in_range && in_stride;
+        if (!process_row ) {continue;}
         // Calculate the row index from the ID fields in the entry
-        int idx = body_row(pe.body_id) + (pe.time_id-time_id0)/dt_min;
+        int j = body_row(pe.body_id) + (pe.time_id-time_id0)/dt_min;
 
         // Save the data fields to the member arrays with the calculated row index
-        elt_a[idx]      = pe.a;
-        elt_e[idx]      = pe.e;
-        elt_inc[idx]    = pe.inc;
-        elt_Omega[idx]  = pe.Omega;
-        elt_omega[idx]  = pe.omega;
-        elt_f[idx]      = pe.f;
-        elt_M[idx]      = pe.M;
+        elt_a[j]      = pe.a;
+        elt_e[j]      = pe.e;
+        elt_inc[j]    = pe.inc;
+        elt_Omega[j]  = pe.Omega;
+        elt_omega[j]  = pe.omega;
+        elt_f[j]      = pe.f;
+        elt_M[j]      = pe.M;
+        //DEBUG
+        // print("{:10.4f} : {:8.6f} : {:8.6f}\n", pe.mjd, pe.a, pe.e);
     } // for / i (loop over rows in the file)
 
     // Close input filestream

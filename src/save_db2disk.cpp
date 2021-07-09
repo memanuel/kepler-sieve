@@ -29,6 +29,9 @@
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
+#include "MassiveBody.hpp"
+    using ks::MassiveBody;
+    using ks::MassiveBodyTable;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
@@ -115,6 +118,17 @@ int main(int argc, char* argv[])
 // *****************************************************************************
 // Save a file to disk with cached data from database.
 // *****************************************************************************
+// *****************************************************************************
+void save_MassiveBody(db_conn_type& conn)
+{
+    // Instantiate a MassiveBodyTable
+    MassiveBodyTable mbt(false);
+    // Load it from DB
+    mbt.load(conn);
+    // Save it
+    mbt.save();
+    print("Saved MassiveBodyTable to disk.\n");
+}
 
 // *****************************************************************************
 void save_DetectionTime(db_conn_type& conn)
@@ -152,6 +166,9 @@ void save_PlanetElement(db_conn_type& conn)
     // Build PlanetElement
     print("Building PlanetElement...\n");
     PlanetElement pe(conn);
+    // PlanetElement pe(57995, 58005, 1440);
+    // pe.load(conn);
+    // pe.build_splines();
     // Status update
     double mjd0 = pe.get_mjd()[0];
     double mjd1 = pe.get_mjd()[pe.N_t-1];

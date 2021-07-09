@@ -20,6 +20,8 @@
 #include <stdexcept>
     using std::domain_error;
 #include <gsl/gsl_spline.h>
+#include <fmt/format.h>
+    using fmt::print;
 
 // Local dependencies
 #include "OrbitalElement.hpp"
@@ -72,6 +74,12 @@ public:
     const int N_body;
     /// The number of times
     const int N_t;
+    /// First date loaded (inclusive); an integer divisible by time_step
+    int mjd0;
+    /// Last date loaded (inclusive); an integer divisible by time_step
+    int mjd1;
+    /// Time step in minutes
+    int dt_min;
 
     // ********************************************************************************************
     // Public Methods - Load and Save; build splines
@@ -119,14 +127,10 @@ private:
 
     /// Number of rows of data
     int N_row; 
-    /// First date loaded (inclusive); an integer divisible by time_step
-    int mjd0;
-    /// Last date loaded (inclusive); an integer divisible by time_step
-    int mjd1;
     /// The time_id of the first row corresponding to mjd0
     const int time_id0;
-    /// Time step in minutes
-    int dt_min;
+    /// The time_id of the last row corresponding to mjd1
+    const int time_id1;
 
     // One shared array for the body_id; always the same here, the sun, 9 planets, and the moon
     int32_t* body_id;
@@ -161,6 +165,10 @@ private:
     const int body_idx(int32_t body_id) const;
     /// Function to return the row index of a body_id; this is the index into the data arrays
     const int body_row(int32_t body_id) const;
+    /// The row index of a time_id in a block for the same body
+    const int time_row(int32_t time_id) const;
+    /// The row index into the data array as a function of both body_id and time_id
+    inline const int row_id(int32_t body_id, int32_t time_id) {return body_row(body_id) + time_row(time_id);};
 
     // Get an array (pointer to double) of orbital elements given a body index number
     // Note the argument is body_idx (ranging from 0 to 9), NOT body_id!
