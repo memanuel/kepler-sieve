@@ -21,10 +21,11 @@
 #include "utils.hpp"
     using ks::norm;
     using ks::report_test;
-#include "OrbitalElement.hpp"
-    using ks::OrbitalElement;
+#include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
+#include "OrbitalElement.hpp"
+    using ks::OrbitalElement;
     using ks::print_orbital_element;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;

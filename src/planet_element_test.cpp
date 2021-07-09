@@ -21,10 +21,11 @@
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
-#include "OrbitalElement.hpp"
-    using ks::OrbitalElement;
+#include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
+#include "OrbitalElement.hpp"
+    using ks::OrbitalElement;
     using ks::print_orbital_element;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;

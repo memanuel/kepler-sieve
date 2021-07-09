@@ -29,12 +29,12 @@
 #include <gsl/gsl_spline.h>
 
 // Local dependencies
-#include "OrbitalElement.hpp"
-    using ks::OrbitalElement;
+#include "StateVector.hpp"
     using ks::Position;
-    // using ks::Velocity;
     using ks::StateVector;
     using ks::StateVectorSpline;
+#include "OrbitalElement.hpp"
+    using ks::OrbitalElement;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;

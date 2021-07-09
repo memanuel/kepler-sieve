@@ -20,12 +20,13 @@
 #include <cstring>
     // memcpy
 // Local dependencies
+#include "StateVector.hpp"
+    using ks::norm;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::mean_motion;
     using ks::anomaly_M2f;
     using ks::elt2vec;
-    using ks::norm;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;

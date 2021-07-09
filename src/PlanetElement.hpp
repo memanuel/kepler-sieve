@@ -30,12 +30,13 @@
 
 // Local dependencies
 #include "constants.hpp"
-#include "OrbitalElement.hpp"
-    using ks::OrbitalElement;
-    using ks::ElementSplines;
+#include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
     using ks::StateVector;
+#include "OrbitalElement.hpp"
+    using ks::OrbitalElement;
+    using ks::ElementSplines;
     using ks::elt2pos;
     using ks::elt2vec;
 #include "BodyVector.hpp"

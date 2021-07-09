@@ -29,7 +29,7 @@
 
 // Local dependencies
 #include "constants.hpp"
-#include "OrbitalElement.hpp"
+#include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
     using ks::StateVector;

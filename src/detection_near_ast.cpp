@@ -70,34 +70,28 @@ both of these will process asteroids in [0, 1000)
     using ks::get_db_conn;
     using ks::sp_run;
     using ks::sp_run_int;
-
 #include "utils.hpp"
     using ks::is_close_abs;
     using ks::print_stars;
     using ks::print_newline;
     using ks::report_test;
     using ks::time2hms;
-
 #include "SkyPatchNeighbor.hpp"
     using ks::SkyPatch;
     using ks::SkyPatchNeighbor;
     using ks::sky_patch::N_sp;
-
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-
 #include "AsteroidSkyPatch.hpp"
     using ks::AsteroidSkyPatch;
     using ks::AsteroidSkyPatchTable;
-
 #include "BodyVector.hpp"
     using ks::BodyVector;
-
+#include "StateVector.hpp"
+    using ks::norm;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
-    using ks::norm;
-
 #include "AsteroidElement.hpp"
     using ks::AsteroidElement;
 

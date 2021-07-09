@@ -28,7 +28,8 @@ Timer.o: Timer.hpp Timer.cpp
 # Miscellaneous small data classes
 MassiveBody.o: MassiveBody.hpp MassiveBody.cpp
 
-# Orbital Elements and state vectors
+# State Vectors and Orbital Elements
+StateVector.o: StateVector.hpp StateVector.cpp
 OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
 
 # Splined orbital elements for one body or a collection
@@ -71,7 +72,7 @@ detection_near_ast: \
     obj/detection_near_ast.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/BodyVector.o obj/OrbitalElement.o obj/AsteroidElement.o \
+    obj/OrbitalElement.o obj/StateVector.o obj/BodyVector.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 
 detection_near_ast_cand: \
@@ -85,7 +86,7 @@ save_db2disk: \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/MassiveBody.o \
     obj/DetectionTime.o obj/Detection.o obj/DetectionCandidate.o \
-    obj/OrbitalElement.o obj/BodyVector.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/BodyVector.o \
     obj/PlanetElement.o
 
 # *************************************************************************************************
@@ -107,7 +108,7 @@ detection_near_ast_test: \
     obj/detection_near_ast_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/BodyVector.o obj/OrbitalElement.o obj/AsteroidElement.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/BodyVector.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 
 rebound_test: \
@@ -118,7 +119,7 @@ rebound_test: \
 planet_element_test: \
     obj/planet_element_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
-    obj/OrbitalElement.o obj/DetectionTime.o obj/Detection.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/DetectionTime.o obj/Detection.o \
     obj/BodyVector.o obj/PlanetElement.o
 
 detection_near_elt_test: \
@@ -126,7 +127,7 @@ detection_near_elt_test: \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
-    obj/OrbitalElement.o obj/MassiveBody.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetElement.o \
     obj/CandidateElement.o
 
