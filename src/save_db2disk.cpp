@@ -8,6 +8,7 @@
  * ./save_db2disk.x --DetectionTime
  * ./save_db2disk.x --DetectionCandidate
  * ./save_db2disk.x --Detection
+ * ./save_db2disk.x --PlanetVector
  * ./save_db2disk.x --PlanetElement
  * ****************************************************************************/
 
@@ -22,6 +23,8 @@
     namespace po = boost::program_options;
 
 // Local dependencies
+#include "constants.hpp"
+    using ks::cs::mpd;
 #include "utils.hpp"
     using ks::print_stars;
     using ks::report_test;
@@ -41,6 +44,8 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
+#include "PlanetVector.hpp"
+    using ks::PlanetVector;
 #include "PlanetElement.hpp"
     using ks::PlanetElement;
 
@@ -50,6 +55,7 @@ void save_MassiveBody(db_conn_type& conn);
 void save_DetectionTime(db_conn_type& conn);
 void save_DetectionCandidate(db_conn_type& conn);
 void save_Detection(db_conn_type& conn);
+void save_PlanetVector(db_conn_type& conn);
 void save_PlanetElement(db_conn_type& conn);
 
 // *****************************************************************************
@@ -64,6 +70,7 @@ int main(int argc, char* argv[])
     bool run_DetectionTime = false;
     bool run_Detection = false;
     bool run_DetectionCandidate = false;
+    bool run_PlanetVector = false;
     bool run_PlanetElement = false;
 
     // Set up parser for named commandline arguments ("options")
@@ -78,6 +85,8 @@ int main(int argc, char* argv[])
             "Save contents of stored procedure KS.GetDetections on full range")
         ("DetectionCandidate", po::bool_switch(&run_DetectionCandidate), 
             "Save contents of stored procedure KS.GetCandidateDetections on full range")
+        ("PlanetVector", po::bool_switch(&run_PlanetVector), 
+            "Save contents of stored procedure KS.GetVectors_Planets on full range")
         ("PlanetElement", po::bool_switch(&run_PlanetElement), 
             "Save contents of stored procedure KS.GetElements_Planets on full range")
     ;
@@ -94,7 +103,8 @@ int main(int argc, char* argv[])
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // TODO: add save_MassiveBody
+    // Save MassiveBody if requested
+    if (run_MassiveBody) {save_MassiveBody(conn);}
 
     // Save DetectionTime if requested
     if (run_DetectionTime) {save_DetectionTime(conn);}
@@ -105,7 +115,10 @@ int main(int argc, char* argv[])
     // Save DetectionCandidate if requested
     if (run_DetectionCandidate) {save_DetectionCandidate(conn);}
 
-    // Save DetectionCandidate if requested
+    // Save PlanetVector if requested
+    if (run_PlanetVector) {save_PlanetVector(conn);}
+
+    // Save PlanetElement if requested
     if (run_PlanetElement) {save_PlanetElement(conn);}
 
     // Close DB connection
@@ -161,18 +174,32 @@ void save_Detection(db_conn_type& conn)
 }
 
 // *****************************************************************************
+void save_PlanetVector(db_conn_type& conn)
+{
+    // Build PlanetVector
+    print("Building PlanetVector...\n");
+    PlanetVector pv(conn);
+    // Status update
+    double mjd0 = pv.mjd0;
+    double mjd1 = pv.mjd1;
+    int dt_min = (mjd1-mjd0)*mpd/(pv.N_t-1);
+    print("\nBuilt PlanetVector object from mjd0 {:8.4f} to mjd1 {:8.4f} with time step {:d} minutes.\n", 
+            mjd0, mjd1, dt_min);
+    // Save to disk
+    pv.save();
+    print("Saved PlanetVector to disk\n");
+}
+
+// *****************************************************************************
 void save_PlanetElement(db_conn_type& conn)
 {
     // Build PlanetElement
     print("Building PlanetElement...\n");
     PlanetElement pe(conn);
-    // PlanetElement pe(57995, 58005, 1440);
-    // pe.load(conn);
-    // pe.build_splines();
     // Status update
     double mjd0 = pe.get_mjd()[0];
     double mjd1 = pe.get_mjd()[pe.N_t-1];
-    int dt_min = (mjd1-mjd0)*1440/(pe.N_t-1);
+    int dt_min = (mjd1-mjd0)*mpd/(pe.N_t-1);
     print("\nBuilt PlanetElement object from mjd0 {:8.4f} to mjd1 {:8.4f} with time step {:d} minutes.\n", 
             mjd0, mjd1, dt_min);
     // Save to disk

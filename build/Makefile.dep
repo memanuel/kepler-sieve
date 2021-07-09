@@ -87,7 +87,7 @@ save_db2disk: \
     obj/MassiveBody.o \
     obj/DetectionTime.o obj/Detection.o obj/DetectionCandidate.o \
     obj/StateVector.o obj/OrbitalElement.o obj/BodyVector.o \
-    obj/PlanetElement.o
+    obj/PlanetVector.o obj/PlanetElement.o
 
 # *************************************************************************************************
 # Executables - tests
@@ -120,7 +120,7 @@ planet_element_test: \
     obj/planet_element_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/StateVector.o obj/OrbitalElement.o obj/DetectionTime.o obj/Detection.o \
-    obj/BodyVector.o obj/PlanetElement.o
+    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 detection_near_elt_test: \
     obj/detection_near_elt_test.o \

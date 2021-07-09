@@ -23,6 +23,7 @@
     // gsl_spline
 
 // Local dependencies
+#include "constants.hpp"
 #include "utils.hpp"
     using ks::sign;
     using ks::sqr;
@@ -131,20 +132,21 @@ StateVector elt2vec(double a, double e, double inc, double Omega, double omega, 
 StateVector elt2vec(OrbitalElement& elt);
 
 // *****************************************************************************
-/// Print a description of an orbital element
-void print_orbital_element(OrbitalElement& elt);
+// Add a perturbation to an orbital element
+// *****************************************************************************
+
+/// Add the components of two orbital elements (typically a real element and a small shift)
+OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2);
 
 // *****************************************************************************
-// Utility function - norm of two positions
+// Print description of orbital elements
 // *****************************************************************************
-// Return the distance between two position vectors
-double norm(Position p1, Position p2);
 
-// Return the distance between two position vectors
-double norm(Velocity v1, Velocity v2);
+/// Print a one line description of an orbital element
+void print_orbital_element(OrbitalElement& elt, bool header=false);
 
-// Return a norm between two state vectors
-double norm(StateVector v1, StateVector v2);
+/// Print a multi-line description of an orbital element
+void print_orbital_element_long(OrbitalElement& elt);
 
 // *****************************************************************************
 } // namespace ks

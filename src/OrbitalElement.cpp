@@ -18,15 +18,8 @@ constexpr double tau = 2.0 * pi;
 // *****************************************************************************
 namespace ks {
 
-// The gravitational constant in unit system (days, AU, Msun)
-// see rebound documentation for exact value        
-// sim = make_sim_planets(epoch=59000)
-// G_ = sim.G_
-constexpr double G_ = 2.959122082855910945e-04;
-
-// mu is the gravitational field strength: mu = G * (m0 + m1)
-// here m0 = 1.0 (Sun) and we assume m1 is light, i.e. m0 = 0.0
-constexpr double mu = G_ * 1.0;
+// The gravitational field strength: mu = G * (m0 + m1)
+using ks::cs::mu;
 
 // *****************************************************************************
 // Functions for working with orbital elements
@@ -267,7 +260,41 @@ StateVector elt2vec(OrbitalElement& elt)
 }
 
 // *****************************************************************************
-void print_orbital_element(OrbitalElement& elt)
+// Add a perturbation to an orbital element
+// *****************************************************************************
+
+OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2)
+{
+    // Add the two positions componentwise
+    return OrbitalElement
+    {
+        .a      = e1.a      + e2.a,
+        .e      = e1.e      + e2.e,
+        .inc    = e1.inc    + e2.inc,
+        .Omega  = e1.Omega  + e2.Omega,
+        .omega  = e1.omega  + e2.omega,
+        .f      = e1.f      + e2.f,
+        .M      = e1.M      + e2.M
+    };
+}
+
+// *****************************************************************************
+// Print description of orbital elements
+// *****************************************************************************
+
+// *****************************************************************************
+void print_orbital_element(OrbitalElement& elt, bool header)
+{
+    if (header)
+    {print("{:8s} : {:8s} : {:9s} : {:9s} : {:9s} : {:9s} : {:9s} \n", 
+        "a", "e", "inc", "Omega", "omega", "f", "M");}
+    else
+    {print("{:8.6f} : {:8.6f} : {:+9.6f} : {:+9.6f} : {:+9.6f} : {:9.4f} : {:9.4f}\n", 
+        elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f, elt.M);}
+}
+
+// *****************************************************************************
+void print_orbital_element_long(OrbitalElement& elt)
 {
     print("mjd      = {:9.3f}\n", elt.mjd);
     print("a        = {:9.6f}\n", elt.a);

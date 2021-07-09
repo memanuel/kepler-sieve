@@ -363,8 +363,13 @@ struct PlanetVectorEntry
     double vz;
 };
 
-// Size of this
+namespace 
+{
+/// Size of PlanetVectorEntry; used in save() and load() methods.
 int entry_sz = sizeof(PlanetVectorEntry);
+// Wrap in anonymous namespace to avoid naming collisions with other modules.
+
+}
 
 // *****************************************************************************
 void PlanetVector::save() const

@@ -23,7 +23,6 @@ constexpr int N_body_planets = 10;
 // Array of body_id in this problem
 constexpr int32_t body_id_planets[N_body_planets] = {1, 2, 4, 5, 6, 7, 8, 9, 301, 399};
 // The body_id of the sun
-//constexpr int32_t body_id_sun = 10;
 using ks::cs::body_id_sun;
 // The position and state vector of the sun in the heliocentric frame are zero by definition
 constexpr Position pos_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0};
@@ -387,12 +386,7 @@ Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
     // Delegate to bv_sun to get interpolated position of Sun in BME
     Position sun = bv_sun.interp_pos(mjd);
     // Add the two components
-    return Position
-    {
-        .qx = tgt.qx + sun.qx,
-        .qy = tgt.qy + sun.qy,
-        .qz = tgt.qz + sun.qz
-    };
+    return tgt + sun;
 }
 
 // *****************************************************************************
@@ -405,15 +399,7 @@ StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
     // Delegate to bv_sun to get interpolated state vectors of Sun in BME
     StateVector sun = bv_sun.interp_vec(mjd);
     // Add the two components
-    return StateVector
-    {
-        .qx = tgt.qx + sun.qx,
-        .qy = tgt.qy + sun.qy,
-        .qz = tgt.qz + sun.qz,
-        .vx = tgt.vx + sun.vx,
-        .vy = tgt.vy + sun.vy,
-        .vz = tgt.vz + sun.vz
-    };
+    return tgt + sun;
 }
 
 // *****************************************************************************
@@ -432,8 +418,12 @@ struct PlanetElementEntry
     double M;
 };
 
-// Size of this
+namespace 
+{
+/// Size of PlanetElementEntry; used in save() and load() methods.
 int entry_sz = sizeof(PlanetElementEntry);
+// Wrap in anonymous namespace to avoid naming collisions with other modules.
+}
 
 // *****************************************************************************
 void PlanetElement::save() const

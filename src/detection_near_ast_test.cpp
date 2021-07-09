@@ -18,35 +18,29 @@
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
-
 #include "utils.hpp"
     using ks::is_close_abs;
     using ks::print_stars;
     using ks::print_newline;
     using ks::report_test;
     using ks::time2hms;
-
+#include "StateVector.hpp"
+    using ks::norm;
+#include "OrbitalElement.hpp"
+    using ks::OrbitalElement;
 #include "SkyPatchNeighbor.hpp"
     using ks::SkyPatch;
     using ks::SkyPatchNeighbor;
     using ks::sky_patch::N_sp;
-
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-
 #include "AsteroidSkyPatch.hpp"
     using ks::AsteroidSkyPatch;
     using ks::AsteroidSkyPatchTable;
-
 #include "BodyVector.hpp"
     using ks::BodyVector;
     using ks::save_vectors;
-
-#include "OrbitalElement.hpp"
-    using ks::OrbitalElement;
-    using ks::norm;
-
 #include "AsteroidElement.hpp"
     using ks::AsteroidElement;
 

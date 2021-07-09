@@ -28,8 +28,9 @@
 3. PlanetElement.hpp, PlanetElement.cpp
 4. AsteroidElement.hpp, AsteroidElement.cpp
 
-## Small Data Classes
-1. MassiveBody.hpp, MassiveBody.cpp
+## Constants and Small Data Classes
+1. constants.hpp
+2. MassiveBody.hpp, MassiveBody.cpp
 
 ## Rebound / Integrate Solar System
 1. rebound.hpp

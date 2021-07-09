@@ -100,6 +100,53 @@ struct StateVectorSplines
     vector<gsl_spline*> vz;
 };
 
+// *****************************************************************************
+// Functions for manupulating positions, velocities and and state vectors
+// *****************************************************************************
+
+// *****************************************************************************
+/// Add two position vectors
+Position operator+ (const Position& p1, const Position& p2);
+
+/// Add two velocity vectors
+Velocity operator+ (const Velocity& p1, const Velocity& p2);
+
+/// Add two state vectors
+StateVector operator+ (const StateVector& p1, const StateVector& p2);
+
+/// Multiply a veocity vector by a scalar
+Velocity operator* (const Velocity& v, const double alpha);
+Velocity operator* (const double alpha, const Velocity& v);
+
+/// Extract the posiiton from a state vector
+Position sv2pos(StateVector& sv);
+
+/// Extract the velocity from a state vector
+Velocity sv2vel(StateVector& sv);
+
+// *****************************************************************************
+// Utility function - norm of two positions
+// *****************************************************************************
+
+/// Return the distance between two position vectors
+double norm(Position p1, Position p2);
+
+/// Return the distance between two position vectors
+double norm(Velocity v1, Velocity v2);
+
+/// Return a norm between two state vectors
+double norm(StateVector v1, StateVector v2);
+
+// *****************************************************************************
+// Print positions and state vectlors
+// *****************************************************************************
+
+// *****************************************************************************
+/// Print a one line description of an orbital element
+void print_state_vector(StateVector& sv, bool header=false);
+
+/// Print a multi-line description of an orbital element
+void print_state_vector_long(StateVector& sv);
 
 // *****************************************************************************
 } // namespace ks
