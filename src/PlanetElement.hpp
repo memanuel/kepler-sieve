@@ -74,7 +74,7 @@ public:
     const int N_t;
 
     // ********************************************************************************************
-    // Public Methods - Load and Save
+    // Public Methods - Load and Save; build splines
     // ********************************************************************************************
 
     /// Load data from the database and construct interpolating splines
@@ -83,6 +83,9 @@ public:
     void load();
     /// Save this object to disk
     void save() const;
+
+    // Build GSL splines
+    void build_splines();
 
     // ********************************************************************************************
     // Public Methods - Get Data
@@ -110,16 +113,18 @@ public:
     StateVector interp_vec(int32_t body_id, double mjd) const;
 
 private:
-// DEBUG
-public:
     // ********************************************************************************************
     // Private Data Members
     // ********************************************************************************************
 
+    /// Number of rows of data
+    int N_row; 
     /// First date loaded (inclusive); an integer divisible by time_step
     int mjd0;
     /// Last date loaded (inclusive); an integer divisible by time_step
     int mjd1;
+    /// The time_id of the first row corresponding to mjd0
+    const int time_id0;
     /// Time step in minutes
     int dt_min;
 
@@ -152,9 +157,9 @@ public:
 
     // Process a batch of rows
     void process_rows(db_conn_type& conn, int t0, int t1);
-    // Function to return the body_idx given a body_id; this is the row number of the body on a sorted list of bodies
+    /// Function to return the body_idx given a body_id; this is the row number of the body on a sorted list of bodies
     const int body_idx(int32_t body_id) const;
-    // Function to return the row index of a body_id; this is the index into the data arrays
+    /// Function to return the row index of a body_id; this is the index into the data arrays
     const int body_row(int32_t body_id) const;
 
     // Get an array (pointer to double) of orbital elements given a body index number
@@ -167,8 +172,6 @@ public:
     double* get_f(int idx) const;
     double* get_M(int idx) const;
 
-    // Build GSL splines
-    void build_splines();
     // Free up GSL resources
     void gsl_free();
 };

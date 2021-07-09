@@ -1,0 +1,164 @@
+/** @file save_db2disk.cpp
+ *  @brief Batch program to save output of DB queries of fast cache to disk.
+ *
+ *  @author Michael S. Emanuel
+ *  @date 2021-07-08
+ * 
+ * Example calls:
+ * ./save_db2disk.x --DetectionTime
+ * ./save_db2disk.x --DetectionCandidate
+ * ./save_db2disk.x --Detection
+ * ./save_db2disk.x --PlanetElement
+ * ****************************************************************************/
+
+// *****************************************************************************
+// Library dependencies
+#include <filesystem>
+    using std::filesystem::exists;
+#include <fmt/format.h>
+    using fmt::print;
+
+#include <boost/program_options.hpp>
+    namespace po = boost::program_options;
+
+// Local dependencies
+#include "utils.hpp"
+    using ks::print_stars;
+    using ks::report_test;
+#include "db_utils.hpp"
+    using ks::db_conn_type;
+    using ks::get_db_conn;
+    using ks::sp_run;
+#include "DetectionTime.hpp"
+    using ks::DetectionTime;
+    using ks::DetectionTimeTable;
+#include "DetectionCandidate.hpp"
+    using ks::DetectionCandidate;
+    using ks::DetectionCandidateTable;
+#include "Detection.hpp"
+    using ks::Detection;
+    using ks::DetectionTable;
+#include "PlanetElement.hpp"
+    using ks::PlanetElement;
+
+// *****************************************************************************
+// Declare functions
+void save_MassiveBody(db_conn_type& conn);
+void save_DetectionTime(db_conn_type& conn);
+void save_DetectionCandidate(db_conn_type& conn);
+void save_Detection(db_conn_type& conn);
+void save_PlanetElement(db_conn_type& conn);
+
+// *****************************************************************************
+int main(int argc, char* argv[])
+{
+    // *****************************************************************************
+    // Process commandline arguments.
+    // *****************************************************************************
+
+    // Flags from commandline arguments
+    bool run_MassiveBody = false;
+    bool run_DetectionTime = false;
+    bool run_Detection = false;
+    bool run_DetectionCandidate = false;
+    bool run_PlanetElement = false;
+
+    // Set up parser for named commandline arguments ("options")
+    po::options_description desc("Find detections near asteroids");
+    desc.add_options()
+        ("help,h", "Produce help message")
+        ("MassiveBody", po::bool_switch(&run_MassiveBody), 
+            "Save contents of stored procedure KS.GetMassiveBody")
+        ("DetectionTime", po::bool_switch(&run_DetectionTime), 
+            "Save contents of stored procedure KS.GetDetectionTimes")
+        ("Detection", po::bool_switch(&run_Detection), 
+            "Save contents of stored procedure KS.GetDetections on full range")
+        ("DetectionCandidate", po::bool_switch(&run_DetectionCandidate), 
+            "Save contents of stored procedure KS.GetCandidateDetections on full range")
+        ("PlanetElement", po::bool_switch(&run_PlanetElement), 
+            "Save contents of stored procedure KS.GetElements_Planets on full range")
+    ;
+    po::variables_map vm;
+
+    // Parse commandline arguments including positional arguments
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+
+    // *****************************************************************************
+    // Program body
+    // *****************************************************************************
+
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
+
+    // TODO: add save_MassiveBody
+
+    // Save DetectionTime if requested
+    if (run_DetectionTime) {save_DetectionTime(conn);}
+
+    // Save Detection if requested
+    if (run_Detection) {save_Detection(conn);}
+
+    // Save DetectionCandidate if requested
+    if (run_DetectionCandidate) {save_DetectionCandidate(conn);}
+
+    // Save DetectionCandidate if requested
+    if (run_PlanetElement) {save_PlanetElement(conn);}
+
+    // Close DB connection
+    conn->close();
+
+    // Normal program exit
+    return 0;
+}
+
+// *****************************************************************************
+// Save a file to disk with cached data from database.
+// *****************************************************************************
+
+// *****************************************************************************
+void save_DetectionTime(db_conn_type& conn)
+{
+    // Load the detection time table from database
+    DetectionTimeTable dtt = DetectionTimeTable(conn);
+    // Save detection time table to disk
+    dtt.save();
+    print("Saved DetectionTime to disk.\n");
+}
+
+// *****************************************************************************
+void save_DetectionCandidate(db_conn_type& conn)
+{
+    // Load the detection candidate table from database
+    bool progbar = true;
+    DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
+    // Save detection candidate table to disk
+    dt.save();
+}
+
+// *****************************************************************************
+void save_Detection(db_conn_type& conn)
+{
+    // Load the detection candidate table from database
+    bool progbar = true;
+    DetectionTable dt = DetectionTable(conn, progbar);
+    // Save detection table to disk
+    dt.save();
+}
+
+// *****************************************************************************
+void save_PlanetElement(db_conn_type& conn)
+{
+    // Build PlanetElement
+    print("Building PlanetElement...\n");
+    PlanetElement pe(conn);
+    // Status update
+    double mjd0 = pe.get_mjd()[0];
+    double mjd1 = pe.get_mjd()[pe.N_t-1];
+    int dt_min = (mjd1-mjd0)*1440/(pe.N_t-1);
+    print("\nBuilt PlanetElement object from mjd0 {:8.4f} to mjd1 {:8.4f} with time step {:d} minutes.\n", 
+            mjd0, mjd1, dt_min);
+    // Save to disk
+    pe.save();
+    print("Saved PlanetElement to disk\n");
+}

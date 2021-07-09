@@ -33,8 +33,12 @@ constexpr int mjd0_db = 48000;
 constexpr int mjd1_db = 63000;
 // Stride in minutes for database vectors for Sun and planets
 constexpr int stride_db_min = 5;
-// Batch size for loading dates from DB
+// Number of times expected in database
+constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min;
+// Batch size for loading dates from DB; this is a block of dates e.g. [48000, 49000]
 constexpr int batch_size = 1000;
+// Location of file with serialized data
+const string file_name = "data/cache/PlanetElement.bin";
 
 // *****************************************************************************
 // Local names used
@@ -44,13 +48,14 @@ using ks::PlanetElement;
 // The constructor just allocates memory.  
 // It does not load data from database, that is done with the load() method.
 PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
-    // Data size
+    // Data size: number of bodies and number of times
     N_body(N_body_planets),
-    // number of times (data size)
     N_t((mjd1-mjd0)*mpd/lcm(dt_min, stride_db_min)+1),
+    N_row(N_body*N_t),
     // Date range
     mjd0(mjd0),
     mjd1(mjd1),
+    time_id0(mjd0*mpd),
     // Stride in minutes between consecutive entries
     // database resolution is every 5 minutes, so apply LCM function to the input to ensure validity.
     dt_min(lcm(dt_min, stride_db_min)),
@@ -58,13 +63,13 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     body_id(new int32_t[N_body]),
     mjd(new double[N_t]),
     // Allocate a two dimensional array for each orbital element
-    elt_a(      new double[N_t*N_body]),
-    elt_e(      new double[N_t*N_body]),
-    elt_inc(    new double[N_t*N_body]),
-    elt_Omega(  new double[N_t*N_body]),
-    elt_omega(  new double[N_t*N_body]),
-    elt_f(      new double[N_t*N_body]),
-    elt_M(      new double[N_t*N_body]),
+    elt_a(      new double[N_row]),
+    elt_e(      new double[N_row]),
+    elt_inc(    new double[N_row]),
+    elt_Omega(  new double[N_row]),
+    elt_omega(  new double[N_row]),
+    elt_f(      new double[N_row]),
+    elt_M(      new double[N_row]),
     // Initialize GSL objects
     acc(gsl_interp_accel_alloc() ),
     // BodyVector object for interpolated Sun state vectors
@@ -191,7 +196,7 @@ void PlanetElement::process_rows(db_conn_type& conn, int t0, int t1)
     ResultSet* rs = sp_run(conn, sp_name, params);
 
     // The time_id corresponding to mjd0
-    const int time_id0 = mpd * mjd0;
+    // const int time_id0 = mpd * mjd0;
 
     // Loop through resultset
     while (rs->next()) 
@@ -403,6 +408,25 @@ StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
 }
 
 // *****************************************************************************
+/// Structure for one row of serializing the PlanetElement data
+struct PlanetElementEntry
+{
+    int32_t body_id;
+    int32_t time_id;
+    double mjd;
+    double a;
+    double e;
+    double inc;
+    double Omega;
+    double omega;
+    double f;
+    double M;
+};
+
+// Size of this
+int entry_sz = sizeof(PlanetElementEntry);
+
+// *****************************************************************************
 void PlanetElement::save() const
 {
     // Open output filestream in binary output; truncate file contents
@@ -410,89 +434,93 @@ void PlanetElement::save() const
     std::ios_base::openmode file_mode = (std::ios::out | std::ios::binary | std::ios::trunc);
     fs.open(file_name, file_mode);
 
-    // Write the number of bodies and times in binary as long int
+    // Write the number of bodies and times in binary as int
     fs.write((char*) &N_body, sizeof(N_body));
     fs.write((char*) &N_t, sizeof(N_t));
 
-    // The time_id corresponding to mjd0
-    // const int time_id0 = mpd * mjd0;
-    // All the data elements except time_id are doubles
-    int data_sz = sizeof(double);
     // Write the rows to the file in binary
-
     // Iterate over the N_body bodies in this collection
     for (int idx=0; idx<N_body; idx++)
     {
         // The body_id for this idx
-        int32_t body_id = body_id[idx];
+        int32_t body_id = (this->body_id)[idx];
+        // The row_id for this idx
+        int row_id = N_t * idx;
         // Iterate over the N_t times
         for (int i=0; i<N_t; i++)
         {
-            // Write the time_id and body_id
+            // Calculate the time_id
             int32_t time_id = time_id0 + i*dt_min;
-            fs.write((char*) &time_id, sizeof(time_id));
-
-            // Write the time as an mjd
-            fs.write((char*) (mjd+i), data_sz);
-            // Write the six components of the state vector
-            fs.write((char*) (qx+i), data_sz);
-            fs.write((char*) (qy+i), data_sz);
-            fs.write((char*) (qz+i), data_sz);
-            fs.write((char*) (vx+i), data_sz);
-            fs.write((char*) (vy+i), data_sz);
-            fs.write((char*) (vz+i), data_sz);
-        }
+            // The array address for the 2D data elements
+            int j = row_id + i;
+            // Initialize a PlanetElementEntry
+            PlanetElementEntry pe
+            {
+                .body_id    =body_id,
+                .time_id    =time_id,
+                .mjd        =mjd[i],
+                .a          =elt_a[j],
+                .e          =elt_e[j],
+                .inc        =elt_inc[j],
+                .Omega      =elt_Omega[j],
+                .omega      =elt_omega[j],
+                .f          =elt_f[j],
+                .M          =elt_M[j]
+            };
+            // Write the PlanetElementEntry object
+            fs.write((char*) &pe, entry_sz);
+        } // for / i (loop over times)
     } // for / idx (loop over bodies)
-
-    // Status
-    // print("Wrote {:d} rows of data to {:s}\n", N_t, file_name);
 
     // Close output filestream
     fs.close();
+} // function save()
+
+// *****************************************************************************
+void PlanetElement::load()
+{
+    // Open input filestream in binary mode
+    std::ifstream fs;
+    std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
+    fs.open(file_name, file_mode);
+
+    // Read the number of bodies and times in binary as int
+    auto N_body_file=N_body;
+    auto N_t_file=N_t;
+    fs.read( (char*) &N_body_file, sizeof(N_body_file));
+    fs.read( (char*) &N_t_file, sizeof(N_t_file));
+
+    // Check that the number of rows agrees with the constexpr specification in this file
+    if (N_body_file != N_body_planets)
+    {throw domain_error(
+        format("Bad data file! N_body={:d} does not match specification {:d}.\n", N_body_file, N_body_planets));}
+    if (N_t_file != N_t_db)
+    {throw domain_error(
+        format("Bad data file! N_t={:d} does not match specification {:d}.\n", N_t_file, N_t_db));}
+
+    // Number of rows in the file
+    int N_row_file = N_body_file * N_t_file;
+    // PlanetElementEntry object used to read rows and its size
+    PlanetElementEntry pe;
+   
+    // Iterate through the rows in the file
+    for (int i=0; i<N_row_file; i++)
+    {
+        // Read the PlanetElementEntry
+        fs.read( (char*) &pe, entry_sz);       
+        // Calculate the row index from the ID fields in the entry
+        int idx = body_row(pe.body_id) + (pe.time_id-time_id0)/dt_min;
+
+        // Save the data fields to the member arrays with the calculated row index
+        elt_a[idx]      = pe.a;
+        elt_e[idx]      = pe.e;
+        elt_inc[idx]    = pe.inc;
+        elt_Omega[idx]  = pe.Omega;
+        elt_omega[idx]  = pe.omega;
+        elt_f[idx]      = pe.f;
+        elt_M[idx]      = pe.M;
+    } // for / i (loop over rows in the file)
+
+    // Close input filestream
+    fs.close();
 }
-
-// // *****************************************************************************
-// void PlanetElement::load()
-// {
-//     // Build file_name from file_name_base and body_name
-//     string file_name = file_name_from_body();
-//     // Open input filestream in binary mode
-//     std::ifstream fs;
-//     std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
-//     fs.open(file_name, file_mode);
-
-//     // Read the number of rows according to the file
-//     int N_t_file=-1;
-//     fs.read( (char*) &N_t_file, sizeof(N_t_file));
-//     // Check that the number of rows agrees with the constexpr specification in this file
-//     if (N_t_file != N_t)
-//     {throw domain_error("Bad data file! N_t does not match specification.\n");}
-
-//     // All the data elements except time_id are doubles
-//     int data_sz = sizeof(double);
-
-//     // The time_id corresponding to mjd0
-//     // const int time_id0 = mpd * mjd0;
-//     // The time_id on this loop
-//     // int32_t time_id
-
-//     // Loop through the file
-//     for (int i=0; i<N_t; i++)
-//     {
-//         // Read the time_id
-//         // fs.read( (char*) &time_id, sizeof(time_id));
-//         // Write to mjd array
-//         fs.read( (char*) (mjd+i), data_sz);
-//         // Write state vector components to arrays
-//         fs.read( (char*) (qx+i), data_sz);
-//         fs.read( (char*) (qy+i), data_sz);
-//         fs.read( (char*) (qz+i), data_sz);
-//         fs.read( (char*) (vx+i), data_sz);
-//         fs.read( (char*) (vy+i), data_sz);
-//         fs.read( (char*) (vz+i), data_sz);
-//     }
-
-//     // Close input filestream
-//     fs.close();
-// }
-

@@ -1,11 +1,11 @@
-/** @file serialize_detection.cpp
- *  @brief Batch program to save output of DB queries of detections to disk.
+/** @file detection_test.cpp
+ *  @brief Test harness for classes DetectionTime, DetectionCandidate and Detection.
  *
  *  @author Michael S. Emanuel
  *  @date 2021-07-01
  * 
  * Example calls:
- * ./save_detection.x --DetectionTime
+ * ./detection_test.x --DetectionTime
  * ./save_detection.x --DetectionCandidate
  * ./save_detection.x --Detection
  * ./save_detection.x --test
@@ -17,9 +17,6 @@
     using std::filesystem::exists;
 #include <fmt/format.h>
     using fmt::print;
-
-#include <boost/program_options.hpp>
-    namespace po = boost::program_options;
 
 // Local dependencies
 #include "utils.hpp"
@@ -41,10 +38,6 @@
 
 // *****************************************************************************
 // Declare functions
-void save_DetectionTime(db_conn_type& conn);
-void save_DetectionCandidate(db_conn_type& conn);
-void save_Detection(db_conn_type& conn);
-
 bool test_DetectionTime(db_conn_type& conn);
 bool test_DetectionCandidate(db_conn_type& conn);
 bool test_Detection(db_conn_type& conn);
@@ -53,96 +46,17 @@ bool test_all(db_conn_type& conn);
 // *****************************************************************************
 int main(int argc, char* argv[])
 {
-    // *****************************************************************************
-    // Process commandline arguments.
-    // *****************************************************************************
-
-    // Flags from commandline arguments
-    bool run_test = false;
-    bool run_save_DetectionTime = false;
-    bool run_save_Detection = false;
-    bool run_save_DetectionCandidate = false;
-
-    // Set up parser for named commandline arguments ("options")
-    po::options_description desc("Find detections near asteroids");
-    desc.add_options()
-        ("help,h", "Produce help message")
-        ("test", po::bool_switch(&run_test), "Run test")
-        ("DetectionTime", po::bool_switch(&run_save_DetectionTime), 
-            "Save contents of stored procedure KS.GetDetectionTimes")
-        ("Detection", po::bool_switch(&run_save_Detection), 
-            "Save contents of stored procedure KS.GetDetections on full range")
-        ("DetectionCandidate", po::bool_switch(&run_save_DetectionCandidate), 
-            "Save contents of stored procedure KS.GetCandidateDetections on full range")
-    ;
-    po::variables_map vm;
-
-    // Parse commandline arguments including positional arguments
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
-
-    // If program called with no arguments, assume user wanted to run tests
-    bool run_one_file = (run_save_DetectionTime || run_save_Detection || run_save_DetectionCandidate);
-    run_test = run_test || (!run_one_file);
-
-    // *****************************************************************************
-    // Program body
-    // *****************************************************************************
-
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
     // Run test on DetectionCandidate if requested
-    if (run_test) {test_all(conn);}
-
-    // Save DetectionTime if requested
-    if (run_save_DetectionTime) {save_DetectionTime(conn);}
-
-    // Save Detection if requested
-    if (run_save_Detection) {save_Detection(conn);}
-
-    // Save DetectionCandidate if requested
-    if (run_save_DetectionCandidate) {save_DetectionCandidate(conn);}
+    test_all(conn);
 
     // Close DB connection
     conn->close();
 
     // Normal program exit
     return 0;
-}
-
-// *****************************************************************************
-// Save a file to disk with cached data from database.
-// *****************************************************************************
-
-// *****************************************************************************
-void save_DetectionTime(db_conn_type& conn)
-{
-    // Load the detection time table from database
-    DetectionTimeTable dtt = DetectionTimeTable(conn);
-    // Save detection time table to disk
-    dtt.save();
-    print("Saved DetectionTime to disk.\n");
-}
-
-// *****************************************************************************
-void save_DetectionCandidate(db_conn_type& conn)
-{
-    // Load the detection candidate table from database
-    bool progbar = true;
-    DetectionCandidateTable dt = DetectionCandidateTable(conn, progbar);
-    // Save detection candidate table to disk
-    dt.save();
-}
-
-// *****************************************************************************
-void save_Detection(db_conn_type& conn)
-{
-    // Load the detection candidate table from database
-    bool progbar = true;
-    DetectionTable dt = DetectionTable(conn, progbar);
-    // Save detection table to disk
-    dt.save();
 }
 
 // *****************************************************************************

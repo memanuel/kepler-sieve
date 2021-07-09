@@ -233,9 +233,16 @@ void test_all()
     pe.load(conn);
     pe.build_splines();
     print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
-            mjd0, mjd1, dt_min);
+            mjd0, mjd1, dt_min);            
 
     test_planet_element(pe);
+
+    // Save
+    pe.save();
+    print("Saved PlanetElement to disk\n");
+    // Reload
+    PlanetElement pe2();
+    print("Loaded PlanetElement from disk.\n");
 
     // Initialize DetectionTimeTable
     DetectionTimeTable dtt = DetectionTimeTable();
