@@ -4,7 +4,7 @@ EXEC_CONSOLE := \
 
 # Executable test programs and examples (prefix only)
 EXEC_TEST := \
-    db_test sky_patch_test detection_test rebound_test \
+    db_test sky_patch_test detection_test rebound_test planet_element_test \
     detection_near_ast_test detection_near_elt_test test_all \
     rebound_example
 
@@ -110,6 +110,12 @@ rebound_test: \
     obj/rebound_test.o \
     obj/utils.o obj/db_utils.o \
     obj/MassiveBody.o
+
+planet_element_test: \
+    obj/planet_element_test.o \
+    obj/utils.o obj/db_utils.o obj/Timer.o \
+    obj/OrbitalElement.o obj/DetectionTime.o obj/Detection.o \
+    obj/BodyVector.o obj/PlanetElement.o
 
 detection_near_elt_test: \
     obj/detection_near_elt_test.o \

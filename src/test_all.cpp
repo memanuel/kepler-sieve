@@ -44,6 +44,12 @@ int main()
     is_ok_all = is_ok_all && is_ok;
     report_test("detection_test", is_ok);
 
+    // Run rebound test
+    result = system("./rebound_test.x > test/rebound_test.txt");
+    is_ok = (result==0);
+    is_ok_all = is_ok_all && is_ok;
+    report_test("rebound_test", is_ok);
+
     // // TODO
     // // Run planet element test
    

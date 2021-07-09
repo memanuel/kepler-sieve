@@ -238,3 +238,16 @@ void DetectionTable::load()
     // Close input filestream
     fs.close();
 }
+
+// *****************************************************************************
+void ks::print_detection(const Detection& d)
+{
+    print("Detection:\n");
+    print("detection_id = {:d}\n", d.detection_id);
+    print("sky_patch_id = {:d}\n", d.sky_patch_id);
+    print("time_id = {:d}\n", d.time_id);
+    print("ux      = {:+8.6f}\n", d.ux);
+    print("uy      = {:+8.6f}\n", d.uy);
+    print("uz      = {:+8.6f}\n", d.uz);
+    print("mag     = {:8.4f}\n", d.mag);
+}
