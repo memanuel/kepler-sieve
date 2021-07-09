@@ -6,6 +6,9 @@ obj/
 # Binary data files
 *.bin
 
+# Test outputs
+test/*.txt
+
 # Model weights
 *.h5
 

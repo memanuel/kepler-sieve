@@ -49,5 +49,6 @@
 2. sky_patch_test.cpp
 3. detection_test.cpp
 4. planet_element_test.cpp
-5. detection_near_elt_test.cpp
-6. test_all.cpp
+5. rebound_test.cpp
+6. detection_near_elt_test.cpp
+7. test_all.cpp

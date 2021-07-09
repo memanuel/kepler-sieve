@@ -39,7 +39,7 @@ int main()
     report_test("sky_patch_test", is_ok);
 
     // Run detection test
-    result = system("./detection_test.x");
+    result = system("./detection_test.x > test/detection_test.txt");
     is_ok = (result==0);
     is_ok_all = is_ok_all && is_ok;
     report_test("detection_test", is_ok);

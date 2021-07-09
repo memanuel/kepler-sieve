@@ -6,7 +6,7 @@
  * 
  * Example call:
  * ./detection_near_elt_test.x
- * ****************************************************************************/
+ */
 
 // *****************************************************************************
 // Library dependencies
@@ -14,6 +14,13 @@
     using fmt::print;
 
 // Local dependencies
+#include "db_utils.hpp"
+    using ks::db_conn_type;
+    using ks::get_db_conn;
+    using ks::sp_run;
+#include "utils.hpp"
+    using ks::norm;
+    using ks::report_test;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::Position;
@@ -25,27 +32,19 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-#include "MassiveBody.hpp"
-    using ks::MassiveBody;
-    using ks::MassiveBodyTable;
+// #include "MassiveBody.hpp"
+//     using ks::MassiveBody;
+//     using ks::MassiveBodyTable;
 #include "PlanetElement.hpp"
     using ks::PlanetElement;    
 #include "CandidateElement.hpp"
     using ks::CandidateElement;
-#include "db_utils.hpp"
-    using ks::db_conn_type;
-    using ks::get_db_conn;
-    using ks::sp_run;
-#include "utils.hpp"
-    using ks::norm;
-    using ks::report_test;
 
 // *****************************************************************************
-// Declare functions defined in this module
+// Functions defined in this module
 int main(int argc, char* argv[]);
 void print_detection(DetectionTable& dt);
 void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt);
-void test_massive_body();
 void test_load_detection(db_conn_type& conn);
 void test_all();
 
@@ -117,30 +116,6 @@ void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
     print("Distance between predicted state vectros in Kepler model and DB values for Juno @ {:9.4f}.\n", mjd_test);
     print("dq: {:8.2e} AU\n", dq);
     print("dv: {:8.2e} AU/day\n", dv);
-}
-
-// *****************************************************************************
-void test_massive_body()
-{
-    // Establish DB connection
-    db_conn_type conn = get_db_conn();
-
-    // Load from disk
-    MassiveBodyTable mbt = MassiveBodyTable();
-
-    // Print contents
-    print("{:8s} : {:8s} : {:8s}\n", "BodyID", "M", "GM");
-    for (int32_t body_id: mbt.get_body_id())
-    {
-        // Only print the planets; don't show the heavy asteroids
-        if (body_id > 1000000) {continue;}
-        // Access this body and print it
-        MassiveBody mb = mbt[body_id];
-        print("{:8d} : {:8.2e} : {:8.2e}\n", mb.body_id, mb.M, mb.GM);
-    }
-
-    // Close DB connection
-    conn->close();
 }
 
 // *****************************************************************************
