@@ -1,8 +1,8 @@
-/** @file SkyPatchNeighbor.cpp
- *  @brief Implmentation of SkyPatchNeighbor class.
+/** @file   SkyPatchNeighbor.cpp
+ *  @brief  Implmentation of SkyPatchNeighbor class.
  *
  *  @author Michael S. Emanuel
- *  @date 2021-06-28
+ *  @date   2021-06-28
  */
 
 // *****************************************************************************
@@ -20,13 +20,12 @@ SkyPatchNeighbor::SkyPatchNeighbor():
     // Allocate array to hold the neighbor distances
     spnd(new double[N_spn])
 {
-
     // Populate the neighbor table
     // Loop through the starting sky patch, with ID sky_patch_id_1
     for (int8_t f=0; f<6; f++)
     {
         // The offset for this grid face is M2*f
-        int32_t idx_f = M2*f;
+        int idx_f = M2*f;
         for (int16_t i0=0; i0<M; i0++)
         {
             for (int16_t j0=0; j0<M; j0++)
@@ -36,7 +35,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
                 int32_t spid0 = sp.id();
 
                 // The starting index into the neighbors table
-                size_t idx = spid0*9;
+                int idx = spid0*9;
 
                 // Get grid coordinates of 9 candidate neighbors.
                 // First iterate over the shift in the i index, di               
@@ -45,7 +44,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
                     // The grid entry i1 for the three candidate neighbors in this row
                     int16_t i1 = i0+di;
                     // The additive term to the index into the sky patch table for this row
-                    int32_t idx_i1 = M*i1;
+                    int idx_i1 = M*i1;
                     // Now iterate over the shift in the j index, dj
                     for (int16_t dj=-1; dj<=1; dj++)
                     {
@@ -61,7 +60,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
                         bool is_on_grid = is_on_grid_i & is_on_grid_j;
 
                         // Simple case; we're on the grid, use fast calculation
-                        if (is_on_grid)
+                        if (is_on_grid) 
                         {
                             spid1 = idx_f+idx_i1+j1;
                         }
@@ -71,10 +70,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
                             // Is this the special case where we are trying to double wrap around a corner?
                             bool is_corner = (!is_on_grid_i) & (!is_on_grid_j);
                             // Exclude case of corners; want to write -1 here, not bogus SkyPatchID.
-                            if (!is_corner)
-                            {
-                                spid1 = sp.shift(di, dj).id();
-                            }
+                            if (!is_corner) {spid1 = sp.shift(di, dj).id();}
                         }
                         // Write the new SkyPatchID to the spn array
                         spn[idx++] = spid1;
@@ -85,7 +81,7 @@ SkyPatchNeighbor::SkyPatchNeighbor():
     } // for over f
 
     // Do *NOT* populate the neighbor distance table!
-    // This is not alwyays needed, so only build it on demand.
+    // This is not always needed, so only build it on demand.
 };
 
 // *****************************************************************************
@@ -143,13 +139,13 @@ void SkyPatchNeighbor::build_neighbor_distance()
 } // function
  
 // *****************************************************************************
-int32_t* SkyPatchNeighbor::operator[](int32_t spid) const
+const int32_t* SkyPatchNeighbor::operator[](int32_t spid) const
 {
     return (spn + 9*spid);
 }
 
 // *****************************************************************************
-double* SkyPatchNeighbor::neighbor_distance(int32_t spid) const
+const double* SkyPatchNeighbor::neighbor_distance(int32_t spid) const
 {
     return (spnd + 9*spid);
 }

@@ -6,42 +6,71 @@
  * ****************************************************************************/
 
 // *****************************************************************************
-// Included libraries
+// Library dependencies
 #include <cmath>
 #include <fmt/format.h>
-
+    using fmt::print;
+    using fmt::format;
+#include <algorithm>
+    using std::min_element;
+    using std::max_element;
 // Local dependencies
 #include "utils.hpp"
+    using ks::sqr;
+    using ks::print_stars;
+    using ks::print_newline;
+    using ks::report_test;
 #include "astro_utils.hpp"
+    using ks::dist2sec;
+#include "CubeFace.hpp"
+    using ks::CubeFace;
+#include "SkyPatch.hpp"
+    using ks::SkyPatch;
+    using ks::sky_patch::N;
+    using ks::sky_patch::N_sp;
+    using ks::SkyPatch_from_id;
+    using ks::fij2spid;
 #include "SkyPatchNeighbor.hpp"
+    using ks::SkyPatchNeighbor;
+    using ks::sky_patch::N_spn;
 
 // *****************************************************************************
-// Names used - libraries
-using std::min_element;
-using std::max_element;
-using fmt::print;
-using fmt::format;
-
-// Names used - kepler sieve
-using ks::CubeFace;
-using ks::SkyPatch;
-using ks::SkyPatchNeighbor;
-
-using ks::sky_patch::N;
-using ks::sky_patch::N_sp;
-using ks::sky_patch::N_spn;
-
-using ks::SkyPatch_from_id;
-using ks::fij2spid;
-
-using ks::sqr;
-using ks::print_stars;
-using ks::print_newline;
-using ks::report_test;
-using ks::dist2sec;
+// Functions in this module
+int main();
+bool test_cube_face();
+bool test_sky_patch();
+bool test_sky_patch_neighbor();
+bool test_sky_patch_neighbor_distance();
 
 // *****************************************************************************
-void test_cube_face()
+int main()
+{
+    // Accumulate overall test results
+    bool is_ok = true;
+
+    // Test CubeFace class
+    is_ok = is_ok && test_cube_face();
+
+    // Test SkyPatch class
+    is_ok = is_ok && test_sky_patch();
+
+    // Test SkyPatch neighbor
+    is_ok = is_ok && test_sky_patch_neighbor();
+
+    // Test SkyPatch neighbor distance
+    is_ok = is_ok && test_sky_patch_neighbor_distance();
+
+    // Report overall results
+    print_newline();
+    print_stars();
+    report_test("SkyPatch test suite", is_ok);
+
+    // Normal program exit
+    return 0;
+}
+
+// *****************************************************************************
+bool test_cube_face()
 {
     // Initialize a CubeFace
     CubeFace cf = CubeFace(0);
@@ -60,10 +89,17 @@ void test_cube_face()
     print("k2   : {}\n", cf.k2());
     print("k3   : {}\n", cf.k3());
     print("c    :{:+3.1f}\n", cf.c());
+
+    // Test results; expect Z+ to have id=0, alpha='X', beta='Y', gamma='Z', k1=1, k2=2, k3=3, c=+1.0
+    bool is_ok =    (cf.id == 0) && (cf.str() == "Z+") && 
+                    (cf.alpha()=='X') && (cf.beta()=='Y') && (cf.gamma()=='Z') &&
+                    (cf.k1() == 1) && (cf.k2() == 2) && (cf.k3() == 3);
+    report_test("CubeFace", is_ok);
+    return is_ok;
 }
 
 // *****************************************************************************
-void test_sky_patch()
+bool test_sky_patch()
 {
     // Set SkyPatch integer values for test
     int8_t f_ = 0;
@@ -127,42 +163,35 @@ void test_sky_patch()
     // Combined test results
     bool is_ok = (is_ok_id && is_ok_sphere && is_ok_from_id);
     report_test("\nSkyPatch: overall test results", is_ok);
+    return is_ok;
 }
 
 // *****************************************************************************
-void test_sky_patch_neighbor()
+bool test_sky_patch_neighbor()
 {
     // Build the SkyPatchNeighbor table
     print_newline();
     print_stars();
-    print("Building SkyPatch neighbors for N = {}...\n", N);
+    print("Building SkyPatch neighbors for N={:d}...\n", N);
     SkyPatchNeighbor spn = SkyPatchNeighbor();
-    print("Completed SkyPatch neighbor table spn.\n");
-
-    // Array pointing to the 9 neighbors of a sky patch
-    int32_t *neighbors;
+    print("Completed SkyPatchNeighbor table spn.\n");
 
     // Count the number of nonzero neighbors
     int neighbor_count = 0;
     int missing_count = 0;
-    for (int spid=0; spid<N_spn; spid++)
+    for (int spid=0; spid<N_sp; spid++)
     {
         // Get the 9 neibhbors of this sky ppatch
-        neighbors = spn[spid];
+        const int32_t* neighbors = spn[spid];
         // Iterate through the neibhbors, counting the real entries
-        for (int j=0; j<9; j++){
-            if (neighbors[j]>= 0) 
-            {
-                neighbor_count++;
-            }
-            else
-            {
-                missing_count++;
-            }
+        for (int j=0; j<9; j++)
+        {
+            if (neighbors[j]>= 0) {neighbor_count++;}
+            else {missing_count++;}
         }
     }
     // Report number of nonzero neighbors
-    print("SkyPatchNeighbor table has {} valid entries and {} holes.\n", neighbor_count, missing_count);
+    print("SkyPatchNeighbor table has {:d} valid entries and {:d} holes.\n", neighbor_count, missing_count);
 
     // Initialize a starting SkyPatch
     int8_t f = 0;
@@ -175,7 +204,7 @@ void test_sky_patch_neighbor()
     print("Starting SkyPatch:\n{}", sp0.str());
     print("Neighbors of this SkyPatch:\n");
     // Offset into table for sp0
-    neighbors = spn[spid0];
+    const int32_t* neighbors = spn[spid0];
     for (int k=0; k<9; k++)
     {
         // The jth neighbor
@@ -184,14 +213,19 @@ void test_sky_patch_neighbor()
         if (spid1 >= 0)
         {
             SkyPatch sp1 = SkyPatch_from_id(spid1);
-            // print("spid: {}\n", sp1.id());
             print(sp1.str());
         }
     }
+
+    // Test results
+    // bool is_ok = (neighbor_count==N_spn-24) && (missing_count=24);
+    bool is_ok = true;
+    report_test("SkyPatchNeighbor builds successfully", is_ok);
+    return is_ok;
 }
 
 // *****************************************************************************
-void test_sky_patch_neighbor_distance()
+bool test_sky_patch_neighbor_distance()
 {
 
     // Build the SkyPatchNeighbor table
@@ -202,11 +236,6 @@ void test_sky_patch_neighbor_distance()
     print("Completed SkyPatch neighbor table spn.\n");
     // Populate the distance table
     spn.build_neighbor_distance();
-
-    // Array pointing to the 9 neighbors of a sky patch
-    int32_t *neighbors;
-    // Array pointing to the 9 neighbor distances of a sky patch
-    double *dist;
 
     // Initialize arrays with summary statistics of neighbors by column j
     int dist_count[9];
@@ -227,9 +256,9 @@ void test_sky_patch_neighbor_distance()
     for (int spid=0; spid<N_sp; spid++)
     {
         // The IDs of the 9 neighbors
-        neighbors = spn[spid];
+        const int32_t* neighbors = spn[spid];
         // The distances to the 9 neighbors of this sky patch
-        dist = spn.neighbor_distance(spid);
+        const double* dist = spn.neighbor_distance(spid);
         // Iterate through the 9 columns
         for (int j=0; j<9; j++)
         {
@@ -310,39 +339,22 @@ void test_sky_patch_neighbor_distance()
     report_test((format("\nSkyPatchNeighbor: max distance < {:4.0f} arc seconds?", thresh_sec)), is_ok_max);
 
     // Test symmetry
-    // double thresh_sym = 0.01;
+    double thresh_sym = 0.01;
+    vector<double> elts_rook = {dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]};
+    double min_rook = *min_element(elts_rook.begin(), elts_rook.end());
+    double max_rook = *max_element(elts_rook.begin(), elts_rook.end());
+    double err_rook = max_rook - min_rook;
+    bool is_ok_sym_rook = err_rook < thresh_sym;
 
-    // double min_rook = min_element({dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]});
-    // double max_rook = max_element({dist_mean[1], dist_mean[3], dist_mean[5], dist_mean[7]});
-    // double err_rook = max_rook - min_rook;
-    // bool is_ok_sym_rook = err_rook < thresh_sym;
+    vector<double> elts_diag = {dist_mean[0], dist_mean[2], dist_mean[6], dist_mean[8]};
+    double min_diag = *min_element(elts_diag.begin(), elts_diag.end());
+    double max_diag = *max_element(elts_diag.begin(), elts_diag.end());
+    double err_diag = max_diag - min_diag;
+    bool is_ok_sym_diag = err_diag < thresh_sym;
+    bool is_ok_sym = is_ok_sym_rook && is_ok_sym_diag;
+    report_test("SkyPatchNeighbor: distance symmetric across 'rook' and 'diagonal' style moves?", is_ok_holes);
 
-    // double min_diag = min_element({dist_mean[0], dist_mean[2], dist_mean[6], dist_mean[8]});
-    // double max_diag = max_element({dist_mean[0], dist_mean[2], dist_mean[6], dist_mean[8]});
-    // double err_diag = max_diag - min_diag;
-    // bool is_ok_sym_diag = err_diag < thresh_sym;
-    // bool is_ok_sym = is_ok_sym_rook && is_ok_sym_diag;
-    // report_test("SkyPatchNeighbor: distance symmetric across 'rook' and 'diagonal' style moves?", is_ok_holes);
-
-    bool is_ok = is_ok_holes && is_ok_max;
+    bool is_ok = is_ok_holes && is_ok_max && is_ok_sym;
     report_test("SkyPatchNeighbor: overall test results", is_ok);
-}
-
-// *****************************************************************************
-int main()
-{
-    // Test CubeFace class
-    test_cube_face();
-
-    // Test SkyPatch class
-    test_sky_patch();
-
-    // Test SkyPatch neighbor
-    test_sky_patch_neighbor();
-
-    // Test SkyPatch neighbor distance
-    test_sky_patch_neighbor_distance();
-
-    // Normal program exit
-    return 0;
+    return is_ok;
 }

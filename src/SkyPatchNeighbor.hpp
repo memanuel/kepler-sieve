@@ -1,8 +1,8 @@
-/** @file SkyPatchNeighbor.hpp
- *  @brief Class to calulate and cache neighbors of each SkyPatch.
+/** @file   SkyPatchNeighbor.hpp
+ *  @brief  Class to calculate and cache neighbors of each SkyPatch.
  *   
  *  @author Michael S. Emanuel
- *  @date 2021-06-28
+ *  @date   2021-06-28
  */
 
 // *****************************************************************************
@@ -40,10 +40,10 @@ public:
     void build_neighbor_distance();
 
     /// Get the neighbors of a skypatch given its integer ID
-    int32_t* operator[](int32_t spid) const;
+    const int32_t* operator[](int32_t spid) const;
 
     /// Get the neighbor distances of a skypatch given its integer ID
-    double* neighbor_distance(int32_t spid) const;
+    const double* neighbor_distance(int32_t spid) const;
 
 private:
     // Data
