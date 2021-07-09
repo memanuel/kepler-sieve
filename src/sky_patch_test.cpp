@@ -1,8 +1,11 @@
-/*****************************************************************************
- * Test harness for SkyPatch and sky_patch.
+/** @file   sky_patch_test.cpp
+ *  @brief  Test harness for SkyPatch and sky_patch.
+ *
+ *  @author Michael S. Emanuel
+ *  @date   2021-06-24
  * 
- * Michael S. Emanuel
- * 2021-06-24
+ * Example call:
+ * ./sky_patch_test.x
  * ****************************************************************************/
 
 // *****************************************************************************
@@ -65,8 +68,8 @@ int main()
     print_stars();
     report_test("SkyPatch test suite", is_ok);
 
-    // Normal program exit
-    return 0;
+    // Normal program exit; return 1 to signal test failure
+    return is_ok ? 0 : 1;
 }
 
 // *****************************************************************************

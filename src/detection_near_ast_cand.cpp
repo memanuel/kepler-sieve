@@ -327,8 +327,6 @@ void search_asteroid_detection(
 {
     // Counter for the number of matches found and pairs examined
     // int pairs = 0;
-    // Reusable pointer to the 9 neighbors of a SkyPatch
-    int32_t* ns;
 
     // Iterate through all the AsteroidSkyPatch entries in the table
     for (int i=0; i<aspt.size(); i++)
@@ -339,7 +337,7 @@ void search_asteroid_detection(
         int32_t asteroid_id = asp.asteroid_id;
         // Get the neighbors of the SkyPatch occupied by the asteroid in this segment
         int32_t sky_patch_ast = asp.sky_patch_id;
-        ns = spn[sky_patch_ast];
+        const int32_t* ns = spn[sky_patch_ast];
         // Get the start and end time_id
         int32_t time_id_0 = asp.time_id_0;
         int32_t time_id_1 = asp.time_id_1;

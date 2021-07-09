@@ -9,7 +9,7 @@
  * ./save_detection.x --DetectionCandidate
  * ./save_detection.x --Detection
  * ./save_detection.x --test
- * ****************************************************************************/
+*/
 
 // *****************************************************************************
 // Library dependencies
@@ -21,6 +21,7 @@
 // Local dependencies
 #include "utils.hpp"
     using ks::print_stars;
+    using ks::print_newline;
     using ks::report_test;
 #include "db_utils.hpp"
     using ks::db_conn_type;
@@ -50,13 +51,13 @@ int main(int argc, char* argv[])
     db_conn_type conn = get_db_conn();
 
     // Run test on DetectionCandidate if requested
-    test_all(conn);
+    bool is_ok = test_all(conn);
 
     // Close DB connection
     conn->close();
 
-    // Normal program exit
-    return 0;
+    // Normal program exit; return 1 to signal test failure
+    return is_ok ? 0 : 1;
 }
 
 // *****************************************************************************
@@ -80,8 +81,9 @@ bool test_all(db_conn_type& conn)
     is_ok = is_ok && test_Detection(conn);
 
     // Report overall results
+    print_newline();
     print_stars();
-    report_test("\nOverall DetectionTime, Detection, and DetectionCandidate", is_ok);
+    report_test("Overall DetectionTime, Detection, and DetectionCandidate", is_ok);
     return is_ok;
 }
 

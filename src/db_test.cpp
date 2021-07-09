@@ -1,28 +1,28 @@
-/*****************************************************************************
- * Test harness for accessing SQL database
+/** @file   db_test.cpp
+ *  @brief  Test harness for accessing SQL database
+ *
+ *  @author Michael S. Emanuel
+ *  @date   2021-06-22
  * 
- * Michael S. Emanuel
- * 2021-06-22
- * ****************************************************************************/
+ * Example call:
+ * ./db_test.x
+ */
 
 // *****************************************************************************
-// Included libraries
+// Library dependencies
 #include <string>
+    using std::string;
+#include <utility>
+    using std::pair;
 #include <fmt/format.h>
+    using fmt::print;
 
 // Local dependencies
 #include "db_utils.hpp"
+    using ks::get_db_conn;
 
 // *****************************************************************************
-// Names used
-using std::string;
-using std::pair;
-using fmt::print;
-using ks::get_db_conn;
-
-// *****************************************************************************
-/** Test database utilities.
-*/
+/// Test database utilities.
 int main()
 {
 

@@ -1,17 +1,17 @@
-/*****************************************************************************
- * Michael S. Emanuel
- * 2021-06-25
- * ****************************************************************************/
+/** @file   db_utils.cpp
+ *  @brief  Implementation of db_utils.
+ *
+ *  @author Michael S. Emanuel
+ *  @date   2021-06-25
+ * 
+ */
 
 // *****************************************************************************
 // Local dependencies
 #include "db_utils.hpp"
-
-// *****************************************************************************
-// Names used
-using ks::db_conn_type;
-using ks::sql_stmt_type;
-using ks::sql_prepared_stmt_type;
+    using ks::db_conn_type;
+    using ks::sql_stmt_type;
+    using ks::sql_prepared_stmt_type;
 
 // *****************************************************************************
 namespace ks {
@@ -42,11 +42,11 @@ db_conn_type get_db_conn(bool verbose)
     if (verbose)
     {
         print("DB connection settings:\n");
-        print("DB host : {:s}\n", db_host);
-        print("schema  : {:s}\n", schema);
-        print("{:s}    : {:s}\n", p1.first, p1.second);
-        print("{:s}    : {:s}\n", p2.first, p2.second);
-        print("{:s}    : {:s}\n", p3.first, p3.second);
+        print("{:16s}  : {:16s}\n", "DB host", db_host);
+        print("{:16s}  : {:16s}\n", "schema", schema);
+        print("{:16s}  : {:16s}\n", p1.first, p1.second);
+        print("{:16s}  : {:16s}\n", p2.first, p2.second);
+        print("{:16s}  : {:16s}\n", p3.first, p3.second);
     }
 
     // Instantiate DB driver

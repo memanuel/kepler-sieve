@@ -1,6 +1,6 @@
 # List of executables (prefix only)
 EXEC := detection_near_ast detection_near_ast_cand save_db2disk \
-        db_test sky_patch_test detection_near_ast_test detection_near_elt_test detection_test\
+        db_test sky_patch_test detection_near_ast_test detection_near_elt_test detection_test test_all \
         rebound_example
 
 # Miscellanoues utilities
@@ -53,7 +53,7 @@ detection_near_ast_test.o: detection_near_ast.cpp
 detection_near_elt_test.o: detection_near_elt_test.cpp
 rebound_example.o: rebound_example.cpp
 
-# Executables
+# Executables - batch programs
 detection_near_ast: \
     obj/detection_near_ast.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
@@ -75,6 +75,7 @@ save_db2disk: \
     obj/OrbitalElement.o obj/BodyVector.o \
     obj/PlanetElement.o
 
+# Executables - tests
 db_test: \
     obj/db_test.o obj/db_utils.o
 
@@ -104,5 +105,9 @@ detection_near_elt_test: \
     obj/BodyVector.o obj/PlanetElement.o \
     obj/CandidateElement.o
 
+test_all: \
+    obj/test_all.o obj/utils.o
+
+# Executables - example programs for libraries
 rebound_example: \
     obj/rebound_example.o
