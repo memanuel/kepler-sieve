@@ -189,10 +189,10 @@ bool is_close(Position& q1, StateVector& s2, double tol_dq);
 // *****************************************************************************
 
 // *****************************************************************************
-/// Print a one line description of an orbital element
+/// Print a one line description of a state vector
 void print_state_vector(StateVector& s, bool header=false);
 
-/// Print a multi-line description of an orbital element
+/// Print a multi-line description of a state vector
 void print_state_vector_long(StateVector& s);
 
 // *****************************************************************************

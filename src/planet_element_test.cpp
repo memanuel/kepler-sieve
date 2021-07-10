@@ -17,6 +17,8 @@
 #include "constants.hpp"
     using ks::cs::body_id_earth;
 #include "utils.hpp"
+    using ks::print_newline;
+    using ks::print_stars;
     using ks::report_test;
 #include "db_utils.hpp"
     using ks::db_conn_type;
@@ -56,7 +58,7 @@ int main(int argc, char* argv[]);
 bool test_all(db_conn_type& conn);
 bool test_planet_vector(PlanetVector& pv);
 bool test_planet_element(PlanetElement& pe);
-bool test_vectors(StateVector& s1, Position& q1_ip);
+bool test_vectors(StateVector& s1, Position& q1_ip, string class_name);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -92,12 +94,13 @@ bool test_all(db_conn_type& conn)
     bool is_ok_all = true;
 
     // Build PlanetVector
+    print_newline(); print_stars();
     t.tick();
     PlanetVector pv(mjd0, mjd1, dt_min);
     pv.load();
     pv.build_splines();
     // PlanetVector pv = PlanetVector();
-    print("\nBuilt PlanetVector object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
+    print("Built PlanetVector object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
             pv.mjd0, pv.mjd1, pv.dt_min);
     t.tock_msg();
 
@@ -106,20 +109,21 @@ bool test_all(db_conn_type& conn)
     report_test("Test PlanetVector", is_ok);
     is_ok_all = is_ok_all && is_ok;
 
-    // // Build PlanetElement
-    // t.tick();
-    // PlanetElement pe(mjd0, mjd1, dt_min);
-    // pe.load();
-    // pe.build_splines();
-    // // PlanetElement pe = PlanetElement();
-    // print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
-    //         pe.mjd0, pe.mjd1, pe.dt_min);
-    // t.tock_msg();
+    // Build PlanetElement
+    print_newline(); print_stars();
+    t.tick();
+    PlanetElement pe(mjd0, mjd1, dt_min);
+    pe.load();
+    pe.build_splines();
+    // PlanetElement pe = PlanetElement();
+    print("Built PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
+            pe.mjd0, pe.mjd1, pe.dt_min);
+    t.tock_msg();
 
-    // // Test planet elements
-    // is_ok = test_planet_element(pe);
-    // report_test("Test PlanetElement", is_ok);
-    // is_ok_all = is_ok_all && is_ok;
+    // Test planet elements
+    is_ok = test_planet_element(pe);
+    report_test("Test PlanetElement", is_ok);
+    is_ok_all = is_ok_all && is_ok;
 
     // Return overall test result
     return is_ok_all;
@@ -128,36 +132,35 @@ bool test_all(db_conn_type& conn)
 // *****************************************************************************
 bool test_planet_vector(PlanetVector& pv)
 {
-    // Test is against state vectors of Earth @ 58000
+    // Test vs. expected state vectors of Earth @ 58000
 
     // Calculate interpolated state vectors of Earth on the test date
     StateVector s1 = pv.interp_vec(body_id_earth, mjd_test);
 
     // Calculate interpolated position of Earth
-    Position q1_ip = pv.interp_pos(body_id_earth, mjd_test);
+    Position q1 = pv.interp_pos(body_id_earth, mjd_test);
 
     // Report test results
-    return test_vectors(s1, q1_ip);
+    return test_vectors(s1, q1, "PlanetVector");
 }
 
 // *****************************************************************************
 bool test_planet_element(PlanetElement& pe)
 {
-    // Test state vectors of Earth @ 58000
-    int32_t body_id=399;   
+    // Test vs. expected state vectors of Earth @ 58000
 
     // Calculate interpolated position and state vector of Earth
-    StateVector s1 = pe.interp_vec(body_id, mjd_test);
+    StateVector s1 = pe.interp_vec(body_id_earth, mjd_test);
 
     // Calculate interpolated position of Earth
-    Position q1_ip = pe.interp_pos(body_id, mjd_test);
+    Position q1 = pe.interp_pos(body_id_earth, mjd_test);
 
     // Report test results
-    return test_vectors(s1, q1_ip);
+    return test_vectors(s1, q1, "PlanetElement");
 }
 
 // *****************************************************************************
-bool test_vectors(StateVector& s1, Position& q1)
+bool test_vectors(StateVector& s1, Position& q1, string class_name)
 {
     // Expected state vector components of Earth @ MJD 58000
     // Copy / paste from KS.GetStateVectors_Earth(58000, 58000, 1440);
@@ -166,7 +169,7 @@ bool test_vectors(StateVector& s1, Position& q1)
     double qz = -0.0001266099206526;
     double vx =  0.005191609325627999;
     double vy =  0.016244467239388778;
-    double vz = -0.0000000527623193;
+    double vz =  0.0000000527623193;
 
     // Wrap expected position and velocity objects
     Position q0 {.qx=qx, .qy=qy, .qz=qz};
@@ -174,30 +177,34 @@ bool test_vectors(StateVector& s1, Position& q1)
     StateVector s0 {.qx=qx, .qy=qy, .qz=qz, .vx=vx, .vy=vy, .vz=vz};
 
     // Test tolerance
-    double tol_dq_ip = 1.0E-12;
-    double tol_dq = 1.0E-10;
-    double tol_dv = 1.0E-10;
+    double tol_dq_ip = 1.0E-16;
+    double tol_dq = 1.0E-14;
+    double tol_dv = 1.0E-14;
     // Current test result
     bool is_ok;
     // Overall test result
     bool is_ok_all = true;
+    // Current test name
+    string test_name;
 
-    // Report calculated state vectors
+    // Report calculated state vectors and difference
+    StateVector ds = s1-s0;
     print("\nExpected & Splined state vectors at {:8.4f}.\n", mjd_test);
     print_state_vector(s0, true);
-    print("Expected  :"); 
+    print("Expected   :"); 
     print_state_vector(s0);
-    print("Splined   :"); 
+    print("Splined    :"); 
     print_state_vector(s1);
-    // print("Difference:"); 
-    // print_state_vector(s1-s0);
-    
+    print("Difference :"); 
+    print_state_vector(ds);
+
     // Check consistency of position between state vectors ans position
     double dq_ip = dist(s1, q1);
     is_ok = is_close(s1, q1, tol_dq_ip);
     is_ok_all = is_ok_all && is_ok;
-    print("\nDistance between position from interp_pos and interp_vec: {:5.2e} AU.\n", dq_ip);
-    report_test("interp_pos consistent with interp_vec", is_ok);
+    print("\nDistance between position from interp_pos and interp_vec\n{:5.2e} AU.\n", dq_ip);
+    test_name = format("Test {:s}: interp_pos consistent with interp_vec", class_name);
+    report_test(test_name, is_ok);
 
     // Calculate norm of position and velocity difference
     double dq = dist(q0, s1);
@@ -213,7 +220,8 @@ bool test_vectors(StateVector& s1, Position& q1)
     print("\nDistance between interpolated state vectors and DB values for Earth @ {:9.4f}.\n", mjd_test);
     print("dq: {:8.2e} AU       dq_rel: {:5.3e}.\n", dq, dq_rel);
     print("dv: {:8.2e} AU/day   dv_rel: {:5.3e}.\n", dv, dv_rel);
-    report_test("interp_vec matches expected value:", is_ok);
+    test_name = format("Test {:s}: interp_vec matches expected value:", class_name);
+    report_test(test_name, is_ok);
 
     return is_ok;    
 }
