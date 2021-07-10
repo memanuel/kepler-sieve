@@ -16,21 +16,33 @@
 
 // Local dependencies
 #include "utils.hpp"
-    using ks::is_close_abs;
     using ks::print_stars;
+    using ks::print_newline;
     using ks::report_test;
+    using ks::is_close_abs;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
+#include "StateVector.hpp"
+    using ks::StateVector;
+#include "PlanetVector.hpp"
+    using ks::PlanetVector;
 #include "MassiveBody.hpp"
     using ks::MassiveBody;
     using ks::MassiveBodyTable;
+#include "rebound_utils.hpp"
+    using ks::Particle;
+    using ks::Orbit;
+    using ks::Simulation;
+    using ks::make_sim;
 
 // *****************************************************************************
 // Functions defined in this module
 int main();
 bool test_all(db_conn_type& conn);
 bool test_massive_body();
+bool test_make_sim();
+bool test_make_sim_planets();
 
 // *****************************************************************************
 int main()
@@ -51,11 +63,25 @@ int main()
 // *****************************************************************************
 bool test_all(db_conn_type& conn)
 {
-    // Accumulate overall test results
+    // Current test result
     bool is_ok = true;
 
+    // Accumulate overall test results
+    bool is_ok_all = true;
+
     // Test massive body
-    is_ok = is_ok && test_massive_body();
+    // is_ok = test_massive_body();
+    // is_ok_all &= is_ok;
+    // report_test("Test: Build MassiveBody", is_ok);
+
+    // Test making an empty simulation
+    print_stars(true);
+    is_ok = test_make_sim();
+    is_ok_all &= is_ok;
+    report_test("Test: Build empty rebound Simulation", is_ok);
+
+    // Test making a simulation with the planets
+    // is_ok = test_make_sim();
 
     // Report overall test results
     print("\n");
@@ -65,6 +91,7 @@ bool test_all(db_conn_type& conn)
 }
 
 // *****************************************************************************
+/// Test loading MassiveBody class from disk.
 bool test_massive_body()
 {
     // Load from disk
@@ -98,5 +125,27 @@ bool test_massive_body()
 
     // Report results
     report_test("MassiveBody: check Sun and Earth", is_ok);
+    return is_ok;
+}
+
+// *****************************************************************************
+/// Test building an empty rebound Simulation object.
+bool test_make_sim()
+{
+    /// Build the simulation
+    Simulation* sim = make_sim();
+
+    // Status
+    print("Built empty rebound simulation.\n");
+    print("N: {:d}.\n", sim->N);
+    print("t: {:f}.\n", sim->t);
+    print("G: {:e}.\n", sim->G);
+
+    // Test conditions
+    bool is_ok = (sim->N==0) && (sim->G = G);
+
+    // Free memory in sinulation object
+    reb_free_simulation(sim);
+
     return is_ok;
 }

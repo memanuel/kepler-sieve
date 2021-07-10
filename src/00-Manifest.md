@@ -34,6 +34,7 @@
 
 ## Rebound / Integrate Solar System
 1. rebound.hpp
+2. rebound_utils.hpp, rebound_utils.cpp
 
 ## Library Demonstrations
 1. mariadb_example.cpp

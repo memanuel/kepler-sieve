@@ -10,30 +10,28 @@
 #pragma once
 
 // *****************************************************************************
-// Included files
+// Library dependencies
 #include <string>
+    using std::string;
+#include <vector>
+    using std::vector;
+#include <utility>
+    using std::pair;
+#include <memory>
+    using std::unique_ptr;
 #include <fmt/format.h>
+    using fmt::print;
+    using fmt::format;
 #include <boost/algorithm/string/join.hpp>
+    using boost::algorithm::join;
 #include <mariadb/conncpp.hpp>
-
-// *****************************************************************************
-// Standard library class names used
-using std::string;
-using std::pair;
-using std::unique_ptr;
-using std::vector;
-using fmt::print;
-using fmt::format;
-using boost::algorithm::join;
-
-// SQL class names and functions used (from MariaDB/Connector)
-using sql::SQLString;
-using sql::Driver;
-using sql::Properties;
-using sql::Connection;
-using sql::Statement;
-using sql::ResultSet;
-using sql::mariadb::get_driver_instance;
+    using sql::SQLString;
+    using sql::Driver;
+    using sql::Properties;
+    using sql::Connection;
+    using sql::Statement;
+    using sql::ResultSet;
+    using sql::mariadb::get_driver_instance;
 
 // *****************************************************************************
 // Put all functions into namespace ks

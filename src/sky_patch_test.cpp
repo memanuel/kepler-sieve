@@ -64,8 +64,7 @@ int main()
     is_ok = is_ok && test_sky_patch_neighbor_distance();
 
     // Report overall results
-    print_newline();
-    print_stars();
+    print_stars(true);
     report_test("SkyPatch test suite", is_ok);
 
     // Normal program exit; return 1 to signal test failure
@@ -112,8 +111,7 @@ bool test_sky_patch()
     // Initialize a SkyPatch
     SkyPatch sp = SkyPatch(f_, i, j);
     // Report results
-    print_newline();
-    print_stars();
+    print_stars(true);
     print("SkyPatch:\n{}", sp.str());
     // Calculate sky patch integer attributes
     print("\nInteger attributes\n");
@@ -173,8 +171,7 @@ bool test_sky_patch()
 bool test_sky_patch_neighbor()
 {
     // Build the SkyPatchNeighbor table
-    print_newline();
-    print_stars();
+    print_stars(true);
     print("Building SkyPatch neighbors for N={:d}...\n", N);
     SkyPatchNeighbor spn = SkyPatchNeighbor();
     print("Completed SkyPatchNeighbor table spn.\n");
@@ -232,8 +229,7 @@ bool test_sky_patch_neighbor_distance()
 {
 
     // Build the SkyPatchNeighbor table
-    print_newline();
-    print_stars();
+    print_stars(true);
     print("Building SkyPatch neighbors for N = {}...\n", N);
     SkyPatchNeighbor spn = SkyPatchNeighbor();
     print("Completed SkyPatch neighbor table spn.\n");

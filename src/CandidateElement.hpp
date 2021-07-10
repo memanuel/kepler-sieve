@@ -19,7 +19,12 @@
     using std::vector;
 #include <cstring>
     // memcpy
+
 // Local dependencies
+#include "db_utils.hpp"
+    using ks::db_conn_type;
+    using ks::get_db_conn;
+    using ks::sp_run;
 #include "StateVector.hpp"
     using ks::norm;
 #include "OrbitalElement.hpp"
@@ -30,10 +35,6 @@
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
-#include "db_utils.hpp"
-    using ks::db_conn_type;
-    using ks::get_db_conn;
-    using ks::sp_run;
 
 // *****************************************************************************
 namespace ks {

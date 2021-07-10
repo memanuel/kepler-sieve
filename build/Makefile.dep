@@ -53,6 +53,9 @@ AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
 # CandidateElement
 CandidateElement.o: CandidateElement.hpp CandidateElement.cpp
 
+# Rebound / Integrate the Solar System
+rebound_utils.o: rebound.hpp rebound_utils.hpp rebound_utils.cpp
+
 # *************************************************************************************************
 # Object files for executables
 save_detection.o: save_detection.cpp
@@ -113,8 +116,9 @@ detection_near_ast_test: \
 
 rebound_test: \
     obj/rebound_test.o \
-    obj/utils.o obj/db_utils.o \
-    obj/MassiveBody.o
+    obj/utils.o obj/db_utils.o obj/rebound_utils.o \
+    obj/MassiveBody.o \
+    obj/StateVector.o obj/PlanetVector.o
 
 planet_element_test: \
     obj/planet_element_test.o \

@@ -122,7 +122,7 @@ bool test_all(db_conn_type& conn)
     // *****************************************************************************
 
     // Build BodyVector for Earth
-    print_newline(); print_stars();
+    print_stars(true);
     t.tick();
     BodyVector bv = BodyVector("Earth");
     print("Built BodyVector for Earth.\n");
@@ -138,7 +138,7 @@ bool test_all(db_conn_type& conn)
     // *****************************************************************************
 
     // Build PlanetVector
-    print_newline(); print_stars();
+    print_stars(true);
     t.tick();
     PlanetVector pv(mjd0, mjd1, dt_min);
     pv.load();
@@ -158,7 +158,7 @@ bool test_all(db_conn_type& conn)
     // *****************************************************************************
 
     // Build PlanetElement
-    print_newline(); print_stars();
+    print_stars(true);
     t.tick();
     PlanetElement pe(mjd0, mjd1, dt_min);
     pe.load();

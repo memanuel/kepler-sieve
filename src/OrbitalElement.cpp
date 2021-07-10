@@ -13,13 +13,14 @@
 
 // Constants
 // tau = 2pi
-constexpr double tau = 2.0 * pi;
+// constexpr double tau = 2.0 * pi;
 
 // *****************************************************************************
 namespace ks {
 
 // The gravitational field strength: mu = G * (m0 + m1)
 using ks::cs::mu;
+using ks::cs::tau;
 
 // *****************************************************************************
 // Functions for converting one type of anomaly to another

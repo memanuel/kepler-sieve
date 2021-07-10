@@ -32,7 +32,7 @@ namespace ks {
 
 // *****************************************************************************
 /// Print a row of 80 stars to the console
-void print_stars();
+void print_stars(bool prefix_newline=false);
 
 // *****************************************************************************
 /// Print a single newline to the console

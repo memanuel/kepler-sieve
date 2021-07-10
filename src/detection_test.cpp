@@ -81,8 +81,7 @@ bool test_all(db_conn_type& conn)
     is_ok = is_ok && test_Detection(conn);
 
     // Report overall results
-    print_newline();
-    print_stars();
+    print_stars(true);
     report_test("Overall DetectionTime, Detection, and DetectionCandidate", is_ok);
     return is_ok;
 }
