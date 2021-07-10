@@ -52,7 +52,7 @@ using Simulation = reb_simulation;
 // *****************************************************************************
 
 /// Create an empty rebound simulation with default configuration: units, G, integrator.
-Simulation* make_sim();
+Simulation& make_sim();
 
 /// Create a rebound simulation with the planets as of the specified date
 Simulation* make_sim_planets(double epoch);

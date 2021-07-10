@@ -15,7 +15,7 @@ namespace ks {
 
 
 // *****************************************************************************
-Simulation* make_sim()
+Simulation& make_sim()
 {
     // Create an empty simulation
     Simulation* s = reb_create_simulation();
@@ -39,7 +39,7 @@ Simulation* make_sim()
     s->exact_finish_time = 1;
 
     // Return the assembled simulation object
-    return s;
+    return *s;
 }
 
 // *****************************************************************************

@@ -133,19 +133,19 @@ bool test_massive_body()
 bool test_make_sim()
 {
     /// Build the simulation
-    Simulation* sim = make_sim();
+    Simulation& sim = make_sim();
 
     // Status
     print("Built empty rebound simulation.\n");
-    print("N: {:d}.\n", sim->N);
-    print("t: {:f}.\n", sim->t);
-    print("G: {:e}.\n", sim->G);
+    print("N: {:d}.\n", sim.N);
+    print("t: {:f}.\n", sim.t);
+    print("G: {:e}.\n", sim.G);
 
     // Test conditions
-    bool is_ok = (sim->N==0) && (sim->G = G);
+    bool is_ok = (sim.N==0) && (sim.G = G);
 
     // Free memory in sinulation object
-    reb_free_simulation(sim);
+    reb_free_simulation(&sim);
 
     return is_ok;
 }
