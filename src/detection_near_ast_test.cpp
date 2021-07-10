@@ -26,6 +26,9 @@
     using ks::time2hms;
 #include "StateVector.hpp"
     using ks::norm;
+    using ks::dist;
+    using ks::sv2pos;
+    using ks::sv2vel;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
 #include "SkyPatchNeighbor.hpp"
@@ -46,11 +49,93 @@
 
 // *****************************************************************************
 // Declare functions defined in this module
+int main(int argc, char* argv[]);
+bool test_all(db_conn_type& conn);
 void test_detection_table(DetectionTable& dt, int detection_id);
 void test_detection_table_by_sp(DetectionTable& dt, int sky_patch_id);
 void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
-void test_all();
 void test_search(DetectionTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn);
+void test_body_vector(BodyVector& bv);
+void test_asteroid_element(AsteroidElement& ast_elt);
+void test_asteroid_element_vectors(AsteroidElement& ast_elt);
+
+// *****************************************************************************
+int main(int argc, char* argv[])
+{
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
+
+    // Run all the tests
+    bool is_ok = test_all(conn);
+
+    // Close DB connection
+    conn->close();
+
+    // Normal program exit; return 0 for success, 1 for failure
+    return is_ok ? 0 : 1;
+}
+
+// *****************************************************************************
+bool test_all(db_conn_type& conn)
+{
+    // Inputs to build DetectionCandidateTable, AsteroidSkypatchTable and AsteroidElement
+    int d0 = 0;
+    int d1 = 100;
+    int n0 = 0;
+    int n1 = 100;
+    int mjd0 = 58000;
+    int mjd1 = 61000;
+    int time_step = 4;
+    bool progbar = true;
+
+    // Current test result
+    // bool is_ok;
+    // Overall test result
+    // TODO calculate this for real
+    bool is_ok_all = true;
+
+    // Build the SkyPatchNeighbor table
+    print("Building SkyPatch neighbors...\n");
+    SkyPatchNeighbor spn = SkyPatchNeighbor();
+    print("Completed SkyPatch neighbor table.\n");
+
+    // Initialize DetectionTable
+    DetectionTable dt = DetectionTable(d0, d1);
+    dt.load();
+
+    // Test DetectionTable
+    test_detection_table(dt, d0);
+
+    // Build AsteroidSkyPatch table
+    print_newline();
+    AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
+
+    // Rebuild BodyVectors from DB and save to disk
+    // save_vectors("Sun");
+    // save_vectors("Earth");
+    // print("Saved vectors for Earth.\n");
+
+    // Initialize BodyVector for the Sun from disk
+    print("Loading BodyVector object with saved vectors for Sun.\n");
+    BodyVector bv("Sun");
+    print("Loaded BodyVector object with saved vectors for Sun.\n");
+
+    // Test body vectors for Sun
+    test_body_vector(bv);
+
+    // Initialize AsteroidElement
+    AsteroidElement elt(n0, n1, mjd0, mjd1, time_step);
+    elt.load(conn, progbar);
+
+    // Test asteroid elements - splining orbital elements
+    test_asteroid_element(elt);
+
+    // Test asteroid elements - state vectors from splined elements
+    test_asteroid_element_vectors(elt);
+
+    // Return overall result
+    return is_ok_all;
+}
 
 // *****************************************************************************
 void test_detection_table(DetectionTable& dt, int detection_id)
@@ -87,51 +172,55 @@ void test_body_vector(BodyVector& bv)
     double vy =  0.0000026357733813;
     double vz =  0.0000001892676823;
     // Wrap expected results into Position and Vector objects
-    Position pos0 = Position 
-    {
-        .qx = qx,
-        .qy = qy,
-        .qz = qz
-    };
-    StateVector vec0 = StateVector
-    {
-        .qx = qx,
-        .qy = qy,
-        .qz = qz,
-        .vx = vx,
-        .vy = vy,
-        .vz = vz
-    };
+    Position q0 = Position {.qx=qx, .qy=qy, .qz=qz};
+    Velocity v0 = Velocity {.vx=vx, .vy=vy, .vz=vz};
+    // StateVector s0 = StateVector {.qx=qx, .qy=qy, .qz=qz, .vx=vx, .vy=vy, .vz=vz};
 
     // Tolerance for tests
-    double tol_q = 1.0E-8;
-    double tol_vec = 1.0E-8;
+    double tol_dq_ip = 1.0E-12;
+    double tol_dq = 1.0E-8;
+    double tol_dv = 1.0E-8;
+    // Result of current test
+    bool is_ok;
 
     // Calulate splined position and state vector
-    Position pos = bv.interp_pos(mjd);
-    StateVector vec = bv.interp_vec(mjd);
+    StateVector s1 = bv.interp_vec(mjd);
+    Position q1_ip = bv.interp_pos(mjd);
+    // Extract position and velocity from state vector
+    Position q1 = sv2pos(s1);
+    Velocity v1 = sv2vel(s1);
 
     // Report splined orbital elements
     print("\nSplined Sun state vectors at mjd {:8.2f} :\n", mjd);
-    print("qx:         {:+9.6f}\n", vec.qx);
-    print("qy:         {:+9.6f}\n", vec.qy);
-    print("qz:         {:+9.6f}\n", vec.qz);
-    print("vx:         {:+9.6f}\n", vec.vx);
-    print("vy:         {:+9.6f}\n", vec.vy);
-    print("vz:         {:+9.6f}\n", vec.vz);
+    print_state_vector(s1, true);
+    print_state_vector(s1);
+
+    // Check consistency of position between state vectors ans position
+    double dq_ip = dist(q1, q1_ip);
+    print("\nDistance between position from interp_pos and interp_vec: {:5.2e} AU.\n", dq_ip);
+    is_ok = is_ok && (dq_ip < tol_dq_ip);
+
+    // Calculate norm of position and velocity difference
+    double dq = dist(q0, q1);
+    double dv = dist(v0, v1);
+    // Relative difference
+    double dq_rel = dq / norm(q0);
+    double dv_rel = dv / norm(v0);
+    // Test results
+    is_ok = is_ok && (dq < tol_dq) && (dv < tol_dv);
+
+    print("\nDistance between interpolated state vectors and DB values for Sun @ {:9.4f}.\n", mjd);
+    print("dq: {:8.2e} AU       dq_rel: {:5.3e}.\n", dq, dq_rel);
+    print("dv: {:8.2e} AU/day   dv_rel: {:5.3e}.\n", dv, dv_rel);
 
     // Test that splined position matches expected results
-    {
-    bool is_ok = norm(pos0, pos) < tol_q;
+    is_ok = dist(q0, q1) < tol_dq;
     report_test("\nTest BodyVector::interp_pos() splined position matches database", is_ok);
-    }
 
     // Test that splined state vectors match expected results
-    {
-    bool is_ok = norm(vec0, vec) < tol_vec;
+    is_ok = dist(v0, v1) < tol_dv;
     report_test("\nTest BodyVector::interp_vec() splined state vectors match database", is_ok);
-    }
-}    
+}
 
 // *****************************************************************************
 /// Test that AsteroidElement instance splines orbital elements that match copy / pasted values for Ceres @ 58400.
@@ -218,21 +307,8 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
     double vz = -0.0007200628373353;
 
     // Wrap expected results into Position and Vector objects
-    Position pos0 = Position 
-    {
-        .qx = qx,
-        .qy = qy,
-        .qz = qz
-    };
-    StateVector vec0 = StateVector
-    {
-        .qx = qx,
-        .qy = qy,
-        .qz = qz,
-        .vx = vx,
-        .vy = vy,
-        .vz = vz
-    };
+    Position pos0 = Position {.qx=qx, .qy=qy, .qz=qz};
+    StateVector vec0 = StateVector {.qx=qx, .qy=qy, .qz=qz, .vx=vx, .vy=vy, .vz=vz};
 
     // Tolerance for tests
     double tol_q = 1.0E-8;
@@ -245,8 +321,8 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
 
     // Report splined orbital elements
     print("\nSplined Asteroid index {:d} at time index {:d} :\n", asteroid_idx, time_idx);
-    print("AsteroidID: {:9d}\n", asteroid_id);
-    print("mjd:        {:9.2f}\n", mjd);
+    print("AsteroidID: {:9d}\n",    asteroid_id);
+    print("mjd:        {:9.2f}\n",  mjd);
     print("qx:         {:+9.6f}\n", vec.qx);
     print("qy:         {:+9.6f}\n", vec.qy);
     print("qz:         {:+9.6f}\n", vec.qz);
@@ -256,78 +332,15 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
 
     // Test that splined position from orbital elements match expected results
     {
-    bool is_ok = norm(pos0, pos) < tol_q;
+    bool is_ok = dist(pos0, pos) < tol_q;
     report_test("\nTest AsteroidElement::interp_pos() splined state vectors match database", is_ok);
     }
 
     // Test that splined state vectors from orbital elements match expected results
     {
-    bool is_ok = norm(vec0, vec) < tol_vec;
+    bool is_ok = dist(vec0, vec) < tol_vec;
     report_test("\nTest AsteroidElement::interp_vec() splined state vectors match database", is_ok);
     }
 }
 
-// *****************************************************************************
-void test_all()
-{
-    // Establish DB connection
-    db_conn_type conn = get_db_conn();
 
-    // Build the SkyPatchNeighbor table
-    print("Building SkyPatch neighbors...\n");
-    SkyPatchNeighbor spn = SkyPatchNeighbor();
-    print("Completed SkyPatch neighbor table.\n");
-
-    // Inputs to build DetectionCandidateTable, AsteroidSkypatchTable and AsteroidElement
-    int d0 = 0;
-    int d1 = 100;
-    int n0 = 0;
-    int n1 = 100;
-    int mjd0 = 58000;
-    int mjd1 = 61000;
-    int time_step = 4;
-    bool progbar = true;
-
-    // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(d0, d1);
-    dt.load();
-
-    // Test DetectionTable
-    test_detection_table(dt, d0);
-
-    // Build AsteroidSkyPatch table
-    print_newline();
-    AsteroidSkyPatchTable aspt = AsteroidSkyPatchTable(conn, n0, n1, progbar);
-
-    // Rebuild BodyVectors from DB and save to disk
-    // save_vectors("Sun");
-    // save_vectors("Earth");
-    // print("Saved vectors for Earth.\n");
-
-    // Initialize BodyVector for the Sun from disk
-    print("Loading BodyVector object with saved vectors for Sun.\n");
-    BodyVector bv("Sun");
-    print("Loaded BodyVector object with saved vectors for Sun.\n");
-
-    // Test body vectors for Sun
-    test_body_vector(bv);
-
-    // Initialize AsteroidElement
-    AsteroidElement elt(n0, n1, mjd0, mjd1, time_step);
-    elt.load(conn, progbar);
-
-    // Test asteroid elements - splining orbital elements
-    test_asteroid_element(elt);
-
-    // Test asteroid elements - state vectors from splined elements
-    test_asteroid_element_vectors(elt);
-
-    // Close DB connection
-    conn->close();
-}
-
-// *****************************************************************************
-int main(int argc, char* argv[])
-{
-    test_all();
-}

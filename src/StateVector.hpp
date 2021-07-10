@@ -112,30 +112,77 @@ Position operator+ (const Position& p1, const Position& p2);
 Velocity operator+ (const Velocity& p1, const Velocity& p2);
 
 /// Add two state vectors
-StateVector operator+ (const StateVector& p1, const StateVector& p2);
+StateVector operator+ (const StateVector& s1, const StateVector& s2);
+
+/// Subtract two position vectors
+Position operator- (const Position& p1, const Position& p2);
+
+/// Subtract two velocity vectors
+Velocity operator- (const Velocity& p1, const Velocity& p2);
+
+/// Subtract two state vectors
+StateVector operator- (const StateVector& s1, const StateVector& s2);
 
 /// Multiply a veocity vector by a scalar
 Velocity operator* (const Velocity& v, const double alpha);
 Velocity operator* (const double alpha, const Velocity& v);
 
 /// Extract the posiiton from a state vector
-Position sv2pos(StateVector& sv);
+Position sv2pos(StateVector& s);
 
 /// Extract the velocity from a state vector
-Velocity sv2vel(StateVector& sv);
+Velocity sv2vel(StateVector& s);
 
 // *****************************************************************************
-// Utility function - norm of two positions
+// Norm and distance of positions, velocities and state vectors
 // *****************************************************************************
 
-/// Return the distance between two position vectors
-double norm(Position p1, Position p2);
+/// Return the norm of a position vector
+double norm(Position p);
+
+/// Return the norm of a velocity vector
+double norm(Velocity v);
+
+/// Return a norm of a state vector
+double norm(StateVector s);
 
 /// Return the distance between two position vectors
-double norm(Velocity v1, Velocity v2);
+double dist(Position p1, Position p2);
 
-/// Return a norm between two state vectors
-double norm(StateVector v1, StateVector v2);
+/// Return the distance between two velocity vectors
+double dist(Velocity v1, Velocity v2);
+
+/// Return the distance between two state vectors
+double dist(StateVector s1, StateVector s2);
+
+/// Return the distance between a state vector and a position
+double dist(StateVector s1, Position q2);
+
+/// Return the distance between a position and a state vector
+double dist(Position q1, StateVector s2);
+
+/// Return the distance between a state vector and a velocity
+double dist(StateVector s1, Velocity v2);
+
+/// Return the distance between a velocity and a state vector
+double dist(Velocity v1, StateVector s2);
+
+// *****************************************************************************
+// Check if two vectors are close
+// *****************************************************************************
+
+/// Test if two position vectors are close within the given absolute tolerance
+bool is_close(Position& p1, Position& p2, double tol_dq);
+
+/// Test if two velocity vectors are close within the given absolute tolerance
+bool is_close(Velocity& v1, Velocity& v2, double tol_dv);
+
+/// Test if two state vectors are close within the given tolerances for position and velocity
+bool is_close(StateVector& s1, StateVector& s2, double tol_dq, double tol_dv);
+
+/// Test if the position portion of a state vector is close to a position vector
+bool is_close(StateVector& s1, Position& q1, double tol_dq);
+bool is_close(Position& q1, StateVector& s2, double tol_dq);
 
 // *****************************************************************************
 // Print positions and state vectlors
@@ -143,10 +190,10 @@ double norm(StateVector v1, StateVector v2);
 
 // *****************************************************************************
 /// Print a one line description of an orbital element
-void print_state_vector(StateVector& sv, bool header=false);
+void print_state_vector(StateVector& s, bool header=false);
 
 /// Print a multi-line description of an orbital element
-void print_state_vector_long(StateVector& sv);
+void print_state_vector_long(StateVector& s);
 
 // *****************************************************************************
 } // namespace ks

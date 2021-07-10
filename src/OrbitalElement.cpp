@@ -263,6 +263,7 @@ StateVector elt2vec(OrbitalElement& elt)
 // Add a perturbation to an orbital element
 // *****************************************************************************
 
+// *****************************************************************************
 OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2)
 {
     // Add the two positions componentwise
