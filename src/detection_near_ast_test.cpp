@@ -29,6 +29,8 @@
     using ks::dist;
     using ks::sv2pos;
     using ks::sv2vel;
+    using ks::print_state_vector_headers;
+    using ks::print_state_vector;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
 #include "SkyPatchNeighbor.hpp"
@@ -192,7 +194,7 @@ void test_body_vector(BodyVector& bv)
 
     // Report splined orbital elements
     print("\nSplined Sun state vectors at mjd {:8.2f} :\n", mjd);
-    print_state_vector(s1, true);
+    print_state_vector_headers();
     print_state_vector(s1);
 
     // Check consistency of position between state vectors ans position

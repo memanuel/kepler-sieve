@@ -128,72 +128,92 @@ Velocity operator* (const Velocity& v, const double alpha);
 Velocity operator* (const double alpha, const Velocity& v);
 
 /// Extract the posiiton from a state vector
-Position sv2pos(StateVector& s);
+Position sv2pos(const StateVector& s);
 
 /// Extract the velocity from a state vector
-Velocity sv2vel(StateVector& s);
+Velocity sv2vel(const StateVector& s);
 
 // *****************************************************************************
 // Norm and distance of positions, velocities and state vectors
 // *****************************************************************************
 
 /// Return the norm of a position vector
-double norm(Position p);
+double norm(const Position& p);
 
 /// Return the norm of a velocity vector
-double norm(Velocity v);
+double norm(const Velocity& v);
 
 /// Return a norm of a state vector
-double norm(StateVector s);
+double norm(const StateVector& s);
 
 /// Return the distance between two position vectors
-double dist(Position p1, Position p2);
+double dist(const Position& p1, const Position& p2);
 
 /// Return the distance between two velocity vectors
-double dist(Velocity v1, Velocity v2);
+double dist(const Velocity& v1, const Velocity& v2);
 
 /// Return the distance between two state vectors
-double dist(StateVector s1, StateVector s2);
+double dist(const StateVector& s1, const StateVector& s2);
 
 /// Return the distance between a state vector and a position
-double dist(StateVector s1, Position q2);
+double dist(const StateVector& s1, const Position& q2);
 
 /// Return the distance between a position and a state vector
-double dist(Position q1, StateVector s2);
+double dist(const Position& q1, const StateVector& s2);
 
 /// Return the distance between a state vector and a velocity
-double dist(StateVector s1, Velocity v2);
+double dist(const StateVector& s1, const Velocity& v2);
 
 /// Return the distance between a velocity and a state vector
-double dist(Velocity v1, StateVector s2);
+double dist(const Velocity& v1, const StateVector& s2);
 
 // *****************************************************************************
 // Check if two vectors are close
 // *****************************************************************************
 
 /// Test if two position vectors are close within the given absolute tolerance
-bool is_close(Position& p1, Position& p2, double tol_dq);
+bool is_close(const Position& p1, const Position& p2, double tol_dq);
 
 /// Test if two velocity vectors are close within the given absolute tolerance
-bool is_close(Velocity& v1, Velocity& v2, double tol_dv);
+bool is_close(const Velocity& v1, const Velocity& v2, double tol_dv);
 
 /// Test if two state vectors are close within the given tolerances for position and velocity
-bool is_close(StateVector& s1, StateVector& s2, double tol_dq, double tol_dv);
+bool is_close(const StateVector& s1, const StateVector& s2, double tol_dq, double tol_dv);
 
 /// Test if the position portion of a state vector is close to a position vector
-bool is_close(StateVector& s1, Position& q1, double tol_dq);
-bool is_close(Position& q1, StateVector& s2, double tol_dq);
+bool is_close(const StateVector& s1, const Position& q1, double tol_dq);
+bool is_close(const Position& q1, const StateVector& s2, double tol_dq);
 
 // *****************************************************************************
-// Print positions and state vectlors
+// Print a position
 // *****************************************************************************
 
 // *****************************************************************************
+/// Print a column headers for one line description of a state vector
+void print_position_headers(const string prefix="");
+
 /// Print a one line description of a state vector
-void print_state_vector(StateVector& s, bool header=false);
+void print_position(const Position& p, const string prefix="");
+
+/// Print a one line description of a state vector in scientific notation
+void print_position_sci(const Position& p, const string prefix="");
+
+// *****************************************************************************
+// Print a state vector
+// *****************************************************************************
+
+// *****************************************************************************
+/// Print a column headers for one line description of a state vector
+void print_state_vector_headers(const string prefix="");
+
+/// Print a one line description of a state vector
+void print_state_vector(const StateVector& s, const string prefix="");
+
+/// Print a one line description of a state vector in scientific notation
+void print_state_vector_sci(const StateVector& s, const string prefix="");
 
 /// Print a multi-line description of a state vector
-void print_state_vector_long(StateVector& s);
+void print_state_vector_long(const StateVector& s);
 
 // *****************************************************************************
 } // namespace ks

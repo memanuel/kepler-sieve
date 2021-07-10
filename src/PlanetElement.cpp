@@ -347,6 +347,9 @@ OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
         .f      = gsl_spline_eval(gsl_interp_f,     mjd, acc),
         .M      = gsl_spline_eval(gsl_interp_M,     mjd, acc)
     };
+    // Replace splined f value with conversion from M
+    elt.f = anomaly_M2f(elt.M, elt.e);
+    // Return the splined orbital element
     return elt;
 }
 
@@ -359,8 +362,10 @@ Position PlanetElement::interp_pos_hel(int32_t body_id, double mjd) const
     if (body_id==body_id_sun){return pos_sun_hel;}
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(body_id, mjd);
-    // Call elt2pos to calculate a position
-    return elt2pos(elt);
+
+    // Call elt2pos to calculate a position. 
+    // Use the version elt2pos_vec to guarantee identical positions when using either method.
+    return elt2pos_vec(elt);
 }
 
 // *****************************************************************************

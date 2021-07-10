@@ -22,7 +22,7 @@ namespace ks {
 using ks::cs::mu;
 
 // *****************************************************************************
-// Functions for working with orbital elements
+// Functions for converting one type of anomaly to another
 // *****************************************************************************
 
 // *****************************************************************************
@@ -133,6 +133,10 @@ double anomaly_M2f(double M, double e)
 }
 
 // *****************************************************************************
+// Functions for calculating additional elements e.g period T, mean motion n
+// *****************************************************************************
+
+// *****************************************************************************
 double period(double a)
 {
     // T^2 = 4pi^2 a^3 / mu (SSD 2.22)
@@ -149,6 +153,10 @@ double mean_motion(double a)
     // n = sqrt(mu / a^3)
     return sqrt(mu / cube(a));
 }
+
+// *****************************************************************************
+// Functions for converting between orbital elements and state vectors
+// *****************************************************************************
 
 // *****************************************************************************
 Position elt2pos(double a, double e, double inc, double Omega, double omega, double f)
@@ -178,10 +186,42 @@ Position elt2pos(double a, double e, double inc, double Omega, double omega, dou
 }
 
 // *****************************************************************************
-Position elt2pos(OrbitalElement& elt)
+Position elt2pos(const OrbitalElement& elt)
+    {return elt2pos(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);}
+
+// *****************************************************************************
+Position elt2pos_vec(double a, double e, double inc, double Omega, double omega, double f)
 {
-    return elt2pos(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);
+    // These equations taken directly from rebound library. 
+    // File tools.c; function reb_tools_orbit_to_particle_err. Line 868.
+
+    // The distance to the center
+	double r = a*(1.0-e*e)/(1.0 + e*cos(f));
+
+    // Components of the rotation matrix
+	double cO = cos(Omega);
+	double sO = sin(Omega);
+	double co = cos(omega);
+	double so = sin(omega);
+	double cf = cos(f);
+	double sf = sin(f);
+	double ci = cos(inc);
+	double si = sin(inc);
+	
+    // Initialize empty Position
+    Position p;
+    
+	// Murray & Dermott Eq 2.122
+	p.qx = r*(cO*(co*cf-so*sf) - sO*(so*cf+co*sf)*ci);
+	p.qy = r*(sO*(co*cf-so*sf) + cO*(so*cf+co*sf)*ci);
+	p.qz = r*(so*cf+co*sf)*si;
+
+    return p;
 }
+
+// *****************************************************************************
+Position elt2pos_vec(const OrbitalElement& elt)
+    {return elt2pos_vec(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);}
 
 // *****************************************************************************
 StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f)
@@ -190,71 +230,43 @@ StateVector elt2vec(double a, double e, double inc, double Omega, double omega, 
     // The position calculations are equivalent to the ones above from SSD.
     // The velocity calculations are a bit more involved, and I did not see them with explicit equations in SSD.
 
-    // sine and cosine of the angles inc, Omega, omega, and f
-    double ci = cos(inc);
-    double si = sin(inc);
-    double cO = cos(Omega);
-    double sO = sin(Omega);
-    double co = cos(omega);
-    double so = sin(omega);
-    double cf = cos(f);
-    double sf = sin(f);
+    // These equations adapted directly from rebound library. 
+    // File tools.c; function reb_tools_orbit_to_particle_err. Line 868.
 
-    // Distance from center
-    double one_minus_e2 = 1.0 - sqr(e);
-    double one_plus_e_cos_f = 1.0 + e*cos(f);
-    double r = a * one_minus_e2 / one_plus_e_cos_f;
+    // The distance to the center
+	double r = a*(1.0-e*e)/(1.0 + e*cos(f));
+    // The speed of the body
+	double v0 = sqrt(mu/a/(1.0-e*e)); // in this form it works for elliptical and hyperbolic orbits
 
-    // Current speed
-    // double v0 = sqrt(mu / a / one_minus_e2);
-    double v0 = sqrt(mu / (a * one_minus_e2));
-
-    // Position
-    // qx = r*(cO*(co*cf-so*sf) - sO*(so*cf+co*sf)*ci)
-    // qy = r*(sO*(co*cf-so*sf) + cO*(so*cf+co*sf)*ci)
-    // qz = r*(so*cf+co*sf)*si
-    // the term cos_omega*cos_f - sin_omega*sin_f appears 2 times
-    // the term sin_omega*cos_f + cos_omega*sin_f appears 3 times
-    double cocf_sosf = co*cf - so*sf;
-    double socf_cosf = so*cf + co*sf;
-    double qx = r*(cO*cocf_sosf - sO*socf_cosf*ci);
-    double qy = r*(sO*cocf_sosf + cO*socf_cosf*ci);
-    double qz = r*(socf_cosf*si);
+    // Components of the rotation matrix
+	double cO = cos(Omega);
+	double sO = sin(Omega);
+	double co = cos(omega);
+	double so = sin(omega);
+	double cf = cos(f);
+	double sf = sin(f);
+	double ci = cos(inc);
+	double si = sin(inc);
+	
+    // Initialize empty StateVector
+    StateVector s;
     
-    // Velocity
-    // vx = v0*((e+cf)*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO))
-    // vy = v0*((e+cf)*(ci*co*cO - sO*so)  - sf*(co*sO + ci*so*cO))
-    // vz = v0*((e+cf)*co*si - sf*si*so)
-    // The term e+cf appears three times
-    double epcf = e + cf;
-    // The term cocO appears twice
-    double cocO = co*cO;
-    // The term cosO appears twice
-    double cosO = co*sO;
-    // The term so*sO appears twice
-    double sosO = so*sO;
-    // The terms socO appears twice
-    double socO = so*cO;
+	// Murray & Dermott Eq 2.122
+	s.qx = r*(cO*(co*cf-so*sf) - sO*(so*cf+co*sf)*ci);
+	s.qy = r*(sO*(co*cf-so*sf) + cO*(so*cf+co*sf)*ci);
+	s.qz = r*(so*cf+co*sf)*si;
 
-    // Simplified expression for velocity with substitutions
-    double vx = v0*(epcf*(-ci*cosO - socO) - sf*(cocO - ci*sosO));
-    double vy = v0*(epcf*(ci*cocO - sosO)  - sf*(cosO + ci*socO));
-    double vz = v0*(epcf*co*si - sf*si*so);
-    
-    // Wrap the components into one StateVector object
-    return StateVector
-    {
-        .qx = qx,
-        .qy = qy,
-        .qz = qz,
-        .vx = vx,
-        .vy = vy,
-        .vz = vz
-    };
+	// Murray & Dermott Eq. 2.36 after applying the 3 rotation matrices from Sec. 2.8 to the velocities in the orbital plane
+	s.vx = v0*((e+cf)*(-ci*co*sO - cO*so) - sf*(co*cO - ci*so*sO));
+	s.vy = v0*((e+cf)*(ci*co*cO - sO*so)  - sf*(co*sO + ci*so*cO));
+	s.vz = v0*((e+cf)*co*si - sf*si*so);
+  
+    // Return the assembled StateVector
+    return s;
 }
 
 // *****************************************************************************
-StateVector elt2vec(OrbitalElement& elt)
+StateVector elt2vec(const OrbitalElement& elt)
 {
     return elt2vec(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);
 }
@@ -284,7 +296,7 @@ OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2)
 // *****************************************************************************
 
 // *****************************************************************************
-void print_orbital_element(OrbitalElement& elt, bool header)
+void print_orbital_element(const OrbitalElement& elt, bool header)
 {
     if (header)
     {print("{:8s} : {:8s} : {:9s} : {:9s} : {:9s} : {:9s} : {:9s} \n", 
@@ -295,7 +307,7 @@ void print_orbital_element(OrbitalElement& elt, bool header)
 }
 
 // *****************************************************************************
-void print_orbital_element_long(OrbitalElement& elt)
+void print_orbital_element_long(const OrbitalElement& elt)
 {
     print("mjd      = {:9.3f}\n", elt.mjd);
     print("a        = {:9.6f}\n", elt.a);

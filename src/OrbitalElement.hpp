@@ -109,6 +109,7 @@ double anomaly_M2f(double M, double e);
 // *****************************************************************************
 // Functions for calculating additional elements e.g period T, mean motion n
 // *****************************************************************************
+
 /// Calculate the orbital period, T, from the semimajor axis; uses mu for Sun
 double period(double a);
 
@@ -123,13 +124,19 @@ double mean_motion(double a);
 Position elt2pos(double a, double e, double inc, double Omega, double omega, double f);
 
 /// Convert from orbital elements to a position vector. See SSD page 51, equation 2.122.
-Position elt2pos(OrbitalElement& elt);
+Position elt2pos(const OrbitalElement& elt);
+
+/// Convert from orbital elements (six doubles) to a position vector. This version has slightly more steps but exactly matches elt2vec.
+Position elt2pos_vec(double a, double e, double inc, double Omega, double omega, double f);
+
+/// Convert from orbital elements to a position vector. This version has slightly more steps but exactly matches elt2vec.
+Position elt2pos_vec(const OrbitalElement& elt);
 
 /// Convert from orbital elements (six doubles) to a state vector. See SSD page 51, equation 2.122.
 StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f);
 
 /// Convert from orbital elements to a state vector. See SSD page 51, equation 2.122.
-StateVector elt2vec(OrbitalElement& elt);
+StateVector elt2vec(const OrbitalElement& elt);
 
 // *****************************************************************************
 // Add a perturbation to an orbital element
@@ -143,10 +150,10 @@ OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2);
 // *****************************************************************************
 
 /// Print a one line description of an orbital element
-void print_orbital_element(OrbitalElement& elt, bool header=false);
+void print_orbital_element(const OrbitalElement& elt, bool header=false);
 
 /// Print a multi-line description of an orbital element
-void print_orbital_element_long(OrbitalElement& elt);
+void print_orbital_element_long(const OrbitalElement& elt);
 
 // *****************************************************************************
 } // namespace ks

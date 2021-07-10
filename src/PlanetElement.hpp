@@ -39,6 +39,7 @@
     using ks::ElementSplines;
     using ks::elt2pos;
     using ks::elt2vec;
+    using ks::elt2pos_vec;
 #include "BodyVector.hpp"
     using ks::BodyVector;
 #include "utils.hpp"
