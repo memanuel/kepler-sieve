@@ -49,13 +49,16 @@ using Orbit = reb_orbit;
 /// A rebound simulation
 using Simulation = reb_simulation;
 
+// Function to integrate simulations
+const auto integrate = reb_integrate;
+
 // *****************************************************************************
 
 /// Create an empty rebound simulation with default configuration: units, G, integrator.
-Simulation& make_sim();
+Simulation* make_sim();
 
-/// Create a rebound simulation with the planets as of the specified date
-Simulation* make_sim_planets(double epoch);
+/// Create a rebound simulation with the planets; initialization from splined planet vectors at epoch.
+Simulation* make_sim_planets(const PlanetVector& pv, double epoch);
 
 // *****************************************************************************
 } // Namespace ks
