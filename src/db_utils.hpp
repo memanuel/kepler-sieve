@@ -68,11 +68,11 @@ string sql_sp_bind_params(const string sp_name, const vector<string> &params);
 /** Execute a stored procedure and return a SQL resultset object.
  *  Import detail: consumers MUST run rs->close() and delete rs when the resultset no longer needed!
  *  Otherwise program will have a memory leak. */
-ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params);
+ResultSet* sp_run(db_conn_type& conn, const string sp_name, const vector<string>& params);
 
 // *****************************************************************************
 //*Execute a stored procedure that returns a single integer
-int sp_run_int(db_conn_type &conn, const string sp_name);
+int sp_run_int(db_conn_type& conn, const string sp_name);
 
 // *****************************************************************************
 } // Namespace ks

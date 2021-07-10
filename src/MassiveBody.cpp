@@ -52,32 +52,27 @@ MassiveBodyTable::~MassiveBodyTable()
 // *****************************************************************************
 
 // *****************************************************************************
-const double MassiveBodyTable::get_M(int32_t body_id) 
+const double MassiveBodyTable::get_M(int32_t body_id) const
 {
     const int32_t row_id = get_row_id(body_id);
     return M[row_id];
 }
 
 // *****************************************************************************
-const double MassiveBodyTable::get_GM(int32_t body_id) 
+const double MassiveBodyTable::get_GM(int32_t body_id) const
 {
     const int32_t row_id = get_row_id(body_id);
     return GM[row_id];
 }
 
 // *****************************************************************************
-const MassiveBody MassiveBodyTable::operator[](int32_t body_id) 
+const MassiveBody MassiveBodyTable::operator[](int32_t body_id) const
 {
     // Get the mass and field strength
     double M = get_M(body_id);
     double GM = get_GM(body_id);
     // Wrap up the answer into a MassiveBody instance
-    return MassiveBody
-    {
-        .body_id = body_id,
-        .M       = M,
-        .GM      = GM
-    };
+    return MassiveBody {.body_id=body_id, .M= M, .GM=GM};
 }
 
 // *****************************************************************************
@@ -85,26 +80,32 @@ const MassiveBody MassiveBodyTable::operator[](int32_t body_id)
 // *****************************************************************************
 
 // *****************************************************************************
-const int MassiveBodyTable::size() const {return body_id.size();}
+const int MassiveBodyTable::size() const 
+    {return body_id.size();}
 
 // *****************************************************************************
-const vector<int32_t>& MassiveBodyTable::get_body_id() const {return body_id;}
+const vector<int32_t>& MassiveBodyTable::get_body_id() const 
+    {return body_id;}
 
 // *****************************************************************************
-const vector<double>& MassiveBodyTable::get_M() const {return M;}
+const vector<double>& MassiveBodyTable::get_M() const 
+    {return M;}
 
 // *****************************************************************************
-const vector<double>& MassiveBodyTable::get_GM() const {return GM;}
+const vector<double>& MassiveBodyTable::get_GM() const 
+    {return GM;}
 
 // *****************************************************************************
 // Implementation functions - work with row IDs
 // *****************************************************************************
 
 // *****************************************************************************
-const int32_t MassiveBodyTable::get_row_id(int32_t body_id) {return row_map[body_id];}
+const int32_t MassiveBodyTable::get_row_id(int32_t body_id) const
+    {return row_map.at(body_id);}
 
 // *****************************************************************************
-const int32_t MassiveBodyTable::current_row_id() const {return body_id.size();}
+const int32_t MassiveBodyTable::current_row_id() const 
+    {return body_id.size();}
 
 // *****************************************************************************
 // Load from database
@@ -216,7 +217,6 @@ void MassiveBodyTable::load()
         this->M.push_back(mb.M);
         this->GM.push_back(mb.GM);
     }
-
     // Close input filestream
     fs.close();
 }

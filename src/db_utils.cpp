@@ -20,14 +20,14 @@ namespace ks {
 db_conn_type get_db_conn(bool verbose)
 {
     // Username and password for DB connection
-    string db_host {"Thor"};
-    string schema {"KS"};
-    string user {"kepler"};
-    string password {"kepler"};
+    const string db_host {"Thor"};
+    const string schema {"KS"};
+    const string user {"kepler"};
+    const string password {"kepler"};
 
     // Default timeout of 30000 ms (30 seconds) too short; set to 5 minutes
-    int timeout_min = 5;
-    int timeout_ms = timeout_min * 60 * 1000;
+    constexpr int timeout_min = 5;
+    constexpr int timeout_ms = timeout_min * 60 * 1000;
 
     // Wrap all of this into a sql Properties object
     pair<string, string> p1("user", user);
@@ -60,28 +60,27 @@ db_conn_type get_db_conn(bool verbose)
 }
 
 // *****************************************************************************
-int result_set_size(ResultSet *rs)
+int result_set_size(ResultSet* rs)
 {
-    // Get current row
+    // Get current row number
     int current_row = rs->getRow();
     // Go to last row and get its row number
     rs->last();
     int rows = rs->getRow();
     // Return to starting row
-    // rs.first();
     rs->absolute(current_row);
     return rows;
 }
 
 // *****************************************************************************
-//*Join a stored proecedure name and a vector of string parameters into a single SQL statement
+/// Join a stored proecedure name and a vector of string parameters into a single SQL statement
 string sql_sp_bind_params(const string sp_name, const vector<string>& params)
 {
-    return format("CALL {}({});", sp_name, join(params, ", "));
+    return format("CALL {:s}({:s});", sp_name, join(params, ", "));
 }
 
 // *****************************************************************************
-ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string> &params)
+ResultSet* sp_run(db_conn_type& conn, const string sp_name, const vector<string>& params)
 {
     // Create a new SQL statement
     sql_stmt_type stmt(conn->createStatement());
@@ -107,7 +106,7 @@ ResultSet* sp_run(db_conn_type &conn, const string sp_name, const vector<string>
 }
 
 // *****************************************************************************
-int sp_run_int(db_conn_type &conn, const string sp_name)
+int sp_run_int(db_conn_type& conn, const string sp_name)
 {
     // Create a SQL statement
     sql_stmt_type stmt(conn->createStatement());

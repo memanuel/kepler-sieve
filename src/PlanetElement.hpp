@@ -108,25 +108,25 @@ public:
     // ********************************************************************************************
 
     /// Get the array of body IDs whose elements are in this table
-    int32_t* get_body_id() const;
+    const int32_t* get_body_id() const;
 
     /// Get the array of times; this is shared by all the bodies
-    double* get_mjd() const;
+    const double* get_mjd() const;
 
     /// Calculate the interpolated orbital elements of the given body at time mjd
-    OrbitalElement interp_elt(int32_t body_id, double mjd) const;
+    const OrbitalElement interp_elt(int32_t body_id, double mjd) const;
 
     /// Calculate the interpolated position of the given body at time mjd in the heliocentric frame
-    Position interp_pos_hel(int32_t body_id, double mjd) const;
+    const Position interp_pos_hel(int32_t body_id, double mjd) const;
 
     /// Calculate the interpolated state vector of the given body at time mjd in the heliocentric frame
-    StateVector interp_vec_hel(int32_t body_id, double mjd) const;
+    const StateVector interp_vec_hel(int32_t body_id, double mjd) const;
 
     /// Calculate the interpolated position of the given body at time mjd in the BME frame
-    Position interp_pos(int32_t body_id, double mjd) const;
+    const Position interp_pos(int32_t body_id, double mjd) const;
 
     /// Calculate the interpolated state vector of the given body at time mjd in the BME frame
-    StateVector interp_vec(int32_t body_id, double mjd) const;
+    const StateVector interp_vec(int32_t body_id, double mjd) const;
 
 private:
     // ********************************************************************************************
@@ -180,13 +180,13 @@ private:
 
     // Get an array (pointer to double) of orbital elements given a body index number
     // Note the argument is body_idx (ranging from 0 to 9), NOT body_id!
-    double* get_a(int idx) const;
-    double* get_e(int idx) const;
-    double* get_inc(int idx) const;
-    double* get_Omega(int idx) const;
-    double* get_omega(int idx) const;
-    double* get_f(int idx) const;
-    double* get_M(int idx) const;
+    const double* get_a(int idx) const;
+    const double* get_e(int idx) const;
+    const double* get_inc(int idx) const;
+    const double* get_Omega(int idx) const;
+    const double* get_omega(int idx) const;
+    const double* get_f(int idx) const;
+    const double* get_M(int idx) const;
 
     // Free up GSL resources
     void gsl_free();

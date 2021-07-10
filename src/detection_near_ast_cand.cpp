@@ -98,14 +98,14 @@ constexpr int batch_size = 1000;
 // *****************************************************************************
 // Declare functions
 void search_asteroid_detection(
-    DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, 
-    SkyPatchNeighbor& spn, vector<DetectionNearAsteroidCandidate>& cv);
+    const DetectionCandidateTable& dt, const AsteroidSkyPatchTable& aspt, 
+    const SkyPatchNeighbor& spn, vector<DetectionNearAsteroidCandidate>& cv);
 void write_candidates_db(db_conn_type& conn, const vector<DetectionNearAsteroidCandidate>& cv, int k0, int k1);
-void test_detection_table(DetectionCandidateTable& dt, int detection_id);
-void test_detection_table_by_sp(DetectionCandidateTable& dt, int sky_patch_id);
-void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt);
+void test_detection_table(const DetectionCandidateTable& dt, int detection_id);
+void test_detection_table_by_sp(const DetectionCandidateTable& dt, int sky_patch_id);
+void test_asteroid_skypatch(const AsteroidSkyPatchTable& aspt);
 void test_all();
-void test_search(DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn);
+void test_search(const DetectionCandidateTable& dt, const AsteroidSkyPatchTable& aspt, const SkyPatchNeighbor& spn);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -322,8 +322,8 @@ int main(int argc, char* argv[])
  *  \param[in] cv - vector of candidate detections near an asteroid; "candidate vector"
  * */
 void search_asteroid_detection(
-    DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, 
-    SkyPatchNeighbor& spn, vector<DetectionNearAsteroidCandidate>& cv)
+    const DetectionCandidateTable& dt, const AsteroidSkyPatchTable& aspt, 
+    const SkyPatchNeighbor& spn, vector<DetectionNearAsteroidCandidate>& cv)
 {
     // Counter for the number of matches found and pairs examined
     // int pairs = 0;
@@ -405,7 +405,7 @@ void write_candidates_db(
 // *****************************************************************************
 
 // *****************************************************************************
-void test_detection_table(DetectionCandidateTable& dt, int detection_id)
+void test_detection_table(const DetectionCandidateTable& dt, int detection_id)
 {
     // Print first 10 detections
     int i0=detection_id;
@@ -426,7 +426,7 @@ void test_detection_table(DetectionCandidateTable& dt, int detection_id)
 }
 
 // *****************************************************************************
-void test_detection_table_by_sp(DetectionCandidateTable& dt, int sky_patch_id)
+void test_detection_table_by_sp(const DetectionCandidateTable& dt, int sky_patch_id)
 {
     // Demonstrate searching by SkyPatchID
     print("\nSearch detections with SkyPatchID={:d}:\n", sky_patch_id);
@@ -435,7 +435,7 @@ void test_detection_table_by_sp(DetectionCandidateTable& dt, int sky_patch_id)
 }
 
 // *****************************************************************************
-void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt)
+void test_asteroid_skypatch(const AsteroidSkyPatchTable& aspt)
 {
     // Display size
     print("AsteroidSkyPatchTable contains {:d} entries.\n", aspt.size());
@@ -454,7 +454,7 @@ void test_asteroid_skypatch(AsteroidSkyPatchTable& aspt)
 }
 
 // *****************************************************************************
-void test_search(DetectionCandidateTable& dt, AsteroidSkyPatchTable& aspt, SkyPatchNeighbor& spn)
+void test_search(const  DetectionCandidateTable& dt, const AsteroidSkyPatchTable& aspt, const SkyPatchNeighbor& spn)
 {
     print("\nRunning search function on {:d} asteroid segments and {:d} detections...\n", aspt.size(), dt.size());
     vector<DetectionNearAsteroidCandidate> cv;

@@ -280,47 +280,54 @@ const int PlanetElement::body_row(int32_t body_id) const
 
 // *****************************************************************************
 const int PlanetElement::time_row(int32_t time_id) const
-{
-    return (time_id-time_id0)/dt_min;
-}
+    {return (time_id-time_id0)/dt_min;}
 
 // *****************************************************************************
 // Get 1D arrays of body_id and times
 // *****************************************************************************
 
 // *****************************************************************************
-int32_t* PlanetElement::get_body_id() const {return body_id;}
+const int32_t* PlanetElement::get_body_id() const 
+    {return body_id;}
 
 // *****************************************************************************
-double* PlanetElement::get_mjd() const {return mjd;}
+const double* PlanetElement::get_mjd() const 
+    {return mjd;}
 
 // *****************************************************************************
 // Get 1D array of each orbital element given a body_id
 // *****************************************************************************
 
 // *****************************************************************************
-double* PlanetElement::get_a(int idx) const {return elt_a + N_t*idx;}
+const double* PlanetElement::get_a(int idx) const 
+    {return elt_a + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_e(int idx) const {return elt_e + N_t*idx;}
+const double* PlanetElement::get_e(int idx) const 
+    {return elt_e + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_inc(int idx) const {return elt_inc + N_t*idx;}
+const double* PlanetElement::get_inc(int idx) const 
+    {return elt_inc + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_Omega(int idx) const {return elt_Omega + N_t*idx;}
+const double* PlanetElement::get_Omega(int idx) const 
+    {return elt_Omega + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_omega(int idx) const {return elt_omega + N_t*idx;}
+const double* PlanetElement::get_omega(int idx) const 
+    {return elt_omega + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_f(int idx) const {return elt_f + N_t*idx;}
+const double* PlanetElement::get_f(int idx) const 
+    {return elt_f + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetElement::get_M(int idx) const {return elt_M + N_t*idx;}
+const double* PlanetElement::get_M(int idx) const 
+    {return elt_M + N_t*idx;}
 
 // *****************************************************************************
-OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
+const OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
 {
     // Get the index number of this body
     int idx = body_idx(body_id);
@@ -347,7 +354,7 @@ OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
         .f      = gsl_spline_eval(gsl_interp_f,     mjd, acc),
         .M      = gsl_spline_eval(gsl_interp_M,     mjd, acc)
     };
-    // Replace splined f value with conversion from M
+    // Replace splined f value with conversion from M (M splines better than f)
     elt.f = anomaly_M2f(elt.M, elt.e);
     // Return the splined orbital element
     return elt;
@@ -356,7 +363,7 @@ OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) const
 // *****************************************************************************
 // This calculation returns the position in the HELIOCENTRIC frame, NOT the BME!
 // The orbital element describes the relative position of the body vs. the primary, which is the Sun here.
-Position PlanetElement::interp_pos_hel(int32_t body_id, double mjd) const
+const Position PlanetElement::interp_pos_hel(int32_t body_id, double mjd) const
 {
     // Peel off special case that the body is the sun; then the position is zero
     if (body_id==body_id_sun){return pos_sun_hel;}
@@ -371,7 +378,7 @@ Position PlanetElement::interp_pos_hel(int32_t body_id, double mjd) const
 // *****************************************************************************
 // This calculation returns the state vector in the HELIOCENTRIC frame, NOT the BME!
 // The orbital element describes the relative vectors of the body vs. the primary, which is the Sun here.
-StateVector PlanetElement::interp_vec_hel(int32_t body_id, double mjd) const
+const StateVector PlanetElement::interp_vec_hel(int32_t body_id, double mjd) const
 {
     // Peel off special case that the body is the sun; then the state vector is zero
     if (body_id==body_id_sun){return vec_sun_hel;}
@@ -384,7 +391,7 @@ StateVector PlanetElement::interp_vec_hel(int32_t body_id, double mjd) const
 // *****************************************************************************
 // Add the heliocentric position from splined orbital elements to the Sun's state vectors
 // to get the position in the BME frame.
-Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
+const Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     Position tgt = interp_pos_hel(body_id, mjd);
@@ -397,7 +404,7 @@ Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 // *****************************************************************************
 // Add the heliocentric state vectors from splined orbital elements to the Sun's state vectors
 // to get the state vectors in the BME frame.
-StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
+const StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of body vs. the Sun
     StateVector tgt = interp_vec_hel(body_id, mjd);

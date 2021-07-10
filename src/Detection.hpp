@@ -76,9 +76,9 @@ public:
     ~DetectionTable();
 
     /// Get a detection given its ID
-    Detection operator[](int32_t id) const;
+    const Detection operator[](int32_t id) const;
     /// Get vector of DetectionIDs matching a given SkyPatchID
-    vector<int32_t> get_skypatch(int32_t spid) const;
+    const vector<int32_t> get_skypatch(int32_t spid) const;
 
     /// First detection ID loaded; base for indexing into arrays
     const int d0;

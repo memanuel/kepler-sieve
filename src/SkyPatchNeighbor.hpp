@@ -22,7 +22,7 @@
 namespace ks {
 
 // *****************************************************************************
-namespace sky_patch{
+namespace sky_patch {
 //*The number of SkyPatch neighbors: each cell has 9 neighbors except for the 8 corners.
 constexpr int N_spn = N_sp*9;
 } // namespace ks::sky_patch

@@ -252,8 +252,8 @@ void test_asteroid_element(AsteroidElement& ast_elt)
     print("N_t      : {:d}\n", ast_elt.N_t);
 
     // Read the two 1D arrays
-    int32_t* asteroid_ids = ast_elt.get_asteroid_id();
-    double* mjds = ast_elt.get_mjd();
+    const int32_t* asteroid_ids = ast_elt.get_asteroid_id();
+    const double* mjds = ast_elt.get_mjd();
     // The selected asteroid_id and time
     int32_t asteroid_id = asteroid_ids[asteroid_idx];
     double mjd = mjds[time_idx];
@@ -294,8 +294,8 @@ void test_asteroid_element_vectors(AsteroidElement& ast_elt)
     int time_idx = 100;
 
     // Read the two 1D arrays
-    int32_t* asteroid_ids = ast_elt.get_asteroid_id();
-    double* mjds = ast_elt.get_mjd();
+    const int32_t* asteroid_ids = ast_elt.get_asteroid_id();
+    const double* mjds = ast_elt.get_mjd();
     // The selected asteroid_id and time
     int32_t asteroid_id = asteroid_ids[asteroid_idx];
     double mjd = mjds[time_idx];

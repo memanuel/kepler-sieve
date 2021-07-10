@@ -16,18 +16,17 @@ constexpr long aMillion {static_cast<long>(1.0e6)};
 	
 // *********************************************************************************************************************
 // Constructor
-Timer::Timer() {
-    tick();
-}
+Timer::Timer() 
+	{tick();}
 
 // *********************************************************************************************************************
 // Start the timer.
-void Timer::tick() {
-    tp0 = high_resolution_clock::now();
-}
+void Timer::tick() 
+	{tp0 = high_resolution_clock::now();}
 
 // *********************************************************************************************************************
-double Timer::tock() {
+double Timer::tock() 
+{
 	// Time point when tock() is called
 	highResTimePoint tp1 = high_resolution_clock::now();
 
@@ -42,7 +41,8 @@ double Timer::tock() {
 }
 
 // *********************************************************************************************************************
-double Timer::tock_msg(string blurb) {
+double Timer::tock_msg(const string blurb) 
+{
 	// Time point when tock() is called
 	highResTimePoint tp1 = high_resolution_clock::now();
 
@@ -64,18 +64,22 @@ double Timer::tock_msg(string blurb) {
 	double tSeconds = static_cast<double>(t) / aBillion;
 
 	// Print a message stating the elapsed time.
-	if (t > aBillion) {
+	if (t > aBillion) 
+	{
 		print(msg, tSeconds, "seconds");
 	}
-	else if (t > aMillion) {
+	else if (t > aMillion) 
+	{
 		double tMilliSeconds = tSeconds * 1000;
 		print(msg, tMilliSeconds, "milliseconds");
 	}
-	else if (t > 1000) {
+	else if (t > 1000) 
+	{
 		double tMicroSeconds = tSeconds * aMillion;
 		print(msg, tMicroSeconds, "microseconds");
 	}
-	else {
+	else 
+	{
 		double tNanoSeconds = static_cast<double>(t);
 		print(msg, tNanoSeconds, "nanoseconds");
 	}
@@ -85,7 +89,8 @@ double Timer::tock_msg(string blurb) {
 }
 
 // *********************************************************************************************************************
-void TimerTest() {
+void TimerTest() 
+{
 	Timer t;
 
 	t.tick();

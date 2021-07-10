@@ -32,7 +32,7 @@ using ks::BodyVector;
 // *****************************************************************************
 // The constructor just allocates memory and initializes GSL splines.  
 // It does not load data from database or file, that is done with the load() method.
-BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, string body_name):
+BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, const string body_name):
     // Name of the body
     body_name(body_name),
     // number of times (data size)
@@ -69,7 +69,7 @@ BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, string body_name):
 } // end function
 
 // *****************************************************************************
-BodyVector::BodyVector(string body_name) :
+BodyVector::BodyVector(const string body_name) :
     // Delegate to memory allocating constructor with database inputs 
     BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name)
 {
@@ -81,7 +81,7 @@ BodyVector::BodyVector(string body_name) :
 }
 
 // *****************************************************************************
-BodyVector::BodyVector(db_conn_type& conn, string body_name) :
+BodyVector::BodyVector(db_conn_type& conn, const string body_name) :
     // Delegate to memory allocating constructor with database inputs 
     BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name)
 {
@@ -223,10 +223,8 @@ void BodyVector::build_splines()
 // *****************************************************************************
 
 // *****************************************************************************
-double* BodyVector::get_mjd() const
-{
-    return mjd;
-}
+const double* BodyVector::get_mjd() const
+    {return mjd;}
 
 // *****************************************************************************
 Position BodyVector::interp_pos(double mjd) const
@@ -349,7 +347,7 @@ void BodyVector::load()
 // *****************************************************************************
 
 /// Helper function - build and save vectors
-void ks::save_vectors(string body_name)
+void ks::save_vectors(const string body_name)
 {
     // Establish DB connection
     db_conn_type conn = get_db_conn();

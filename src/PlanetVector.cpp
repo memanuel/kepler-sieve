@@ -269,36 +269,44 @@ const int PlanetVector::time_row(int32_t time_id) const
 // *****************************************************************************
 
 // *****************************************************************************
-int32_t* PlanetVector::get_body_id() const {return body_id;}
+const int32_t* PlanetVector::get_body_id() const 
+    {return body_id;}
 
 // *****************************************************************************
-double* PlanetVector::get_mjd() const {return mjd;}
+const double* PlanetVector::get_mjd() const 
+    {return mjd;}
 
 // *****************************************************************************
 // Get 1D array of each orbital element given a body_id
 // *****************************************************************************
 
 // *****************************************************************************
-double* PlanetVector::get_qx(int idx) const {return qx + N_t*idx;}
+const double* PlanetVector::get_qx(int idx) const 
+    {return qx + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetVector::get_qy(int idx) const {return qy + N_t*idx;}
+const double* PlanetVector::get_qy(int idx) const 
+    {return qy + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetVector::get_qz(int idx) const {return qz + N_t*idx;}
+const double* PlanetVector::get_qz(int idx) const 
+    {return qz + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetVector::get_vx(int idx) const {return vx + N_t*idx;}
+const double* PlanetVector::get_vx(int idx) const 
+    {return vx + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetVector::get_vy(int idx) const {return vy + N_t*idx;}
+const double* PlanetVector::get_vy(int idx) const 
+    {return vy + N_t*idx;}
 
 // *****************************************************************************
-double* PlanetVector::get_vz(int idx) const {return vz + N_t*idx;}
+const double* PlanetVector::get_vz(int idx) const 
+    {return vz + N_t*idx;}
 
 // *****************************************************************************
 // Return the interpolated position in the BME frame of this body at the input time.
-Position PlanetVector::interp_pos(int32_t body_id, double mjd) const
+const Position PlanetVector::interp_pos(int32_t body_id, double mjd) const
 {
     // Get the index number of this body
     int idx = body_idx(body_id);
@@ -321,7 +329,7 @@ Position PlanetVector::interp_pos(int32_t body_id, double mjd) const
 
 // *****************************************************************************
 // Return the interpolated state vector in the BME frame of this body at the input time.
-StateVector PlanetVector::interp_vec(int32_t body_id, double mjd) const
+const StateVector PlanetVector::interp_vec(int32_t body_id, double mjd) const
 {
     // Get the index number of this body
     int idx = body_idx(body_id);

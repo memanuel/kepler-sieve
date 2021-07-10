@@ -140,12 +140,8 @@ void SkyPatchNeighbor::build_neighbor_distance()
  
 // *****************************************************************************
 const int32_t* SkyPatchNeighbor::operator[](int32_t spid) const
-{
-    return (spn + 9*spid);
-}
+    {return (spn + 9*spid);}
 
 // *****************************************************************************
 const double* SkyPatchNeighbor::neighbor_distance(int32_t spid) const
-{
-    return (spnd + 9*spid);
-}
+    {return (spnd + 9*spid);}

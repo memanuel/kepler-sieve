@@ -55,11 +55,11 @@ public:
     ~MassiveBodyTable();
 
     /// Get the mass of a body in Msun given its body_id
-    const double get_M(int32_t body_id);
+    const double get_M(int32_t body_id) const;
     /// Get the gravitational field strength of a body in AU^2 / day^3 given its body_id
-    const double get_GM(int32_t body_id);
+    const double get_GM(int32_t body_id) const;
     /// Get a MassiveBody structure for a body given its body_id
-    const MassiveBody operator[](int32_t body_id);
+    const MassiveBody operator[](int32_t body_id) const;
 
     /// Get size of this table (number of bodies)
     const int size() const;
@@ -87,7 +87,7 @@ private:
     /// Map with key = body_id, value = row_id
     map<int32_t, int32_t> row_map;
     /// Get the row_id of a body given its body_id
-    const int32_t get_row_id(int32_t body_id);
+    const int32_t get_row_id(int32_t body_id) const;
     /// The current row_id
     const int32_t current_row_id() const;
     /// Number of rows in data file

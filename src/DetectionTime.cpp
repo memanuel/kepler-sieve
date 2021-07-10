@@ -112,40 +112,28 @@ void DetectionTimeTable::load(db_conn_type& conn)
 }
 
 // *****************************************************************************
-DetectionTime DetectionTimeTable::operator[](int32_t id) const
-{
-    return dtv[id];
-}
+const DetectionTime DetectionTimeTable::operator[](int32_t id) const
+    {return dtv[id];}
 
 // *****************************************************************************
-vector<int32_t> DetectionTimeTable::get_time(int32_t time_id)
-{
-    return dtm[time_id];
-}
+const vector<int32_t> DetectionTimeTable::get_time(int32_t time_id) const
+    {return dtm.at(time_id);}
 
 // *****************************************************************************
 const int DetectionTimeTable::N() const
-{
-    return dtv.size();
-}
+    {return dtv.size();}
 
 // *****************************************************************************
 const vector<DetectionTime> DetectionTimeTable::detection_times() const
-{
-    return dtv;
-}
+    {return dtv;}
 
 // *****************************************************************************
 const double* DetectionTimeTable::get_mjd() const
-{
-    return mjd;
-}
+    {return mjd;}
 
 // *****************************************************************************
 const double* DetectionTimeTable::get_q_obs() const
-{
-    return q_obs;
-}
+    {return q_obs;}
 
 // *****************************************************************************
 void DetectionTimeTable::save()

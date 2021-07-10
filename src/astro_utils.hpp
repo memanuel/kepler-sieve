@@ -19,6 +19,7 @@
 // *****************************************************************************
 // Included libraries
 #include <cmath>
+#include <numbers>
 #include <string>
 
 // *****************************************************************************
@@ -32,7 +33,7 @@ namespace ks {
 // Set the grid size for the sky patch at compile time
 namespace astro_utils{
     /// Pi
-    constexpr double pi = M_PI;
+    using std::numbers::pi;
     /// Number of degrees in one radian
     constexpr double deg_per_rad = 180.0 / pi;
     /// Number of radians in one degree
@@ -45,6 +46,7 @@ namespace astro_utils{
     /// Number of days in one second
     constexpr double sec2day = 1.0 / day2sec;
 }
+
 // Use these names
 using astro_utils::pi;
 using astro_utils::deg_per_rad;

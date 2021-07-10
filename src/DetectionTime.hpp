@@ -78,9 +78,9 @@ public:
     ~DetectionTimeTable();
 
     /// Get a detection given its ID
-    DetectionTime operator[](int32_t id) const;
+    const DetectionTime operator[](int32_t id) const;
     /// Get vector of DetectionIDs matching a given TimeID
-    vector<int32_t> get_time(int32_t time_id);
+    const vector<int32_t> get_time(int32_t time_id) const;
     // Size of this table
     const int N() const;
     /// Vector of all detection time objects

@@ -81,7 +81,7 @@ SkyPatch::SkyPatch(int8_t f_, int16_t i_, int16_t j_) :
     SkyPatch(CubeFace(f_), i_, j_) {}
 
 // *****************************************************************************
-//*Fast constructor when r precomputed and f, i, j already validated. Used in copying.
+// Fast constructor when r precomputed and f, i, j already validated. Used in copying.
 SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_) : 
     f(f_),
     i(i_),
@@ -89,7 +89,7 @@ SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_) :
     r(r_) {}
 
 // *****************************************************************************
-//*Use same approach as fast constructor for copy assignment
+// Use same approach as fast constructor for copy assignment
 SkyPatch::SkyPatch(const ks::SkyPatch& sp) :
     f(sp.f),
     i(sp.i),
@@ -101,45 +101,31 @@ SkyPatch::~SkyPatch() {}
 
 // *****************************************************************************
 const int32_t SkyPatch::id() const
-{
-    return (M2*f.id) + (M*i) + j;
-}
+    {return (M2*f.id) + (M*i) + j;}
 
 // *****************************************************************************
 const double SkyPatch::a() const
-{
-    return N_inv*(static_cast<double>(i)+0.5) - 1.0;
-}
+    {return N_inv*(static_cast<double>(i)+0.5) - 1.0;}
 
 // *****************************************************************************
 const double SkyPatch::b() const
-{
-    return N_inv*(static_cast<double>(j)+0.5) - 1.0;
-}
+    {return N_inv*(static_cast<double>(j)+0.5) - 1.0;}
 
 // *****************************************************************************
 const double SkyPatch::c() const
-{
-    return f.c();
-}
+    {return f.c();}
 
 // *****************************************************************************
 const double SkyPatch::u() const
-{
-    return a() / r;
-}
+    {return a() / r;}
 
 // *****************************************************************************
 const double SkyPatch::v() const
-{
-    return b() / r;
-}
+    {return b() / r;}
 
 // *****************************************************************************
 const double SkyPatch::w() const
-{
-    return c() / r;
-}
+    {return c() / r;}
 
 // *****************************************************************************
 const double SkyPatch::x() const

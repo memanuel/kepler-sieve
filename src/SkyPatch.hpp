@@ -36,7 +36,8 @@ namespace ks {
 
 // *****************************************************************************
 // Set the grid size for the sky patch at compile time
-namespace sky_patch{
+namespace sky_patch
+{
     /// The multiplier for local coordinates; each cube face is on a 2Nx2N grid
     constexpr int N = 1024;
     /// The side length in dicrete grid units of each cube face

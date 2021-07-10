@@ -133,22 +133,18 @@ DetectionCandidateTable::~DetectionCandidateTable() {}
 
 // *****************************************************************************
 const int DetectionCandidateTable::size() const
-{
-    return (d1-d0);
-}
+    {return (d1-d0);}
 
 // *****************************************************************************
-DetectionCandidate DetectionCandidateTable::operator[](int32_t id) const
+const DetectionCandidate DetectionCandidateTable::operator[](int32_t id) const
 {
     // Need to subtract d0 from id to get the index into the vector dt
-    return dt[id-d0];
+    return dt.at(id-d0);
 }
 
 // *****************************************************************************
-vector<int32_t> DetectionCandidateTable::get_skypatch(int32_t spid) const
-{
-    return dtsp[spid];
-}
+const vector<int32_t> DetectionCandidateTable::get_skypatch(int32_t spid) const
+    {return dtsp.at(spid);}
 
 // *****************************************************************************
 void DetectionCandidateTable::save()

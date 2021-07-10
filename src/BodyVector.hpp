@@ -54,13 +54,13 @@ public:
     // ********************************************************************************************
 
     /// Constructor takes time range, time step and allocates memory
-    BodyVector(int mjd0, int mjd1, int dt_min, string body_name);
+    BodyVector(int mjd0, int mjd1, int dt_min, const string body_name);
 
     /// Constructor - load data from file on disk
-    BodyVector(string body_name);
+    BodyVector(const string body_name);
 
     /// Constructor - take a DB connection and a body_name which must be one of "Sun", "Earth"
-    BodyVector(db_conn_type& conn, string body_name);
+    BodyVector(db_conn_type& conn, const string body_name);
 
     /// Destructor - delete manually created arrays
     ~BodyVector();
@@ -75,7 +75,7 @@ public:
     // ********************************************************************************************
 
     /// Get the array of times used to build the spline (times with known state vectors)
-    double* get_mjd() const;
+    const double* get_mjd() const;
 
     /// Calculate the interpolated position of the body at time mjd
     Position interp_pos(double mjd) const;
@@ -141,7 +141,7 @@ private:
 
 // *****************************************************************************
 /// Helper function - build and save vectors for Sun and Earth
-void save_vectors(string body_name);
+void save_vectors(const string body_name);
 
 // *****************************************************************************
 } // namespace ks

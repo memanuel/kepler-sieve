@@ -74,25 +74,25 @@ public:
     void load(db_conn_type &conn, bool progbar);
 
     /// Get the array of asteroid IDs whose elements are in this table
-    int32_t* get_asteroid_id() const;
+    const int32_t* get_asteroid_id() const;
 
     /// Get the array of times; this is shared by all the asteroids
-    double* get_mjd() const;
+    const double* get_mjd() const;
 
     /// Calculate the interpolated orbital elements of the given asteroid at time mjd
-    OrbitalElement interp_elt(int32_t asteroid_id, double mjd) const;
+    const OrbitalElement interp_elt(int32_t asteroid_id, double mjd) const;
 
     /// Calculate the interpolated position of the given asteroid at time mjd in the heliocentric frame
-    Position interp_pos_hel(int32_t asteroid_id, double mjd) const;
+    const Position interp_pos_hel(int32_t asteroid_id, double mjd) const;
 
     /// Calculate the interpolated state vector of the given asteroid at time mjd in the heliocentric frame
-    StateVector interp_vec_hel(int32_t asteroid_id, double mjd) const;
+    const StateVector interp_vec_hel(int32_t asteroid_id, double mjd) const;
 
     /// Calculate the interpolated position of the given asteroid at time mjd in the BME frame
-    Position interp_pos(int32_t asteroid_id, double mjd) const;
+    const Position interp_pos(int32_t asteroid_id, double mjd) const;
 
     /// Calculate the interpolated state vector of the given asteroid at time mjd in the BME frame
-    StateVector interp_vec(int32_t asteroid_id, double mjd) const;
+    const StateVector interp_vec(int32_t asteroid_id, double mjd) const;
 
 private:
     // ********************************************************************************************
@@ -145,13 +145,13 @@ private:
     const int asteroid_row(int32_t asteroid_id) const;
 
     // Get an array (pointer to double) of orbital elements given an asteroid_id
-    double* get_a(int32_t asteroid_id) const;
-    double* get_e(int32_t asteroid_id) const;
-    double* get_inc(int32_t asteroid_id) const;
-    double* get_Omega(int32_t asteroid_id) const;
-    double* get_omega(int32_t asteroid_id) const;
-    double* get_f(int32_t asteroid_id) const;
-    double* get_M(int32_t asteroid_id) const;
+    const double* get_a(int32_t asteroid_id) const;
+    const double* get_e(int32_t asteroid_id) const;
+    const double* get_inc(int32_t asteroid_id) const;
+    const double* get_Omega(int32_t asteroid_id) const;
+    const double* get_omega(int32_t asteroid_id) const;
+    const double* get_f(int32_t asteroid_id) const;
+    const double* get_M(int32_t asteroid_id) const;
 
     // Build GSL splines
     void build_splines();

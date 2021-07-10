@@ -98,13 +98,9 @@ AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1,
 AsteroidSkyPatchTable::~AsteroidSkyPatchTable() {}
 
 // *****************************************************************************
-AsteroidSkyPatch AsteroidSkyPatchTable::operator[](int32_t i) const
-{
-    return aspt[i];
-}
+const AsteroidSkyPatch AsteroidSkyPatchTable::operator[](int32_t i) const
+    {return aspt.at(i);}
 
 // *****************************************************************************
-int AsteroidSkyPatchTable::size() const
-{
-    return aspt.size();
-}
+const int AsteroidSkyPatchTable::size() const
+    {return aspt.size();}

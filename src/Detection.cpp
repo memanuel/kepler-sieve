@@ -156,21 +156,15 @@ DetectionTable::~DetectionTable() {}
 
 // *****************************************************************************
 const int DetectionTable::size() const
-{
-    return (d1-d0);
-}
+    {return (d1-d0);}
 
 // *****************************************************************************
-Detection DetectionTable::operator[](int32_t id) const
-{
-    return dt[id];
-}
+const Detection DetectionTable::operator[](int32_t id) const
+    {return dt.at(id);}
 
 // *****************************************************************************
-vector<int32_t> DetectionTable::get_skypatch(int32_t spid) const
-{
-    return dtsp[spid];
-} // function
+const vector<int32_t> DetectionTable::get_skypatch(int32_t spid) const
+    {return dtsp.at(spid);}
 
 // *****************************************************************************
 void DetectionTable::save()

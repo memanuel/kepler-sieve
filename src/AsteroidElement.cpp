@@ -260,59 +260,47 @@ const int AsteroidElement::asteroid_row(int32_t asteroid_id) const
 // *****************************************************************************
 
 // *****************************************************************************
-int32_t* AsteroidElement::get_asteroid_id() const {return asteroid_id;}
+const int32_t* AsteroidElement::get_asteroid_id() const 
+    {return asteroid_id;}
 
 // *****************************************************************************
-double* AsteroidElement::get_mjd() const {return mjd;}
+const double* AsteroidElement::get_mjd() const 
+    {return mjd;}
 
 // *****************************************************************************
 // Get 1D array of each orbital element given an asteroid_id
 // *****************************************************************************
 
 // *****************************************************************************
-double* AsteroidElement::get_a(int32_t asteroid_id) const
-{
-    return elt_a + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_a(int32_t asteroid_id) const
+    {return elt_a + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-double* AsteroidElement::get_e(int32_t asteroid_id) const
-{
-    return elt_e + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_e(int32_t asteroid_id) const
+    {return elt_e + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-double* AsteroidElement::get_inc(int32_t asteroid_id) const
-{
-    return elt_inc + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_inc(int32_t asteroid_id) const
+    {return elt_inc + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-double* AsteroidElement::get_Omega(int32_t asteroid_id) const
-{
-    return elt_Omega + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_Omega(int32_t asteroid_id) const
+    {return elt_Omega + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-double* AsteroidElement::get_omega(int32_t asteroid_id) const
-{
-    return elt_omega + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_omega(int32_t asteroid_id) const
+    {return elt_omega + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-double* AsteroidElement::get_f(int32_t asteroid_id) const
-{
-    return elt_f + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_f(int32_t asteroid_id) const
+    {return elt_f + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-double* AsteroidElement::get_M(int32_t asteroid_id) const
-{
-    return elt_M + asteroid_row(asteroid_id);
-}
+const double* AsteroidElement::get_M(int32_t asteroid_id) const
+    {return elt_M + asteroid_row(asteroid_id);}
 
 // *****************************************************************************
-OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) const
+const OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) const
 {
     // The interpolators for each orbital element for this asteroid
     gsl_spline* gsl_interp_a = elt_spline.a[asteroid_id];
@@ -326,7 +314,7 @@ OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) cons
     // Evaluate the splines at the selected time
     OrbitalElement elt 
     {
-        .a = gsl_spline_eval(gsl_interp_a, mjd, acc),
+        .a      = gsl_spline_eval(gsl_interp_a, mjd, acc),
         .e      = gsl_spline_eval(gsl_interp_e, mjd, acc),
         .inc    = gsl_spline_eval(gsl_interp_inc, mjd, acc),
         .Omega  = gsl_spline_eval(gsl_interp_Omega, mjd, acc),
@@ -334,13 +322,15 @@ OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd) cons
         .f      = gsl_spline_eval(gsl_interp_f, mjd, acc),
         .M      = gsl_spline_eval(gsl_interp_M, mjd, acc)
     };
+    // Replace splined f value with conversion from M (M splines better than f)
+    elt.f = anomaly_M2f(elt.M, elt.e);   
     return elt;
 }
 
 // *****************************************************************************
 // This calculation returns the position in the HELIOCENTRIC frame, NOT the BME!
 // The orbital element describes the relative position of the asteroid vs. the primary, which is the Sun here.
-Position AsteroidElement::interp_pos_hel(int32_t asteroid_id, double mjd) const
+const Position AsteroidElement::interp_pos_hel(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(asteroid_id, mjd);
@@ -351,7 +341,7 @@ Position AsteroidElement::interp_pos_hel(int32_t asteroid_id, double mjd) const
 // *****************************************************************************
 // This calculation returns the state vector in the HELIOCENTRIC frame, NOT the BME!
 // The orbital element describes the relative vectors of the asteroid vs. the primary, which is the Sun here.
-StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mjd) const
+const StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(asteroid_id, mjd);
@@ -362,38 +352,25 @@ StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mjd) con
 // *****************************************************************************
 // Add the heliocentric position from splined orbital elements to the Sun's state vectors
 // to get the position in the BME frame.
-Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd) const
+const Position AsteroidElement::interp_pos(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     Position ast = interp_pos_hel(asteroid_id, mjd);
     // Delegate to bv_sun to get interpolated position of Sun in BME
     Position sun = bv_sun.interp_pos(mjd);
     // Add the two components
-    return Position
-    {
-        .qx = ast.qx + sun.qx,
-        .qy = ast.qy + sun.qy,
-        .qz = ast.qz + sun.qz
-    };
+    return ast + sun;
 }
 
 // *****************************************************************************
 // Add the heliocentric state vectors from splined orbital elements to the Sun's state vectors
 // to get the state vectors in the BME frame.
-StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd) const
+const StateVector AsteroidElement::interp_vec(int32_t asteroid_id, double mjd) const
 {
     // Delegate to interp_pos_hel for the relative position of asteroid vs. the Sun
     StateVector ast = interp_vec_hel(asteroid_id, mjd);
     // Delegate to bv_sun to get interpolated state vector of Sun in BME
     StateVector sun = bv_sun.interp_vec(mjd);
     // Add the two components
-    return StateVector
-    {
-        .qx = ast.qx + sun.qx,
-        .qy = ast.qy + sun.qy,
-        .qz = ast.qz + sun.qz,
-        .vx = ast.vx + sun.vx,
-        .vy = ast.vy + sun.vy,
-        .vz = ast.vz + sun.vz
-    };
+    return ast + sun;
 }

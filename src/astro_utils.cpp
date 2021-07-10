@@ -19,27 +19,19 @@ namespace ks {
 
 // *****************************************************************************
 double jd_to_mjd(double jd)
-{
-    return jd - modified_julian_offset;
-}
+    {return jd - modified_julian_offset;}
 
 // *****************************************************************************
 double mjd_to_jd(double mjd)
-{
-    return mjd + modified_julian_offset;
-}
+    {return mjd + modified_julian_offset;}
 
 // *****************************************************************************
 double dist2rad(double s)
-{
-    return asin(0.5*s) * 2.0;
-}
+    {return asin(0.5*s) * 2.0;}
 
 // *****************************************************************************
 double rad2dist(double s_rad)
-{
-    return sin(0.5*s_rad) * 2.0;
-}
+    {return sin(0.5*s_rad) * 2.0;}
 
 // *****************************************************************************
 double dist2deg(double s)

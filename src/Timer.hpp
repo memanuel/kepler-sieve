@@ -44,7 +44,8 @@ namespace ks {
 @class Timer
 @brief Timer class to replicate the behavior of Matlab functions tic() and toc()
 */
-class Timer {
+class Timer 
+{
 public:
 	/// Constructor
 	Timer();
@@ -56,7 +57,7 @@ public:
 	double tock();
 
 	/// Return the elapsed time in seconds
-	double tock_msg(string blurb = "");
+	double tock_msg(const string blurb = "");
 
 private:
 	/// Static time point that is updated each time tick() is called
