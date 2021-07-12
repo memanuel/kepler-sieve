@@ -11,15 +11,11 @@
 // Local dependencies
 #include "OrbitalElement.hpp"
 
-// Constants
-// tau = 2pi
-// constexpr double tau = 2.0 * pi;
-
 // *****************************************************************************
 namespace ks {
 
 // The gravitational field strength: mu = G * (m0 + m1)
-using ks::cs::mu;
+using ks::cs::mu_sun;
 using ks::cs::tau;
 
 // *****************************************************************************
@@ -138,7 +134,7 @@ double anomaly_M2f(double M, double e)
 // *****************************************************************************
 
 // *****************************************************************************
-double period(double a)
+double period(double a, double mu)
 {
     // T^2 = 4pi^2 a^3 / mu (SSD 2.22)
     // Solve for T and obtain
@@ -147,7 +143,7 @@ double period(double a)
 }
 
 // *****************************************************************************
-double mean_motion(double a)
+double mean_motion(double a, double mu)
 {
     // mu = n^2 * a^3 (SSD 2.26)
     // Solve this for n and obtain
@@ -225,7 +221,7 @@ Position elt2pos_vec(const OrbitalElement& elt)
     {return elt2pos_vec(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);}
 
 // *****************************************************************************
-StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f)
+StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f, double mu)
 {
     // The equations used here were taken from the rebound library
     // The position calculations are equivalent to the ones above from SSD.
@@ -267,9 +263,9 @@ StateVector elt2vec(double a, double e, double inc, double Omega, double omega, 
 }
 
 // *****************************************************************************
-StateVector elt2vec(const OrbitalElement& elt)
+StateVector elt2vec(const OrbitalElement& elt, double mu)
 {
-    return elt2vec(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f);
+    return elt2vec(elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f, mu);
 }
 
 // *****************************************************************************

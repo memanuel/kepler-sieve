@@ -20,6 +20,16 @@
 #include <gsl/gsl_spline.h>
 
 // Local dependencies
+#include "constants.hpp"
+    using ks::cs::mu_sun;
+#include "utils.hpp"
+    using ks::flush_console;
+#include "db_utils.hpp"
+    using ks::db_conn_type;
+    using ks::get_db_conn;
+    using ks::sp_run;
+#include "Timer.hpp"
+    using ks::Timer;
 #include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
@@ -31,14 +41,6 @@
     using ks::elt2vec;
 #include "BodyVector.hpp"
     using ks::BodyVector;
-#include "utils.hpp"
-    using ks::flush_console;
-#include "db_utils.hpp"
-    using ks::db_conn_type;
-    using ks::get_db_conn;
-    using ks::sp_run;
-#include "Timer.hpp"
-    using ks::Timer;
 
 // *****************************************************************************
 namespace ks {

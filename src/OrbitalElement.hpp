@@ -133,10 +133,10 @@ Position elt2pos_vec(double a, double e, double inc, double Omega, double omega,
 Position elt2pos_vec(const OrbitalElement& elt);
 
 /// Convert from orbital elements (six doubles) to a state vector. See SSD page 51, equation 2.122.
-StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f);
+StateVector elt2vec(double a, double e, double inc, double Omega, double omega, double f, double mu);
 
 /// Convert from orbital elements to a state vector. See SSD page 51, equation 2.122.
-StateVector elt2vec(const OrbitalElement& elt);
+StateVector elt2vec(const OrbitalElement& elt, double mu);
 
 // *****************************************************************************
 // Add a perturbation to an orbital element

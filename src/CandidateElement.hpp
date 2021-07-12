@@ -21,6 +21,8 @@
     // memcpy
 
 // Local dependencies
+#include "constants.hpp"
+    using ks::cs::mu_sun;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;

@@ -346,7 +346,7 @@ const StateVector AsteroidElement::interp_vec_hel(int32_t asteroid_id, double mj
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(asteroid_id, mjd);
     // Call elt2pos to calculate a position
-    return elt2vec(elt);   
+    return elt2vec(elt, mu_sun);   
 }
 
 // *****************************************************************************

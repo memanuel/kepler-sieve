@@ -132,9 +132,9 @@ bool test_all()
     // report_test(test_name, is_ok);
 
     // Test integration consistency variables
-    bool verbose = false;
-    string test_name;
-    double mjd0, mjd1;
+    bool verbose = true;
+    string test_name = "";
+    double mjd0=0.0, mjd1=0.0;
 
     // Tolerance for positions - on spline nodes
     double tol_dq_node = 1.0E-11;
@@ -156,14 +156,15 @@ bool test_all()
     report_test(test_name, is_ok);
 
     // Test integration consistency on non-integer start date; exercise element spline
-    mjd0 = mjd0_integrate+0.5;
+    mjd0 = mjd0_integrate;
     mjd1 = mjd1_integrate;
     Simulation sim0_spline = make_sim_planets(pe, mjd0);
     Simulation sim1_spline = make_sim_planets(pe, mjd1);
     is_ok = test_integration(sim0_spline, sim1_spline, tol_dq_spline, tol_dv_spline, verbose);
     is_ok_all &= is_ok;
     print_stars(true);
-    test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined elements", mjd0, mjd1);
+    test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined elements", 
+                        mjd0, mjd1);
     report_test(test_name, is_ok);
 
     // Report overall test results

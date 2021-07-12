@@ -37,8 +37,14 @@ constexpr double G = 2.959122082855910945e-04;
 // G_ = sim.G_
 
 /// gravitational field strength: mu = G * (m0 + m1) in AU^3 / day^2
-constexpr double mu = G * 1.0;
-// here m0 = 1.0 (Sun) and we assume m1 is light, i.e. m1 = 0.0
+constexpr double m_sun = 1.0;
+constexpr double mu_sun = G * m_sun;
+// here m0 = 1.0 (Sun) and we assume m1 is light, i.e. m1 = 0.0; works well for asteroids / test bodies.
+// do NOT use this for orbital elements of planets!
+
+// gravitational field strength of the Earth; for elements of the moon
+constexpr double m_earth_moon = 0.000003040432648;
+constexpr double mu_earth_moon = G * m_earth_moon;
 
 // *****************************************************************************
 // Time conversions between minutes and days
@@ -64,11 +70,17 @@ constexpr int stride_db_min = 5;
 /// Number of times in database integration of planets
 constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min+1;
 
+// *****************************************************************************
+// Body IDs for bodies with special handling in planets collection or used in examples
+
 /// The body_id of the Sun
 constexpr int32_t body_id_sun = 10;
 
 /// The body_id of the Earth
 constexpr int32_t body_id_earth = 399;
+
+/// The body_id of the Moon
+constexpr int32_t body_id_moon = 301;
 
 /// The asteroid_id of Ceres
 constexpr int32_t asteroid_id_ceres = 1;

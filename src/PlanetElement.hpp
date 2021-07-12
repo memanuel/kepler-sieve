@@ -40,6 +40,9 @@
     using ks::elt2pos;
     using ks::elt2vec;
     using ks::elt2pos_vec;
+#include "MassiveBody.hpp"
+    using ks::MassiveBody;
+    using ks::MassiveBodyTable;
 #include "BodyVector.hpp"
     using ks::BodyVector;
 #include "utils.hpp"
@@ -116,11 +119,11 @@ public:
     /// Calculate the interpolated orbital elements of the given body at time mjd
     const OrbitalElement interp_elt(int32_t body_id, double mjd) const;
 
-    /// Calculate the interpolated position of the given body at time mjd in the heliocentric frame
-    const Position interp_pos_hel(int32_t body_id, double mjd) const;
+    /// Calculate the interpolated position of the given body at time mjd relative to its primary
+    const Position interp_pos_rel(int32_t body_id, double mjd) const;
 
-    /// Calculate the interpolated state vector of the given body at time mjd in the heliocentric frame
-    const StateVector interp_vec_hel(int32_t body_id, double mjd) const;
+    /// Calculate the interpolated state vector of the given body at time mjd relative to its primary
+    const StateVector interp_vec_rel(int32_t body_id, double mjd) const;
 
     /// Calculate the interpolated position of the given body at time mjd in the BME frame
     const Position interp_pos(int32_t body_id, double mjd) const;
@@ -144,6 +147,8 @@ private:
     int32_t* body_id;
     /// One shared array for the times as of which orbital elements apply
     double* mjd;
+    /// One shared array for mu of each interaction
+    double* mu;
 
     // One array for each orbital element; array size is N_body * N_t
     // Array is laid out first by body, then by time (same order that SP returns data).
@@ -162,7 +167,7 @@ private:
     gsl_interp_accel* acc;
     /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
     const BodyVector bv_sun;
-    
+   
     // ********************************************************************************************
     // Private Methods
     // ********************************************************************************************
@@ -187,6 +192,9 @@ private:
     const double* get_omega(int idx) const;
     const double* get_f(int idx) const;
     const double* get_M(int idx) const;
+
+    /// Calculate the interpolated orbital elements of the given body at time mjd; idx is the body index
+    const OrbitalElement interp_elt_by_idx(int idx, double mjd) const;
 
     // Free up GSL resources
     void gsl_free();

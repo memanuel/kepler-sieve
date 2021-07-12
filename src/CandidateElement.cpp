@@ -73,7 +73,7 @@ void CandidateElement::calc_trajectory()
         // Convert M to a true anomaly f
         double f = anomaly_M2f(M, e);
         // Convert to a position
-        StateVector sv = elt2vec(a, e, inc, Omega, omega, f);
+        StateVector sv = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
         // Index for arrays q_ast and v_ast
         int idx = 3*i;
         // Save into array q_ast
