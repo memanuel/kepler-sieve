@@ -31,11 +31,10 @@
     using ks::MassiveBody;
     using ks::MassiveBodyTable;
 #include "rebound_utils.hpp"
-    using ks::Particle;
-    using ks::Orbit;
-    using ks::Simulation;
-    using ks::make_sim;
-    using ks::make_sim_planets;
+    using ks::reb::Particle;
+    using ks::reb::Orbit;
+    using ks::reb::Simulation;
+    using ks::reb::make_sim_planets;
 
 // *****************************************************************************
 // Constants used in this module
@@ -162,21 +161,17 @@ bool test_massive_body()
 bool test_make_sim()
 {
     /// Build the simulation
-    Simulation* sim = make_sim();
+    Simulation sim;
     // Reference to the simulation
     // Simulation& sim = *s;
 
     // Status
     print("Built empty rebound simulation.\n");
-    print("N: {:d}.\n", sim->N);
-    print("t: {:f}.\n", sim->t);
-    print("G: {:e}.\n", sim->G);
+    print("N: {:d}.\n", sim.N());
+    print("t: {:f}.\n", sim.t());
 
     // Test conditions
-    bool is_ok = (sim->N==0) && (sim->G == G);
-
-    // Free memory in sinulation object
-    reb_free_simulation(sim);
+    bool is_ok = (sim.N()==0) && (sim.t() == 0.0);
 
     // Return results of test
     return is_ok;
@@ -187,38 +182,34 @@ bool test_make_sim()
 bool test_make_sim_planets(const PlanetVector& pv)
 {
     /// Build the simulation
-    Simulation* sim = make_sim_planets(pv, epoch);
-    // Reference to the simulation
-    // Simulation& sim = *s;
+    Simulation sim = make_sim_planets(pv, epoch);
 
     // Status
     print("Built rebound simulation for planets.\n");
-    print("N: {:d}.\n", sim->N);
-    print("t: {:f}.\n", sim->t);
-    print("G: {:e}.\n", sim->G);
+    print("N        : {:d}.\n", sim.N());
+    print("N_active : {:d}.\n", sim.N_active());
+    print("N_test   : {:d}.\n", sim.N_test());
+    print("t        : {:f}.\n", sim.t());
 
     // Display the particles
     print_newline();
     print("{:3s} {:10s}: {:10s} {:10s} {:10s} {:10s} {:10s} {:10s} \n", 
           " i", " M", " qx", " qy", " qz", " vx", " vy", " vz");
-    for (int i=0; i<sim->N; i++)
+    for (int i=0; i<sim.N(); i++)
     {
-        Particle p = sim->particles[i];
+        Particle p = sim.particle(i);
         print("{:3d} {:10.3e}: {:+10.6f} {:+10.6f} {:+10.6f} {:+10.6f} {:+10.6f} {:+10.6f} \n", 
               i, p.m, p.x, p.y, p.z, p.vx, p.vy, p.vz);    
     }
     print_newline();
 
     // Grab particles for Sun and Earth
-    Particle p_sun = sim->particles[0];
-    Particle p_earth = sim->particles[3];
+    Particle p_sun = sim.particle(0);
+    Particle p_earth = sim.particle(3);
 
     // Test conditions
-    bool is_ok = (sim->N==11) && (sim->t == epoch) && (sim->G == G);
+    bool is_ok = (sim.N()==11) && (sim.t() == epoch);
     is_ok &= (p_sun.m==1.0) & is_close_rel(p_earth.m, 3.0E-6, 0.01);
-
-    // Free memory in simulation object
-    reb_free_simulation(sim);
 
     // Return results of test
     return is_ok;
