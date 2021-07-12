@@ -89,8 +89,8 @@ save_db2disk: \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/MassiveBody.o \
     obj/DetectionTime.o obj/Detection.o obj/DetectionCandidate.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/BodyVector.o \
-    obj/PlanetVector.o obj/PlanetElement.o
+    obj/StateVector.o obj/OrbitalElement.o \
+    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 # *************************************************************************************************
 # Executables - tests
@@ -118,12 +118,13 @@ rebound_test: \
     obj/rebound_test.o \
     obj/utils.o obj/db_utils.o obj/rebound_utils.o \
     obj/MassiveBody.o \
-    obj/StateVector.o obj/PlanetVector.o
+    obj/StateVector.o obj/OrbitalElement.o \
+    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 planet_element_test: \
     obj/planet_element_test.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/DetectionTime.o obj/Detection.o \
+    obj/StateVector.o obj/OrbitalElement.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 detection_near_elt_test: \
@@ -132,7 +133,7 @@ detection_near_elt_test: \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
     obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
-    obj/BodyVector.o obj/PlanetElement.o \
+    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o \
     obj/CandidateElement.o
 
 test_all: \

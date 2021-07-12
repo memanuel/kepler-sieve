@@ -28,8 +28,8 @@ extern "C" {
     using ks::StateVector;
 #include "PlanetVector.hpp"
     using ks::PlanetVector;
-// #include "PlanetElement.hpp"
-//     using ks::PlanetElement;
+#include "PlanetElement.hpp"
+    using ks::PlanetElement;
 #include "MassiveBody.hpp"
     using ks::MassiveBody;
     using ks::MassiveBodyTable;
@@ -74,16 +74,19 @@ public:
     // *****************************************************************************
 
     /// Set the time parameter
-    void set_time(double t);
+    void set_time(double t) {prs->t = t;}
 
     /// Add one rebound particle object to a simulation
-    void add_particle(const Particle& p) {reb_add(prs, p);}
+    void add_particle(const Particle& p);
 
     /// Add one particle to a simulation given its state vector and mass
     void add_particle(const StateVector& s, double m);
 
     /// Add a test particle to a simulation given its state vector; MUST finish adding massive particles first
     void add_test_particle(const StateVector& s);
+
+    /// Integrate to the given time
+    void integrate(double t) {reb_integrate(prs, t);}
 
     // *****************************************************************************
     // Get simulation properties: time, particle count, particles
@@ -104,24 +107,27 @@ public:
     /// Get a particle by index in particles array
     const Particle& particle(int i) const {return prs->particles[i];}
 
+    /// Get a state vector by index in particles array
+    const StateVector state_vector(int i) const;
+
+    /// Print a simulation summary
+    void print() const;
+
 private:
     /// Pointer to the underlying rebound simulation structure; prs is "pointer to rebound simulation"
     reb_simulation* prs;
 
     /// Add one massive particle to a simulation given its state vector and mass
     void add_particle_impl(const StateVector& s, double m);
-
 };
-// using Simulation = reb_simulation;
-
 
 // *****************************************************************************
 
-/// Create an empty rebound simulation with default configuration: units, G, integrator.
-// Simulation* make_sim();
-
 /// Create a rebound simulation with the planets; initialization from splined planet vectors at epoch.
 Simulation make_sim_planets(const PlanetVector& pv, double epoch);
+
+/// Create a rebound simulation with the planets; initialization from splined planet elements at epoch.
+Simulation make_sim_planets(const PlanetElement& pe, double epoch);
 
 // *****************************************************************************
 } // Namespace reb

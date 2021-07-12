@@ -40,7 +40,6 @@ Simulation::Simulation():
     prs->N_active = 0;
 }
 
-
 // *****************************************************************************
 Simulation::Simulation(const Simulation& s):
     // Create an empty simulation and save pointer to it
@@ -56,8 +55,6 @@ Simulation::Simulation(const Simulation& s):
     // Copy particles from s
     for (int i=0; i<s.N(); i++)    
     {
-        // The original particle
-        // Particle p0 = s.particle(i);
         // The copy of the particle
         Particle p {s.particle(i)};
         // Add the copied particle to the new simulation
@@ -73,7 +70,14 @@ Simulation::~Simulation()
 }
 
 // *****************************************************************************
-void Simulation::set_time(double t) {prs->t = t;}
+void Simulation::add_particle(const Particle& p)
+{
+    // Add the particle to the simulation
+    reb_add(prs, p);
+
+    // Increment active particles
+    prs->N_active++;    
+}
 
 // *****************************************************************************
 void Simulation::add_particle(const StateVector& s, double m)
@@ -91,15 +95,6 @@ void Simulation::add_particle(const StateVector& s, double m)
 }
 
 // *****************************************************************************
-void Simulation::add_test_particle(const StateVector& s) 
-{
-    // Always safe to add a test particle; don't need to check    
-    add_particle_impl(s, 0.0);
-    // // Decrement active particles
-    // prs->N_active--;
-}
-
-// *****************************************************************************
 void Simulation::add_particle_impl(const StateVector& s, double m)
 {
     // Initialize a particle with this state vector and the correct mass
@@ -114,15 +109,46 @@ void Simulation::add_particle_impl(const StateVector& s, double m)
         .m  = m
     };
 
-    // Add the particle to the simulation
-    reb_add(prs, p);
-
-    // Increment active particles
-    prs->N_active++;    
+    // Delegate to add_particle method for Particle object
+    add_particle(p);
 }
 
 // *****************************************************************************
-// Factor function make_sim_planets
+void Simulation::add_test_particle(const StateVector& s) 
+{
+    // Always safe to add a test particle; don't need to check    
+    add_particle_impl(s, 0.0);
+    // Decrement active particles
+    prs->N_active--;
+}
+
+// *****************************************************************************
+const StateVector Simulation::state_vector(int i) const
+{
+    // The particle
+    Particle p {particle(i)};
+    // Wrap this into a StateVector
+    return StateVector {.qx=p.x, .qy=p.y, .qz=p.z, .vx=p.vx, .vy=p.vy, .vz=p.vz};
+}
+
+// *****************************************************************************
+void Simulation::print() const
+{
+    // Display the particles
+    print_newline();
+    fmt::print("{:4s} {:10s}: {:10s} {:10s} {:10s} {:10s} {:10s} {:10s} \n",
+          "  i", " M", " qx", " qy", " qz", " vx", " vy", " vz");
+    for (int i=0; i<N(); i++)
+    {
+        Particle p = particle(i);
+        fmt::print("{:4d} {:10.3e}: {:+10.6f} {:+10.6f} {:+10.6f} {:+10.6f} {:+10.6f} {:+10.6f} \n", 
+              i, p.m, p.x, p.y, p.z, p.vx, p.vy, p.vz);    
+    }
+    print_newline();
+
+}
+// *****************************************************************************
+// Factory function make_sim_planets
 // *****************************************************************************
 
 // *****************************************************************************
@@ -153,6 +179,46 @@ Simulation make_sim_planets(const PlanetVector& pv, double epoch)
     
         // Get the state vector of this particle at the epoch
         StateVector s = pv.interp_vec(body_id, epoch);
+
+        // Look up the mass on the MassiveBodyTable
+        double m = mbt.get_M(body_id);
+
+        // Add this particle
+        sim.add_particle(s, m);
+    }
+
+    // Return the assembled simulation
+    return sim;
+}
+
+// *****************************************************************************
+Simulation make_sim_planets(const PlanetElement& pe, double epoch)
+{
+    // Start with an empty simulation
+    Simulation sim;
+
+    // Set the time field in the simulation to match the epoch
+    sim.set_time(epoch);
+
+    // Load table of masses
+    MassiveBodyTable mbt = MassiveBodyTable();
+
+    // The body_ids from the PlanetVector object; useful in future for e.g. DE-435
+    // const int32_t* body_ids = pv.get_body_id();
+
+    // The number of bodies in the planets collection is known at compile time
+    constexpr int N_body = 11;
+    // The body_ids; add them to the simulation in Jacobi order rather than sorted by body_id
+    constexpr int32_t body_ids[N_body] = {10, 1, 2, 399, 301, 4, 5, 6, 7, 8, 9};
+
+    // Iterate through the bodies in the planet vector
+    for (int i=0; i<N_body; i++)
+    {
+        // The body_id of this body
+        int32_t body_id = body_ids[i];
+    
+        // Get the state vector of this particle at the epoch
+        StateVector s = pe.interp_vec(body_id, epoch);
 
         // Look up the mass on the MassiveBodyTable
         double m = mbt.get_M(body_id);
