@@ -47,7 +47,7 @@
 constexpr double epoch = 59000.0;
 
 /// The length of time for the integration test
-constexpr double integration_test_time = 0.0;
+constexpr double integration_test_time = 100.0;
 
 /// The first date for the integration test
 constexpr double mjd0_integrate = epoch;
@@ -132,41 +132,45 @@ bool test_all()
     // report_test(test_name, is_ok);
 
     // Test integration consistency variables
-    bool verbose = true;
+    bool verbose = false;
     string test_name = "";
-    double mjd0=0.0, mjd1=0.0;
 
+    // Test integration consistency on integer dates (these are spline nodes); spline using vectors
+    {
+    // Date range for test on node dats
+    constexpr double mjd0 = mjd0_integrate;
+    constexpr double mjd1 = mjd1_integrate;
     // Tolerance for positions - on spline nodes
-    double tol_dq_node = 1.0E-11;
-    double tol_dv_node = 1.0E-13;
-
-    // Tolerance for positions - off spline nodes
-    double tol_dq_spline = 1.0E-5;
-    double tol_dv_spline = 1.0E-6;
-
-    // // Test integration consistency on integer dates (these are spline nodes); spline using vectors
-    // mjd0 = mjd0_integrate;
-    // mjd1 = mjd1_integrate;
-    // // mjd1 = mjd1_integrate;
-    // Simulation sim0_node = make_sim_planets(pv, mjd0);
-    // Simulation sim1_node = make_sim_planets(pv, mjd1);
-    // is_ok = test_integration(sim0_node, sim1_node, tol_dq_node, tol_dv_node, verbose);
-    // is_ok_all &= is_ok;
-    // print_stars(true);
-    // test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined vectors", mjd0, mjd1);
-    // report_test(test_name, is_ok);
+    double tol_dq = 1.0E-11;
+    double tol_dv = 1.0E-13;
+    // Build splines and run test
+    Simulation sim0_node = make_sim_planets(pv, mjd0);
+    Simulation sim1_node = make_sim_planets(pv, mjd1);
+    is_ok = test_integration(sim0_node, sim1_node, tol_dq, tol_dv, verbose);
+    is_ok_all &= is_ok;
+    print_stars(true);
+    test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined vectors", mjd0, mjd1);
+    report_test(test_name, is_ok);
+    }
 
     // Test integration consistency on non-integer start date; exercise element spline
-    mjd0 = mjd0_integrate+0.5;
-    mjd1 = mjd0;
+    {
+    // Date range for test off node dates
+    constexpr double mjd0 = mjd0_integrate+0.5;
+    constexpr double mjd1 = mjd1_integrate;
+    // Tolerance for positions - off spline nodes
+    double tol_dq = 1.0E-5;
+    double tol_dv = 1.0E-6;
+    // Build splines and run test
     Simulation sim0_spline = make_sim_planets(pe, mjd0);
     Simulation sim1_spline = make_sim_planets(pv, mjd1);
-    is_ok = test_integration(sim0_spline, sim1_spline, tol_dq_spline, tol_dv_spline, verbose);
+    is_ok = test_integration(sim0_spline, sim1_spline, tol_dq, tol_dv, verbose);
     is_ok_all &= is_ok;
     print_stars(true);
     test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined elements", 
                         mjd0, mjd1);
     report_test(test_name, is_ok);
+    }
 
     // Report overall test results
     print("\n");
