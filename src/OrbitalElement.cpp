@@ -293,11 +293,10 @@ OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2)
 // *****************************************************************************
 
 // *****************************************************************************
-OrbitalElementSplinable elt2selt(const OrbitalElement& elt)
+OrbitalAngle elt2oa(const OrbitalElement& elt)
 {
-    return OrbitalElementSplinable
+    return OrbitalAngle
     {
-        .a=elt.a, .e=elt.e,
         .cos_inc = cos(elt.inc),    .sin_inc=sin(elt.inc),
         .cos_Omega=cos(elt.Omega),  .sin_Omega=sin(elt.Omega),
         .cos_omega=cos(elt.omega),  .sin_omega=sin(elt.omega),
@@ -307,14 +306,17 @@ OrbitalElementSplinable elt2selt(const OrbitalElement& elt)
 }
 
 // *****************************************************************************
-OrbitalElement selt2elt(const OrbitalElementSplinable& elts)
+OrbitalElement eltsp2elt(const OrbitalAngle& oa, double a, double e)
 {
     // Solve for the angles
-    double inc   = atan2(elts.sin_inc,   elts.cos_inc);
-    double Omega = atan2(elts.sin_Omega, elts.cos_Omega);
-    double omega = atan2(elts.sin_omega, elts.cos_omega);
-    double f     = atan2(elts.sin_f,     elts.cos_f);
-    double M     = atan2(elts.sin_M,     elts.cos_M);
+    double inc   = atan2(oa.sin_inc,   oa.cos_inc);
+    double Omega = atan2(oa.sin_Omega, oa.cos_Omega);
+    double omega = atan2(oa.sin_omega, oa.cos_omega);
+    double f     = atan2(oa.sin_f,     oa.cos_f);
+    double M     = atan2(oa.sin_M,     oa.cos_M);
+
+    // Return an assembled OrbitalElement
+    return OrbitalElement {.a=a, .e=e, .inc=inc, .Omega=Omega, .omega=omega, .f=f, .M=M};
 }
 
 // *****************************************************************************

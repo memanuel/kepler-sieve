@@ -64,15 +64,9 @@ struct OrbitalElement
 };
 
 // *****************************************************************************
-/// Orbital element with each angles replaced by its cos and sin; this form is splinable.
-struct OrbitalElementSplinable
+/// Five orbital angles; each angle replaced by its cos and sin so it is splinable
+struct OrbitalAngle
 {
-    /// The Modified Julian Date in the TDB (barycentric dynamical time) frame
-    double mjd;
-    /// The semimajor axis in AU
-    double a;
-    /// The eccentricity; dimensionless
-    double e;
     /// Cosine of the inclination in radians
     double cos_inc;
     /// Sine of the inclination in radians
@@ -97,14 +91,24 @@ struct OrbitalElementSplinable
 
 
 // *****************************************************************************
-/** Encapsulate vectors of GSL interpolators into one structure for code legibility
- *  One vector for orbital elements a, e.
- *  Angle elements inc, Omega, omega, f, M each get two splines, for cosine and sine respectively.
- *  Each asteroid has one one entry in each vector. */
-struct ElementSplines
+/// GSL interpolators for the seven traditional orbital elements a, e, inc, Omega, omega, f, M
+struct OrbitalElementSplines
 {
+    // Seven traditional orbital elements
     vector<gsl_spline*> a;
     vector<gsl_spline*> e;
+    vector<gsl_spline*> inc;
+    vector<gsl_spline*> Omega;
+    vector<gsl_spline*> omega;
+    vector<gsl_spline*> f;
+    vector<gsl_spline*> M;
+};
+
+// *****************************************************************************
+/// GSL interpolators for the cosine and sine of the five orbital angles inc, Omega, omega, f, M
+struct OrbitalAngleSplines
+{
+    // Ten pairs of cosine / sine of angle elements
     vector<gsl_spline*> cos_inc;
     vector<gsl_spline*> sin_inc;
     vector<gsl_spline*> cos_Omega;
@@ -188,11 +192,11 @@ OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2);
 // Functions for converting between standard and splinable orbital elements
 // *****************************************************************************
 
-/// Convert a standard OrbitalElement elt to a SplinableOrbitalElement elts
-OrbitalElementSplinable elt2elts(const OrbitalElement& elt);
+/// Convert a standard OrbitalElement to an OrbitalAngle
+OrbitalAngle elt2oa(const OrbitalElement& elt);
 
-/// Convert a SplinableOrbitalElement selt to a standard OrbitalElement elt
-OrbitalElement elts2elt(const OrbitalElementSplinable& elts);
+/// Convert am OrbitalAngle to a standard OrbitalElement
+OrbitalElement eltsp2elt(const OrbitalAngle& oa, double a, double e);
 
 // *****************************************************************************
 // Print description of orbital elements

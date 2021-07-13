@@ -61,7 +61,10 @@
     using ks::StateVector;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
-    using ks::ElementSplines;
+    using ks::OrbitalAngle;
+    using ks::OrbitalElementSplines;
+    using ks::OrbitalAngleSplines;
+    using ks::eltsp2elt;
     using ks::elt2pos;
     using ks::elt2vec;
     using ks::elt2pos_vec;
@@ -178,11 +181,20 @@ private:
     /// One shared array for mu of each interaction
     double* mu;
 
-    // One array for each splinable orbital element; array size is N_body * N_t
+    // One array for each orbital element; array size is N_body * N_t
     // Array is laid out first by body, then by time (same order that SP returns data).
     // This is the required layout to spline each asteroid vs. time.
+
+    // Seven standard orbital elements
     double* elt_a;
     double* elt_e;
+    double* elt_inc;
+    double* elt_Omega;
+    double* elt_omega;
+    double* elt_f;
+    double* elt_M;
+
+    // Ten orbital angles
     double* elt_cos_inc;
     double* elt_sin_inc;
     double* elt_cos_Omega;
@@ -194,8 +206,10 @@ private:
     double* elt_cos_M;
     double* elt_sin_M;
 
-    /// GSL spline interpolators for splined orbital elements
-    ElementSplines elt_spline;
+    /// GSL spline interpolators for orbital elements
+    OrbitalElementSplines elt_spline;
+    /// GSL spline interpolators for orbital angles
+    OrbitalAngleSplines ang_spline;
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
     /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
@@ -218,18 +232,30 @@ private:
 
     // Get an array (pointer to double) of orbital elements given a body index number
     // Note the argument is body_idx (ranging from 0 to 9), NOT body_id!
-    const double* get_a(        int idx) const {return elt_a         + N_t*idx;}
-    const double* get_e(        int idx) const {return elt_e         + N_t*idx;}
-    const double* get_cos_inc(  int idx) const {return elt_cos_inc   + N_t*idx;}
-    const double* get_sin_inc(  int idx) const {return elt_sin_inc   + N_t*idx;}
-    const double* get_cos_Omega(int idx) const {return elt_cos_Omega + N_t*idx;}
-    const double* get_sin_Omega(int idx) const {return elt_sin_Omega + N_t*idx;}
-    const double* get_cos_omega(int idx) const {return elt_cos_omega + N_t*idx;}
-    const double* get_sin_omega(int idx) const {return elt_sin_omega + N_t*idx;}
-    const double* get_cos_f(    int idx) const {return elt_cos_f     + N_t*idx;}
-    const double* get_sin_f(    int idx) const {return elt_sin_f     + N_t*idx;}
-    const double* get_cos_M(    int idx) const {return elt_cos_M     + N_t*idx;}
-    const double* get_sin_M(    int idx) const {return elt_sin_M     + N_t*idx;}
+
+    // The offset of each array
+    int j = N_t*idx;
+
+    // Seven traditional orbital elements
+    const double* get_a(        int idx) const {return elt_a         + j;}
+    const double* get_e(        int idx) const {return elt_e         + j;}
+    const double* get_inc(      int idx) const {return elt_inc       + j;}
+    const double* get_Omega(    int idx) const {return elt_Omega     + j;}
+    const double* get_omega(    int idx) const {return elt_omega     + j;}
+    const double* get_f(        int idx) const {return elt_f         + j;}
+    const double* get_M(        int idx) const {return elt_M         + j;}
+
+    // Five pairs of cosine / sine of angle orbital elements
+    const double* get_cos_inc(  int idx) const {return elt_cos_inc   + j;}
+    const double* get_sin_inc(  int idx) const {return elt_sin_inc   + j;}
+    const double* get_cos_Omega(int idx) const {return elt_cos_Omega + j;}
+    const double* get_sin_Omega(int idx) const {return elt_sin_Omega + j;}
+    const double* get_cos_omega(int idx) const {return elt_cos_omega + j;}
+    const double* get_sin_omega(int idx) const {return elt_sin_omega + j;}
+    const double* get_cos_f(    int idx) const {return elt_cos_f     + j;}
+    const double* get_sin_f(    int idx) const {return elt_sin_f     + j;}
+    const double* get_cos_M(    int idx) const {return elt_cos_M     + j;}
+    const double* get_sin_M(    int idx) const {return elt_sin_M     + j;}
 
     /// Calculate the interpolated orbital elements of the given body at time mjd; idx is the body index
     const OrbitalElement interp_elt_by_idx(int idx, double mjd) const;
