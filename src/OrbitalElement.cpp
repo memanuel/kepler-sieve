@@ -289,6 +289,35 @@ OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2)
 }
 
 // *****************************************************************************
+// Functions for converting between standard and splinable orbital elements
+// *****************************************************************************
+
+// *****************************************************************************
+OrbitalElementSplinable elt2selt(const OrbitalElement& elt)
+{
+    return OrbitalElementSplinable
+    {
+        .a=elt.a, .e=elt.e,
+        .cos_inc = cos(elt.inc),    .sin_inc=sin(elt.inc),
+        .cos_Omega=cos(elt.Omega),  .sin_Omega=sin(elt.Omega),
+        .cos_omega=cos(elt.omega),  .sin_omega=sin(elt.omega),
+        .cos_f = cos(elt.f),        .sin_f=sin(elt.f),
+        .cos_M = cos(elt.M),        .sin_M=sin(elt.M)        
+    };
+}
+
+// *****************************************************************************
+OrbitalElement selt2elt(const OrbitalElementSplinable& elts)
+{
+    // Solve for the angles
+    double inc   = atan2(elts.sin_inc,   elts.cos_inc);
+    double Omega = atan2(elts.sin_Omega, elts.cos_Omega);
+    double omega = atan2(elts.sin_omega, elts.cos_omega);
+    double f     = atan2(elts.sin_f,     elts.cos_f);
+    double M     = atan2(elts.sin_M,     elts.cos_M);
+}
+
+// *****************************************************************************
 // Print description of orbital elements
 // *****************************************************************************
 

@@ -64,18 +64,57 @@ struct OrbitalElement
 };
 
 // *****************************************************************************
-/** Encapsulate all seven vectors of GSL interpolators into one structure for code legibility
- *  One vector for each of seven orbital elements a, e, inc, Omega, omega, f, M.
+/// Orbital element with each angles replaced by its cos and sin; this form is splinable.
+struct OrbitalElementSplinable
+{
+    /// The Modified Julian Date in the TDB (barycentric dynamical time) frame
+    double mjd;
+    /// The semimajor axis in AU
+    double a;
+    /// The eccentricity; dimensionless
+    double e;
+    /// Cosine of the inclination in radians
+    double cos_inc;
+    /// Sine of the inclination in radians
+    double sin_inc;
+    /// Cosine of the longitude of the ascending node in radians
+    double cos_Omega;
+    /// Sine of the longitude of the ascending node in radians
+    double sin_Omega;
+    /// Cosine of the argument of periapsis in radians
+    double cos_omega;
+    /// Sine of the argument of periapsis in radians
+    double sin_omega;
+    /// Cosine of the true anomaly in radians
+    double cos_f;
+    /// Sine of the true anomaly in radians
+    double sin_f;
+    /// Cosine of the mean anomaly in radians
+    double cos_M;
+    /// Sine of the mean anomaly in radians
+    double sin_M;
+};
+
+
+// *****************************************************************************
+/** Encapsulate vectors of GSL interpolators into one structure for code legibility
+ *  One vector for orbital elements a, e.
+ *  Angle elements inc, Omega, omega, f, M each get two splines, for cosine and sine respectively.
  *  Each asteroid has one one entry in each vector. */
 struct ElementSplines
 {
     vector<gsl_spline*> a;
     vector<gsl_spline*> e;
-    vector<gsl_spline*> inc;
-    vector<gsl_spline*> Omega;
-    vector<gsl_spline*> omega;
-    vector<gsl_spline*> f;
-    vector<gsl_spline*> M;
+    vector<gsl_spline*> cos_inc;
+    vector<gsl_spline*> sin_inc;
+    vector<gsl_spline*> cos_Omega;
+    vector<gsl_spline*> sin_Omega;
+    vector<gsl_spline*> cos_omega;
+    vector<gsl_spline*> sin_omega;
+    vector<gsl_spline*> cos_f;
+    vector<gsl_spline*> sin_f;
+    vector<gsl_spline*> cos_M;
+    vector<gsl_spline*> sin_M;
 };
 
 // *****************************************************************************
@@ -144,6 +183,16 @@ StateVector elt2vec(const OrbitalElement& elt, double mu);
 
 /// Add the components of two orbital elements (typically a real element and a small shift)
 OrbitalElement operator+ (const OrbitalElement& e1, const OrbitalElement& e2);
+
+// *****************************************************************************
+// Functions for converting between standard and splinable orbital elements
+// *****************************************************************************
+
+/// Convert a standard OrbitalElement elt to a SplinableOrbitalElement elts
+OrbitalElementSplinable elt2elts(const OrbitalElement& elt);
+
+/// Convert a SplinableOrbitalElement selt to a standard OrbitalElement elt
+OrbitalElement elts2elt(const OrbitalElementSplinable& elts);
 
 // *****************************************************************************
 // Print description of orbital elements
