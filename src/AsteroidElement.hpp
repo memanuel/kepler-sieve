@@ -22,6 +22,7 @@
 // Local dependencies
 #include "constants.hpp"
     using ks::cs::mu_sun;
+    using ks::cs::mpd;
 #include "utils.hpp"
     using ks::flush_console;
 #include "db_utils.hpp"
@@ -35,10 +36,13 @@
     using ks::Velocity;
     using ks::StateVector;
 #include "OrbitalElement.hpp"
-    using ks::OrbitalElement;    
-    using ks::ElementSplines;
+    using ks::OrbitalElement;
+    using ks::OrbitalAngle;
+    using ks::OrbitalElementSplines;
+    using ks::OrbitalAngleSplines;
     using ks::elt2pos;
     using ks::elt2vec;
+    using ks::elt2pos_vec;
 #include "BodyVector.hpp"
     using ks::BodyVector;
 
@@ -76,10 +80,10 @@ public:
     void load(db_conn_type &conn, bool progbar);
 
     /// Get the array of asteroid IDs whose elements are in this table
-    const int32_t* get_asteroid_id() const;
+    const int32_t* get_asteroid_id() const {return asteroid_id;}
 
     /// Get the array of times; this is shared by all the asteroids
-    const double* get_mjd() const;
+    const double* get_mjd() const {return mjd;}
 
     /// Calculate the interpolated orbital elements of the given asteroid at time mjd
     const OrbitalElement interp_elt(int32_t asteroid_id, double mjd) const;
@@ -101,6 +105,9 @@ private:
     // Private Data Members
     // ********************************************************************************************
 
+    /// The number of rows of data
+    const int N_row;
+
     /// First asteroid ID loaded (inclusive)
     int n0;
     /// Last asteroid ID loaded (exclusive)
@@ -117,9 +124,11 @@ private:
     /// One shared array for the times as of which orbital elements apply (every 4th day)
     double* mjd;
 
-    // One array for each orbital element; array size is N_ast * N_t
-    // Array is laid out first by asteroid, then by time (same order that SP returns data).
+    // One array for each orbital element; array size is N_body * N_t
+    // Array is laid out first by body, then by time (same order that SP returns data).
     // This is the required layout to spline each asteroid vs. time.
+
+    // Seven standard orbital elements
     double* elt_a;
     double* elt_e;
     double* elt_inc;
@@ -128,8 +137,22 @@ private:
     double* elt_f;
     double* elt_M;
 
-    /// GSL spline interpolators for splined orbital elements
-    ElementSplines elt_spline;
+    // Ten orbital angles
+    double* elt_cos_inc;
+    double* elt_sin_inc;
+    double* elt_cos_Omega;
+    double* elt_sin_Omega;
+    double* elt_cos_omega;
+    double* elt_sin_omega;
+    double* elt_cos_f;
+    double* elt_sin_f;
+    double* elt_cos_M;
+    double* elt_sin_M;
+
+    /// GSL spline interpolators for orbital elements
+    OrbitalElementSplines elt_spline;
+    /// GSL spline interpolators for orbital angles
+    OrbitalAngleSplines ang_spline;
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
     gsl_interp_accel* acc;
     /// Interpolated state vectors of the Sun; used to calculate state vectors in the BME frame
@@ -142,18 +165,30 @@ private:
     // Process a batch of rows
     void process_rows(db_conn_type& conn, int i0, int i1);
     // Function to return the asteroid index given an asteroid_id
-    const int asteroid_idx(int32_t asteroid_id) const;
+    const int asteroid_idx(int32_t asteroid_id) const {return asteroid_id - n0;}
     // Function to return the row index given an asteroid_id
-    const int asteroid_row(int32_t asteroid_id) const;
+    const int asteroid_row(int32_t asteroid_id) const {return asteroid_idx(asteroid_id)*N_t;}
 
-    // Get an array (pointer to double) of orbital elements given an asteroid_id
-    const double* get_a(int32_t asteroid_id) const;
-    const double* get_e(int32_t asteroid_id) const;
-    const double* get_inc(int32_t asteroid_id) const;
-    const double* get_Omega(int32_t asteroid_id) const;
-    const double* get_omega(int32_t asteroid_id) const;
-    const double* get_f(int32_t asteroid_id) const;
-    const double* get_M(int32_t asteroid_id) const;
+    // Seven traditional orbital elements
+    const double* get_a(        int idx) const {return elt_a         + N_t*idx;}
+    const double* get_e(        int idx) const {return elt_e         + N_t*idx;}
+    const double* get_inc(      int idx) const {return elt_inc       + N_t*idx;}
+    const double* get_Omega(    int idx) const {return elt_Omega     + N_t*idx;}
+    const double* get_omega(    int idx) const {return elt_omega     + N_t*idx;}
+    const double* get_f(        int idx) const {return elt_f         + N_t*idx;}
+    const double* get_M(        int idx) const {return elt_M         + N_t*idx;}
+
+    // Five pairs of cosine / sine of angle orbital elements
+    const double* get_cos_inc(  int idx) const {return elt_cos_inc   + N_t*idx;}
+    const double* get_sin_inc(  int idx) const {return elt_sin_inc   + N_t*idx;}
+    const double* get_cos_Omega(int idx) const {return elt_cos_Omega + N_t*idx;}
+    const double* get_sin_Omega(int idx) const {return elt_sin_Omega + N_t*idx;}
+    const double* get_cos_omega(int idx) const {return elt_cos_omega + N_t*idx;}
+    const double* get_sin_omega(int idx) const {return elt_sin_omega + N_t*idx;}
+    const double* get_cos_f(    int idx) const {return elt_cos_f     + N_t*idx;}
+    const double* get_sin_f(    int idx) const {return elt_sin_f     + N_t*idx;}
+    const double* get_cos_M(    int idx) const {return elt_cos_M     + N_t*idx;}
+    const double* get_sin_M(    int idx) const {return elt_sin_M     + N_t*idx;}
 
     // Build GSL splines
     void build_splines();

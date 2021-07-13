@@ -408,10 +408,10 @@ const OrbitalElement PlanetElement::interp_elt_by_idx(int idx, double mjd) const
     // Seven traditional elements
     gsl_spline* interp_a         = elt_spline.a[idx];
     gsl_spline* interp_e         = elt_spline.e[idx];
-    gsl_spline* interp_inc       = elt_spline.inc[idx];
-    gsl_spline* interp_Omega     = elt_spline.Omega[idx];
-    gsl_spline* interp_omega     = elt_spline.omega[idx];
-    gsl_spline* interp_f         = elt_spline.f[idx];
+    // gsl_spline* interp_inc       = elt_spline.inc[idx];
+    // gsl_spline* interp_Omega     = elt_spline.Omega[idx];
+    // gsl_spline* interp_omega     = elt_spline.omega[idx];
+    // gsl_spline* interp_f         = elt_spline.f[idx];
     gsl_spline* interp_M         = elt_spline.M[idx];
 
     // Ten orbital angles
@@ -421,10 +421,10 @@ const OrbitalElement PlanetElement::interp_elt_by_idx(int idx, double mjd) const
     gsl_spline* interp_sin_Omega = ang_spline.sin_Omega[idx];
     gsl_spline* interp_cos_omega = ang_spline.cos_omega[idx];
     gsl_spline* interp_sin_omega = ang_spline.sin_omega[idx];
-    gsl_spline* interp_cos_f     = ang_spline.cos_f[idx];
-    gsl_spline* interp_sin_f     = ang_spline.sin_f[idx];
-    gsl_spline* interp_cos_M     = ang_spline.cos_M[idx];
-    gsl_spline* interp_sin_M     = ang_spline.sin_M[idx];
+    // gsl_spline* interp_cos_f     = ang_spline.cos_f[idx];
+    // gsl_spline* interp_sin_f     = ang_spline.sin_f[idx];
+    // gsl_spline* interp_cos_M     = ang_spline.cos_M[idx];
+    // gsl_spline* interp_sin_M     = ang_spline.sin_M[idx];
 
     // Spline a and e at selected time
     double a = gsl_spline_eval(interp_a, mjd, acc);
