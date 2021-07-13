@@ -202,8 +202,11 @@ OrbitalElement eltsp2elt(const OrbitalAngle& oa, double a, double e);
 // Print description of orbital elements
 // *****************************************************************************
 
+/// Print a column headers for one line description of a state vector
+void print_orbital_element_headers(const string prefix="");
+
 /// Print a one line description of an orbital element
-void print_orbital_element(const OrbitalElement& elt, bool header=false);
+void print_orbital_element(const OrbitalElement& elt, const string prefix="");
 
 /// Print a multi-line description of an orbital element
 void print_orbital_element_long(const OrbitalElement& elt);

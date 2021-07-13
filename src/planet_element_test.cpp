@@ -7,7 +7,6 @@
  * Example call:
  * ./planet_element_test.x
  */
-
 // *****************************************************************************
 // Library dependencies
 #include <fmt/format.h>
@@ -60,18 +59,13 @@ constexpr double tol_dq_ip = 1.0E-13;
 
 /// Absolute difference between interp_vec output and expected position; for splined vectors
 constexpr double tol_dq_vec = 1.0E-12;
-
 /// Absolute difference between interp_vec output and expected velocity; for splined vectors
-constexpr double tol_dv_vec = 1.0E-12;
+constexpr double tol_dv_vec = 1.0E-14;
 
-/// Absolute difference between interp_vec output and expected position; for splined vectors
-constexpr double tol_dq_elt = 1.0E-10;
-
-/// Absolute difference between interp_vec output and expected velocity; for splined vectors
-constexpr double tol_dv_elt = 1.0E-07;
-// Not sure why the tolerance on the velocity is so poor.
-// Think it's incomplete convergence on f values written to DB.
-// Double checked conversion from orbital elements to state vectors vs. rebound, now identical.
+/// Absolute difference between interp_vec output and expected position; for splined elements
+constexpr double tol_dq_elt = 1.0E-11;
+/// Absolute difference between interp_vec output and expected velocity; for splined elements
+constexpr double tol_dv_elt = 1.0E-13;
 
 // *****************************************************************************
 // Functions defined in this module
@@ -266,6 +260,13 @@ bool test_planet_element(PlanetElement& pe, bool verbose)
         ks::print_position(q1,          "interp_pos :");
         ks::print_position(q2,          "interp_vec :");
         ks::print_position_sci(q2-q1,   "difference :");
+
+        // DEBUG
+        // Print detail of splined orbital elements
+        print("Interpolated orbital elements for Earth @ MJD {:8.2f}.\n", mjd_test);
+        OrbitalElement elt = pe.interp_elt(body_id_earth, mjd_test);
+        ks::print_orbital_element_headers();
+        ks::print_orbital_element(elt);
     }
 
     // Report test results
@@ -321,7 +322,7 @@ bool test_vectors(StateVector& s0, StateVector& s1, Position& q1, string class_n
     report_test(test_name, is_ok);
 
     // Return overall test result
-    return is_ok;    
+    return is_ok_all;    
 }
 
 

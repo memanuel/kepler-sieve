@@ -324,14 +324,17 @@ OrbitalElement eltsp2elt(const OrbitalAngle& oa, double a, double e)
 // *****************************************************************************
 
 // *****************************************************************************
-void print_orbital_element(const OrbitalElement& elt, bool header)
+void print_orbital_element_headers(const string prefix)
 {
-    if (header)
-    {print("{:8s} : {:8s} : {:9s} : {:9s} : {:9s} : {:9s} : {:9s} \n", 
-        "a", "e", "inc", "Omega", "omega", "f", "M");}
-    else
-    {print("{:8.6f} : {:8.6f} : {:+9.6f} : {:+9.6f} : {:+9.6f} : {:9.4f} : {:9.4f}\n", 
-        elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f, elt.M);}
+    print("{:s}{:8s} : {:8s} : {:9s} : {:9s} : {:9s} : {:9s} : {:9s} \n", 
+            prefix, "a", "e", "inc", "Omega", "omega", "f", "M");
+}
+
+// *****************************************************************************
+void print_orbital_element(const OrbitalElement& elt, const string prefix)
+{
+    print("{:s}{:8.6f} : {:8.6f} : {:+9.6f} : {:+9.6f} : {:+9.6f} : {:9.4f} : {:9.4f}\n", 
+            prefix, elt.a, elt.e, elt.inc, elt.Omega, elt.omega, elt.f, elt.M);
 }
 
 // *****************************************************************************

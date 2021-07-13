@@ -6,14 +6,12 @@
  *  @author Michael S. Emanuel
  *  @date   2021-07-08
  */
-
 // *****************************************************************************
 #pragma once
 
 // *****************************************************************************
 // Library dependencies
 #include <cmath>
-    using std::fmod;
 #include <numeric>
     using std::lcm;
 #include <string>
@@ -33,28 +31,23 @@
 // *****************************************************************************
 // Local dependencies
 #include "constants.hpp"
-    // tau = 2pi
     using ks::cs::tau;
-    // Time conversions
     using ks::cs::mpd;
     using ks::cs::dpm;
-    // The body_id of the Sun, Earth and Moon
     using ks::cs::body_id_sun;
     using ks::cs::body_id_earth;
     using ks::cs::body_id_moon;
-    // Collection of bodies
     using ks::cs::N_body_planets_ex_sun;
     using ks::cs::body_ids_planets_ex_sun;
-    // Mass of the Sun and gravitational constant
     using ks::cs::m_sun;
     using ks::cs::G;
-    // Start and end date for database
     using ks::cs::mjd0_db;
     using ks::cs::mjd1_db;
-    // Stride in minutes for database vectors for Sun and planets
     using ks::cs::stride_db_min;
-    // Number of times expected in database
     using ks::cs::N_t_db;
+#include "astro_utils.hpp"
+    using ks::get_primary_body_id;
+    using ks::get_body_idx;
 #include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
@@ -139,13 +132,13 @@ public:
     // ********************************************************************************************
 
     /// Get the array of body IDs whose elements are in this table
-    const int32_t* get_body_id() const;
+    const int32_t* get_body_id() const {return body_id;}
 
     /// Get the array of gravitational field strength mu
-    const double* get_mu() const;
+    const double* get_mu() const {return mu;}
 
     /// Get the array of times; this is shared by all the bodies
-    const double* get_mjd() const;
+    const double* get_mjd() const {return mjd;}
 
     /// Calculate the interpolated orbital elements of the given body at time mjd
     const OrbitalElement interp_elt(int32_t body_id, double mjd) const;
@@ -201,10 +194,10 @@ private:
     double* elt_sin_Omega;
     double* elt_cos_omega;
     double* elt_sin_omega;
-    double* elt_cos_f;
-    double* elt_sin_f;
-    double* elt_cos_M;
-    double* elt_sin_M;
+    // double* elt_cos_f;
+    // double* elt_sin_f;
+    // double* elt_cos_M;
+    // double* elt_sin_M;
 
     /// GSL spline interpolators for orbital elements
     OrbitalElementSplines elt_spline;
@@ -236,10 +229,10 @@ private:
     // Seven traditional orbital elements
     const double* get_a(        int idx) const {return elt_a         + N_t*idx;}
     const double* get_e(        int idx) const {return elt_e         + N_t*idx;}
-    const double* get_inc(      int idx) const {return elt_inc       + N_t*idx;}
-    const double* get_Omega(    int idx) const {return elt_Omega     + N_t*idx;}
-    const double* get_omega(    int idx) const {return elt_omega     + N_t*idx;}
-    const double* get_f(        int idx) const {return elt_f         + N_t*idx;}
+    // const double* get_inc(      int idx) const {return elt_inc       + N_t*idx;}
+    // const double* get_Omega(    int idx) const {return elt_Omega     + N_t*idx;}
+    // const double* get_omega(    int idx) const {return elt_omega     + N_t*idx;}
+    // const double* get_f(        int idx) const {return elt_f         + N_t*idx;}
     const double* get_M(        int idx) const {return elt_M         + N_t*idx;}
 
     // Five pairs of cosine / sine of angle orbital elements
@@ -249,10 +242,10 @@ private:
     const double* get_sin_Omega(int idx) const {return elt_sin_Omega + N_t*idx;}
     const double* get_cos_omega(int idx) const {return elt_cos_omega + N_t*idx;}
     const double* get_sin_omega(int idx) const {return elt_sin_omega + N_t*idx;}
-    const double* get_cos_f(    int idx) const {return elt_cos_f     + N_t*idx;}
-    const double* get_sin_f(    int idx) const {return elt_sin_f     + N_t*idx;}
-    const double* get_cos_M(    int idx) const {return elt_cos_M     + N_t*idx;}
-    const double* get_sin_M(    int idx) const {return elt_sin_M     + N_t*idx;}
+    // const double* get_cos_f(    int idx) const {return elt_cos_f     + N_t*idx;}
+    // const double* get_sin_f(    int idx) const {return elt_sin_f     + N_t*idx;}
+    // const double* get_cos_M(    int idx) const {return elt_cos_M     + N_t*idx;}
+    // const double* get_sin_M(    int idx) const {return elt_sin_M     + N_t*idx;}
 
     /// Calculate the interpolated orbital elements of the given body at time mjd; idx is the body index
     const OrbitalElement interp_elt_by_idx(int idx, double mjd) const;

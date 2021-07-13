@@ -13,16 +13,22 @@
  *  @author Michael S. Emanuel
  *  @date 2021-06-24
  */
-
+// *****************************************************************************
 #pragma once
 
 // *****************************************************************************
 // Library dependencies
 #include <cmath>
 #include <numbers>
+#include <stdexcept>
+    using std::domain_error;
 #include <string>
     using std::string;
+#include <fmt/format.h>
+    using fmt::print;
+    using fmt::format;
 
+// *****************************************************************************
 // Local dependencies
 #include "constants.hpp"
     using ks::cs::body_id_sun;
@@ -104,10 +110,13 @@ double sec2dist(double s_sec);
 // *****************************************************************************
 
 /// Get the primary body_id of a body in the solar system
-int32_t get_primary_body_id(int32_t body_id);
+const int32_t get_primary_body_id(int32_t body_id);
 
 /// Get the name of a body_id in the solar system; only the planets collection supported
-string get_body_name(int32_t body_id);
+const string get_body_name(int32_t body_id);
+
+/// Get body index (row number) of a body in the planets collection given its body_id
+const int get_body_idx(int32_t body_id);
 
 // *****************************************************************************
 } // Namespace ks

@@ -74,7 +74,7 @@ double sec2dist(double s_sec)
 // *****************************************************************************
 
 // *****************************************************************************
-int32_t get_primary_body_id(int32_t body_id)
+const int32_t get_primary_body_id(int32_t body_id)
 {
     if (body_id == body_id_sun)
         {return body_id_null;}
@@ -85,7 +85,7 @@ int32_t get_primary_body_id(int32_t body_id)
 }
 
 // *****************************************************************************
-string get_body_name(int32_t body_id)
+const string get_body_name(int32_t body_id)
 {
     switch (body_id)
     {
@@ -102,9 +102,17 @@ string get_body_name(int32_t body_id)
         case body_id_pluto_bc:      return "Pluto bc";
         // If an unknown body_id passed, 
         default:                    return "Unknown";        
-    }
-
+    }   // switch
 }
 
 // *****************************************************************************
-}; // namespace
+const int get_body_idx(int32_t body_id)
+{
+    // Bodies are laid out in Jacobi order 1, 2, 301, 399, 4, 5, 6, 7, 8, 9
+    // This corresponds to Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto.
+    // Subtract one from the usual elements because the Sun has no elements!
+    return get_body_idx(body_id)-1;
+}
+
+// *****************************************************************************
+}; // namespace ks
