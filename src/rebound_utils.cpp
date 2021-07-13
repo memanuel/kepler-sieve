@@ -156,33 +156,21 @@ Simulation make_sim_planets(const PlanetVector& pv, double epoch)
 {
     // Start with an empty simulation
     Simulation sim;
-
     // Set the time field in the simulation to match the epoch
     sim.set_time(epoch);
-
     // Load table of masses
     MassiveBodyTable mbt = MassiveBodyTable();
+   // The body_ids; add them to the simulation in Jacobi order rather than sorted by body_id
+    constexpr int32_t body_ids[] = {10, 1, 2, 399, 301, 4, 5, 6, 7, 8, 9};
 
-    // The body_ids from the PlanetVector object; useful in future for e.g. DE-435
-    // const int32_t* body_ids = pv.get_body_id();
-
-    // The number of bodies in the planets collection is known at compile time
-    constexpr int N_body = 11;
-    // The body_ids; add them to the simulation in Jacobi order rather than sorted by body_id
-    constexpr int32_t body_ids[N_body] = {10, 1, 2, 399, 301, 4, 5, 6, 7, 8, 9};
-
-    // Iterate through the bodies in the planet vector
-    for (int i=0; i<N_body; i++)
+    // Iterate through the bodies in this collection
+    // Add a particle for each body with initial conditions based on interpolated state vector on PlanetVector
+    for (int32_t body_id: body_ids)
     {
-        // The body_id of this body
-        int32_t body_id = body_ids[i];
-    
         // Get the state vector of this particle at the epoch
         StateVector s = pv.interp_vec(body_id, epoch);
-
         // Look up the mass on the MassiveBodyTable
         double m = mbt.get_M(body_id);
-
         // Add this particle
         sim.add_particle(s, m);
     }
@@ -196,33 +184,21 @@ Simulation make_sim_planets(const PlanetElement& pe, double epoch)
 {
     // Start with an empty simulation
     Simulation sim;
-
     // Set the time field in the simulation to match the epoch
     sim.set_time(epoch);
-
     // Load table of masses
     MassiveBodyTable mbt = MassiveBodyTable();
-
-    // The body_ids from the PlanetVector object; useful in future for e.g. DE-435
-    // const int32_t* body_ids = pv.get_body_id();
-
-    // The number of bodies in the planets collection is known at compile time
-    constexpr int N_body = 11;
     // The body_ids; add them to the simulation in Jacobi order rather than sorted by body_id
-    constexpr int32_t body_ids[N_body] = {10, 1, 2, 399, 301, 4, 5, 6, 7, 8, 9};
+    constexpr int32_t body_ids[] = {10, 1, 2, 399, 301, 4, 5, 6, 7, 8, 9};
 
-    // Iterate through the bodies in the planet vector
-    for (int i=0; i<N_body; i++)
+    // Iterate through the bodies in this collection
+    // Add a particle for each body with initial conditions based on interpolated state vector on PlanetElement
+    for (int32_t body_id: body_ids)
     {
-        // The body_id of this body
-        int32_t body_id = body_ids[i];
-    
         // Get the state vector of this particle at the epoch
         StateVector s = pe.interp_vec(body_id, epoch);
-
         // Look up the mass on the MassiveBodyTable
         double m = mbt.get_M(body_id);
-
         // Add this particle
         sim.add_particle(s, m);
     }

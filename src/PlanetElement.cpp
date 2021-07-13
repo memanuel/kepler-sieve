@@ -100,7 +100,7 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
         // The target body
         int32_t body_id = this->body_id[i];
         // The primary body is always the sun, EXCEPT for moon orbiting around the Earth
-        int32_t body_id_primary = (body_id == body_id_moon) ? body_id_earth : body_id_sun;
+        int32_t body_id_primary = (body_id==body_id_moon) ? body_id_earth : body_id_sun;
         // Look up mass of primary and target body on the massive body table
         double m_pri = mbt.get_M(body_id_primary);
         double m_tgt = mbt.get_M(body_id);
@@ -291,17 +291,19 @@ const int PlanetElement::body_idx(int32_t body_id) const
     // This corresponds to Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
     if ((0 < body_id) && (body_id < 3)) {return body_id-1;}
     else if ((3 < body_id) && (body_id < 10)) {return body_id;}
-    else if (body_id==301) {return 8;}
-    else if (body_id==399) {return 9;}
-    else {throw domain_error(
-        "Bad body_id! Must be one of 1, 2, 301, 399, 4, 5, 6, 7, 8, 9 (planet barycenters, Earth and Moon.\n");}
+    else if (body_id==301) {return 3;}
+    else if (body_id==399) {return 4;}
+    else 
+    {   
+        throw domain_error(
+        format("Bad body_id {:d}! Must be one of 1, 2, 301, 399, 4, 5, 6, 7, 8, 9 "
+               "(planet barycenters, Earth and Moon).\n", body_id));
+    }
 }
 
 // *****************************************************************************
 const int PlanetElement::body_row(int32_t body_id) const
-{
-    return body_idx(body_id)*N_t;
-}
+    {return body_idx(body_id)*N_t;}
 
 // *****************************************************************************
 const int PlanetElement::time_row(int32_t time_id) const
@@ -397,9 +399,6 @@ const OrbitalElement PlanetElement::interp_elt(int32_t body_id, double mjd) cons
 // The orbital element describes the relative position of the body vs. the primary, which is the Sun here.
 const Position PlanetElement::interp_pos_rel(int32_t body_id, double mjd) const
 {
-    // Peel off special case that the body is the sun; then the position is zero
-    // if (body_id==body_id_sun){return pos_sun_hel;}
-
     // Delegate to interp_elt to spline the elements
     OrbitalElement elt = interp_elt(body_id, mjd);
 
@@ -413,9 +412,6 @@ const Position PlanetElement::interp_pos_rel(int32_t body_id, double mjd) const
 // The orbital element describes the relative vectors of the body vs. the primary, which is the Sun here.
 const StateVector PlanetElement::interp_vec_rel(int32_t body_id, double mjd) const
 {
-    // Peel off special case that the body is the sun; then the state vector is zero
-    // if (body_id==body_id_sun){return vec_sun_hel;}
-
     // Get the index number of this body
     int idx = body_idx(body_id);
 
@@ -433,6 +429,8 @@ const Position PlanetElement::interp_pos(int32_t body_id, double mjd) const
 {
     // Delegate to bv_sun to get interpolated position of Sun in BME
     Position sun = bv_sun.interp_pos(mjd);
+    // Peel off the special case that the body is the Sun; then just return its interpolated position above
+    if (body_id==body_id_sun) {return sun;}
     // Delegate to interp_pos_rel for the relative position of body vs. the primary
     Position tgt = interp_pos_rel(body_id, mjd);
     // Peel off the special case that the body is the moon; then the primary is Earth, not the Sun
@@ -452,6 +450,8 @@ const StateVector PlanetElement::interp_vec(int32_t body_id, double mjd) const
 {
     // Delegate to bv_sun to get interpolated position of Sun in BME
     StateVector sun = bv_sun.interp_vec(mjd);
+    // Peel off the special case that the body is the Sun; then just return its interpolated state vectors above
+    if (body_id==body_id_sun) {return sun;}
     // Delegate to interp_vec_rel for the relative state vector of body vs. the primary
     StateVector tgt = interp_vec_rel(body_id, mjd);
     // Peel off the special case that the body is the moon; then the primary is Earth, not the Sun

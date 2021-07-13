@@ -47,7 +47,9 @@
 constexpr double epoch = 59000.0;
 
 /// The length of time for the integration test
-constexpr double integration_test_time = 1000.0;
+// DEBUG
+// constexpr double integration_test_time = 1000.0;
+constexpr double integration_test_time = 1.0;
 
 /// The first date for the integration test
 constexpr double mjd0_integrate = epoch;

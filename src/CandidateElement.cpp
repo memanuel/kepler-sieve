@@ -54,7 +54,7 @@ CandidateElement::~CandidateElement()
 void CandidateElement::calc_trajectory()
 {
     // Calculate the mean motion, n
-    double n = mean_motion(elt.a);
+    double n = mean_motion(elt.a, mu_sun);
     // Unpack the five fields of orbital element that don't change
     double a = elt.a;
     double e = elt.e;

@@ -110,11 +110,11 @@ double anomaly_M2f(double M, double e);
 // Functions for calculating additional elements e.g period T, mean motion n
 // *****************************************************************************
 
-/// Calculate the orbital period, T, from the semimajor axis; uses mu for Sun
+/// Calculate the orbital period, T, from the semimajor axis; requires gravitational field mu
 double period(double a);
 
-/// Calculate the mean motion, n, from the semimajor axis; uses mu for Sun
-double mean_motion(double a);
+/// Calculate the mean motion, n, from the semimajor axis; requires gravitational field mu
+double mean_motion(double a, double mu);
 
 // *****************************************************************************
 // Functions for converting between orbital elements and state vectors
