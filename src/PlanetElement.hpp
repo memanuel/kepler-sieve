@@ -12,6 +12,8 @@
 
 // *****************************************************************************
 // Library dependencies
+#include <cmath>
+    using std::fmod;
 #include <numeric>
     using std::lcm;
 #include <string>
@@ -30,6 +32,7 @@
 
 // Local dependencies
 #include "constants.hpp"
+    using ks::cs::tau;
 #include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;

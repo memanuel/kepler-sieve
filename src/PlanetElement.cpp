@@ -391,7 +391,12 @@ const OrbitalElement PlanetElement::interp_elt_by_idx(int idx, double mjd) const
         .omega  = gsl_spline_eval(gsl_interp_omega, mjd, acc),
         .f      = gsl_spline_eval(gsl_interp_f,     mjd, acc),
         .M      = gsl_spline_eval(gsl_interp_M,     mjd, acc)
+        // DEBUG
+        // Take f and M mod tau
+        // .f      = fmod(gsl_spline_eval(gsl_interp_f, mjd, acc), tau),
+        // .M      = fmod(gsl_spline_eval(gsl_interp_M, mjd, acc), tau)
     };
+    // DEBUG
     // Replace splined f value with conversion from M (M splines better than f)
     elt.f = anomaly_M2f(elt.M, elt.e);
     // Return the splined orbital element
