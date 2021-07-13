@@ -115,7 +115,7 @@ detection_near_ast_test: \
 
 rebound_test: \
     obj/rebound_test.o \
-    obj/utils.o obj/db_utils.o obj/rebound_utils.o \
+    obj/utils.o obj/db_utils.o obj/astro_utils.o obj/rebound_utils.o \
     obj/MassiveBody.o \
     obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
@@ -127,7 +127,7 @@ planet_element_test: \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 detection_near_elt_test: \
-    obj/detection_near_elt_test.o \
+    obj/detection_near_elt_test.o obj/astro_utils.o \
     obj/utils.o obj/db_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \

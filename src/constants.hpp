@@ -12,6 +12,8 @@
 // Library dependencies
 #include <cstdint>
     using std::int32_t;
+#include <vector>
+    using std::vector;
 #include <numbers>
 
 // *****************************************************************************
@@ -60,13 +62,11 @@ constexpr double dpm = 1.0 / mpd;
 
 /// Start date for planets integration saved to database
 constexpr int mjd0_db = 48000;
-
 /// End date for planets integration saved to database
 constexpr int mjd1_db = 63000;
 
 /// Stride in minutes for planets integration in database
 constexpr int stride_db_min = 5;
-
 /// Number of times in database integration of planets
 constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min+1;
 
@@ -75,12 +75,36 @@ constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min+1;
 
 /// The body_id of the Sun
 constexpr int32_t body_id_sun = 10;
-
 /// The body_id of the Earth
 constexpr int32_t body_id_earth = 399;
-
 /// The body_id of the Moon
 constexpr int32_t body_id_moon = 301;
+
+// the body_ids of the planet barycenters
+constexpr int32_t body_id_mercury_bc = 1;       // Mercury barycenter; same as Mercury
+constexpr int32_t body_id_venus_bc = 2;         // Venus barycenter; Same as Venus
+constexpr int32_t body_id_earth_bc = 3;         // Earth barycenter; skipped in favor of Earth + Moon
+constexpr int32_t body_id_mars_bc = 4;          // Mars barycenter
+constexpr int32_t body_id_jupiter_bc = 5;       // Jupiter barycenter
+constexpr int32_t body_id_saturn_bc = 6;        // Saturn barycenter
+constexpr int32_t body_id_uranus_bc = 7;        // Uranus barycenter
+constexpr int32_t body_id_neptune_bc = 8;       // Neptune barycenter
+constexpr int32_t body_id_pluto_bc = 9;         // Pluto barycenter
+// placeholder for when a body_id is not applicable, e.g. primary of the Sun
+constexpr int32_t body_id_null = 0;
+
+/// The number of bodies in the planets collection
+const int N_body_planets = 11;
+/// The body_ids in the planets collection in Jacobi order: Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
+const vector<int32_t> body_ids_planets = 
+{body_id_sun, body_id_mercury_bc, body_id_venus_bc, body_id_earth, body_id_moon, body_id_mars_bc, 
+body_id_jupiter_bc, body_id_saturn_bc, body_id_uranus_bc, body_id_neptune_bc, body_id_pluto_bc};
+
+/// The number of bodies in planets ex sun collection (entities in planets collection that have orbital elements)
+constexpr int N_body_planets_ex_sun = N_body_planets-1;
+const vector<int32_t> body_ids_planets_ex_sun =
+{body_id_mercury_bc, body_id_venus_bc, body_id_earth, body_id_moon, body_id_mars_bc, 
+body_id_jupiter_bc, body_id_saturn_bc, body_id_uranus_bc, body_id_neptune_bc, body_id_pluto_bc};
 
 /// The asteroid_id of Ceres
 constexpr int32_t asteroid_id_ceres = 1;

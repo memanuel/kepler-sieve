@@ -12,28 +12,20 @@
 // *****************************************************************************
 // Constants used in this module
 
-// Number of minutes in one day
-using ks::cs::mpd;
-// Number of days in one minute
-using ks::cs::dpm;
-
 // Number of massive bodies in Planets collection: Sun + 9 planets + moon = 11 bodies
-constexpr int N_body_planets = 11;
-// Array of body_id in this problem
-constexpr int32_t body_id_planets[N_body_planets] = {1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399};
+// constexpr int N_body_planets = 11;
+namespace {
+constexpr int N_body = N_body_planets;
+// constexpr int32_t body_id_planets[N_body_planets] = {1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399};
 
-// Start and end date for database
-using ks::cs::mjd0_db;
-using ks::cs::mjd1_db;
-// Stride in minutes for database vectors for Sun and planets
-using ks::cs::stride_db_min;
-// Number of times expected in database
-using ks::cs::N_t_db;
+// Array of body_id in this problem
+auto body_ids = body_ids_planets;
 
 // Batch size for loading dates from DB; this is a block of dates e.g. [48000, 49000]
 constexpr int batch_size = 1000;
 // Location of file with serialized data
 const string file_name = "data/cache/PlanetVector.bin";
+}
 
 // *****************************************************************************
 // Local names used
@@ -44,7 +36,7 @@ using ks::PlanetVector;
 // It does not load data from database, that is done with the load() method.
 PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
     // Data size: number of bodies and number of times
-    N_body(N_body_planets),
+    N_body(::N_body),
     N_t((mjd1-mjd0)*mpd/lcm(dt_min, stride_db_min)+1),
     // Date range
     mjd0(mjd0),
@@ -71,7 +63,7 @@ PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
     acc(gsl_interp_accel_alloc() )
 {
     // Populate body_id - this is a copy from body_id_planets
-    for (int i=0; i<N_body; i++) {body_id[i]=body_id_planets[i];}
+    for (int i=0; i<N_body; i++) {body_id[i]=::body_ids[i];}
     // Populate mjd; these are on a fixed schedule spaced dt_min minutes apart from mjd0 to mjd1
     const double dt = dt_min * dpm;
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
@@ -259,8 +251,8 @@ const int PlanetVector::body_idx(int32_t body_id) const
         case 9:     return 10;
         default:
             throw domain_error(format(
-        "Bad body_id={:d}! Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
-        "(Sun, planet barycenters, Earth and Moon.\n", body_id));
+        "PlanetVector::body_idx(body_id).  Bad body_id={:d}! Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
+        "(Sun, planet barycenters, Earth and Moon.)\n", body_id));
     }
 }
 
@@ -467,9 +459,9 @@ void PlanetVector::load()
     fs.read( (char*) &dt_min_file, sizeof(dt_min));
 
     // Check that the number of rows agrees with the constexpr specification in this file
-    if (N_body_file != N_body_planets)
+    if (N_body_file != N_body)
     {throw domain_error(
-        format("Bad data file! N_body={:d} does not match specification {:d}.\n", N_body_file, N_body_planets));}
+        format("Bad data file! N_body={:d} does not match specification {:d}.\n", N_body_file, N_body));}
     if (N_t_file != N_t_db)
     {throw domain_error(
         format("Bad data file! N_t={:d} does not match specification {:d}.\n", N_t_file, N_t_db));}

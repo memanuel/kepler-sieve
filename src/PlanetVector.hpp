@@ -27,8 +27,21 @@
 #include <fmt/format.h>
     using fmt::print;
 
+// *****************************************************************************
 // Local dependencies
 #include "constants.hpp"
+    // Time conversions
+    using ks::cs::mpd;
+    using ks::cs::dpm;
+    // Collection of bodies
+    using ks::cs::N_body_planets;
+    using ks::cs::body_ids_planets;
+    // Time range available in database integrations
+    using ks::cs::mjd0_db;
+    using ks::cs::mjd1_db;
+    using ks::cs::stride_db_min;
+    using ks::cs::N_t_db;
+
 #include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
@@ -45,6 +58,10 @@
 
 // *****************************************************************************
 namespace ks {
+
+// *****************************************************************************
+// PlanetVector Class
+// *****************************************************************************
 
 // *****************************************************************************
 class PlanetVector
@@ -75,11 +92,11 @@ public:
     /// The number of times
     const int N_t;
     /// First date loaded (inclusive); an integer
-    int mjd0;
+    const int mjd0;
     /// Last date loaded (inclusive); an integer
-    int mjd1;
+    const int mjd1;
     /// Time step in minutes
-    int dt_min;
+    const int dt_min;
 
     // ********************************************************************************************
     // Public Methods - Load and Save; build splines

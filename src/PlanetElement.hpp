@@ -30,9 +30,31 @@
 #include <fmt/format.h>
     using fmt::print;
 
+// *****************************************************************************
 // Local dependencies
 #include "constants.hpp"
+    // tau = 2pi
     using ks::cs::tau;
+    // Time conversions
+    using ks::cs::mpd;
+    using ks::cs::dpm;
+    // The body_id of the Sun, Earth and Moon
+    using ks::cs::body_id_sun;
+    using ks::cs::body_id_earth;
+    using ks::cs::body_id_moon;
+    // Collection of bodies
+    using ks::cs::N_body_planets_ex_sun;
+    using ks::cs::body_ids_planets_ex_sun;
+    // Mass of the Sun and gravitational constant
+    using ks::cs::m_sun;
+    using ks::cs::G;
+    // Start and end date for database
+    using ks::cs::mjd0_db;
+    using ks::cs::mjd1_db;
+    // Stride in minutes for database vectors for Sun and planets
+    using ks::cs::stride_db_min;
+    // Number of times expected in database
+    using ks::cs::N_t_db;
 #include "StateVector.hpp"
     using ks::Position;
     using ks::Velocity;
@@ -89,11 +111,11 @@ public:
     /// The number of times
     const int N_t;
     /// First date loaded (inclusive); an integer
-    int mjd0;
+    const int mjd0;
     /// Last date loaded (inclusive); an integer
-    int mjd1;
+    const int mjd1;
     /// Time step in minutes
-    int dt_min;
+    const int dt_min;
 
     // ********************************************************************************************
     // Public Methods - Load and Save; build splines

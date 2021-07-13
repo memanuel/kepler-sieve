@@ -11,40 +11,19 @@
 
 // *****************************************************************************
 // Constants used in this module
+namespace {
+// Number of bodies with orbital elements in planets collection
+constexpr int N_body = N_body_planets_ex_sun;
+// constexpr int32_t body_ids[N_body] =body_ids_planets_ex_sun;
 
-// Number of minutes in one day
-using ks::cs::mpd;
-// Number of days in one minute
-using ks::cs::dpm;
-
-// Number of massive bodies in Planets collection: Sun + 9 planets + moon = 11 bodies
-// But the Sun is the primary so it has no elements.  There are *10* bodies with orbital elements.
-constexpr int N_body_planets = 10;
-// Array of body_id in this problem
-constexpr int32_t body_id_planets[N_body_planets] = {1, 2, 4, 5, 6, 7, 8, 9, 301, 399};
-// The body_id of the Sun, Earth and Moon
-using ks::cs::body_id_sun;
-using ks::cs::body_id_earth;
-using ks::cs::body_id_moon;
-// Mass of the Sun and gravitational constant
-using ks::cs::m_sun;
-using ks::cs::G;
-// The position and state vector of the sun in the heliocentric frame are zero by definition
-// constexpr Position pos_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0};
-// constexpr StateVector vec_sun_hel {.qx=0.0, .qy=0.0, .qz=0.0, .vx=0.0, .vy=0.0, .vz=0.0};
-
-// Start and end date for database
-using ks::cs::mjd0_db;
-using ks::cs::mjd1_db;
-// Stride in minutes for database vectors for Sun and planets
-using ks::cs::stride_db_min;
-// Number of times expected in database
-using ks::cs::N_t_db;
+// body_id of bodies with orbital elements in planets collection
+auto body_ids = body_ids_planets_ex_sun;
 
 // Batch size for loading dates from DB; this is a block of dates e.g. [48000, 49000]
 constexpr int batch_size = 1000;
 // Location of file with serialized data
 const string file_name = "data/cache/PlanetElement.bin";
+}
 
 // *****************************************************************************
 // Local names used
@@ -55,7 +34,7 @@ using ks::PlanetElement;
 // It does not load data from database, that is done with the load() method.
 PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Data size: number of bodies and number of times
-    N_body(N_body_planets),
+    N_body(::N_body),
     N_t((mjd1-mjd0)*mpd/lcm(dt_min, stride_db_min)+1),
     // Date range
     mjd0(mjd0),
@@ -87,7 +66,7 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     bv_sun(BodyVector("Sun"))
 {
     // Populate body_id - this is a copy from body_id_planets
-    for (int i=0; i<N_body; i++) {body_id[i]=body_id_planets[i];}
+    for (int i=0; i<N_body; i++) {body_id[i]=body_ids[i];}
     // Populate mjd; these are on a fixed schedule spaced dt_min minutes apart from mjd0 to mjd1
     const double dt = dt_min * dpm;
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
@@ -95,7 +74,7 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Populate the gravitational field strength mu for each pair of primary / target
     // This array is aligned with body_id
     MassiveBodyTable mbt;
-    for (int32_t body_id: body_id_planets)
+    for (int32_t body_id: body_ids)
     {
         // The body index
         int idx = body_idx(body_id);
@@ -583,9 +562,9 @@ void PlanetElement::load()
     fs.read( (char*) &dt_min_file, sizeof(dt_min));
 
     // Check that the number of rows agrees with the constexpr specification in this file
-    if (N_body_file != N_body_planets)
+    if (N_body_file != N_body)
     {throw domain_error(
-        format("Bad data file! N_body={:d} does not match specification {:d}.\n", N_body_file, N_body_planets));}
+        format("Bad data file! N_body={:d} does not match specification {:d}.\n", N_body_file, N_body));}
     if (N_t_file != N_t_db)
     {throw domain_error(
         format("Bad data file! N_t={:d} does not match specification {:d}.\n", N_t_file, N_t_db));}

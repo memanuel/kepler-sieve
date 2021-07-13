@@ -17,13 +17,25 @@
 #pragma once
 
 // *****************************************************************************
-// Included libraries
+// Library dependencies
 #include <cmath>
 #include <numbers>
 #include <string>
 
-// *****************************************************************************
-// Names used
+// Local dependencies
+#include "constants.hpp"
+    using ks::cs::body_id_sun;
+    using ks::cs::body_id_mercury_bc;
+    using ks::cs::body_id_venus_bc;
+    using ks::cs::body_id_earth;
+    using ks::cs::body_id_moon;
+    using ks::cs::body_id_mars_bc;
+    using ks::cs::body_id_jupiter_bc;
+    using ks::cs::body_id_saturn_bc;
+    using ks::cs::body_id_uranus_bc;
+    using ks::cs::body_id_neptune_bc;
+    using ks::cs::body_id_pluto_bc;
+    using ks::cs::body_id_null;
 
 // *****************************************************************************
 // Put all functions into namespace ks
@@ -54,11 +66,18 @@ using astro_utils::rad_per_deg;
 using astro_utils::modified_julian_offset;
 
 // *****************************************************************************
+// Dates and times
+// *****************************************************************************
+
 /// Convert julian date (jd) to a modified julian date (mjd)
 double jd_to_mjd(double jd);
 
 /// Convert a modified julian date (mjd) to a julian date (jd)
 double mjd_to_jd(double mjd);
+
+// *****************************************************************************
+// Angles and distances
+// *****************************************************************************
 
 // *****************************************************************************
 /// Convert a distance on the unit sphere in [0, 2] to radians in [0, pi]
@@ -78,6 +97,13 @@ double dist2sec(double s);
 
 /// Convert a distance on unit sphere from degrees in [0, 180] to cartesian distance in [0, 2]
 double sec2dist(double s_sec);
+
+// *****************************************************************************
+// Solar system bodies
+// *****************************************************************************
+
+/// Get the primary body_id of a body in the solar system
+int32_t get_primary_body_id(int32_t body_id);
 
 // *****************************************************************************
 } // Namespace ks
