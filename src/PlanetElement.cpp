@@ -95,17 +95,17 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Populate the gravitational field strength mu for each pair of primary / target
     // This array is aligned with body_id
     MassiveBodyTable mbt;
-    for (int i=0; i<N_body; i++)
+    for (int32_t body_id: body_id_planets)
     {
-        // The target body
-        int32_t body_id = this->body_id[i];
+        // The body index
+        int idx = body_idx(body_id);
         // The primary body is always the sun, EXCEPT for moon orbiting around the Earth
         int32_t body_id_primary = (body_id==body_id_moon) ? body_id_earth : body_id_sun;
         // Look up mass of primary and target body on the massive body table
         double m_pri = mbt.get_M(body_id_primary);
         double m_tgt = mbt.get_M(body_id);
         // The gravitational strength of this interaction
-        mu[i] = G * (m_pri + m_tgt);
+        mu[idx] = G * (m_pri + m_tgt);
     }
 
     // elt_spline is a structure with one member for each of seven elements
@@ -288,18 +288,28 @@ void PlanetElement::build_splines()
 const int PlanetElement::body_idx(int32_t body_id) const
 {
     // Bodies are laid out in the strategic order 1, 2, 301, 399, 4, 5, 6, 7, 8, 9
-    // This corresponds to Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
-    if ((0 < body_id) && (body_id < 3)) {return body_id-1;}
-    else if ((3 < body_id) && (body_id < 10)) {return body_id;}
-    else if (body_id==301) {return 3;}
-    else if (body_id==399) {return 4;}
-    else 
-    {   
-        throw domain_error(
-        format("Bad body_id {:d}! Must be one of 1, 2, 301, 399, 4, 5, 6, 7, 8, 9 "
-               "(planet barycenters, Earth and Moon).\n", body_id));
-    }
-}
+    // This corresponds to Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto.
+    // Remember, no orbital elements for the Sun!
+    switch (body_id)
+    {
+        case 1:     return 0;
+        case 2:     return 1;
+        case 301:   return 2;
+        case 399:   return 3;
+        case 4:     return 4;
+        case 5:     return 5;
+        case 6:     return 6;
+        case 7:     return 7;
+        case 8:     return 8;
+        case 9:     return 9;
+        default:
+        {   
+            throw domain_error(
+            format("Bad body_id {:d}! Must be one of 1, 2, 301, 399, 4, 5, 6, 7, 8, 9 "
+                "(Planet barycenters, Earth and Moon).\n", body_id));
+        }
+    } // switch
+} // function body_idx
 
 // *****************************************************************************
 const int PlanetElement::body_row(int32_t body_id) const
@@ -316,6 +326,10 @@ const int PlanetElement::time_row(int32_t time_id) const
 // *****************************************************************************
 const int32_t* PlanetElement::get_body_id() const 
     {return body_id;}
+
+// *****************************************************************************
+const double* PlanetElement::get_mu() const
+    {return mu;}
 
 // *****************************************************************************
 const double* PlanetElement::get_mjd() const 

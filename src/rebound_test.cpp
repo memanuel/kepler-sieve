@@ -47,9 +47,7 @@
 constexpr double epoch = 59000.0;
 
 /// The length of time for the integration test
-// DEBUG
-// constexpr double integration_test_time = 1000.0;
-constexpr double integration_test_time = 1.0;
+constexpr double integration_test_time = 1000.0;
 
 /// The first date for the integration test
 constexpr double mjd0_integrate = epoch;
@@ -134,7 +132,7 @@ bool test_all()
     // report_test(test_name, is_ok);
 
     // Test integration consistency variables
-    bool verbose = true;
+    bool verbose = false;
     string test_name = "";
     double mjd0=0.0, mjd1=0.0;
 
@@ -161,7 +159,7 @@ bool test_all()
     mjd0 = mjd0_integrate;
     mjd1 = mjd1_integrate;
     Simulation sim0_spline = make_sim_planets(pe, mjd0);
-    Simulation sim1_spline = make_sim_planets(pe, mjd1);
+    Simulation sim1_spline = make_sim_planets(pv, mjd1);
     is_ok = test_integration(sim0_spline, sim1_spline, tol_dq_spline, tol_dv_spline, verbose);
     is_ok_all &= is_ok;
     print_stars(true);
@@ -280,6 +278,9 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
     // Maximum distance
     double dq_max = 0.0;
     double dv_max = 0.0;
+    // Index of maximum distance
+    int dq_argmax=0;
+    int dv_argmax=0;
 
     // Find the maximum error
     for (int i=0; i<sim0.N(); i++)
@@ -288,12 +289,12 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
         StateVector s0 = sim0.state_vector(i);
         StateVector s1 = sim1.state_vector(i);
         // The position difference
-        double dq = dist(s0, s1);
+        double dq = dist(sv2pos(s0), sv2pos(s1));
         // The velocity distance
         double dv = dist(sv2vel(s0), sv2vel(s1));
         // The maximum difference so far
-        dq_max = max(dq, dq_max);
-        dv_max = max(dv, dv_max);
+        if (dq>dq_max) {dq_max=dq; dq_argmax=i;}
+        if (dv>dv_max) {dv_max=dv; dv_argmax=i;}
         // Is this test OK to the given tolerances?
         is_ok &= is_close(s0, s1, tol_dq, tol_dv);
     }
@@ -307,14 +308,14 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
         print("Simulation 0: mjd {:d} integrated forward to {:d}.\n", int(mjd0), int(mjd1));
         sim0.print();
         // Print simulation 1 state vectors
-        print("Simulation 1: mjd {:d} loaded from disk.\n", int(mjd1));
+        print("Simulation 1: mjd {:d} interpolated from disk.\n", int(mjd1));
         sim1.print();
     }
 
     // Print the largest difference in position and velocity
     print("Largest difference:\n");
-    print("Position: {:+9.2e} AU.\n", dq_max);
-    print("Velocity: {:+9.2e} AU/day.\n", dv_max);
+    print("Position: {:9.2e} AU     at i={:d}.\n", dq_max, dq_argmax);
+    print("Velocity: {:9.2e} AU/day at i={:d}.\n", dv_max, dv_argmax);
 
     // Retutn the test result
     return is_ok;

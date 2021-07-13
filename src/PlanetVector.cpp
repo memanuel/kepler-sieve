@@ -242,14 +242,26 @@ void PlanetVector::build_splines()
 // *****************************************************************************
 const int PlanetVector::body_idx(int32_t body_id) const
 {
-    // Bodies are laid out in the order 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399
-    if ((0 < body_id) && (body_id < 3)) {return body_id-1;}
-    else if ((3 < body_id) && (body_id < 11)) {return body_id-2;}
-    else if (body_id==301) {return 9;}
-    else if (body_id==399) {return 10;}
-    else {throw domain_error(
-        "Bad body_id! Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
-        "(sun, planet barycenters, earth and moon.\n");}
+    // Bodies are laid out in the strategic order 10, 1, 2, 301, 399, 4, 5, 6, 7, 8, 9
+    // This corresponds to Sun Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
+    switch (body_id)
+    {
+        case 10:    return 0;
+        case 1:     return 1;
+        case 2:     return 2;
+        case 301:   return 3;
+        case 399:   return 4;
+        case 4:     return 5;
+        case 5:     return 6;
+        case 6:     return 7;
+        case 7:     return 8;
+        case 8:     return 9;
+        case 9:     return 10;
+        default:
+            throw domain_error(format(
+        "Bad body_id={:d}! Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
+        "(Sun, planet barycenters, Earth and Moon.\n", body_id));
+    }
 }
 
 // *****************************************************************************

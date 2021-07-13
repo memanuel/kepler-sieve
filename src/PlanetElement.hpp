@@ -113,6 +113,9 @@ public:
     /// Get the array of body IDs whose elements are in this table
     const int32_t* get_body_id() const;
 
+    /// Get the array of gravitational field strength mu
+    const double* get_mu() const;
+
     /// Get the array of times; this is shared by all the bodies
     const double* get_mjd() const;
 
