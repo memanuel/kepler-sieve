@@ -21,6 +21,7 @@
 #include <cmath>
 #include <numbers>
 #include <string>
+    using std::string;
 
 // Local dependencies
 #include "constants.hpp"
@@ -104,6 +105,9 @@ double sec2dist(double s_sec);
 
 /// Get the primary body_id of a body in the solar system
 int32_t get_primary_body_id(int32_t body_id);
+
+/// Get the name of a body_id in the solar system; only the planets collection supported
+string get_body_name(int32_t body_id);
 
 // *****************************************************************************
 } // Namespace ks

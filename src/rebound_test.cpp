@@ -319,9 +319,11 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
     }
 
     // Print the largest difference in position and velocity
+    string body_name_dq_max = get_body_name(sim0.body_ids[dq_argmax]);
+    string body_name_dv_max = get_body_name(sim0.body_ids[dv_argmax]);
     print("Largest difference:\n");
-    print("Position: {:9.2e} AU     at i={:d}.\n", dq_max, dq_argmax);
-    print("Velocity: {:9.2e} AU/day at i={:d}.\n", dv_max, dv_argmax);
+    print("Position: {:9.2e} AU     at i={:d} ({:10s}).\n", dq_max, dq_argmax, body_name_dq_max);
+    print("Velocity: {:9.2e} AU/day at i={:d} ({:10s}).\n", dv_max, dv_argmax, body_name_dv_max);
 
     // Retutn the test result
     return is_ok;

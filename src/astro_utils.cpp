@@ -73,31 +73,37 @@ double sec2dist(double s_sec)
 // Solar system bodies
 // *****************************************************************************
 
-/// Get the primary body_id of a body in the solar system
+// *****************************************************************************
 int32_t get_primary_body_id(int32_t body_id)
 {
-    // switch (body_id)
-    // {
-    //     case body_id_sun:           return body_id_null;
-    //     case body_id_mercury_bc:    return body_id_sun;
-    //     case body_id_venus_bc:      return body_id_sun;
-    //     case body_id_earth:         return body_id_sun;
-    //     case body_id_moon:          return body_id_earth;
-    //     case body_id_mars_bc:       return body_id_sun;
-    //     case body_id_jupiter_bc:    return body_id_sun;
-    //     case body_id_saturn_bc:     return body_id_sun;
-    //     case body_id_uranus_bc:     return body_id_sun;
-    //     case body_id_neptune_bc:    return body_id_sun;
-    //     case body_id_pluto_bc:      return body_id_sun;
-    //     // If an unknown body_id passed, 
-    //     default:                    return body_id_sun;
-    // }
     if (body_id == body_id_sun)
         {return body_id_null;}
     else if (body_id == body_id_moon)
         {return body_id_earth;}
     else 
         {return body_id_sun;}
+}
+
+// *****************************************************************************
+string get_body_name(int32_t body_id)
+{
+    switch (body_id)
+    {
+        case body_id_sun:           return "Sun";
+        case body_id_mercury_bc:    return "Mercury bc";
+        case body_id_venus_bc:      return "Venus bc";
+        case body_id_earth:         return "Earth";
+        case body_id_moon:          return "Moon";
+        case body_id_mars_bc:       return "Mars bc";
+        case body_id_jupiter_bc:    return "Jupiter bc";
+        case body_id_saturn_bc:     return "Saturn bc";
+        case body_id_uranus_bc:     return "Uranus bc";
+        case body_id_neptune_bc:    return "Neptune bc";
+        case body_id_pluto_bc:      return "Pluto bc";
+        // If an unknown body_id passed, 
+        default:                    return "Unknown";        
+    }
+
 }
 
 // *****************************************************************************

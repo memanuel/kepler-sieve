@@ -160,13 +160,15 @@ void Simulation::print_vectors() const
 {
     // Display the particles
     print_newline();
-    fmt::print("{:4s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
-          "  i", " M", " qx", " qy", " qz", " vx", " vy", " vz");
+    fmt::print("{:4s}: {:12s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
+          "   i", "body_name", " mass", "  qx", "  qy", "  qz", "  vx", "  vy", "  vz");
     for (int i=0; i<N(); i++)
     {
         Particle p = particle(i);
-        fmt::print("{:4d}: {:10.3e}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f} \n", 
-              i, p.m, p.x, p.y, p.z, p.vx, p.vy, p.vz);    
+        const int32_t body_id = body_ids[i];
+        const string body_name = get_body_name(body_id);
+        fmt::print("{:4d}: {:12s}: {:10.3e}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f} \n", 
+              i, body_name, p.m, p.x, p.y, p.z, p.vx, p.vy, p.vz);    
     }
     print_newline();
 }
@@ -176,17 +178,16 @@ void Simulation::print_elements() const
 {
     // Display the particles
     print_newline();
-    fmt::print("{:4s}: {:8s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
-          "  i", "body_id", " a", " e", " inc", " Omega", " omega", " f", " M");
+    fmt::print("{:4s}: {:12s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
+          "   i", "body_name", "  a", "e", "  inc", "  Omega", "  omega", "  f", "  M");
     for (int i=0; i<N(); i++)
     {
         // The body_id of the target and its primary
         const int32_t body_id = body_ids[i];
         const int32_t primary_body_id = primary_body_ids[i];
+        const string body_name = get_body_name(body_id);
         // Particle of the target
         const Particle& target = particle(i);
-        // DEBUG
-        // print("Simulation::print_elements.  i={:4d}, body_id={:4d}, primary_body_id={:4d}.\n", i, body_id, primary_body_id);
         // Only print elements if this particle has a real primary, i.e. skip the Sun
         if (!primary_body_id) {continue;}
         // Particle of the primary
@@ -195,8 +196,8 @@ void Simulation::print_elements() const
 
         // Print the orbit of this particle w.r.t. its primary
         Orbit orb = particle2orbit(target, primary);
-        fmt::print("{:4d}: {:8d}: {:10.6f}: {:10.8f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f} \n", 
-              i, body_id, orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M);
+        fmt::print("{:4d}: {:12s}: {:10.6f}: {:10.8f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f} \n", 
+              i, body_name, orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M);
     }
     print_newline();
 }
@@ -222,8 +223,6 @@ Simulation make_sim_planets(const PlanetVector& pv, double epoch)
         // The body_id and primary_id of this body
         int32_t body_id = body_ids_planets[i];
         int32_t primary_body_id = get_primary_body_id(body_id);
-        // DEBUG
-        // print("i={:4d}, body_id={:4d}, primary_body_id={:4d}.\n", i, body_id, primary_body_id);
         // Get the state vector of this particle at the epoch
         StateVector s = pv.interp_vec(body_id, epoch);
         // Look up the mass on the MassiveBodyTable
@@ -255,8 +254,6 @@ Simulation make_sim_planets(const PlanetElement& pe, double epoch)
         // The body_id and primary_id of this body
         int32_t body_id = body_ids[i];
         int32_t primary_body_id = get_primary_body_id(body_id);
-        // DEBUG
-        // print("i={:4d}, body_id={:4d}, primary_body_id={:4d}.\n", i, body_id, primary_body_id);
         // Get the state vector of this particle at the epoch
         StateVector s = pe.interp_vec(body_id, epoch);
         // Look up the mass on the MassiveBodyTable

@@ -39,6 +39,7 @@ extern "C" {
     using ks::cs::body_ids_planets_ex_sun;
 #include "astro_utils.hpp"
     using ks::get_primary_body_id;
+    using ks::get_body_name;
 #include "StateVector.hpp"
     using ks::StateVector;
 #include "PlanetVector.hpp"
@@ -152,13 +153,12 @@ public:
 private:
     /// Pointer to the underlying rebound simulation structure; prs is "pointer to rebound simulation"
     reb_simulation* prs;
-
+public:
     /// Vector of body_id 
     vector<int32_t> body_ids;
-
     /// Vector of primary_body_id
-    vector<int32_t> primary_body_ids;   
-
+    vector<int32_t> primary_body_ids;
+private:
     /// Map with key=body_id, value=body_idx
     std::map<int32_t, int> body_map;
 
