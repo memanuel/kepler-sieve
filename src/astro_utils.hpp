@@ -21,7 +21,7 @@
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
-    using std::domain_error;
+    using std::invalid_argument;
 #include <string>
     using std::string;
 #include <fmt/format.h>

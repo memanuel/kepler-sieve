@@ -130,4 +130,7 @@ int sp_run_int(db_conn_type& conn, const string sp_name)
 }
 
 // *****************************************************************************
+const string wrap_string(const string s) {return format("\"{:s}\"", s);}
+
+// *****************************************************************************
 } // Namespace ks

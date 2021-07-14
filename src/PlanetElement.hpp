@@ -23,7 +23,8 @@
 #include <vector>
     using std::vector;
 #include <stdexcept>
-    using std::domain_error;
+    using std::invalid_argument;
+    using std::runtime_error;
 #include <gsl/gsl_spline.h>
 #include <fmt/format.h>
     using fmt::print;

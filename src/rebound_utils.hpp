@@ -18,6 +18,7 @@
     using std::map;
 #include <stdexcept>
     using std::runtime_error;
+    using std::invalid_argument;
 #include <fmt/format.h>
     using fmt::print;
 
@@ -37,6 +38,12 @@ extern "C" {
     using ks::cs::N_body_planets_ex_sun;
     using ks::cs::body_ids_planets;
     using ks::cs::body_ids_planets_ex_sun;
+    using ks::cs::mjd0_hrzn;
+    using ks::cs::mjd1_hrzn;
+    using ks::cs::stride_hrzn_planets;
+    using ks::cs::stride_hrzn_de435;
+#include "db_utils.hpp"
+    using ks::wrap_string;
 #include "astro_utils.hpp"
     using ks::get_primary_body_id;
     using ks::get_body_name;
@@ -191,6 +198,15 @@ Simulation make_sim_planets(const PlanetVector& pv, double epoch);
 
 /// Create a rebound simulation with the planets; initialization from splined planet elements at epoch.
 Simulation make_sim_planets(const PlanetElement& pe, double epoch);
+
+/// Create a rebound simulation with the named collection initialized using Horizons data
+Simulation make_sim_horizons(db_conn_type& conn, const string collection, int epoch);
+
+/// Create a rebound simulation with the planets initialized using Horizons data
+Simulation make_sim_planets_horizons(db_conn_type& conn, int epoch);
+
+/// Create a rebound simulation with the DE435 collection initialized using Horizons data
+Simulation make_sim_de435_horizons(db_conn_type& conn, int epoch);
 
 // *****************************************************************************
 } // Namespace reb

@@ -39,6 +39,8 @@
     using ks::reb::Orbit;
     using ks::reb::Simulation;
     using ks::reb::make_sim_planets;
+    using ks::reb::make_sim_planets_horizons;
+    using ks::reb::make_sim_de435_horizons;
 
 // *****************************************************************************
 // Constants used in this module
@@ -71,35 +73,41 @@ constexpr int dt_min = 1440;
 // *****************************************************************************
 // Functions defined in this module
 int main();
-bool test_all();
+bool test_all(db_conn_type& conn);
 bool test_massive_body();
 bool test_make_sim();
 bool test_make_sim_planets(const PlanetVector& pv);
+bool test_make_sim_planets_horizons(db_conn_type& conn);
 bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double tol_dv, bool verbose);
 
 // *****************************************************************************
 int main()
 {
-    // // Establish DB connection
-    // db_conn_type conn = get_db_conn();
+    // Establish DB connection
+    db_conn_type conn = get_db_conn();
 
     // Run all tests
-    bool is_ok = test_all();
+    bool is_ok = test_all(conn);
 
-    // // Close DB connection
-    // conn->close();
+    // Close DB connection
+    conn->close();
 
     // Normal program exit; return 1 to signal test failure
     return is_ok ? 0 : 1;
 }
 
 // *****************************************************************************
-bool test_all()
+bool test_all(db_conn_type& conn)
 {
-    // Current test result
+    // Current test result and 
     bool is_ok = true;
+    string test_name = "";
     // Accumulate overall test results
     bool is_ok_all = true;
+
+    // *****************************************************************************
+    // Simple tests - build splined vectors and elements and empty simulations
+    // *****************************************************************************
 
     // Build PlanetVector object used in tests
     PlanetVector pv = PlanetVector(mjd0_planet, mjd1_planet, dt_min);
@@ -123,11 +131,25 @@ bool test_all()
     is_ok_all &= is_ok;
     report_test("Test: Build empty rebound simulation", is_ok);
 
+    // *****************************************************************************
+    // Test building planet simulations from KS and Horizons data
+    // *****************************************************************************
+
     // Test making a simulation with the planets
     is_ok = test_make_sim_planets(pv);
     is_ok_all &= is_ok;
-    string test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f}", epoch);
+    test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f}", epoch);
     report_test(test_name, is_ok);
+
+    // Test making a simulation with the planets
+    is_ok = test_make_sim_planets_horizons(conn);
+    is_ok_all &= is_ok;
+    test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f} from Horizons data", epoch);
+    report_test(test_name, is_ok);
+
+    // *****************************************************************************
+    // Test consistency of integrated simulation with expected results
+    // *****************************************************************************
 
     // Test integration consistency variables
     bool verbose = false;
@@ -233,14 +255,46 @@ bool test_make_sim()
 }
 
 // *****************************************************************************
-/// Test building an rebound Simulation with the planets collection.
+/// Test building a rebound Simulation with the planets collection.
 bool test_make_sim_planets(const PlanetVector& pv)
 {
     /// Build the simulation
     Simulation sim = make_sim_planets(pv, epoch);
 
     // Status
+    print_stars(true);
     print("Built rebound simulation for planets.\n");
+    print("N        : {:d}.\n", sim.N());
+    print("N_active : {:d}.\n", sim.N_active());
+    print("N_test   : {:d}.\n", sim.N_test());
+    print("t        : {:f}.\n", sim.t());
+
+    // Display the particles
+    sim.print_vectors();
+
+    // Grab particles for Sun and Earth
+    Particle p_sun = sim.particle(0);
+    Particle p_earth = sim.particle(3);
+
+    // Test conditions
+    bool is_ok = (sim.N()==11) && (sim.t() == epoch);
+    is_ok &= (p_sun.m==1.0) & is_close_rel(p_earth.m, 3.0E-6, 0.01);
+
+    // Return results of test
+    return is_ok;
+}
+
+// *****************************************************************************
+/// Test building a rebound Simulation with the planets collection initialized with Horizons data.
+bool test_make_sim_planets_horizons(db_conn_type& conn)
+{
+    /// Build the simulation
+    Simulation sim = make_sim_planets_horizons(conn, epoch);
+    // Simulation sim = make_sim_de435_horizons(conn, epoch);
+
+    // Status
+    print_stars(true);
+    print("Built rebound simulation for planets with Horizons data.\n");
     print("N        : {:d}.\n", sim.N());
     print("N_active : {:d}.\n", sim.N_active());
     print("N_test   : {:d}.\n", sim.N_test());

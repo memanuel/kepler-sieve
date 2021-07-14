@@ -71,6 +71,18 @@ constexpr int stride_db_min = 5;
 constexpr int N_t_db = (mjd1_db-mjd0_db)*mpd/stride_db_min+1;
 
 // *****************************************************************************
+// Time span for solar system state vectors from horizons
+
+/// Start date for planets integration saved to database
+constexpr int mjd0_hrzn = 48000;
+/// End date for planets integration saved to database
+constexpr int mjd1_hrzn = 63000;
+/// Stride in days for planets integration
+constexpr int stride_hrzn_planets = 1;
+/// Stride in days for DE435 integration
+constexpr int stride_hrzn_de435 = 5;
+
+// *****************************************************************************
 // Body IDs for bodies with special handling in planets collection or used in examples
 
 /// The body_id of the Sun

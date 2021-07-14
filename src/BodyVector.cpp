@@ -104,7 +104,7 @@ const string BodyVector::sp_name_from_body() const
         {return format("KS.GetStateVectors_{:s}", body_name);}
     // If it's not a match, throw a domain error
     else
-        {throw domain_error("Bad body_name! Must be one of \"Sun\", \"Earth\".\n");}
+        {throw invalid_argument("Bad body_name! Must be one of \"Sun\", \"Earth\".\n");}
 }
 
 // *****************************************************************************
@@ -119,7 +119,7 @@ const string BodyVector::file_name_from_body() const
         {return format(file_name_fmt, body_name);}
     // If it's not a match, throw a domain error
     else
-        {throw domain_error("Bad body_name! Must be one of \"Sun\", \"Earth\".\n");}
+        {throw invalid_argument("Bad body_name! Must be one of \"Sun\", \"Earth\".\n");}
 }
 
 // *****************************************************************************
@@ -312,7 +312,7 @@ void BodyVector::load()
     fs.read( (char*) &N_t_file, sizeof(N_t_file));
     // Check that the number of rows agrees with the constexpr specification in this file
     if (N_t_file != N_t)
-    {throw domain_error("Bad data file! N_t does not match specification.\n");}
+    {throw runtime_error("Bad data file! N_t does not match specification.\n");}
 
     // All the data elements except time_id are doubles
     int data_sz = sizeof(double);

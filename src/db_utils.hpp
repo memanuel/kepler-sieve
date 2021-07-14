@@ -34,7 +34,6 @@
     using sql::mariadb::get_driver_instance;
 
 // *****************************************************************************
-// Put all functions into namespace ks
 namespace ks {
 
 // *****************************************************************************
@@ -69,8 +68,12 @@ string sql_sp_bind_params(const string sp_name, const vector<string> &params);
 ResultSet* sp_run(db_conn_type& conn, const string sp_name, const vector<string>& params);
 
 // *****************************************************************************
-//*Execute a stored procedure that returns a single integer
+/// Execute a stored procedure that returns a single integer
 int sp_run_int(db_conn_type& conn, const string sp_name);
+
+// *****************************************************************************
+/// Wrap a string in double quotes
+const string wrap_string(const string s);
 
 // *****************************************************************************
 } // Namespace ks

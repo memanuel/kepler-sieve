@@ -32,7 +32,7 @@ const string file_name = "data/cache/PlanetVector.bin";
 using ks::PlanetVector;
 
 // *****************************************************************************
-// The constructor just allocates memory.  
+// The constructor saves date configuration, allocates memory and initializes splines.  
 // It does not load data from database, that is done with the load() method.
 PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
     // Data size: number of bodies and number of times
@@ -250,9 +250,11 @@ const int PlanetVector::body_idx(int32_t body_id) const
         case 8:     return 9;
         case 9:     return 10;
         default:
-            throw domain_error(format(
-        "PlanetVector::body_idx(body_id).  Bad body_id={:d}! Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
-        "(Sun, planet barycenters, Earth and Moon.)\n", body_id));
+            string msg = format(
+                "PlanetVector::body_idx(body_id).  Bad body_id={:d}! "
+                "Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
+                "(Sun, planet barycenters, Earth and Moon.)\n", body_id);
+            throw invalid_argument(msg);
     }
 }
 
@@ -460,10 +462,10 @@ void PlanetVector::load()
 
     // Check that the number of rows agrees with the constexpr specification in this file
     if (N_body_file != N_body)
-    {throw domain_error(
+    {throw runtime_error(
         format("Bad data file! N_body={:d} does not match specification {:d}.\n", N_body_file, N_body));}
     if (N_t_file != N_t_db)
-    {throw domain_error(
+    {throw runtime_error(
         format("Bad data file! N_t={:d} does not match specification {:d}.\n", N_t_file, N_t_db));}
 
     // Number of rows in the file

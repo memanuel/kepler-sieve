@@ -176,7 +176,7 @@ const Orbit Simulation::orbit(int i) const
     if (!primary_body_id) 
     {
         string msg = format("Simulation::orbit - bad particle i={:d}, body_id={:d} has no primary.");
-        throw domain_error(msg);
+        throw invalid_argument(msg);
     }
     // Particle of the target
     const Particle& target = particle(i);
@@ -219,7 +219,7 @@ void const Simulation::write_vectors(const double* mjd, int N_t, double* q, doub
             continue;
         }
         // If we get here, the output time is on or after the simulation time. 
-        // Integrate forward
+        // Integrate forward to this time and save the output.
 
 
     }
@@ -272,12 +272,20 @@ void Simulation::print_elements() const
 }
 
 // *****************************************************************************
-// Factory function make_sim_planets
+// Factory functions to build a simulation with the planets
 // *****************************************************************************
 
 // *****************************************************************************
 Simulation make_sim_planets(const PlanetVector& pv, double epoch)
 {
+    // Test input date vs. date range
+    if ((epoch < mjd0_db) || (epoch > mjd1_db))
+    {
+        string msg = format("make_sim_planets(PlanetVector): bad input date {:8.2f}!. "
+                            "Epoch must be bewteen {:d} and {:d}.\n", epoch, mjd0_db, mjd1_db);
+        throw invalid_argument(msg);
+    }
+
     // Start with an empty simulation
     Simulation sim;
     // Set the time field in the simulation to match the epoch
@@ -307,6 +315,14 @@ Simulation make_sim_planets(const PlanetVector& pv, double epoch)
 // *****************************************************************************
 Simulation make_sim_planets(const PlanetElement& pe, double epoch)
 {
+    // Test input date vs. date range
+    if ((epoch < mjd0_db) || (epoch > mjd1_db))
+    {
+        string msg = format("make_sim_planets(PlanetElement): bad input date {:8.2f}!. "
+                            "Epoch must be bewteen {:d} and {:d}.\n", epoch, mjd0_db, mjd1_db);
+        throw invalid_argument(msg);
+    }
+
     // Start with an empty simulation
     Simulation sim;
     // Set the time field in the simulation to match the epoch
@@ -334,6 +350,79 @@ Simulation make_sim_planets(const PlanetElement& pe, double epoch)
     // Return the assembled simulation
     return sim;
 }
+
+// *****************************************************************************
+Simulation make_sim_horizons(db_conn_type& conn, const string collection, int epoch)
+{
+    // Test input date vs. date range
+    if ((epoch < mjd0_hrzn) || (epoch > mjd1_hrzn))
+    {
+        string msg = format("make_sim_horizons: bad input date {:d}!. Epoch must be bewteen {:d} and {:d}.\n",
+                                epoch, mjd0_hrzn, mjd1_hrzn);
+        throw invalid_argument(msg);
+    }
+    // Test input date vs. stride
+    if ((collection == "DE435") && (epoch%stride_hrzn_de435 != 0))
+    {
+        string msg = format(
+            "make_sim_horizons: bad input date {:d}!. For collection DE435, epoch must be a multiple of {:d}.\n",
+            epoch, stride_hrzn_de435);
+        throw invalid_argument(msg);
+    }
+
+    // Start with an empty simulation
+    Simulation sim;
+    // Convert integer epoch to a floating point time
+    double t = static_cast<double>(epoch);
+    // Set the time field in the simulation to match the epoch
+    sim.set_time(t);
+
+    // Run the stored procedure to get state vectors of the planets from Horizons
+    string sp_name = "JPL.GetHorizonsStateCollection";
+    // Run the stored procedure to get JPL state vectors for the named collection
+    vector<string> params = {wrap_string(collection), to_string(epoch)};
+    // DEBUG
+    print("{:s}({:s}, {:s}).\n", sp_name, params[0], params[1]);
+    ResultSet* rs = sp_run(conn, sp_name, params);
+
+    // Loop through resultset
+    while (rs->next()) 
+    {
+        // Unpack the fields in the resultset
+        // The body ID and name
+        int32_t body_id = rs->getInt("BodyID");
+        string body_name = rs->getString("BodyName");
+        // The mass
+        double m = rs->getDouble("m");
+        // Six state vector components
+        double qx = rs->getDouble("qx");
+        double qy = rs->getDouble("qy");
+        double qz = rs->getDouble("qz");
+        double vx = rs->getDouble("vx");
+        double vy = rs->getDouble("vy");
+        double vz = rs->getDouble("vz");
+        // Wrap state vector
+        StateVector s {.qx=qx, .qy=qy, .qz=qz, .vx=vx, .vy=vy, .vz=vz};
+        // Primary body of this particle
+        int32_t primary_body_id = get_primary_body_id(body_id);
+        // Add this particle
+        sim.add_particle(s, m, body_id, primary_body_id);
+    }   // while rs
+    // Close the resultset and free memory
+    rs->close();
+    delete rs;
+
+    // Return the assembled simulation
+    return sim;
+}
+
+// *****************************************************************************
+Simulation make_sim_planets_horizons(db_conn_type& conn, int epoch)
+    {return make_sim_horizons(conn, "Planets", epoch);}
+    
+// *****************************************************************************
+Simulation make_sim_de435_horizons(db_conn_type& conn, int epoch)
+    {return make_sim_horizons(conn, "DE435", epoch);}
 
 // *****************************************************************************
 } // Namespace reb
