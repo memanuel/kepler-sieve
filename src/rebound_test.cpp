@@ -304,14 +304,13 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
     // Print the state vectors if in verbose mode
     if (verbose)
     {
-        // Print simulation 0 state vectors
+        // Print simulation state vectors of both simulations
         print("Simulation 0: mjd {:8.2f} integrated forward to {:8.2f}.\n", mjd0, mjd1);
         sim0.print_vectors();
-        // Print simulation 1 state vectors
         print("Simulation 1: mjd {:8.2f} interpolated from disk.\n", mjd1);
         sim1.print_vectors();
 
-        // DEBUG
+        // Print orbital elements
         print("Simulation 0 orbital elements.\n");
         sim0.print_elements();
         print("Simulation 1 orbital elements.\n");

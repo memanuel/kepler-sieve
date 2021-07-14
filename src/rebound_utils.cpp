@@ -29,6 +29,10 @@ Orbit particle2orbit(const Particle& target, const Particle& primary)
 // *****************************************************************************
 
 // *****************************************************************************
+// Constructor and Destructor
+// *****************************************************************************
+
+// *****************************************************************************
 Simulation::Simulation():
     // Create an empty simulation and save pointer to it
     prs {reb_create_simulation()},
@@ -94,6 +98,10 @@ Simulation::~Simulation()
 }
 
 // *****************************************************************************
+// Add Particles
+// *****************************************************************************
+
+// *****************************************************************************
 void Simulation::add_particle(const StateVector& s, double m, int32_t body_id, int32_t primary_body_id)
 {
     // If this is a massive particle to be added, Check that no test particles present; 
@@ -147,6 +155,10 @@ void Simulation::add_test_particle(const StateVector& s, int32_t body_id, int32_
 }
 
 // *****************************************************************************
+// Get state vectors, particles and orbits
+// *****************************************************************************
+
+// *****************************************************************************
 const StateVector Simulation::state_vector(int i) const
 {
     // The particle
@@ -156,11 +168,35 @@ const StateVector Simulation::state_vector(int i) const
 }
 
 // *****************************************************************************
+const Orbit Simulation::orbit(int i) const
+{
+    // The body_id of the target and its primary
+    const int32_t body_id = body_ids[i];
+    const int32_t primary_body_id = primary_body_ids[i];
+    // Only return elements if this particle has a real primary, i.e. skip the Sun
+    if (!primary_body_id) 
+    {
+        string msg = format("Simulation::orbit - bad particle i={:d}, body_id={:d} has no primary.");
+        throw domain_error(msg);
+    }
+    // Particle of the target
+    const Particle& target = particle(i);
+    // Particle of the primary
+    int j = primary_body_map.at(primary_body_id);
+    const Particle& primary = particle(j);
+    // Return the orbit of this particle w.r.t. its primary
+    return particle2orbit(target, primary);
+}
+
+// *****************************************************************************
+// Print vectors and orbital elements
+// *****************************************************************************
+
+// *****************************************************************************
 void Simulation::print_vectors() const
 {
     // Display the particles
-    print_newline();
-    fmt::print("{:4s}: {:12s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
+    print("\n{:4s}: {:12s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
           "   i", "body_name", " mass", "  qx", "  qy", "  qz", "  vx", "  vy", "  vz");
     for (int i=0; i<N(); i++)
     {
@@ -177,25 +213,21 @@ void Simulation::print_vectors() const
 void Simulation::print_elements() const
 {
     // Display the particles
-    print_newline();
-    fmt::print("{:4s}: {:12s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
+    fmt::print("\n{:4s}: {:12s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s}: {:10s} \n",
           "   i", "body_name", "  a", "e", "  inc", "  Omega", "  omega", "  f", "  M");
-    for (int i=0; i<N(); i++)
+
+    // By convention, particle index 0 is the Sun and has no primary, so start the loop at i=1
+    for (int i=1; i<N(); i++)
     {
         // The body_id of the target and its primary
         const int32_t body_id = body_ids[i];
         const int32_t primary_body_id = primary_body_ids[i];
-        const string body_name = get_body_name(body_id);
-        // Particle of the target
-        const Particle& target = particle(i);
         // Only print elements if this particle has a real primary, i.e. skip the Sun
         if (!primary_body_id) {continue;}
-        // Particle of the primary
-        int j = primary_body_map.at(primary_body_id);
-        const Particle& primary = particle(j);
-
-        // Print the orbit of this particle w.r.t. its primary
-        Orbit orb = particle2orbit(target, primary);
+        // Calculate the orbit
+        Orbit orb = orbit(i);
+        // Get the body name
+        const string body_name = get_body_name(body_id);
         fmt::print("{:4d}: {:12s}: {:10.6f}: {:10.8f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f}: {:+10.6f} \n", 
               i, body_name, orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f, orb.M);
     }

@@ -144,6 +144,12 @@ public:
     /// Get a state vector given its body_id
     const StateVector state_vector_b(int32_t body_id) const {return state_vector(body_idx(body_id));};
 
+    /// Get an orbit by index in particles array
+    const Orbit orbit(int i) const;
+
+    /// Get an orbit given its body_id
+    const Orbit orbit_b(int32_t body_id) const {return orbit(body_idx(body_id));}
+
     /// Print the state vectors of all particles in the simulation
     void print_vectors() const;
 
