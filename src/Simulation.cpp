@@ -196,6 +196,36 @@ const Orbit Simulation::orbit(int i) const
 // *****************************************************************************
 // Write arrays of vectors and orbital elements
 // *****************************************************************************
+
+// *****************************************************************************
+// Implementation function - write out one row of state vectors; put this in anomymous namespace for file scope.
+namespace {
+void write_vector_row(Simulation& sim, int i, double t, double* q, double* v)
+{
+    // Number of bodies
+    const int N_body = sim.N();
+    // Integrate to this time (either forward or backward)
+    sim.integrate(t);
+    // The array index for the first entry
+    int j = 3*N_body*i;
+    /// Iterate through the particles
+    for (int b=0; b<N_body; b++)
+    {
+        /// Get the StateVector for particle b
+        StateVector s = sim.state_vector(b);
+        /// Write the position array
+        q[j+0] = s.qx;
+        q[j+1] = s.qy;
+        q[j+2] = s.qz;
+        /// Write the velocity array
+        v[j+0] = s.vx;
+        v[j+1] = s.vy;
+        v[j+2] = s.vz;
+    }   // for / bodies
+}   // function write_vector_row
+}   // anonymous namespace
+
+// *****************************************************************************
 /** Write an array of state vectors to q and v obtained by integrating this simulation. 
  * \param[in] mjd - array of dates when output is desired
  * \param[in] N_t - number of output dates, i.e. size of mjd
@@ -204,31 +234,56 @@ const Orbit Simulation::orbit(int i) const
  * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
 void const Simulation::write_vectors(const double* mjd, int N_t, double* q, double* v) const
 {
-    // Create two copies of the simulation for integrating forward and backward
-    Simulation sim_fwd = this->copy();
-    Simulation sim_back = this->copy();
-    // Set time step in sim_back to be negative for backwards integration
-    sim_back.prs->dt = -prs->dt;
+    // The number of bodies
+    int N_body = N();
+    // Alias the initial reference time
+    const double t0 = t();
 
+    // Create a copy of the simulation for integrating forward
+    Simulation sim_f = this->copy();
+    
     // The last index that is prior to t; this will be integrated backwards down to 0
     int i0_back=-1;
 
-    // Iterate forward through times in mjd 
+    // *****************************************************************************
+    // Loop forward for times t in mjd where t>= t0
+    // *****************************************************************************
+
+    // Iterate forward through times in mjd on or after t0
     for (int i=0; i<N_t; i++)
     {
         // Time of this output
-        double ti = mjd[i];
-        // If the output time is before the simulation time, update i0_back
-        if (ti < t()) 
+        double t = mjd[i];
+        // If the output time is before the simulation time, update i0_back and keep going
+        if (t < t0) 
         {
             i0_back = i;
             continue;
         }
         // If we get here, the output time is on or after the simulation time. 
         // Integrate forward to this time and save the output.
+        write_vector_row(sim_f, i, t, q, v);
+    } // for / forward over time (i)
 
+    // *****************************************************************************
+    // Loop backward for times t in mjd where t< t0
+    // *****************************************************************************
 
+    // Create a copy of sim for the backwards integration
+    Simulation sim_b = this->copy();
+    // Set time step in sim_back to be negative for backwards integration
+    sim_b.prs->dt = -prs->dt;
+    // Iterate backard through times in mjd prior to t0
+    for (int i=i0_back; i>=0; i--)
+    {
+        // Time of this output
+        double t = mjd[i];
+        // Integrate backward to this time and save the output.
+        write_vector_row(sim_b, i, t, q, v);
     }
+
+    // Simulations sim_f and sim_b will be automatically cleaned up when they drop out of scope.
+    // This is why it's better to initialize two copies then to overwrite sim twice.
 }
 
 // *****************************************************************************

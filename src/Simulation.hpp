@@ -97,7 +97,7 @@ public:
     void add_test_particle(const StateVector& s, int32_t body_id, int32_t primary_body_id);
 
     /// Add a test particle to a simulation given its orbit; MUST finish adding massive particles first
-    void add_test_particle(const Orbit& orb, int32_t body_id, int32_t primary_body_id);
+    void add_test_particle(const Orbit& orb, int32_t body_id, int32_t primary_body_id=body_id_sun);
 
     /// Integrate to the given time
     void integrate(double t) {reb_integrate(prs, t);}
