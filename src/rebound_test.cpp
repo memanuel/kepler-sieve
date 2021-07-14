@@ -25,6 +25,9 @@
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
+#include "rebound_utils.hpp"
+    using ks::reb::Particle;
+    using ks::reb::Orbit;
 #include "StateVector.hpp"
     using ks::StateVector;
     using ks::dist;
@@ -34,9 +37,7 @@
 #include "MassiveBody.hpp"
     using ks::MassiveBody;
     using ks::MassiveBodyTable;
-#include "rebound_utils.hpp"
-    using ks::reb::Particle;
-    using ks::reb::Orbit;
+#include "Simulation.hpp"    
     using ks::reb::Simulation;
     using ks::reb::make_sim_planets;
     using ks::reb::make_sim_planets_horizons;

@@ -54,7 +54,9 @@ AsteroidSkyPatch.o: AsteroidSkyPatch.hpp AsteroidSkyPatch.cpp
 CandidateElement.o: CandidateElement.hpp CandidateElement.cpp
 
 # Rebound / Integrate the Solar System
-rebound_utils.o: rebound.hpp rebound_utils.hpp rebound_utils.cpp
+rebound_utils.o: rebound_utils.hpp rebound_utils.cpp
+Simulation.o: Simulation.hpp Simulation.cpp
+SimulationFactory.o: Simulation.hpp SimulationFactory.cpp
 
 # *************************************************************************************************
 # Object files for executables
@@ -121,8 +123,8 @@ planet_element_test: \
 
 rebound_test: \
     obj/rebound_test.o \
-    obj/utils.o obj/db_utils.o obj/astro_utils.o obj/rebound_utils.o \
-    obj/MassiveBody.o \
+    obj/utils.o obj/db_utils.o obj/astro_utils.o \
+    obj/rebound_utils.o obj/Simulation.o obj/SimulationFactory.o \
     obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
@@ -133,6 +135,7 @@ detection_near_elt_test: \
     obj/DetectionTime.o obj/Detection.o \
     obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o \
+    obj/rebound_utils.o obj/Simulation.o obj/SimulationFactory.o \
     obj/CandidateElement.o
 
 test_all: \
