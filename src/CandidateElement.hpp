@@ -37,6 +37,11 @@
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
+#include "PlanetVector.hpp"
+    using ks::PlanetVector;
+#include "Simulation.hpp"
+    using ks::reb::Simulation;
+    using ks::reb::make_sim_planets;
 
 // *****************************************************************************
 namespace ks {
@@ -52,6 +57,8 @@ public:
 
     /// The underlying OrbitalElement
     OrbitalElement elt;
+    /// Calibrate asteroid trajectory to a rebound integration
+    void calibrate(const PlanetVector& pv);
     /// Calculate asteroid trajectory (positions and velocity)
     void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
@@ -70,7 +77,7 @@ public:
 
 private:
     /// Number of detection times
-    const int N;
+    const int N_t;
     /// Array of mjd when detections were observed (print time); size N
     double* mjd;
     /// Array of positions of observatory; size 3N
@@ -81,6 +88,10 @@ private:
     double* v_ast;
     /// Array of directions to an asteroid with these candidate elements; size 3N
     double* u_ast;
+    /// Array of position calibration adjustments to match numerical integration
+    double* q_cal;
+    /// Array of velocity calibration adjustments to match numerical integration
+    double* v_cal;
 };
 
 // *****************************************************************************

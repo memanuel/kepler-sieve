@@ -318,7 +318,6 @@ bool test_planet_element(const PlanetElement& pe, bool verbose)
         ks::print_position(q2,          "interp_vec :");
         ks::print_position_sci(q2-q1,   "difference :");
 
-        // DEBUG
         // Print detail of splined orbital elements
         print("Interpolated orbital elements for Earth @ MJD {:8.2f}.\n", mjd_test);
         OrbitalElement elt = pe.interp_elt(body_id_earth, mjd_test);

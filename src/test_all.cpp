@@ -44,20 +44,23 @@ int main()
     is_ok_all = is_ok_all && is_ok;
     report_test("detection_test", is_ok);
 
+    // Run planet element test
+    result = system("./planet_element_test.x > test/planet_element_test.txt");
+    is_ok = (result==0);
+    is_ok_all = is_ok_all && is_ok;
+    report_test("planet_element_test", is_ok);
+    
     // Run rebound test
     result = system("./rebound_test.x > test/rebound_test.txt");
     is_ok = (result==0);
     is_ok_all = is_ok_all && is_ok;
     report_test("rebound_test", is_ok);
 
-    // // TODO
-    // // Run planet element test
-   
-    // Run detection near element test
-    result = system("./detection_near_elt_test.x > test/detection_near_elt_test.txt");
+    // Run candidate element test
+    result = system("./candidate_element_test.x > test/candidate_element_test.txt");
     is_ok = (result==0);
     is_ok_all = is_ok_all && is_ok;
-    report_test("detection_near_elt_test", is_ok);
+    report_test("candidate_element_test", is_ok);
 
     // Report overall test suite results
     report_test("\nKepler Sieve Test Suite:", is_ok_all);
