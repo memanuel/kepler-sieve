@@ -47,7 +47,7 @@
 constexpr double epoch = 59000.0;
 
 /// The length of time for the integration test
-constexpr double integration_test_time = 100.0;
+constexpr double integration_test_time = 1000.0;
 
 /// The first date for the integration test
 constexpr double mjd0_integrate = epoch;
@@ -114,26 +114,23 @@ bool test_all()
     print("Built PlanetElement from {:d} to {:d} with dt_min={:d}.\n", mjd0_planet, mjd1_planet, dt_min);
 
     // Test massive body
-    // is_ok = test_massive_body();
-    // is_ok_all &= is_ok;
-    // report_test("Test: Build MassiveBody", is_ok);
+    is_ok = test_massive_body();
+    is_ok_all &= is_ok;
+    report_test("Test: Build MassiveBody", is_ok);
 
-    // // Test making an empty simulation
-    // print_stars(true);
-    // is_ok = test_make_sim();
-    // is_ok_all &= is_ok;
-    // report_test("Test: Build empty rebound simulation", is_ok);
+    // Test making an empty simulation
+    is_ok = test_make_sim();
+    is_ok_all &= is_ok;
+    report_test("Test: Build empty rebound simulation", is_ok);
 
-    // // Test making a simulation with the planets
-    // print_stars(true);
-    // is_ok = test_make_sim_planets(pv);
-    // is_ok_all &= is_ok;
-    // string test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f}", epoch);
-    // report_test(test_name, is_ok);
+    // Test making a simulation with the planets
+    is_ok = test_make_sim_planets(pv);
+    is_ok_all &= is_ok;
+    string test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f}", epoch);
+    report_test(test_name, is_ok);
 
     // Test integration consistency variables
     bool verbose = false;
-    string test_name = "";
 
     // Test integration consistency on integer dates (these are spline nodes); spline using vectors
     {
@@ -148,10 +145,10 @@ bool test_all()
     Simulation sim1_node = make_sim_planets(pv, mjd1);
     is_ok = test_integration(sim0_node, sim1_node, tol_dq, tol_dv, verbose);
     is_ok_all &= is_ok;
-    print_stars(true);
-    test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined vectors", mjd0, mjd1);
+    test_name = \
+        format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined vectors", mjd0, mjd1);
     report_test(test_name, is_ok);
-    }
+    }   // block for test on spline nodes
 
     // Test integration consistency on non-integer start date; exercise element spline
     {
@@ -166,15 +163,13 @@ bool test_all()
     Simulation sim1_spline = make_sim_planets(pv, mjd1);
     is_ok = test_integration(sim0_spline, sim1_spline, tol_dq, tol_dv, verbose);
     is_ok_all &= is_ok;
-    print_stars(true);
-    test_name = format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined elements", 
-                        mjd0, mjd1);
+    test_name = \
+        format("Test: Consistency of integration between {:8.2f} and {:8.2f} with splined elements", mjd0, mjd1);
     report_test(test_name, is_ok);
-    }
+    }   // block for test off spline nodes
 
     // Report overall test results
-    print("\n");
-    print_stars();
+    print_stars(true);
     report_test("Test Suite on rebound", is_ok);
     return is_ok;
 }
@@ -186,8 +181,8 @@ bool test_massive_body()
     // Load from disk
     MassiveBodyTable mbt = MassiveBodyTable();
 
-    // Print contents
-    print_stars();
+    // Print contents of MassiveBodyTable
+    print_stars(true);
     print("Massive Body:\n");
     print("{:8s} : {:8s} : {:8s}\n", "BodyID", "M", "GM");
     for (int32_t body_id: mbt.get_body_id())
@@ -223,10 +218,9 @@ bool test_make_sim()
 {
     /// Build the simulation
     Simulation sim;
-    // Reference to the simulation
-    // Simulation& sim = *s;
 
     // Status
+    print_stars(true);
     print("Built empty rebound simulation.\n");
     print("N: {:d}.\n", sim.N());
     print("t: {:f}.\n", sim.t());
@@ -305,6 +299,7 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
     }
 
     // The test that was run
+    print_stars(true);
     print("Integration Test from {:8.2f} to {:8.2f}:\n", mjd0, mjd1);
     // Print the state vectors if in verbose mode
     if (verbose)
@@ -327,8 +322,8 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
     string body_name_dq_max = get_body_name(sim0.body_ids[dq_argmax]);
     string body_name_dv_max = get_body_name(sim0.body_ids[dv_argmax]);
     print("Largest difference:\n");
-    print("Position: {:9.2e} AU     at i={:d} ({:10s}).\n", dq_max, dq_argmax, body_name_dq_max);
-    print("Velocity: {:9.2e} AU/day at i={:d} ({:10s}).\n", dv_max, dv_argmax, body_name_dv_max);
+    print("Position: {:9.2e} AU     ({:10s}).\n", dq_max, body_name_dq_max);
+    print("Velocity: {:9.2e} AU/day ({:10s}).\n", dv_max, body_name_dv_max);
 
     // Retutn the test result
     return is_ok;
