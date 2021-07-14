@@ -88,6 +88,24 @@ Simulation::~Simulation()
 // *****************************************************************************
 
 // *****************************************************************************
+void Simulation::add_particle(Particle& p, int32_t body_id, int32_t primary_body_id)
+{
+    // Add the particle to the simulation
+    reb_add(prs, p);
+    // Increment active particles
+    prs->N_active++;
+
+    // Add the body_id and primary_body_id to vectors
+    body_ids.push_back(body_id);
+    primary_body_ids.push_back(primary_body_id);
+
+    // Add the body_ids to body_map and primary_body_map
+    int i = prs->N-1;
+    body_map[body_id]=i;
+    primary_body_map[body_id]=i;
+}
+
+// *****************************************************************************
 void Simulation::add_particle(const StateVector& s, double m, int32_t body_id, int32_t primary_body_id)
 {
     // If this is a massive particle to be added, Check that no test particles present; 
@@ -117,25 +135,27 @@ void Simulation::add_particle_impl(const StateVector& s, double m, int32_t body_
     };
 
     // Add the particle to the simulation
-    reb_add(prs, p);
-    // Increment active particles
-    prs->N_active++;
-
-    // Add the body_id and primary_body_id to vectors
-    body_ids.push_back(body_id);
-    primary_body_ids.push_back(primary_body_id);
-
-    // Add the body_ids to body_map and primary_body_map
-    int i = prs->N-1;
-    body_map[body_id]=i;
-    primary_body_map[body_id]=i;
+    add_particle(p, body_id, primary_body_id);
 }
 
 // *****************************************************************************
 void Simulation::add_test_particle(const StateVector& s, int32_t body_id, int32_t primary_body_id)
 {
-    // Always safe to add a test particle; don't need to check    
+    // Always safe to add a test particle; don't need to check. Just add it from its state vector.
     add_particle_impl(s, 0.0, body_id, primary_body_id);
+    // Decrement active particles
+    prs->N_active--;
+}
+
+// *****************************************************************************
+void Simulation::add_test_particle(const Orbit& orb, int32_t body_id, int32_t primary_body_id)
+{
+    // Look up the primary particle from its body_id
+    Particle primary = particle_b(primary_body_id);
+    // Build a test particle from this orbit
+    Particle p = orbit2particle(orb, 0.0, primary);
+    // Add the particle
+    add_particle(p, body_id, primary_body_id);
     // Decrement active particles
     prs->N_active--;
 }

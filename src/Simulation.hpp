@@ -34,14 +34,6 @@ extern "C" {
     using ks::cs::body_id_sun;
     using ks::cs::body_id_earth;
     using ks::cs::body_id_moon;
-    // using ks::cs::N_body_planets;
-    // using ks::cs::N_body_planets_ex_sun;
-    // using ks::cs::body_ids_planets;
-    // using ks::cs::body_ids_planets_ex_sun;
-    // using ks::cs::mjd0_hrzn;
-    // using ks::cs::mjd1_hrzn;
-    // using ks::cs::stride_hrzn_planets;
-    // using ks::cs::stride_hrzn_de435;
 #include "db_utils.hpp"
     using ks::wrap_string;
 #include "astro_utils.hpp"
@@ -63,18 +55,6 @@ extern "C" {
 // *****************************************************************************
 namespace ks {
 namespace reb {
-
-// *****************************************************************************
-// Alias commonly used Rebound types
-
-// /// A rebound particle in a simulation
-// using Particle = reb_particle;
-
-// /// A rebound orbit of a particle
-// using Orbit = reb_orbit;
-
-// // Function to integrate simulations
-// const auto integrate = reb_integrate;
 
 // *****************************************************************************
 // Class Simulation
@@ -107,11 +87,17 @@ public:
     /// Set the time parameter
     void set_time(double t) {prs->t = t;}
 
+    /// Add one massive particle to a simulation
+    void add_particle(Particle& p, int32_t body_id, int32_t primary_body_id);
+
     /// Add one particle to a simulation given its state vector and mass
     void add_particle(const StateVector& s, double m, int32_t body_id, int32_t primary_body_id);
 
     /// Add a test particle to a simulation given its state vector; MUST finish adding massive particles first
     void add_test_particle(const StateVector& s, int32_t body_id, int32_t primary_body_id);
+
+    /// Add a test particle to a simulation given its orbit; MUST finish adding massive particles first
+    void add_test_particle(const Orbit& orb, int32_t body_id, int32_t primary_body_id);
 
     /// Integrate to the given time
     void integrate(double t) {reb_integrate(prs, t);}
@@ -182,6 +168,7 @@ private:
 
     /// Add one massive particle to a simulation given its state vector and mass
     void add_particle_impl(const StateVector& s, double m, int32_t body_id, int32_t primary_body_id);
+
 };
 
 // *****************************************************************************

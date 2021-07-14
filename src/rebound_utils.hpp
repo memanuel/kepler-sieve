@@ -64,10 +64,10 @@ namespace reb {
 // *****************************************************************************
 // Alias commonly used Rebound types
 
-/// A rebound particle in a simulation
+/// A rebound particle in a simulation. Fields include m, x, y, z, vx, vy, vz.
 using Particle = reb_particle;
 
-/// A rebound orbit of a particle
+/// A rebound orbit of a particle.  Fields include a, e, inc, Omega, omega, f, M, d, v, h, p, n, l, theta, T. 
 using Orbit = reb_orbit;
 
 // Function to integrate simulations
@@ -81,6 +81,12 @@ StateVector particle2state_vector(const Particle& p);
 
 /// Calculate a rebound Orbit from a particle and a primary
 Orbit particle2orbit(const Particle& target, const Particle& primary);
+
+/// Convert a rebound Orbit to a Particle
+Particle orbit2particle(const Orbit& orb, double m, const Particle& primary);
+
+/// Convert a rebound Orbit to a StateVector
+// StateVector orbit2particle(const Orbit& orb, double m, const Particle& primary);
 
 // *****************************************************************************
 } // Namespace reb

@@ -24,6 +24,11 @@ StateVector particle2state_vector(const Particle& p)
 Orbit particle2orbit(const Particle& target, const Particle& primary)
     {return reb_tools_particle_to_orbit(G, target, primary);}
 
+Particle orbit2particle(const Orbit& orb, double m, const Particle& primary)
+{
+    return reb_tools_orbit_to_particle(G, primary, m, orb.a, orb.e, orb.inc, orb.Omega, orb.omega, orb.f);
+}
+
 // *****************************************************************************
 } // Namespace reb
 } // Namespace ks
