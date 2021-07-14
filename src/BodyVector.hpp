@@ -57,6 +57,9 @@ public:
     /// Constructor takes time range, time step and allocates memory
     BodyVector(int mjd0, int mjd1, int dt_min, const string body_name);
 
+    /// Constructor gives caller option to load data from disk
+    BodyVector(int mjd0, int mjd1, int dt_min, const string body_name, bool load_);
+
     /// Constructor - load data from file on disk
     BodyVector(const string body_name);
 

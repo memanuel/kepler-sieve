@@ -26,6 +26,7 @@
     using ks::Velocity;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
+    using ks::print_orbital_element_headers;
     using ks::print_orbital_element;
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
@@ -40,11 +41,41 @@
     using ks::CandidateElement;
 
 // *****************************************************************************
+// Constants in this module
+namespace{
+
+// Test orbital elements for Juno @ 59000
+constexpr OrbitalElement elt
+{
+    .mjd    = 59000.0,
+    .a      = 2.6682852999999986,
+    .e      = 0.25693643000000027,
+    .inc    = 0.22673642125828372,
+    .Omega  = 2.9644675653853,
+    .omega  =-1.9536135288017569,
+    .f      = 46.517431678528794,
+    .M      = 46.171557086433715
+};
+
+// Set candidate_id to match body_id
+constexpr int32_t candidate_id = 1000000 + 3;
+
+// One dectection time table is shared
+DetectionTimeTable dtt = DetectionTimeTable();
+
+// Date range for testing
+constexpr int mjd0 = 57995;
+constexpr int mjd1 = 58005;
+constexpr int dt_min = 5;
+
+// *****************************************************************************
+}   // anonymous namespace
+
+// *****************************************************************************
 // Functions defined in this module
 int main(int argc, char* argv[]);
 bool test_all(db_conn_type& conn);
-void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt);
-void test_load_detection(db_conn_type& conn);
+bool test_calc_traj();
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -68,30 +99,18 @@ bool test_all(db_conn_type& conn)
     // Inputs used in testing
     int d0 = 0;
     int d1 = 1000000;
-    // int mjd0 = 57995;
-    // int mjd1 = 58005;
-    // int dt_min = 5;
+ 
+    print("\nOrbitalElement for Juno @ {:8.2f}\n", elt.mjd);
+    print_orbital_element_headers();
+    print_orbital_element(elt);
 
     // Current test result
-    // bool is_ok;
+    bool is_ok;
     // Overall test result
     bool is_ok_all = true;
 
     // Timer object
     Timer t;
-
-    // Build PlanetElement    
-    t.tick();
-    PlanetElement pe = PlanetElement();
-    print("\nBuilt PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
-            pe.mjd0, pe.mjd1, pe.dt_min);
-    t.tock_msg();
-
-    // Initialize DetectionTimeTable
-    t.tick();
-    DetectionTimeTable dtt = DetectionTimeTable();
-    print("Loaded DetectionTimeTable with {:d} detection times.\n", dtt.N());
-    t.tock_msg();
 
     // Initialize DetectionTable
     t.tick();
@@ -99,27 +118,14 @@ bool test_all(db_conn_type& conn)
     dt.load();
     print("Loaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
     t.tock_msg();
-    print_detection(dt[10]);
+    // print_detection(dt[10]);
 
     // Build orbital elements for asteroid 3 (Juno), which has 8 hits
     // Values copy / pasted from CALL KS.GetAsteroidElements(3, 4, 59000, 59000);
     t.tick();
-    OrbitalElement elt
-    {
-        .mjd    = 59000.0,
-        .a      = 2.6682852999999986,
-        .e      = 0.25693643000000027,
-        .inc    = 0.22673642125828372,
-        .Omega  = 2.9644675653853,
-        .omega  =-1.9536135288017569,
-        .f      = 46.517431678528794,
-        .M      = 46.171557086433715
-    };
-    print("\nConstructed OrbitalElement for Juno @ {:f}\n", elt.mjd);
-    print_orbital_element(elt);
 
     // Build CandidateElement for these elements
-    CandidateElement ce(elt, dtt);
+    CandidateElement ce(elt, dtt, candidate_id);
     print("\nConstructed CandidateElement from OrbitalElement.\n");
 
     // Calculate the trajectory of the elements matching Juno
@@ -127,7 +133,8 @@ bool test_all(db_conn_type& conn)
     print("Calculated trajectory of CandidateElement.\n");
 
     // Test the calculated trajectory
-    test_calc_traj(elt, dtt);
+    is_ok = test_calc_traj();
+    is_ok_all &= is_ok;
     print("Calculated asteroid trajectory.\n");
     t.tock_msg();
 
@@ -136,10 +143,10 @@ bool test_all(db_conn_type& conn)
 }
 
 // *****************************************************************************
-void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
+bool test_calc_traj()
 {
     // Build CandidateElement for these elements
-    CandidateElement ce(elt, dtt);
+    CandidateElement ce(elt, dtt, candidate_id);
 
     // Choose an example date that is available in DB for testing
     double mjd_test = 58000.0;
@@ -185,9 +192,16 @@ void test_calc_traj(OrbitalElement& elt, DetectionTimeTable& dtt)
     double dq = dist(pos0, pos);
     double dv = dist(vel0, vel);
 
+    // Test results
+    double tol_dq = 1.0E-3;
+    double tol_dv = 1.0E-5;
+    bool is_ok = (dq < tol_dq) && (dv < tol_dv);
+
     // Report results
-    print("Distance between predicted state vectros in Kepler model and DB values for Juno @ {:9.4f}.\n", mjd_test);
+    print("Distance between predicted state vectors in Kepler model and DB values for Juno @ {:9.4f}.\n", mjd_test);
     print("dq: {:8.2e} AU\n", dq);
     print("dv: {:8.2e} AU/day\n", dv);
+    report_test("Juno trajectory (uncalibrated)", is_ok);
+    return is_ok;
 }
 

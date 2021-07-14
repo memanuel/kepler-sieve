@@ -77,8 +77,8 @@ int main();
 bool test_all(db_conn_type& conn);
 bool test_massive_body();
 bool test_make_sim();
-bool test_make_sim_planets(const PlanetVector& pv);
-bool test_make_sim_planets_horizons(db_conn_type& conn);
+bool test_make_sim_planets(const PlanetVector& pv, bool verbose);
+bool test_make_sim_planets_horizons(db_conn_type& conn, bool verbose);
 bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double tol_dv, bool verbose);
 
 // *****************************************************************************
@@ -105,6 +105,8 @@ bool test_all(db_conn_type& conn)
     string test_name = "";
     // Accumulate overall test results
     bool is_ok_all = true;
+    // Set overall verbosity level
+    bool verbose = false;
 
     // *****************************************************************************
     // Simple tests - build splined vectors and elements and empty simulations
@@ -137,13 +139,13 @@ bool test_all(db_conn_type& conn)
     // *****************************************************************************
 
     // Test making a simulation with the planets
-    is_ok = test_make_sim_planets(pv);
+    is_ok = test_make_sim_planets(pv, verbose);
     is_ok_all &= is_ok;
     test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f}", epoch);
     report_test(test_name, is_ok);
 
     // Test making a simulation with the planets
-    is_ok = test_make_sim_planets_horizons(conn);
+    is_ok = test_make_sim_planets_horizons(conn, verbose);
     is_ok_all &= is_ok;
     test_name = format("Test: Build rebound simulation with planets at epoch {:8.2f} from Horizons data", epoch);
     report_test(test_name, is_ok);
@@ -151,9 +153,6 @@ bool test_all(db_conn_type& conn)
     // *****************************************************************************
     // Test consistency of integrated simulation with expected results
     // *****************************************************************************
-
-    // Test integration consistency variables
-    bool verbose = false;
 
     // Test integration consistency on integer dates (these are spline nodes); spline using vectors
     {
@@ -257,7 +256,7 @@ bool test_make_sim()
 
 // *****************************************************************************
 /// Test building a rebound Simulation with the planets collection.
-bool test_make_sim_planets(const PlanetVector& pv)
+bool test_make_sim_planets(const PlanetVector& pv, bool verbose)
 {
     /// Build the simulation
     Simulation sim = make_sim_planets(pv, epoch);
@@ -271,7 +270,7 @@ bool test_make_sim_planets(const PlanetVector& pv)
     print("t        : {:f}.\n", sim.t());
 
     // Display the particles
-    sim.print_vectors();
+    if (verbose) {sim.print_vectors();}
 
     // Grab particles for Sun and Earth
     Particle p_sun = sim.particle(0);
@@ -287,7 +286,7 @@ bool test_make_sim_planets(const PlanetVector& pv)
 
 // *****************************************************************************
 /// Test building a rebound Simulation with the planets collection initialized with Horizons data.
-bool test_make_sim_planets_horizons(db_conn_type& conn)
+bool test_make_sim_planets_horizons(db_conn_type& conn, bool verbose)
 {
     /// Build the simulation
     Simulation sim = make_sim_planets_horizons(conn, epoch);
@@ -302,7 +301,7 @@ bool test_make_sim_planets_horizons(db_conn_type& conn)
     print("t        : {:f}.\n", sim.t());
 
     // Display the particles
-    sim.print_vectors();
+    if (verbose) {sim.print_vectors();}
 
     // Grab particles for Sun and Earth
     Particle p_sun = sim.particle(0);

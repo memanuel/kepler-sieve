@@ -82,11 +82,14 @@ StateVector particle2state_vector(const Particle& p);
 /// Calculate a rebound Orbit from a particle and a primary
 Orbit particle2orbit(const Particle& target, const Particle& primary);
 
+/// Convert a StateVector and a mass to a particle
+Particle state_vector2particle(const StateVector& s, double m, int32_t body_id);
+
+/// Convert an OrbitalElement to a Particle
+Particle elt2particle(const OrbitalElement& elt, double m, const Particle& primary);
+
 /// Convert a rebound Orbit to a Particle
 Particle orbit2particle(const Orbit& orb, double m, const Particle& primary);
-
-/// Convert a rebound Orbit to a StateVector
-// StateVector orbit2particle(const Orbit& orb, double m, const Particle& primary);
 
 // *****************************************************************************
 } // Namespace reb

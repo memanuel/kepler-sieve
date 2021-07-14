@@ -90,16 +90,24 @@ PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
 } // end function
 
 // *****************************************************************************
-PlanetVector::PlanetVector() :
-    // Delegate to memory allocating constructor with database inputs 
-    PlanetVector(mjd0_db, mjd1_db, stride_db_min)
+PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min, bool load_):
+    // Delegate to memory allocating constructor with these inputs 
+    PlanetVector(mjd0, mjd1, dt_min)
 {
-    // Load data from disk
-    load();
-
-    // Initialize the gsl_spline objects
-    build_splines();
+    if (load_)
+    {
+        // Load data from disk
+        load();
+        // Initialize the gsl_spline objects
+        build_splines();
+    }
 }
+
+// *****************************************************************************
+PlanetVector::PlanetVector() :
+    // Delegate to memory allocating constructor with database inputs and load_ = true
+    PlanetVector(mjd0_db, mjd1_db, stride_db_min, true)
+    {}
 
 // *****************************************************************************
 PlanetVector::PlanetVector(db_conn_type& conn) :

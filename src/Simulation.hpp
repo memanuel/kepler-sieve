@@ -40,6 +40,8 @@ extern "C" {
     using ks::get_primary_body_id;
     using ks::get_body_name;
 #include "rebound_utils.hpp"
+    using ks::reb::state_vector2particle;
+    using ks::reb::elt2particle;
     using ks::reb::particle2state_vector;
     using ks::reb::particle2orbit;
 #include "StateVector.hpp"
@@ -96,7 +98,10 @@ public:
     /// Add a test particle to a simulation given its state vector; MUST finish adding massive particles first
     void add_test_particle(const StateVector& s, int32_t body_id, int32_t primary_body_id);
 
-    /// Add a test particle to a simulation given its orbit; MUST finish adding massive particles first
+    /// Add a test particle to a simulation given its orbital elements; MUST finish adding massive particles first
+    void add_test_particle(const OrbitalElement& elt, int32_t body_id, int32_t primary_body_id=body_id_sun);
+
+    /// Add a test particle to a simulation given its rebound orbit; MUST finish adding massive particles first
     void add_test_particle(const Orbit& orb, int32_t body_id, int32_t primary_body_id=body_id_sun);
 
     /// Integrate to the given time
@@ -140,11 +145,11 @@ public:
     const Orbit orbit_b(int32_t body_id) const {return orbit(body_idx(body_id));}
 
     /// Write an array of state vectors for an array of input dates for one body identified by its body_id
-    void const write_vectors(const vector<double>& mjd, int32_t body_id, double* q, double* v) const;
+    void const write_vectors(const double* mjd, const int N_t, int32_t body_id, double* q, double* v) const;
 
     /// Write an array of state vectors for an array of input dates for all the bodies
     void const write_vectors_batch(
-        const vector<double>& mjd, const vector<int32_t>& body_id, double* q, double* v) const;
+        const double* mjd, const int N_t, const vector<int32_t>& body_id, double* q, double* v) const;
 
     /// Write an array of orbital elements for an array of input dates for all the bodies
     // void const write_elements_batch() const;

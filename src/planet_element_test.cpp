@@ -68,7 +68,9 @@ constexpr double tol_dv_vec = 1.0E-14;
 constexpr double tol_dq_elt = 1.0E-11;
 /// Absolute difference between interp_vec output and expected velocity; for splined elements
 constexpr double tol_dv_elt = 1.0E-13;
-}
+
+// *****************************************************************************
+}   // anonymous namespace
 
 // *****************************************************************************
 // Functions defined in this module

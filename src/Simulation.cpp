@@ -123,17 +123,8 @@ void Simulation::add_particle(const StateVector& s, double m, int32_t body_id, i
 // *****************************************************************************
 void Simulation::add_particle_impl(const StateVector& s, double m, int32_t body_id, int32_t primary_body_id)
 {
-    // Convert body_id to a hash_id; type in rebound in unsigned rather than signed int32
-    uint32_t hash = static_cast<uint32_t>(body_id);
-    // Initialize a particle with this state vector and the correct mass
-    Particle p 
-    {
-        .x  = s.qx, .y  = s.qy, .z  = s.qz,
-        .vx = s.vx, .vy = s.vy, .vz = s.vz,
-        .m  = m, 
-        .hash = hash
-    };
-
+    // Convert the state vector to a particle
+    Particle p = state_vector2particle(s, m, body_id);
     // Add the particle to the simulation
     add_particle(p, body_id, primary_body_id);
 }
@@ -143,6 +134,19 @@ void Simulation::add_test_particle(const StateVector& s, int32_t body_id, int32_
 {
     // Always safe to add a test particle; don't need to check. Just add it from its state vector.
     add_particle_impl(s, 0.0, body_id, primary_body_id);
+    // Decrement active particles
+    prs->N_active--;
+}
+
+// *****************************************************************************
+void Simulation::add_test_particle(const OrbitalElement& elt, int32_t body_id, int32_t primary_body_id)
+{
+    // Look up the primary particle from its body_id
+    Particle primary = particle_b(primary_body_id);
+    // Build a test particle from this orbital element
+    Particle p = elt2particle(elt, 0.0, primary);
+    // Add the particle
+    add_particle(p, body_id, primary_body_id);
     // Decrement active particles
     prs->N_active--;
 }
@@ -205,12 +209,12 @@ const Orbit Simulation::orbit(int i) const
  * \param[in] v - array of output velocities written to; size is 3*N_t*N_body; layout (time, axis)
  * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
 void const Simulation::write_vectors(
-        const vector<double>& mjd, int32_t body_id, double* q, double* v) const
+        const double* mjd, const int N_t, int32_t body_id, double* q, double* v) const
 {
     // Wrap body_id into a vector of length 1
     vector<int32_t> body_ids = {body_id};
     // Delegate to Simulation::write_vectors_batch
-    write_vectors_batch(mjd, body_ids, q, v);
+    write_vectors_batch(mjd, N_t, body_ids, q, v);
 }
 
 // *****************************************************************************
@@ -257,12 +261,12 @@ void write_vector_row_batch(Simulation& sim, vector<int32_t> body_id, int i, dou
  * \param[in] v - array of output velocities; size is 3*N_t*N_body; layout (time, body, axis)
  * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
 void const Simulation::write_vectors_batch(
-        const vector<double>& mjd, const vector<int32_t>& body_id, double* q, double* v) const
+        const double* mjd, const int N_t, const vector<int32_t>& body_id, double* q, double* v) const
 {
     // Alias the initial reference time
     const double t0 = t();
     // Number of times in the output
-    const int N_t = mjd.size();
+    // const int N_t = mjd.size();
     // Create a copy of the simulation for integrating forward
     Simulation sim_f = this->copy();  
     // The last index that is prior to t; this will be integrated backwards down to 0

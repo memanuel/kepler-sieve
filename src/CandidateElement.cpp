@@ -18,16 +18,18 @@ using ks::CandidateElement;
 // *****************************************************************************
 
 // *****************************************************************************
-CandidateElement::CandidateElement(OrbitalElement& elt, DetectionTimeTable& dtt): 
-    elt(elt),
-    N_t(dtt.N()),
-    mjd(new double[N_t]),
-    q_obs(new double[3*N_t]),
-    q_ast(new double[3*N_t]),
-    v_ast(new double[3*N_t]),
-    u_ast(new double[3*N_t]),
-    q_cal(new double[3*N_t]),
-    v_cal(new double[3*N_t])
+CandidateElement::CandidateElement(OrbitalElement elt, DetectionTimeTable& dtt, int32_t candidate_id): 
+    elt {elt},
+    candidate_id {candidate_id},
+    elt0 {elt},
+    N_t {dtt.N()},
+    mjd {new double[N_t]},
+    q_obs {new double[3*N_t]},
+    q_ast {new double[3*N_t]},
+    v_ast {new double[3*N_t]},
+    u_ast {new double[3*N_t]},
+    q_cal {new double[3*N_t]},
+    v_cal {new double[3*N_t]}
 {
     // Populate mjd array with a copy taken from dtt
     size_t sz_mjd = N_t*sizeof(mjd[0]);
@@ -71,6 +73,7 @@ void CandidateElement::calibrate(const PlanetVector& pv)
     // Build rebound simulation with planets at reference time
     Simulation sim = make_sim_planets(pv, mjd0);
     // Add asteroid to simulation with candidate elements
+    sim.add_test_particle(elt, candidate_id);
     // Write the numerically integrated vectors from this simulation into q_cal and v_cal
     // sim.write_vectors(mjd, N_t, q_cal, v_cal);
 

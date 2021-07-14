@@ -143,15 +143,24 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
 } // end function
 
 // *****************************************************************************
-PlanetElement::PlanetElement() :
-    // Delegate to memory allocating constructor with database inputs 
-    PlanetElement(mjd0_db, mjd1_db, stride_db_min)
+PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min, bool load_) :
+    // Delegate to memory allocating constructor with these inputs
+    PlanetElement(mjd0, mjd1, dt_min)
 {
-    // Load data from disk
-    load();
-    // Initialize the gsl_spline objects
-    build_splines();
+    if (load_)
+    {
+        // Load data from disk
+        load();
+        // Initialize the gsl_spline objects
+        build_splines();
+    }
 }
+
+// *****************************************************************************
+PlanetElement::PlanetElement() :
+    // Delegate to memory allocating constructor with database inputs and load_ = true
+    PlanetElement(mjd0_db, mjd1_db, stride_db_min, true)
+{}
 
 // *****************************************************************************
 PlanetElement::PlanetElement(db_conn_type& conn) :

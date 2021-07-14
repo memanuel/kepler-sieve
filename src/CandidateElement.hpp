@@ -51,12 +51,15 @@ class CandidateElement
 {
 public:
     // Build a CandidateElement from an OrbitalElement and a DetectionTime table
-    CandidateElement(OrbitalElement& elt, DetectionTimeTable& dtt);
+    CandidateElement(OrbitalElement elt, DetectionTimeTable& dtt, int32_t candidate_id);
     /// Destructor for CandidateElement.
     ~CandidateElement();
 
-    /// The underlying OrbitalElement
+    /// The underlying OrbitalElement; mutable
     OrbitalElement elt;
+    /// The integer ID of these candidate elements; plays the role of a body_id
+    const int32_t candidate_id;
+
     /// Calibrate asteroid trajectory to a rebound integration
     void calibrate(const PlanetVector& pv);
     /// Calculate asteroid trajectory (positions and velocity)
@@ -76,6 +79,8 @@ public:
     double* get_u_ast() const {return u_ast;}
 
 private:
+    /// Initial value of element used to initialize this object
+    const OrbitalElement elt0;
     /// Number of detection times
     const int N_t;
     /// Array of mjd when detections were observed (print time); size N

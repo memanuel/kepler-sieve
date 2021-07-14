@@ -75,7 +75,10 @@ public:
     /// Constructor takes time range, time step and allocates memory
     PlanetVector(int mjd0, int mjd1, int dt_min);
 
-    /// Default Constructor - load data from file on disk
+    /// Constructor gives caller option to load data from disk
+    PlanetVector(int mjd0, int mjd1, int dt_min, bool load_);
+
+    /// Default Constructor - load all data from file on disk
     PlanetVector();
 
     /// Constructor - take a DB connection

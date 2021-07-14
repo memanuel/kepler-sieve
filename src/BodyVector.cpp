@@ -69,16 +69,24 @@ BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, const string body_name):
 } // end function
 
 // *****************************************************************************
-BodyVector::BodyVector(const string body_name) :
-    // Delegate to memory allocating constructor with database inputs 
-    BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name)
+BodyVector::BodyVector(int mjd0, int mjd1, int dt_min, const string body_name, bool load_) :
+    // Delegate to memory allocating constructor with these inputs 
+    BodyVector(mjd0, mjd1, dt_min, body_name)
 {
-    // Load data from disk
-    load();
-
-    // Initialize the gsl_spline objects
-    build_splines();
+    if (load_)
+    {
+        // Load data from disk
+        load();
+        // Initialize the gsl_spline objects
+        build_splines();
+    }
 }
+
+// *****************************************************************************
+BodyVector::BodyVector(const string body_name) :
+    // Delegate to memory allocating constructor with database inputs and load_ = true
+    BodyVector(mjd0_db, mjd1_db, stride_db_min, body_name, true)
+    {}
 
 // *****************************************************************************
 BodyVector::BodyVector(db_conn_type& conn, const string body_name) :
@@ -87,7 +95,6 @@ BodyVector::BodyVector(db_conn_type& conn, const string body_name) :
 {
     // Load data from database
     load(conn);
-
     // Initialize the gsl_spline objects
     build_splines();
 }
