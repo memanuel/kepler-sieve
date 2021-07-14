@@ -1,11 +1,11 @@
-/** @file   detection_near_elt_test.cpp
- *  @brief  Test harness for functions used in finding detections near candidate orbital elements.
+/** @file   candidate_elt_test.cpp
+ *  @brief  Test harness for CandidateElement class.
  *
  *  @author Michael S. Emanuel
  *  @date   2021-07-06
  * 
  * Example call:
- * ./detection_near_elt_test.x
+ * ./candidate_elt_test.x
  */
 
 // *****************************************************************************
@@ -45,6 +45,7 @@
 namespace{
 
 // Test orbital elements for Juno @ 59000
+// Copy / paste from KS.GetAsteroidElements(3, 4, 59000, 59000);
 constexpr OrbitalElement elt
 {
     .mjd    = 59000.0,
@@ -125,7 +126,7 @@ bool test_all(db_conn_type& conn)
     t.tick();
 
     // Build CandidateElement for these elements
-    CandidateElement ce(elt, dtt, candidate_id);
+    CandidateElement ce(elt, candidate_id);
     print("\nConstructed CandidateElement from OrbitalElement.\n");
 
     // Calculate the trajectory of the elements matching Juno
@@ -146,7 +147,7 @@ bool test_all(db_conn_type& conn)
 bool test_calc_traj()
 {
     // Build CandidateElement for these elements
-    CandidateElement ce(elt, dtt, candidate_id);
+    CandidateElement ce(elt, candidate_id);
 
     // Choose an example date that is available in DB for testing
     double mjd_test = 58000.0;

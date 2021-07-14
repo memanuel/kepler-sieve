@@ -37,6 +37,8 @@
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
+#include "BodyVector.hpp"
+    using ks::BodyVector;
 #include "PlanetVector.hpp"
     using ks::PlanetVector;
 #include "Simulation.hpp"
@@ -50,8 +52,12 @@ namespace ks {
 class CandidateElement
 {
 public:
-    // Build a CandidateElement from an OrbitalElement and a DetectionTime table
-    CandidateElement(OrbitalElement elt, DetectionTimeTable& dtt, int32_t candidate_id);
+    // Build a CandidateElement from an OrbitalElement and an array of desired times
+    CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd, int N_t);
+
+    // Build a CandidateElement from an OrbitalElement using the shared DetectionTime table
+    CandidateElement(OrbitalElement elt, int32_t candidate_id);
+
     /// Destructor for CandidateElement.
     ~CandidateElement();
 
@@ -63,7 +69,7 @@ public:
     /// Calibrate asteroid trajectory to a rebound integration
     void calibrate(const PlanetVector& pv);
     /// Calculate asteroid trajectory (positions and velocity)
-    void calc_trajectory();
+    void calc_trajectory(bool with_calibration=true);
     /// Calculate direction from asteroid trajectory to observatory
     void calc_direction();
 
@@ -83,6 +89,8 @@ private:
     const OrbitalElement elt0;
     /// Number of detection times
     const int N_t;
+    /// Number of rows of data in spatial arrays for q and v
+    const int N_row;
     /// Array of mjd when detections were observed (print time); size N
     double* mjd;
     /// Array of positions of observatory; size 3N
@@ -93,6 +101,10 @@ private:
     double* v_ast;
     /// Array of directions to an asteroid with these candidate elements; size 3N
     double* u_ast;
+    /// Array of positions of the Sun
+    double* q_sun;
+    /// Array of velocities of the Sun
+    double* v_sun;
     /// Array of position calibration adjustments to match numerical integration
     double* q_cal;
     /// Array of velocity calibration adjustments to match numerical integration

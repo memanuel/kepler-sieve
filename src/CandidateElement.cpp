@@ -6,7 +6,7 @@
  */
 
 // *****************************************************************************
-// Included files
+// Local Dependencies
 #include "CandidateElement.hpp"
 
 // *****************************************************************************
@@ -14,37 +14,102 @@
 using ks::CandidateElement;
 
 // *****************************************************************************
+// Constants in this module
+namespace{
+
+// One BodyVector for the Sun is shared
+BodyVector bv_sun {BodyVector("Sun")};
+
+// One BodyVector for the Earth is shared
+BodyVector bv_earth {BodyVector("Earth")};
+
+// One dectection time table is shared
+DetectionTimeTable dtt = DetectionTimeTable();
+
+// *****************************************************************************
+}   // anonymous namespace
+
+// *****************************************************************************
 // Constructor & deestructor
 // *****************************************************************************
 
 // *****************************************************************************
-CandidateElement::CandidateElement(OrbitalElement elt, DetectionTimeTable& dtt, int32_t candidate_id): 
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_, int N_t): 
+    // Small data elements
     elt {elt},
     candidate_id {candidate_id},
     elt0 {elt},
-    N_t {dtt.N()},
-    mjd {new double[N_t]},
-    q_obs {new double[3*N_t]},
-    q_ast {new double[3*N_t]},
-    v_ast {new double[3*N_t]},
-    u_ast {new double[3*N_t]},
-    q_cal {new double[3*N_t]},
-    v_cal {new double[3*N_t]}
+    N_t {N_t},
+    N_row {3*N_t},
+    // Allocate arrays
+    mjd   {new double[N_t]},
+    q_obs {new double[N_row]},
+    q_ast {new double[N_row]},
+    v_ast {new double[N_row]},
+    u_ast {new double[N_row]},
+    q_sun {new double[N_row]},
+    v_sun {new double[N_row]},
+    q_cal {new double[N_row]},
+    v_cal {new double[N_row]}
 {
-    // Populate mjd array with a copy taken from dtt
+    // Populate mjd array with a copy taken from input
     size_t sz_mjd = N_t*sizeof(mjd[0]);
-    memcpy((void*) dtt.get_mjd(), mjd, sz_mjd);
+    memcpy((void*) mjd_, mjd, sz_mjd);
+    // DEBUG
+    {
+    print("CandidateElement constructor: copied mjd array.\n");
+    int N = dtt.N();
+    print("BodyVector bve properties.  N={:d}. mjd[0]={:8.2f}. mjd[N-1]={:8.2f}.\n", 
+        N, dtt.get_mjd()[0], dtt.get_mjd()[N-1]);
+    }
 
-    // Populate q_obs with a copy taken from dtt
-    size_t sz_q_obs = 3*N_t*sizeof(q_obs[0]);
-    memcpy((void*) dtt.get_q_obs(), q_obs, sz_q_obs);
+    // Initialize q_obs with Earth center as a placeholder
+    // This will be overwritten with the exact observatory position later
+    for (int i=0; i<N_t; i++)
+    {
+        // Interpolated state vector of the Sun at time i
+        Position p = bv_earth.interp_pos(mjd[i]);
+        // Array base into q and v
+        int j = 3*i;
+        // Copy position components
+        q_obs[j+0] = p.qx;  q_obs[j+1] = p.qy;  q_obs[j+2] = p.qz;
+    }   // for / i
+    // DEBUG
+    print("CandidateElement constructor: populated q_obs array.\n");
+
+    // Populate q_sun and v_sun from BodyVector of the Sun
+    for (int i=0; i<N_t; i++)
+    {
+        // Interpolated state vector of the Sun at time i
+        StateVector s = bv_sun.interp_vec(mjd[i]);
+        // Array base into q and v
+        int j = 3*i;
+        // Copy position components
+        q_sun[j+0] = s.qx;  q_sun[j+1] = s.qy;  q_sun[j+2] = s.qz;
+        // Copy velocity components
+        v_sun[j+0] = s.vx;  v_sun[j+1] = s.vy;  v_sun[j+2] = s.vz;
+    }   // for / i
+    // DEBUG
+    print("CandidateElement constructor: populated q_sun, v_sun arrays.\n");
 
     // Intitialize calibration adjustments to zero
-    for (int i=0; i<3*N_t; i++)
+    for (int i=0; i<N_row; i++)
     {
         q_cal[i] = 0.0;
         v_cal[i] = 0.0;
-    }
+    }   // for / i
+    // DEBUG
+    print("CandidateElement constructor: intialized q_cal, v_cal arrays.\n");
+}   // Constructor
+
+// *****************************************************************************
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
+    // Delegate to main constructor using mjd array from detection time table
+    CandidateElement(elt, candidate_id, dtt.get_mjd(), dtt.N())
+{
+    // Populate q_obs with a copy taken from dtt
+    size_t sz_q_obs = N_row*sizeof(q_obs[0]);
+    memcpy((void*) dtt.get_q_obs(), q_obs, sz_q_obs);
 }
 
 // *****************************************************************************
@@ -56,6 +121,8 @@ CandidateElement::~CandidateElement()
     delete [] q_ast;
     delete [] v_ast;
     delete [] u_ast;
+    delete [] q_sun;
+    delete [] v_sun;
     delete [] q_cal;
     delete [] v_cal;
 }
@@ -65,54 +132,10 @@ CandidateElement::~CandidateElement()
 // *****************************************************************************
 
 // *****************************************************************************
-void CandidateElement::calibrate(const PlanetVector& pv)
+void CandidateElement::calc_trajectory(bool with_calibration)
 {
-    // Get the reference time for the elements
-    double mjd0 = elt.mjd;
-
-    // Build rebound simulation with planets at reference time
-    Simulation sim = make_sim_planets(pv, mjd0);
-    // Add asteroid to simulation with candidate elements
-    sim.add_test_particle(elt, candidate_id);
-    // Write the numerically integrated vectors from this simulation into q_cal and v_cal
-    // sim.write_vectors(mjd, N_t, q_cal, v_cal);
-
-    // Unpack the five fields of the orbital element that don't change
-    double a = elt.a;
-    double e = elt.e;
-    double inc = elt.inc;
-    double Omega = elt.Omega;
-    double omega = elt.omega;
-    // Get the reference mean anomaly for the elements
-    double M0 = elt.M;
-    // Calculate the mean motion, n
-    double n = mean_motion(elt.a, mu_sun);
-
-    // Iterate through the times in the mjd array
-    for (int i=0; i<N_t; i++)
-    {
-        // Mean anomaly at this time; changes at rate n and equal to elt.M at time elt.mjd
-        double M = M0 + n*(mjd[i] - mjd0);
-        // Convert M to a true anomaly f
-        double f = anomaly_M2f(M, e);
-        // Convert these elements to a position
-        StateVector sv = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
-        // Index for arrays q_ast and v_ast
-        int idx = 3*i;
-        // Save into array q_ast with calibration adjustment
-        q_ast[idx+0] = sv.qx + q_cal[idx+0];
-        q_ast[idx+1] = sv.qy + q_cal[idx+1];
-        q_ast[idx+2] = sv.qz + q_cal[idx+2];
-        // Save into array v_ast
-        v_ast[idx+0] = sv.vx + v_cal[idx+0];
-        v_ast[idx+1] = sv.vy + v_cal[idx+1];
-        v_ast[idx+2] = sv.vz + v_cal[idx+2];
-    }
-}
-
-// *****************************************************************************
-void CandidateElement::calc_trajectory()
-{
+    // Alias input flag
+    bool cal = with_calibration;
     // Calculate the mean motion, n
     double n = mean_motion(elt.a, mu_sun);
     // Unpack the five fields of the orbital element that don't change
@@ -128,22 +151,51 @@ void CandidateElement::calc_trajectory()
     // Iterate through the mjds in the array
     for (int i=0; i<N_t; i++)
     {
+        // The time shift from the reference time
+        double t = mjd[i] - mjd0;
         // Mean anomaly at this time; changes at rate n and equal to elt.M at time elt.mjd
-        double M = M0 + n*(mjd[i] - mjd0);
+        double M = M0 + n*t;
         // Convert M to a true anomaly f
         double f = anomaly_M2f(M, e);
-        // Convert to a position
-        StateVector sv = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
+        // Convert orbital elements to a heliocentric position
+        StateVector s = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
         // Index for arrays q_ast and v_ast
-        int idx = 3*i;
-        // Save into array q_ast with calibration adjustment
-        q_ast[idx+0] = sv.qx + q_cal[idx+0];
-        q_ast[idx+1] = sv.qy + q_cal[idx+1];
-        q_ast[idx+2] = sv.qz + q_cal[idx+2];
-        // Save into array v_ast
-        v_ast[idx+0] = sv.vx + v_cal[idx+0];
-        v_ast[idx+1] = sv.vy + v_cal[idx+1];
-        v_ast[idx+2] = sv.vz + v_cal[idx+2];
+        int j = 3*i;
+        // Save into array q_ast with calibration adjustment if requested
+        q_ast[j+0] = s.qx + cal ? q_cal[j+0] : 0.0;
+        q_ast[j+1] = s.qy + cal ? q_cal[j+1] : 0.0;
+        q_ast[j+2] = s.qz + cal ? q_cal[j+2] : 0.0;
+        // Save into array v_ast with calibration adjustment if requested
+        v_ast[j+0] = s.vx + cal ? v_cal[j+0] : 0.0;
+        v_ast[j+1] = s.vy + cal ? v_cal[j+1] : 0.0;
+        v_ast[j+2] = s.vz + cal ? v_cal[j+2] : 0.0;
+    }
+}
+
+// *****************************************************************************
+void CandidateElement::calibrate(const PlanetVector& pv)
+{
+    // Get the reference time for the elements
+    double mjd0 = elt.mjd;
+
+    // Build rebound simulation with planets at reference time
+    Simulation sim = make_sim_planets(pv, mjd0);
+    // Add asteroid to simulation with candidate elements
+    sim.add_test_particle(elt, candidate_id);
+    // Write the numerically integrated vectors from this simulation into q_cal and v_cal
+    // sim.write_vectors(mjd, candidate_id, N_t, q_cal, v_cal);
+
+    // Calculate the trajectory without calibration
+    calc_trajectory(false);
+
+    // Iterate through all the rows; subtract the Kepler component from the numerical component
+    // This is equivalent to writing
+    // q_cal[k] = numerical_trajectory[k] - kepler_trajectory[k]
+    // It just uses less memory by using q_cal to store the numerical trajectory and subtracting in place
+    for (int k=0; k<N_row; k++)
+    {
+        q_cal[k] -= q_ast[k];
+        v_cal[k] -= v_ast[k];
     }
 }
 
