@@ -55,7 +55,7 @@ void CandidateElement::calc_trajectory()
 {
     // Calculate the mean motion, n
     double n = mean_motion(elt.a, mu_sun);
-    // Unpack the five fields of orbital element that don't change
+    // Unpack the five fields of the orbital element that don't change
     double a = elt.a;
     double e = elt.e;
     double inc = elt.inc;
@@ -93,36 +93,3 @@ void CandidateElement::calc_direction()
     ;
 }
 
-// *****************************************************************************
-// Get read access to arrays
-// *****************************************************************************
-
-// *****************************************************************************
-double* CandidateElement::get_mjd() const
-{
-    return mjd;
-}
-
-// *****************************************************************************
-double* CandidateElement::get_q_obs() const
-{
-    return q_obs;
-}
-
-// *****************************************************************************
-double* CandidateElement::get_q_ast() const
-{
-    return q_ast;
-}
-
-// *****************************************************************************
-double* CandidateElement::get_v_ast() const
-{
-    return v_ast;
-}
-
-// *****************************************************************************
-double* CandidateElement::get_u_ast() const
-{
-    return u_ast;
-}

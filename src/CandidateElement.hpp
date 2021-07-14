@@ -58,15 +58,15 @@ public:
     void calc_direction();
 
     /// Read access to array of mjd when detections were observed (print time); size N
-    double* get_mjd() const;
+    double* get_mjd() const {return mjd;}
     /// Read access to array of positions of observatory; size 3N
-    double* get_q_obs() const;
+    double* get_q_obs() const {return q_obs;}
     /// Read access to array of positions of an asteroid with these candidate elements; size 3N
-    double* get_q_ast() const;
+    double* get_q_ast() const {return q_ast;}
     /// Read access to array of velocities of an asteroid with these candidate elements; size 3N
-    double* get_v_ast() const;
+    double* get_v_ast() const {return v_ast;}
     /// Read access to array of directions of an asteroid with these candidate elements; size 3N
-    double* get_u_ast() const;
+    double* get_u_ast() const {return u_ast;}
 
 private:
     /// Number of detection times

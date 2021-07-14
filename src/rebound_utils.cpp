@@ -170,8 +170,7 @@ const StateVector Simulation::state_vector(int i) const
 // *****************************************************************************
 const Orbit Simulation::orbit(int i) const
 {
-    // The body_id of the target and its primary
-    const int32_t body_id = body_ids[i];
+    // The body_id of the primary
     const int32_t primary_body_id = primary_body_ids[i];
     // Only return elements if this particle has a real primary, i.e. skip the Sun
     if (!primary_body_id) 
@@ -186,6 +185,44 @@ const Orbit Simulation::orbit(int i) const
     const Particle& primary = particle(j);
     // Return the orbit of this particle w.r.t. its primary
     return particle2orbit(target, primary);
+}
+
+// *****************************************************************************
+// Write arrays of vectors and orbital elements
+// *****************************************************************************
+/** Write an array of state vectors to q and v obtained by integrating this simulation. 
+ * \param[in] mjd - array of dates when output is desired
+ * \param[in] N_t - number of output dates, i.e. size of mjd
+ * \param[in] q - array of output positions; size is 3*N_t*N_body; layout (time, body, axis)
+ * \param[in] v - array of output velocities; size is 3*N_t*N_body; layout (time, body, axis)
+ * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
+void const Simulation::write_vectors(const double* mjd, int N_t, double* q, double* v) const
+{
+    // Create two copies of the simulation for integrating forward and backward
+    Simulation sim_fwd = this->copy();
+    Simulation sim_back = this->copy();
+    // Set time step in sim_back to be negative for backwards integration
+    sim_back.prs->dt = -prs->dt;
+
+    // The last index that is prior to t; this will be integrated backwards down to 0
+    int i0_back=-1;
+
+    // Iterate forward through times in mjd 
+    for (int i=0; i<N_t; i++)
+    {
+        // Time of this output
+        double ti = mjd[i];
+        // If the output time is before the simulation time, update i0_back
+        if (ti < t()) 
+        {
+            i0_back = i;
+            continue;
+        }
+        // If we get here, the output time is on or after the simulation time. 
+        // Integrate forward
+
+
+    }
 }
 
 // *****************************************************************************
