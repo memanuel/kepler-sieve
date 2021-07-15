@@ -219,8 +219,8 @@ bool test_calc_traj()
     double dv = dist_dv(s0, s0_pred);
 
     // Test results
-    double tol_dq = 1.0E-3;
-    double tol_dv = 1.0E-5;
+    double tol_dq = 1.0E-4;
+    double tol_dv = 1.0E-6;
     bool is_ok = (dq < tol_dq) && (dv < tol_dv);
 
     // Report results

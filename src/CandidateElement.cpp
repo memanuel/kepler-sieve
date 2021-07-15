@@ -155,13 +155,13 @@ void CandidateElement::calc_trajectory(bool with_calibration)
         const int jy = j+1;
         const int jz = j+2;
         // Save into array q_ast with calibration adjustment if requested
-        q_ast[jx] = s.qx + q_sun[jx]*0.0 + (cal ? q_cal[jx] : 0.0);
-        q_ast[jy] = s.qy + q_sun[jy]*0.0 + (cal ? q_cal[jy] : 0.0);
-        q_ast[jz] = s.qz + q_sun[jz]*0.0 + (cal ? q_cal[jz] : 0.0);
+        q_ast[jx] = s.qx + q_sun[jx] + (cal ? q_cal[jx] : 0.0);
+        q_ast[jy] = s.qy + q_sun[jy] + (cal ? q_cal[jy] : 0.0);
+        q_ast[jz] = s.qz + q_sun[jz] + (cal ? q_cal[jz] : 0.0);
         // Save into array v_ast with calibration adjustment if requested
-        v_ast[jx] = s.vx + q_sun[jx]*0.0 + (cal ? v_cal[jx] : 0.0);
-        v_ast[jy] = s.vy + q_sun[jy]*0.0 + (cal ? v_cal[jy] : 0.0);
-        v_ast[jz] = s.vz + q_sun[jz]*0.0 + (cal ? v_cal[jz] : 0.0);
+        v_ast[jx] = s.vx + v_sun[jx] + (cal ? v_cal[jx] : 0.0);
+        v_ast[jy] = s.vy + v_sun[jy] + (cal ? v_cal[jy] : 0.0);
+        v_ast[jz] = s.vz + v_sun[jz] + (cal ? v_cal[jz] : 0.0);
     }
 }
 
