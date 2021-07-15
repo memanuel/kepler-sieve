@@ -171,7 +171,7 @@ bool test_all(db_conn_type& conn)
     // Expected state vectors
     string pfx_header = format("{:8s}", "Date");
     string pfx_row_0 = format("{:8.2f}", mjd0);
-    string pfx_row_1 = format("{:8.2f}", mjd0);
+    string pfx_row_1 = format("{:8.2f}", mjd1);
     print("Expected state vectors:\n");
     print_state_vector_headers(pfx_header);
     print_state_vector(s0, pfx_row_0);

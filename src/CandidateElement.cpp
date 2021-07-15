@@ -55,7 +55,7 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
     // Copy from mjd_ input to mjd on the candidate element
     for (int i=0; i<N_t; i++) {mjd[i]=mjd_[i];}
     // DEBUG
-    print("CandidateElement constructor. Copied mjd. mjd[0]={:8.2f}.\n", mjd[0]);
+    // print("CandidateElement constructor. Copied mjd. mjd[0]={:8.2f}.\n", mjd[0]);
 }
 
 // *****************************************************************************
@@ -167,16 +167,17 @@ void CandidateElement::calc_trajectory(bool with_calibration)
         // Index for arrays q_ast and v_ast
         int j = 3*i;
         // Save into array q_ast with calibration adjustment if requested
-        q_ast[j+0] = s.qx + cal ? q_cal[j+0] : 0.0;
-        q_ast[j+1] = s.qy + cal ? q_cal[j+1] : 0.0;
-        q_ast[j+2] = s.qz + cal ? q_cal[j+2] : 0.0;
+        q_ast[j+0] = s.qx + (cal ? q_cal[j+0] : 0.0);
+        q_ast[j+1] = s.qy + (cal ? q_cal[j+1] : 0.0);
+        q_ast[j+2] = s.qz + (cal ? q_cal[j+2] : 0.0);
         // Save into array v_ast with calibration adjustment if requested
-        v_ast[j+0] = s.vx + cal ? v_cal[j+0] : 0.0;
-        v_ast[j+1] = s.vy + cal ? v_cal[j+1] : 0.0;
-        v_ast[j+2] = s.vz + cal ? v_cal[j+2] : 0.0;
+        v_ast[j+0] = s.vx + (cal ? v_cal[j+0] : 0.0);
+        v_ast[j+1] = s.vy + (cal ? v_cal[j+1] : 0.0);
+        v_ast[j+2] = s.vz + (cal ? v_cal[j+2] : 0.0);
         // DEBUG
-        print("calc_trajectory: i={:d}, mjd={:8.2f}, s= ", i, mjd[i]);
-        print_state_vector(s);
+        // print("calc_trajectory: i={:d}, mjd={:8.2f}, s= ", i, mjd[i]);
+        // print_state_vector(s);
+        // print("q_ast[j+0]={:8.2f}\n", q_ast[j+0]);
     }
 }
 
