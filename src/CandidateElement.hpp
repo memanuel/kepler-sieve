@@ -100,7 +100,7 @@ private:
     /// One DetectionTimeTable object shared by all instances
     const inline static DetectionTimeTable dtt = DetectionTimeTable();
     /// One BodyVector object for Sun shared by all instances
-    // const inline static BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
+    const inline static BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
     /// One BodyVector object for Earth shared by all instances
     // const inline static BodyVector bv_earth = BodyVector("Earth");
 

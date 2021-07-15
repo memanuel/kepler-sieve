@@ -100,29 +100,40 @@ void CandidateElement::init(const double* mjd_)
     // // DEBUG
     // print("CandidateElement constructor: populated q_obs array.\n");
 
-    // // Populate q_sun and v_sun from BodyVector of the Sun
-    // for (int i=0; i<N_t; i++)
-    // {
-    //     // Interpolated state vector of the Sun at time i
-    //     StateVector s = bv_sun.interp_vec(mjd[i]);
-    //     // Array base into q and v
-    //     int j = 3*i;
-    //     // Copy position components
-    //     q_sun[j+0] = s.qx;  q_sun[j+1] = s.qy;  q_sun[j+2] = s.qz;
-    //     // Copy velocity components
-    //     v_sun[j+0] = s.vx;  v_sun[j+1] = s.vy;  v_sun[j+2] = s.vz;
-    // }   // for / i
-    // // DEBUG
-    // print("CandidateElement constructor: populated q_sun, v_sun arrays.\n");
+    // DEBUG
+    print("CandidateElement constructor: populating q_sun, v_sun arrays.\n");
+    // Populate q_sun and v_sun from BodyVector of the Sun
+    for (int i=0; i<N_t; i++)
+    {
+        // Interpolated state vector of the Sun at time i
+        StateVector s = bv_sun.interp_vec(mjd[i]);
+        // Array base into q and v
+        int j = 3*i;
+        int jx = j+0;
+        int jy = j+1;
+        int jz = j+2;
+        // Copy position components
+        q_sun[jx] = s.qx;  
+        q_sun[jy] = s.qy;  
+        q_sun[jz] = s.qz;
+        // Copy velocity components
+        v_sun[jx] = s.vx;  
+        v_sun[jy] = s.vy;  
+        v_sun[jz] = s.vz;
+        // DEBUG
+        // print("i={:d}, mjd={:8.2f}, s=", i, mjd[i]);
+        // print_state_vector(s);
+        // print("q_sun[jx]={:8.6f}, q_sun[jy]={:8.6f}, q_sun[jz]={:8.6f}\n", q_sun[j+0], q_sun[j+1], q_sun[j+2]);
+    }   // for / i
 
     // Intitialize calibration adjustments to zero
-    for (int i=0; i<N_row; i++)
+    for (int k=0; k<N_row; k++)
     {
-        q_cal[i] = 0.0;
-        v_cal[i] = 0.0;
-    }   // for / i
+        q_cal[k] = 0.0;
+        v_cal[k] = 0.0;
+    }   // for / k
     // DEBUG
-    print("CandidateElement constructor: intialized q_cal, v_cal arrays.\n");
+    // print("CandidateElement constructor: intialized q_cal, v_cal arrays.\n");
 
 }   // CandidateElement::init
 
@@ -160,14 +171,17 @@ void CandidateElement::calc_trajectory(bool with_calibration)
         StateVector s = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
         // Index for arrays q_ast and v_ast
         int j = 3*i;
+        int jx = j+0;
+        int jy = j+1;
+        int jz = j+2;
         // Save into array q_ast with calibration adjustment if requested
-        q_ast[j+0] = s.qx + (cal ? q_cal[j+0] : 0.0);
-        q_ast[j+1] = s.qy + (cal ? q_cal[j+1] : 0.0);
-        q_ast[j+2] = s.qz + (cal ? q_cal[j+2] : 0.0);
+        q_ast[jx] = s.qx + q_sun[jx]*0.0 + (cal ? q_cal[jx] : 0.0);
+        q_ast[jy] = s.qy + q_sun[jy]*0.0 + (cal ? q_cal[jy] : 0.0);
+        q_ast[jx] = s.qz + q_sun[jz]*0.0 + (cal ? q_cal[jz] : 0.0);
         // Save into array v_ast with calibration adjustment if requested
-        v_ast[j+0] = s.vx + (cal ? v_cal[j+0] : 0.0);
-        v_ast[j+1] = s.vy + (cal ? v_cal[j+1] : 0.0);
-        v_ast[j+2] = s.vz + (cal ? v_cal[j+2] : 0.0);
+        v_ast[jx] = s.vx + q_sun[jx]*0.0 + (cal ? v_cal[jx] : 0.0);
+        v_ast[jy] = s.vy + q_sun[jy]*0.0 + (cal ? v_cal[jy] : 0.0);
+        v_ast[jz] = s.vz + q_sun[jz]*0.0 + (cal ? v_cal[jz] : 0.0);
         // DEBUG
         // print("calc_trajectory: i={:d}, mjd={:8.2f}, s= ", i, mjd[i]);
         // print_state_vector(s);
@@ -211,16 +225,19 @@ const StateVector CandidateElement::state_vector(int i) const
 {
     // The array index for the test date
     int j = 3*i;
+    int jx = j+0;  
+    int jy = j+1; 
+    int jz = j+2;
 
     // Wrap the predicted position and velocity of the asteroid on the test date into a StateVector
     return StateVector 
     {
-        .qx = q_ast[j+0], 
-        .qy = q_ast[j+1],
-        .qz = q_ast[j+2],
-        .vx = v_ast[j+0],
-        .vy = v_ast[j+1],
-        .vz = v_ast[j+2]
+        .qx = q_ast[jx], 
+        .qy = q_ast[jy],
+        .qz = q_ast[jz],
+        .vx = v_ast[jx],
+        .vy = v_ast[jy],
+        .vz = v_ast[jz]
     };
 }
 
