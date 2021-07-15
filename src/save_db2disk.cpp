@@ -8,6 +8,7 @@
  * ./save_db2disk.x --DetectionTime
  * ./save_db2disk.x --DetectionCandidate
  * ./save_db2disk.x --Detection
+ * ./save_db2disk.x --BodyVector
  * ./save_db2disk.x --PlanetVector
  * ./save_db2disk.x --PlanetElement
  * ****************************************************************************/
@@ -18,7 +19,6 @@
     using std::filesystem::exists;
 #include <fmt/format.h>
     using fmt::print;
-
 #include <boost/program_options.hpp>
     namespace po = boost::program_options;
 
@@ -32,6 +32,8 @@
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
+#include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
 #include "MassiveBody.hpp"
     using ks::MassiveBody;
     using ks::MassiveBodyTable;
@@ -44,6 +46,8 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
+#include "BodyVector.hpp"
+    using ks::BodyVector;
 #include "PlanetVector.hpp"
     using ks::PlanetVector;
 #include "PlanetElement.hpp"
@@ -55,6 +59,7 @@ void save_MassiveBody(db_conn_type& conn);
 void save_DetectionTime(db_conn_type& conn);
 void save_DetectionCandidate(db_conn_type& conn);
 void save_Detection(db_conn_type& conn);
+void save_BodyVector(db_conn_type& conn);
 void save_PlanetVector(db_conn_type& conn);
 void save_PlanetElement(db_conn_type& conn);
 
@@ -70,6 +75,7 @@ int main(int argc, char* argv[])
     bool run_DetectionTime = false;
     bool run_Detection = false;
     bool run_DetectionCandidate = false;
+    bool run_BodyVector = false;
     bool run_PlanetVector = false;
     bool run_PlanetElement = false;
 
@@ -85,6 +91,8 @@ int main(int argc, char* argv[])
             "Save contents of stored procedure KS.GetDetections on full range")
         ("DetectionCandidate", po::bool_switch(&run_DetectionCandidate), 
             "Save contents of stored procedure KS.GetCandidateDetections on full range")
+        ("BodyVector", po::bool_switch(&run_BodyVector), 
+            "Save contents of stored procedure KS.GetVectors_Sun and KS.GetVectors_Earth on full range")
         ("PlanetVector", po::bool_switch(&run_PlanetVector), 
             "Save contents of stored procedure KS.GetVectors_Planets on full range")
         ("PlanetElement", po::bool_switch(&run_PlanetElement), 
@@ -114,6 +122,9 @@ int main(int argc, char* argv[])
 
     // Save DetectionCandidate if requested
     if (run_DetectionCandidate) {save_DetectionCandidate(conn);}
+
+    // Save BodyVector if requested
+    if (run_BodyVector) {save_BodyVector(conn);}
 
     // Save PlanetVector if requested
     if (run_PlanetVector) {save_PlanetVector(conn);}
@@ -171,6 +182,27 @@ void save_Detection(db_conn_type& conn)
     DetectionTable dt = DetectionTable(conn, progbar);
     // Save detection table to disk
     dt.save();
+}
+
+// *****************************************************************************
+void save_BodyVector(db_conn_type& conn)
+{
+    // Suported bodies: Sun, Earth
+    constexpr std::array<SolarSystemBody_bv, 2> body_enums = 
+        {SolarSystemBody_bv::sun, SolarSystemBody_bv::earth};
+    
+    // Iterate over supported bodies
+    for (SolarSystemBody_bv body: body_enums)
+    {
+        // The body name
+        string body_name = get_body_name(body);
+        // Initialize BodyVector for this body using database
+        print("Loading BodyVector for {:s} from DB...\n", body_name);
+        BodyVector bv(body, conn);
+        // Save to disk
+        bv.save();
+        print("Saved BodyVector to disk for {:s}.\n", body_name);
+    }
 }
 
 // *****************************************************************************

@@ -155,6 +155,12 @@ double dist(const Velocity& v1, const Velocity& v2);
 /// Return the distance between two state vectors
 double dist(const StateVector& s1, const StateVector& s2);
 
+/// Return the spatial distance between two state vectors
+double dist_dq(const StateVector& s1, const StateVector& s2);
+
+/// Return the velocity distance between two state vectors
+double dist_dv(const StateVector& s1, const StateVector& s2);
+
 /// Return the distance between a state vector and a position
 double dist(const StateVector& s1, const Position& q2);
 

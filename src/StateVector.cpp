@@ -169,6 +169,12 @@ double dist(const Velocity& v1, const Velocity& v2) {return norm(v2-v1);}
 double dist(const StateVector& s1, const StateVector& s2) {return norm(s2-s1);}
 
 // *****************************************************************************
+double dist_dq(const StateVector& s1, const StateVector& s2) {return dist(sv2pos(s1), sv2pos(s2));}
+
+// *****************************************************************************
+double dist_dv(const StateVector& s1, const StateVector& s2) {return dist(sv2vel(s1), sv2vel(s2));}
+
+// *****************************************************************************
 double dist(const StateVector& s1, const Position& q2)
 {
     // Extract position component

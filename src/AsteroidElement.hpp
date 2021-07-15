@@ -29,6 +29,8 @@
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
+#include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
 #include "Timer.hpp"
     using ks::Timer;
 #include "StateVector.hpp"

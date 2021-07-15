@@ -72,7 +72,7 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min):
     // Initialize GSL objects
     acc(gsl_interp_accel_alloc() ),
     // BodyVector object for interpolated Sun state vectors
-    bv_sun(BodyVector("Sun"))
+    bv_sun(BodyVector(SolarSystemBody_bv::sun))
 {
     // Populate body_id - this is a copy from body_id_planets
     for (int i=0; i<N_body; i++) {body_id[i]=body_ids[i];}

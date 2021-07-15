@@ -24,6 +24,8 @@
     using ks::print_newline;
     using ks::report_test;
     using ks::time2hms;
+#include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
 #include "StateVector.hpp"
     using ks::norm;
     using ks::dist;
@@ -45,7 +47,6 @@
     using ks::AsteroidSkyPatchTable;
 #include "BodyVector.hpp"
     using ks::BodyVector;
-    using ks::save_vectors;
 #include "AsteroidElement.hpp"
     using ks::AsteroidElement;
 
@@ -119,7 +120,7 @@ bool test_all(db_conn_type& conn)
 
     // Initialize BodyVector for the Sun from disk
     print("Loading BodyVector object with saved vectors for Sun.\n");
-    BodyVector bv("Sun");
+    BodyVector bv(SolarSystemBody_bv::sun);
     print("Loaded BodyVector object with saved vectors for Sun.\n");
 
     // Test body vectors for Sun

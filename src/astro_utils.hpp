@@ -24,6 +24,7 @@
     using std::invalid_argument;
 #include <string>
     using std::string;
+#include <cstring>
 #include <fmt/format.h>
     using fmt::print;
     using fmt::format;
@@ -109,14 +110,49 @@ double sec2dist(double s_sec);
 // Solar system bodies
 // *****************************************************************************
 
+/// Enumeration of solar system bodies keyed by body_id; limited to planets collection
+enum class SolarSystemBody : int32_t
+{
+    sun             = body_id_sun,
+    mercury_bc      = body_id_mercury_bc,
+    venus_bc        = body_id_venus_bc,
+    earth           = body_id_earth,
+    moon            = body_id_moon,
+    mars_bc         = body_id_mars_bc,
+    jupiter_bc      = body_id_jupiter_bc,
+    saturn_bc       = body_id_saturn_bc,
+    uranus_bc       = body_id_uranus_bc,
+    neptune_bc      = body_id_neptune_bc,
+    pluto_bc        = body_id_pluto_bc
+};
+
+/// Enumeration of solar system bodies keyed by body_id with cached BodyVector inputs
+enum class SolarSystemBody_bv : int32_t
+{
+    sun             = body_id_sun,
+    earth           = body_id_earth,
+};
+
 /// Get the primary body_id of a body in the solar system
 const int32_t get_primary_body_id(int32_t body_id);
 
-/// Get the name of a body_id in the solar system; only the planets collection supported
-const string get_body_name(int32_t body_id);
+/// Get body index (row number) of a body in the planets collection given its SolarSystemBody enum
+const int get_body_idx(SolarSystemBody body);
 
 /// Get body index (row number) of a body in the planets collection given its body_id
 const int get_body_idx(int32_t body_id);
+
+/// Get the name of a solar system body from its SolarSystemBody enum
+const char* get_body_name(SolarSystemBody body);
+
+/// Get the name of a solar system body from its SolarSystemBody_bv enum
+const char* get_body_name(SolarSystemBody_bv body);
+
+/// Get the name of a solar system body from its body_id; limited to planets collection
+const string get_body_name(int32_t body_id);
+
+/// Get the ID of a solar system body from its name; limited to planets collection
+const int32_t get_body_id(const char* body_name);
 
 // *****************************************************************************
 } // Namespace ks

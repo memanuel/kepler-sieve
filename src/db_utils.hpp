@@ -13,6 +13,7 @@
 // Library dependencies
 #include <string>
     using std::string;
+    using std::string_view;
 #include <vector>
     using std::vector;
 #include <utility>
@@ -63,9 +64,12 @@ string sql_sp_bind_params(const string sp_name, const vector<string> &params);
 
 // *****************************************************************************
 /** Execute a stored procedure and return a SQL resultset object.
- *  Import detail: consumers MUST run rs->close() and delete rs when the resultset no longer needed!
+ *  Important detail: consumers MUST run rs->close() and delete rs when the resultset no longer needed!
  *  Otherwise program will have a memory leak. */
 ResultSet* sp_run(db_conn_type& conn, const string sp_name, const vector<string>& params);
+
+/// Run a stored procedure statement that is known at compile time
+ResultSet* sp_run(db_conn_type& conn, const char* sp_call);
 
 // *****************************************************************************
 /// Execute a stored procedure that returns a single integer

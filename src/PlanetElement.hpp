@@ -47,6 +47,7 @@
     using ks::cs::stride_db_min;
     using ks::cs::N_t_db;
 #include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
     using ks::get_primary_body_id;
     using ks::get_body_idx;
 #include "StateVector.hpp"

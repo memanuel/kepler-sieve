@@ -14,13 +14,15 @@
     using fmt::print;
 
 // Local dependencies
+#include "utils.hpp"
+    using ks::norm;
+    using ks::report_test;
+#include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
 #include "db_utils.hpp"
     using ks::db_conn_type;
     using ks::get_db_conn;
     using ks::sp_run;
-#include "utils.hpp"
-    using ks::norm;
-    using ks::report_test;
 #include "StateVector.hpp"
     using ks::StateVector;
     using ks::Position;
@@ -107,6 +109,11 @@ constexpr StateVector s1
     .vz =  0.0018120636681717218
 };
 
+// Prefix for state vectors
+const string pfx_header = format("{:8s}", "Date");
+const string pfx_row_0 = format("{:8.2f}", mjd0);
+const string pfx_row_1 = format("{:8.2f}", mjd1);
+
 // *****************************************************************************
 }   // anonymous namespace
 
@@ -114,7 +121,7 @@ constexpr StateVector s1
 // Functions defined in this module
 int main(int argc, char* argv[]);
 bool test_all(db_conn_type& conn);
-bool test_calc_traj(CandidateElement& ce, StateVector s, int i);
+bool test_calc_traj();
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -139,21 +146,21 @@ bool test_all(db_conn_type& conn)
     int d0 = 0;
     int d1 = 1000000;
  
+    // Current test result
+    bool is_ok;
+    // Overall test result
+    bool is_ok_all = true;
+
     // Build BodyVectors for Sun and Earth
-    BodyVector bv_sun = BodyVector("Sun");
+    BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
     print("Built BodyVector for Sun.\n");
-    BodyVector bv_earth = BodyVector("Earth");
+    BodyVector bv_earth = BodyVector(SolarSystemBody_bv::earth);
     print("Built BodyVector for Earth.\n");
 
     print("\nOrbitalElement for Juno @ {:8.2f} and {:8.2f}.\n", mjd0, mjd1);
     print_orbital_element_headers();
     print_orbital_element(elt0);
     print_orbital_element(elt1);
-
-    // Current test result
-    bool is_ok;
-    // Overall test result
-    bool is_ok_all = true;
 
     // Timer object
     Timer t;
@@ -162,16 +169,25 @@ bool test_all(db_conn_type& conn)
     t.tick();
     DetectionTable dt = DetectionTable(d0, d1);
     dt.load();
-    print("Loaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
+    print("\nLoaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
     t.tock_msg();
     // print_detection(dt[10]);
 
-    t.tick();
+    // Test the calculated trajectory
+    // t.tick();
+    is_ok = test_calc_traj();
+    is_ok_all &= is_ok;
+    // t.tock_msg();
+
+    // Return overall test result
+    return is_ok_all;
+}
+
+// *****************************************************************************
+bool test_calc_traj()
+{
 
     // Expected state vectors
-    string pfx_header = format("{:8s}", "Date");
-    string pfx_row_0 = format("{:8.2f}", mjd0);
-    string pfx_row_1 = format("{:8.2f}", mjd1);
     print("Expected state vectors:\n");
     print_state_vector_headers(pfx_header);
     print_state_vector(s0, pfx_row_0);
@@ -185,56 +201,22 @@ bool test_all(db_conn_type& conn)
     CandidateElement ce(elt0, candidate_id, mjd, N_t);
     print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
 
-    // Ad hoc check trajectory
+    // Built trajectory without calibration
     ce.calc_trajectory(false);
+    print("Calculated trajectory of CandidateElement.\n");
 
     // Predicted state vector
     const StateVector s0_pred = ce.state_vector(0);
     const StateVector s1_pred = ce.state_vector(1);
     // Print the predicted state vectors
+    print("Predicted state vectors with Kepler model:\n");
     print_state_vector_headers(pfx_header);
     print_state_vector(s0_pred, pfx_row_0);
     print_state_vector(s1_pred, pfx_row_1);
 
-    // // Test the calculated trajectory
-    // is_ok = test_calc_traj(ce0, s1, 1);
-    // is_ok_all &= is_ok;
-    // print("Calculated asteroid trajectory.\n");
-    // t.tock_msg();
-
-    // Return overall test result
-    return is_ok_all;
-}
-
-// *****************************************************************************
-bool test_calc_traj(CandidateElement& ce, StateVector s0, int i)
-{
-    // Extracted time array and test time
-    const double* mjd = ce.get_mjd();
-    const double mjd_elt = ce.elt.mjd;
-    const double mjd_vec = mjd[i];
-
-    // Status
-    print("Orbital elements for Juno @ {:8.2f}.\n", mjd_elt);
-    print("State vectors for Juno    @ {:8.2f}.\n", mjd_vec);
-
-    // Wrap expected position and velocity objects
-    Position pos0 = sv2pos(s0);
-    Velocity vel0 = sv2vel(s0);
-
-    // Calculate the trajectory
-    ce.calc_trajectory();
-    print("Calculated trajectory of CandidateElement.\n");
-
-    // Predicted state vector
-    const StateVector s1 = ce.state_vector(i);
-    // Extract predicted position and velocity objects
-    Position pos1 = sv2pos(s1);
-    Velocity vel1 = sv2vel(s1);
-
     // Calculate norm of position and velocity difference
-    double dq = dist(pos0, pos1);
-    double dv = dist(vel0, vel1);
+    double dq = dist_dq(s0, s0_pred);
+    double dv = dist_dv(s0, s0_pred);
 
     // Test results
     double tol_dq = 1.0E-3;
@@ -242,10 +224,11 @@ bool test_calc_traj(CandidateElement& ce, StateVector s0, int i)
     bool is_ok = (dq < tol_dq) && (dv < tol_dv);
 
     // Report results
-    print("Distance between predicted state vectors in Kepler model and DB values for Juno.\n");
+    print("Distance between predicted vs. expected state vectors for Juno with Kepler model.\n");
     print("dq: {:8.2e} AU\n", dq);
     print("dv: {:8.2e} AU/day\n", dv);
-    report_test("Juno trajectory (uncalibrated)", is_ok);
+    string test_name = format("Juno trajectory (uncalibrated)");
+    report_test(test_name, is_ok);
     return is_ok;
 }
 

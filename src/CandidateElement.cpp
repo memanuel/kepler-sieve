@@ -52,10 +52,8 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
     // Delegate to main constructor using mjd array from detection time table
     CandidateElement(elt, candidate_id, N_t)
 {
-    // Copy from mjd_ input to mjd on the candidate element
-    for (int i=0; i<N_t; i++) {mjd[i]=mjd_[i];}
-    // DEBUG
-    // print("CandidateElement constructor. Copied mjd. mjd[0]={:8.2f}.\n", mjd[0]);
+    // Initialize mjd array with input times
+    init(mjd_);
 }
 
 // *****************************************************************************
@@ -63,9 +61,8 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
     // Delegate to main constructor using mjd array from detection time table
     CandidateElement(elt, candidate_id, dtt.get_mjd(), dtt.N())
 {
-    // Populate q_obs with a copy taken from dtt
-    size_t sz_q_obs = N_row*sizeof(q_obs[0]);
-    memcpy((void*) dtt.get_q_obs(), q_obs, sz_q_obs);
+    // Initialize mjd array from detection time table
+    init(dtt.get_mjd());
 }
 
 // *****************************************************************************
@@ -84,13 +81,10 @@ CandidateElement::~CandidateElement()
 }
 
 // *****************************************************************************
-void CandidateElement::init(const double* mjd)
+void CandidateElement::init(const double* mjd_)
 {
-    // Populate mjd array with a copy taken from input
-    size_t sz_mjd = N_t*sizeof(mjd[0]);
-    memcpy((void*) mjd, this->mjd, sz_mjd);
-    // DEBUG
-    print("CandidateElement constructor: copied mjd array.\n");
+    // Copy from mjd_ input to mjd on the candidate element
+    for (int i=0; i<N_t; i++) {mjd[i]=mjd_[i];}
 
     // // Initialize q_obs with Earth center as a placeholder
     // // This will be overwritten with the exact observatory position later

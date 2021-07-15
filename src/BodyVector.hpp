@@ -14,6 +14,7 @@
 // Included libraries
 #include <string>
     using std::string;
+    using std::string_view;
     using std::to_string;
 #include <fstream>
     using std::ifstream;
@@ -30,6 +31,17 @@
 #include <gsl/gsl_spline.h>
 
 // Local dependencies
+#include "constants.hpp"
+    using ks::cs::mpd;
+    using ks::cs::dpm;
+    using ks::cs::mjd0_db;
+    using ks::cs::mjd1_db;
+    using ks::cs::stride_db_min;
+    using ks::cs::body_id_sun;
+    using ks::cs::body_id_earth;
+#include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
+    using ks::get_body_name;
 #include "StateVector.hpp"
     using ks::Position;
     using ks::StateVector;
@@ -55,16 +67,16 @@ public:
     // ********************************************************************************************
 
     /// Constructor takes time range, time step and allocates memory
-    BodyVector(int mjd0, int mjd1, int dt_min, const string body_name);
+    BodyVector(SolarSystemBody_bv ssb, int mjd0, int mjd1, int dt_min);
 
     /// Constructor gives caller option to load data from disk
-    BodyVector(int mjd0, int mjd1, int dt_min, const string body_name, bool load_);
+    BodyVector(SolarSystemBody_bv ssb, int mjd0, int mjd1, int dt_min, bool load_);
 
     /// Constructor - load data from file on disk
-    BodyVector(const string body_name);
+    BodyVector(SolarSystemBody_bv ssb);
 
     /// Constructor - take a DB connection and a body_name which must be one of "Sun", "Earth"
-    BodyVector(db_conn_type& conn, const string body_name);
+    BodyVector(SolarSystemBody_bv ssb, db_conn_type& conn);
 
     /// Destructor - delete manually created arrays
     ~BodyVector();
@@ -72,7 +84,11 @@ public:
     // ********************************************************************************************
     // Public Data Members
     // ********************************************************************************************
-    const string body_name;
+
+    /// The body whose vectors are saved as a SolarSystemBody enum
+    const SolarSystemBody_bv ssb;
+    /// The name of this body as a const char*
+    const char* body_name;
 
     // ********************************************************************************************
     // Public Methods
@@ -131,9 +147,9 @@ private:
     // Function to return the row index given a time_id
     int32_t row(int32_t time_id) const;
     /// Name of database stored procedure to fetch state vectors for this body
-    const string sp_name_from_body() const;
+    const char* sp_name_() const;
     /// Name of filename with serialized data for this body
-    const string file_name_from_body() const;
+    const char* file_name_() const;
 
     /// Process a batch of rows from the databse SP
     void process_rows(db_conn_type& conn, int mjd0, int mjd1);
@@ -142,10 +158,6 @@ private:
     // Free up GSL resources
     void gsl_free();
 };
-
-// *****************************************************************************
-/// Helper function - build and save vectors for Sun and Earth
-void save_vectors(const string body_name);
 
 // *****************************************************************************
 } // namespace ks

@@ -31,6 +31,8 @@
 #include "StateVector.hpp"
     using ks::StateVector;
     using ks::dist;
+    using ks::dist_dq;
+    using ks::dist_dv;
     using ks::is_close;
 #include "PlanetVector.hpp"
     using ks::PlanetVector;
@@ -342,9 +344,9 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
         StateVector s0 = sim0.state_vector(i);
         StateVector s1 = sim1.state_vector(i);
         // The position difference
-        double dq = dist(sv2pos(s0), sv2pos(s1));
+        double dq = dist_dq(s0, s1);
         // The velocity distance
-        double dv = dist(sv2vel(s0), sv2vel(s1));
+        double dv = dist_dv(s0, s1);
         // The maximum difference so far
         if (dq>dq_max) {dq_max=dq; dq_argmax=i;}
         if (dv>dv_max) {dv_max=dv; dv_argmax=i;}

@@ -90,7 +90,29 @@ ResultSet* sp_run(db_conn_type& conn, const string sp_name, const vector<string>
 
     // Execute stored procedure into a SQL resultset object
     ResultSet* rs = stmt->executeQuery(sql);
-    // std::unique_ptr<ResultSet> rs(stmt->executeQuery(sql));
+
+    // Workaround to MariaDB behavior complaining about statements being out of sync:
+    // Make sure there are no more ResultSets
+    while (stmt->getMoreResults())
+    {
+        ResultSet* throwaway = stmt->getResultSet();
+        throwaway->close();
+        delete throwaway;
+    }
+
+    // Return the resultset; consumer MUST run rs->close() and delete rs when done!
+    return rs;
+}
+
+// *****************************************************************************
+ResultSet* sp_run(db_conn_type& conn, const char* sp_call)
+{
+    // Create a new SQL statement
+    sql_stmt_type stmt(conn->createStatement());
+    // print("SP call with bound parameters:\n{:s}\n", sp_call);
+
+    // Execute stored procedure into a SQL resultset object
+    ResultSet* rs = stmt->executeQuery(sp_call);
 
     // Workaround to MariaDB behavior complaining about statements being out of sync:
     // Make sure there are no more ResultSets

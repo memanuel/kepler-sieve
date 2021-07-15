@@ -17,6 +17,7 @@
     using ks::cs::body_id_earth;
     using ks::cs::body_ids_planets;
 #include "astro_utils.hpp"
+    using ks::SolarSystemBody_bv;
     using ks::get_body_name;
 #include "utils.hpp"
     using ks::print_newline;
@@ -31,6 +32,8 @@
     using ks::Velocity;
     using ks::sv2pos;
     using ks::sv2vel;
+    using ks::dist_dq;
+    using ks::dist_dv;
     using ks::is_close;
     using ks::print_state_vector_headers;
     using ks::print_state_vector;
@@ -130,7 +133,7 @@ bool test_all(db_conn_type& conn, bool verbose)
     // Build BodyVector for Earth
     print_stars(true);
     t.tick();
-    BodyVector bv = BodyVector("Earth");
+    BodyVector bv = BodyVector(SolarSystemBody_bv::earth);
     print("Built BodyVector for Earth.\n");
     t.tock_msg();
 
@@ -358,8 +361,8 @@ bool test_planet_element_vs_vector(
             // Interpolated state vectors according to PlanetElement
             StateVector s1 = pe.interp_vec(body_id, mjd);
             // Difference in position and velocity for this body and time
-            double dq = dist(sv2pos(s0), sv2pos(s1));
-            double dv = dist(sv2vel(s0), sv2vel(s1));
+            double dq = dist_dq(s0, s1);
+            double dv = dist_dv(s0, s1);
             // Update total and count
             dq_tot += dq;
             dv_tot += dv;
