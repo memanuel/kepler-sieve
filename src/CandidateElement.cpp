@@ -13,16 +13,6 @@
 // Local names used
 using ks::CandidateElement;
 
-// // One BodyVector for the Sun is shared
-// BodyVector bv_sun {BodyVector("Sun")};
-
-// // One BodyVector for the Earth is shared
-// BodyVector bv_earth {BodyVector("Earth")};
-
-// // One dectection time table is shared
-// DetectionTimeTable dtt = DetectionTimeTable();
-
-
 // *****************************************************************************
 // Constructor & destructor
 // *****************************************************************************
@@ -58,12 +48,9 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
 
 // *****************************************************************************
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
-    // Delegate to main constructor using mjd array from detection time table
+    // Delegate to constructor taking an mjd array and size; use mjd array from detection time table
     CandidateElement(elt, candidate_id, dtt.get_mjd(), dtt.N())
-{
-    // Initialize mjd array from detection time table
-    init(dtt.get_mjd());
-}
+{}
 
 // *****************************************************************************
 // Delete manually allocated arrays
@@ -107,11 +94,11 @@ void CandidateElement::init(const double* mjd_)
     {
         // Interpolated state vector of the Sun at time i
         StateVector s = bv_sun.interp_vec(mjd[i]);
-        // Array base into q and v
-        int j = 3*i;
-        int jx = j+0;
-        int jy = j+1;
-        int jz = j+2;
+        // Index for arrays q_sun and v_sun
+        const int j = 3*i;
+        const int jx = j+0;
+        const int jy = j+1;
+        const int jz = j+2;
         // Copy position components
         q_sun[jx] = s.qx;  
         q_sun[jy] = s.qy;  
@@ -120,10 +107,6 @@ void CandidateElement::init(const double* mjd_)
         v_sun[jx] = s.vx;  
         v_sun[jy] = s.vy;  
         v_sun[jz] = s.vz;
-        // DEBUG
-        // print("i={:d}, mjd={:8.2f}, s=", i, mjd[i]);
-        // print_state_vector(s);
-        // print("q_sun[jx]={:8.6f}, q_sun[jy]={:8.6f}, q_sun[jz]={:8.6f}\n", q_sun[j+0], q_sun[j+1], q_sun[j+2]);
     }   // for / i
 
     // Intitialize calibration adjustments to zero
@@ -132,9 +115,6 @@ void CandidateElement::init(const double* mjd_)
         q_cal[k] = 0.0;
         v_cal[k] = 0.0;
     }   // for / k
-    // DEBUG
-    // print("CandidateElement constructor: intialized q_cal, v_cal arrays.\n");
-
 }   // CandidateElement::init
 
 // *****************************************************************************
@@ -170,22 +150,18 @@ void CandidateElement::calc_trajectory(bool with_calibration)
         // Convert orbital elements to a heliocentric position
         StateVector s = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
         // Index for arrays q_ast and v_ast
-        int j = 3*i;
-        int jx = j+0;
-        int jy = j+1;
-        int jz = j+2;
+        const int j = 3*i;
+        const int jx = j+0;
+        const int jy = j+1;
+        const int jz = j+2;
         // Save into array q_ast with calibration adjustment if requested
         q_ast[jx] = s.qx + q_sun[jx]*0.0 + (cal ? q_cal[jx] : 0.0);
         q_ast[jy] = s.qy + q_sun[jy]*0.0 + (cal ? q_cal[jy] : 0.0);
-        q_ast[jx] = s.qz + q_sun[jz]*0.0 + (cal ? q_cal[jz] : 0.0);
+        q_ast[jz] = s.qz + q_sun[jz]*0.0 + (cal ? q_cal[jz] : 0.0);
         // Save into array v_ast with calibration adjustment if requested
         v_ast[jx] = s.vx + q_sun[jx]*0.0 + (cal ? v_cal[jx] : 0.0);
         v_ast[jy] = s.vy + q_sun[jy]*0.0 + (cal ? v_cal[jy] : 0.0);
         v_ast[jz] = s.vz + q_sun[jz]*0.0 + (cal ? v_cal[jz] : 0.0);
-        // DEBUG
-        // print("calc_trajectory: i={:d}, mjd={:8.2f}, s= ", i, mjd[i]);
-        // print_state_vector(s);
-        // print("q_ast[j+0]={:8.2f}\n", q_ast[j+0]);
     }
 }
 

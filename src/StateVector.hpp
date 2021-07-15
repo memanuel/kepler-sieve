@@ -87,7 +87,7 @@ struct StateVectorSpline
 };
 
 // *****************************************************************************
-/** Encapsulate six vectors of GSL interpolators into one structure for code legibility
+/** Encapsulate six vectors of GSL interpolators into one structure.
  *  One vector for each component qx, qy, qz, vx, vy, vz.
  *  Each body has one one entry in each vector. */
 struct StateVectorSplines
