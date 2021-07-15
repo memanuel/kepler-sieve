@@ -52,7 +52,10 @@ namespace ks {
 class CandidateElement
 {
 public:
-    // Build a CandidateElement from an OrbitalElement and an array of desired times
+    // Build a CandidateElement from an OrbitalElement with a given size
+    CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t);
+
+    // Build a CandidateElement from an OrbitalElement at the desired output times
     CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd, int N_t);
 
     // Build a CandidateElement from an OrbitalElement using the shared DetectionTime table
@@ -60,6 +63,9 @@ public:
 
     /// Destructor for CandidateElement.
     ~CandidateElement();
+
+    /// Initialize a newly constructed CandidateElement with desired output times
+    void init(const double* mjd);
 
     /// The underlying OrbitalElement; mutable
     OrbitalElement elt;
@@ -84,9 +90,20 @@ public:
     /// Read access to array of directions of an asteroid with these candidate elements; size 3N
     double* get_u_ast() const {return u_ast;}
 
+    /// Extract a StateVector from the q_ast and v_ast arrays
+    const StateVector state_vector(int i) const;
+
 private:
     /// Initial value of element used to initialize this object
     const OrbitalElement elt0;
+
+    /// One DetectionTimeTable object shared by all instances
+    const inline static DetectionTimeTable dtt = DetectionTimeTable();
+    /// One BodyVector object for Sun shared by all instances
+    // const inline static BodyVector bv_sun = BodyVector("Sun");
+    /// One BodyVector object for Earth shared by all instances
+    // const inline static BodyVector bv_earth = BodyVector("Earth");
+
     /// Number of detection times
     const int N_t;
     /// Number of rows of data in spatial arrays for q and v

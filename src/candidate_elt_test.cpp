@@ -22,8 +22,11 @@
     using ks::norm;
     using ks::report_test;
 #include "StateVector.hpp"
+    using ks::StateVector;
     using ks::Position;
     using ks::Velocity;
+    using ks::print_state_vector_headers;
+    using ks::print_state_vector;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::print_orbital_element_headers;
@@ -44,30 +47,65 @@
 // Constants in this module
 namespace{
 
+// Date range for testing
+constexpr double mjd0 = 58000.0;
+constexpr double mjd1 = 59000.0;
+constexpr int dt_min = 5;
+
+// Set candidate_id to match body_id
+constexpr int32_t candidate_id = 1000003;
+
+// Test orbital elements for Juno @ 58000
+// Copy / paste from KS.GetAsteroidElements(3, 4, 58000, 58000);
+constexpr OrbitalElement elt0
+{
+    .mjd    =  58000.0,
+    .a      =  2.6685312251581927,
+    .e      =  0.25685345626072426,
+    .inc    =  0.22673642125828372,
+    .Omega  =  2.9645865407453207,
+    .omega  =- 1.951164916093761,
+    .f      = 48.04726436026028,
+    .M      = 42.2236141353505
+};
+
 // Test orbital elements for Juno @ 59000
 // Copy / paste from KS.GetAsteroidElements(3, 4, 59000, 59000);
-constexpr OrbitalElement elt
+constexpr OrbitalElement elt1
 {
-    .mjd    = 59000.0,
-    .a      = 2.6682852999999986,
-    .e      = 0.25693643000000027,
-    .inc    = 0.22673642125828372,
-    .Omega  = 2.9644675653853,
-    .omega  =-1.9536135288017569,
+    .mjd    =  59000.0,
+    .a      =  2.6682852999999986,
+    .e      =  0.25693643000000027,
+    .inc    =  0.22673642125828372,
+    .Omega  =  2.9644675653853,
+    .omega  =- 1.9536135288017569,
     .f      = 46.517431678528794,
     .M      = 46.171557086433715
 };
 
-// Set candidate_id to match body_id
-constexpr int32_t candidate_id = 1000000 + 3;
+// Expected state vector of Juno @58000.  
+// Copy / paste from KS.GetAsteroidVectors(3, 4, 58000, 58000);
+constexpr StateVector s0
+{
+    .qx =  1.0693547365201785,
+    .qy = -2.684939245391761,
+    .qz =  0.5674675777224312,
+    .vx =  0.007764282851412018,
+    .vy =  0.005217549084953882,
+    .vz = -0.001498976011266847
+};
 
-// One dectection time table is shared
-DetectionTimeTable dtt = DetectionTimeTable();
-
-// Date range for testing
-constexpr int mjd0 = 57995;
-constexpr int mjd1 = 58005;
-constexpr int dt_min = 5;
+// Expected state vector of Juno @ 59000.  
+// Copy / paste from KS.GetAsteroidVectors(3, 4, 59000, 59000);
+constexpr StateVector s1
+{
+    .qx = -2.901474180996998,
+    .qy = -1.1922326535693424,
+    .qz =  0.39014258970008053,
+    .vx =  0.001943496924910133,
+    .vy = -0.008331238903688531,
+    .vz =  0.0018120636681717218
+};
 
 // *****************************************************************************
 }   // anonymous namespace
@@ -76,7 +114,7 @@ constexpr int dt_min = 5;
 // Functions defined in this module
 int main(int argc, char* argv[]);
 bool test_all(db_conn_type& conn);
-bool test_calc_traj();
+bool test_calc_traj(CandidateElement& ce, StateVector s, int i);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -101,9 +139,16 @@ bool test_all(db_conn_type& conn)
     int d0 = 0;
     int d1 = 1000000;
  
-    print("\nOrbitalElement for Juno @ {:8.2f}\n", elt.mjd);
+    // Build BodyVectors for Sun and Earth
+    BodyVector bv_sun = BodyVector("Sun");
+    print("Built BodyVector for Sun.\n");
+    BodyVector bv_earth = BodyVector("Earth");
+    print("Built BodyVector for Earth.\n");
+
+    print("\nOrbitalElement for Juno @ {:8.2f} and {:8.2f}.\n", mjd0, mjd1);
     print_orbital_element_headers();
-    print_orbital_element(elt);
+    print_orbital_element(elt0);
+    print_orbital_element(elt1);
 
     // Current test result
     bool is_ok;
@@ -121,77 +166,75 @@ bool test_all(db_conn_type& conn)
     t.tock_msg();
     // print_detection(dt[10]);
 
-    // Build orbital elements for asteroid 3 (Juno), which has 8 hits
-    // Values copy / pasted from CALL KS.GetAsteroidElements(3, 4, 59000, 59000);
     t.tick();
 
-    // Build CandidateElement for these elements
-    CandidateElement ce(elt, candidate_id);
-    print("\nConstructed CandidateElement from OrbitalElement.\n");
+    // Expected state vectors
+    string pfx_header = format("{:8s}", "Date");
+    string pfx_row_0 = format("{:8.2f}", mjd0);
+    string pfx_row_1 = format("{:8.2f}", mjd0);
+    print("Expected state vectors:\n");
+    print_state_vector_headers(pfx_header);
+    print_state_vector(s0, pfx_row_0);
+    print_state_vector(s1, pfx_row_1);
 
-    // Calculate the trajectory of the elements matching Juno
-    ce.calc_trajectory();
-    print("Calculated trajectory of CandidateElement.\n");
+    // Create a test array
+    constexpr int N_t = 2;
+    constexpr double mjd[N_t] {mjd0, mjd1};
 
-    // Test the calculated trajectory
-    is_ok = test_calc_traj();
-    is_ok_all &= is_ok;
-    print("Calculated asteroid trajectory.\n");
-    t.tock_msg();
+    // Build CandidateElement for Juno elements at mjd0
+    CandidateElement ce(elt0, candidate_id, mjd, N_t);
+    print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
+
+    // Ad hoc check trajectory
+    ce.calc_trajectory(false);
+
+    // Predicted state vector
+    const StateVector s0_pred = ce.state_vector(0);
+    const StateVector s1_pred = ce.state_vector(1);
+    // Print the predicted state vectors
+    print_state_vector_headers(pfx_header);
+    print_state_vector(s0_pred, pfx_row_0);
+    print_state_vector(s1_pred, pfx_row_1);
+
+    // // Test the calculated trajectory
+    // is_ok = test_calc_traj(ce0, s1, 1);
+    // is_ok_all &= is_ok;
+    // print("Calculated asteroid trajectory.\n");
+    // t.tock_msg();
 
     // Return overall test result
     return is_ok_all;
 }
 
 // *****************************************************************************
-bool test_calc_traj()
+bool test_calc_traj(CandidateElement& ce, StateVector s0, int i)
 {
-    // Build CandidateElement for these elements
-    CandidateElement ce(elt, candidate_id);
+    // Extracted time array and test time
+    const double* mjd = ce.get_mjd();
+    const double mjd_elt = ce.elt.mjd;
+    const double mjd_vec = mjd[i];
 
-    // Choose an example date that is available in DB for testing
-    double mjd_test = 58000.0;
-    // Overwrite first slot of mjd array in CandidateElement object
-    // Need to abuse const double pointer by casting it to non-const
-    double* mjd = (double*) ce.get_mjd();
-    mjd[0] = mjd_test;
-
-    // Calculate trajectory of the asteroid in Kepler approximation
-    ce.calc_trajectory();
-
-    // Get the predicted position of the asteroid on the test date
-    const double* q_ast = ce.get_q_ast();
-    Position pos
-    {
-        .qx = q_ast[0],
-        .qy = q_ast[1],
-        .qz = q_ast[2]
-    };
-    // Get the predicted velocity of the asteroid on the test date
-    const double* v_ast = ce.get_v_ast();
-    Velocity vel
-    {
-        .vx = v_ast[0],
-        .vy = v_ast[1],
-        .vz = v_ast[2]
-    };
-
-    // Expected state vector components - location of Juno at this time.  
-    // Copy / paste from KS.GetAsteroidVectors(3, 4, 58000, 58000);
-    double qx =  1.0693547365201785;
-    double qy = -2.684939245391761;
-    double qz =  0.5674675777224312;
-    double vx =  0.007764282851412018;
-    double vy =  0.005217549084953882;
-    double vz = -0.001498976011266847;
+    // Status
+    print("Orbital elements for Juno @ {:8.2f}.\n", mjd_elt);
+    print("State vectors for Juno    @ {:8.2f}.\n", mjd_vec);
 
     // Wrap expected position and velocity objects
-    Position pos0 {.qx=qx, .qy=qy, .qz=qz};
-    Velocity vel0 {.vx=vx, .vy=vy, .vz=vz};
+    Position pos0 = sv2pos(s0);
+    Velocity vel0 = sv2vel(s0);
+
+    // Calculate the trajectory
+    ce.calc_trajectory();
+    print("Calculated trajectory of CandidateElement.\n");
+
+    // Predicted state vector
+    const StateVector s1 = ce.state_vector(i);
+    // Extract predicted position and velocity objects
+    Position pos1 = sv2pos(s1);
+    Velocity vel1 = sv2vel(s1);
 
     // Calculate norm of position and velocity difference
-    double dq = dist(pos0, pos);
-    double dv = dist(vel0, vel);
+    double dq = dist(pos0, pos1);
+    double dv = dist(vel0, vel1);
 
     // Test results
     double tol_dq = 1.0E-3;
@@ -199,7 +242,7 @@ bool test_calc_traj()
     bool is_ok = (dq < tol_dq) && (dv < tol_dv);
 
     // Report results
-    print("Distance between predicted state vectors in Kepler model and DB values for Juno @ {:9.4f}.\n", mjd_test);
+    print("Distance between predicted state vectors in Kepler model and DB values for Juno.\n");
     print("dq: {:8.2e} AU\n", dq);
     print("dv: {:8.2e} AU/day\n", dv);
     report_test("Juno trajectory (uncalibrated)", is_ok);

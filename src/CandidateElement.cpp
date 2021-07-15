@@ -13,28 +13,22 @@
 // Local names used
 using ks::CandidateElement;
 
-// *****************************************************************************
-// Constants in this module
-namespace{
+// // One BodyVector for the Sun is shared
+// BodyVector bv_sun {BodyVector("Sun")};
 
-// One BodyVector for the Sun is shared
-BodyVector bv_sun {BodyVector("Sun")};
+// // One BodyVector for the Earth is shared
+// BodyVector bv_earth {BodyVector("Earth")};
 
-// One BodyVector for the Earth is shared
-BodyVector bv_earth {BodyVector("Earth")};
+// // One dectection time table is shared
+// DetectionTimeTable dtt = DetectionTimeTable();
 
-// One dectection time table is shared
-DetectionTimeTable dtt = DetectionTimeTable();
 
 // *****************************************************************************
-}   // anonymous namespace
-
-// *****************************************************************************
-// Constructor & deestructor
+// Constructor & destructor
 // *****************************************************************************
 
 // *****************************************************************************
-CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_, int N_t): 
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t): 
     // Small data elements
     elt {elt},
     candidate_id {candidate_id},
@@ -51,56 +45,18 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
     v_sun {new double[N_row]},
     q_cal {new double[N_row]},
     v_cal {new double[N_row]}
+    {}
+
+// *****************************************************************************
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_, int N_t):
+    // Delegate to main constructor using mjd array from detection time table
+    CandidateElement(elt, candidate_id, N_t)
 {
-    // Populate mjd array with a copy taken from input
-    size_t sz_mjd = N_t*sizeof(mjd[0]);
-    memcpy((void*) mjd_, mjd, sz_mjd);
+    // Copy from mjd_ input to mjd on the candidate element
+    for (int i=0; i<N_t; i++) {mjd[i]=mjd_[i];}
     // DEBUG
-    {
-    print("CandidateElement constructor: copied mjd array.\n");
-    int N = dtt.N();
-    print("BodyVector bve properties.  N={:d}. mjd[0]={:8.2f}. mjd[N-1]={:8.2f}.\n", 
-        N, dtt.get_mjd()[0], dtt.get_mjd()[N-1]);
-    }
-
-    // Initialize q_obs with Earth center as a placeholder
-    // This will be overwritten with the exact observatory position later
-    for (int i=0; i<N_t; i++)
-    {
-        // Interpolated state vector of the Sun at time i
-        Position p = bv_earth.interp_pos(mjd[i]);
-        // Array base into q and v
-        int j = 3*i;
-        // Copy position components
-        q_obs[j+0] = p.qx;  q_obs[j+1] = p.qy;  q_obs[j+2] = p.qz;
-    }   // for / i
-    // DEBUG
-    print("CandidateElement constructor: populated q_obs array.\n");
-
-    // Populate q_sun and v_sun from BodyVector of the Sun
-    for (int i=0; i<N_t; i++)
-    {
-        // Interpolated state vector of the Sun at time i
-        StateVector s = bv_sun.interp_vec(mjd[i]);
-        // Array base into q and v
-        int j = 3*i;
-        // Copy position components
-        q_sun[j+0] = s.qx;  q_sun[j+1] = s.qy;  q_sun[j+2] = s.qz;
-        // Copy velocity components
-        v_sun[j+0] = s.vx;  v_sun[j+1] = s.vy;  v_sun[j+2] = s.vz;
-    }   // for / i
-    // DEBUG
-    print("CandidateElement constructor: populated q_sun, v_sun arrays.\n");
-
-    // Intitialize calibration adjustments to zero
-    for (int i=0; i<N_row; i++)
-    {
-        q_cal[i] = 0.0;
-        v_cal[i] = 0.0;
-    }   // for / i
-    // DEBUG
-    print("CandidateElement constructor: intialized q_cal, v_cal arrays.\n");
-}   // Constructor
+    print("CandidateElement constructor. Copied mjd. mjd[0]={:8.2f}.\n", mjd[0]);
+}
 
 // *****************************************************************************
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
@@ -128,7 +84,56 @@ CandidateElement::~CandidateElement()
 }
 
 // *****************************************************************************
-// Calculate trajectory and direction
+void CandidateElement::init(const double* mjd)
+{
+    // Populate mjd array with a copy taken from input
+    size_t sz_mjd = N_t*sizeof(mjd[0]);
+    memcpy((void*) mjd, this->mjd, sz_mjd);
+    // DEBUG
+    print("CandidateElement constructor: copied mjd array.\n");
+
+    // // Initialize q_obs with Earth center as a placeholder
+    // // This will be overwritten with the exact observatory position later
+    // for (int i=0; i<N_t; i++)
+    // {
+    //     // Interpolated state vector of the Sun at time i
+    //     Position p = bv_earth.interp_pos(mjd[i]);
+    //     // Array base into q and v
+    //     int j = 3*i;
+    //     // Copy position components
+    //     q_obs[j+0] = p.qx;  q_obs[j+1] = p.qy;  q_obs[j+2] = p.qz;
+    // }   // for / i
+    // // DEBUG
+    // print("CandidateElement constructor: populated q_obs array.\n");
+
+    // // Populate q_sun and v_sun from BodyVector of the Sun
+    // for (int i=0; i<N_t; i++)
+    // {
+    //     // Interpolated state vector of the Sun at time i
+    //     StateVector s = bv_sun.interp_vec(mjd[i]);
+    //     // Array base into q and v
+    //     int j = 3*i;
+    //     // Copy position components
+    //     q_sun[j+0] = s.qx;  q_sun[j+1] = s.qy;  q_sun[j+2] = s.qz;
+    //     // Copy velocity components
+    //     v_sun[j+0] = s.vx;  v_sun[j+1] = s.vy;  v_sun[j+2] = s.vz;
+    // }   // for / i
+    // // DEBUG
+    // print("CandidateElement constructor: populated q_sun, v_sun arrays.\n");
+
+    // Intitialize calibration adjustments to zero
+    for (int i=0; i<N_row; i++)
+    {
+        q_cal[i] = 0.0;
+        v_cal[i] = 0.0;
+    }   // for / i
+    // DEBUG
+    print("CandidateElement constructor: intialized q_cal, v_cal arrays.\n");
+
+}   // CandidateElement::init
+
+// *****************************************************************************
+// Calculate and calibrate trajectory in Kepler model
 // *****************************************************************************
 
 // *****************************************************************************
@@ -169,6 +174,9 @@ void CandidateElement::calc_trajectory(bool with_calibration)
         v_ast[j+0] = s.vx + cal ? v_cal[j+0] : 0.0;
         v_ast[j+1] = s.vy + cal ? v_cal[j+1] : 0.0;
         v_ast[j+2] = s.vz + cal ? v_cal[j+2] : 0.0;
+        // DEBUG
+        print("calc_trajectory: i={:d}, mjd={:8.2f}, s= ", i, mjd[i]);
+        print_state_vector(s);
     }
 }
 
@@ -198,6 +206,32 @@ void CandidateElement::calibrate(const PlanetVector& pv)
         v_cal[k] -= v_ast[k];
     }
 }
+
+// *****************************************************************************
+// Get predicted state vectors
+// *****************************************************************************
+
+// *****************************************************************************
+const StateVector CandidateElement::state_vector(int i) const
+{
+    // The array index for the test date
+    int j = 3*i;
+
+    // Wrap the predicted position and velocity of the asteroid on the test date into a StateVector
+    return StateVector 
+    {
+        .qx = q_ast[j+0], 
+        .qy = q_ast[j+1],
+        .qz = q_ast[j+2],
+        .vx = v_ast[j+0],
+        .vy = v_ast[j+1],
+        .vz = v_ast[j+2]
+    };
+}
+
+// *****************************************************************************
+// Calculate direction
+// *****************************************************************************
 
 // *****************************************************************************
 void CandidateElement::calc_direction()
