@@ -76,7 +76,7 @@ public:
     const int32_t candidate_id;
 
     /// Calibrate asteroid trajectory to a rebound integration
-    void calibrate() {}
+    void calibrate(const PlanetVector& pv);
     /// Calculate asteroid trajectory (positions and velocity)
     void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
@@ -100,8 +100,9 @@ private:
     /// Initial value of element used to initialize this object
     const OrbitalElement elt0;
 
-    /// One PlanetVector object shared by all instances
-    // const inline static PlanetVector pv = PlanetVector();
+    // TODO - get static PlanetVector working
+    // One PlanetVector object shared by all instances
+
     /// One BodyVector object for Sun shared by all instances
     const inline static BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);  
     /// One BodyVector object for Earth shared by all instances

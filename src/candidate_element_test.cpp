@@ -54,6 +54,11 @@ constexpr double mjd0 = 58000.0;
 constexpr double mjd1 = 59000.0;
 constexpr int dt_min = 5;
 
+// Date range for PlanetVector
+constexpr int pad = 32;
+constexpr int mjd0_pv = static_cast<int>(mjd0)-pad;
+constexpr int mjd1_pv = static_cast<int>(mjd1)+pad;
+
 // Set candidate_id to match body_id of Juno (asteroid_id=3)
 constexpr int32_t candidate_id = 1000003;
 
@@ -159,9 +164,9 @@ bool test_all(db_conn_type& conn)
     // Timer object
     Timer t;
 
-    t.tick();
-    PlanetVector pv = PlanetVector(mjd0, mjd1, 1440);
-    t.tock_msg("Built PlanetVector");
+    // t.tick();
+    // PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, 1440);
+    // t.tock_msg("Built PlanetVector");
 
     // Test the calculated trajectory - uncalibrated
     t.tick();
@@ -170,10 +175,10 @@ bool test_all(db_conn_type& conn)
     t.tock_msg();
 
     // Test the calculated trajectory - calibrated
-    // t.tick();
-    // is_ok = test_calc_traj(true, false);
-    // is_ok_all &= is_ok;
-    // t.tock_msg();
+    t.tick();
+    is_ok = test_calc_traj(true, false);
+    is_ok_all &= is_ok;
+    t.tock_msg();
 
     // Return overall test result
     return is_ok_all;
@@ -199,8 +204,13 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     CandidateElement ce(elt0, candidate_id, mjd, N_t);
     // print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
 
+    Timer t;
+    t.tick();
+    PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, 1440);    
+    t.tock_msg("Built PlanetVector");
+
     // Calibrate if requested
-    if (is_calibrated) {ce.calibrate();}
+    if (is_calibrated) {ce.calibrate(pv);}
 
     // Calculate trajectory
     ce.calc_trajectory();
@@ -224,11 +234,22 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     double dq1 = dist_dq(s1, s1_pred);
     double dv1 = dist_dv(s1, s1_pred);
 
-    // Set tolerance
-    double tol_dq = 1.0E-4;
-    double tol_dv = 1.0E-6;
+    // Set tolerance for the recovery of elements on the nodes
+    double tol_dq_node = 1.0E-13;
+    double tol_dv_node = 1.0E-15;
+    // Set tolerance for the Kepler projection 1000 days away
+    double tol_dq = 1.0E-2;
+    double tol_dv = 1.0E-4;
+
+    // Tighten up tolerances if calibrated
+    if (is_calibrated)
+    {
+        tol_dq = tol_dq_node;
+        tol_dv = tol_dv_node;
+    }
+
     // Test results
-    bool is_ok = (dq0 < tol_dq) && (dv0 < tol_dv) && (dq1 < tol_dq) && (dv1 < tol_dv);
+    bool is_ok = (dq0 < tol_dq_node) && (dv0 < tol_dv_node) && (dq1 < tol_dq) && (dv1 < tol_dv);
 
     // Report results
     string cal_des = is_calibrated ? "calibrated" : "uncalibrated";
@@ -240,4 +261,3 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     report_test(test_name, is_ok);
     return is_ok;
 }
-
