@@ -57,14 +57,17 @@ MAKEFLAGS=--warn-undefined-variables --jobs=$(MAKE_JOBS)
 # Show the number of jobs
 $(info Running make with up to $(MAKE_JOBS) parallel jobs.$(NEWLINE))
 
+# Set verbosity flag; uncomment this line to show lists of source files, object files and executables.
+# VERBOSE := 1
+
 # *************************************************************************************************
 # Compiler settings
 # *************************************************************************************************
 # C++ compiler
 CXX=g++
 
-# Compilation flags
-CXX_FLAGS= \$(NEWLINE) $(TAB) -std=c++20 -Wall -O3 -fsanitize=address
+# C++ Compilation flags
+CXX_FLAGS= \$(NEWLINE) $(TAB) -std=c++20 -Wall -O3
 
 # Output command for object files
 # Note $< is a shorthand for the first dependency
@@ -119,9 +122,6 @@ LD_LIB_MARIADB := -lmariadbcpp
 # rebound (integration of gravitational problem)
 LD_LIB_REBOUND := -lrebound
 
-# address sanitizer tool
-LD_ASAN := -fsanitize=address
-
 # *************************************************************************************************
 # Gather additional include directories with -I flag
 # *************************************************************************************************
@@ -155,3 +155,18 @@ LD_FLAGS := $(LD_FLAGS_USR) $(LD_ASAN)
 
 # Additional libraries -l
 LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_GSL) $(LD_LIB_MARIADB) $(LD_LIB_REBOUND)
+
+# *************************************************************************************************
+# Address sanitizer configuration
+# *************************************************************************************************
+
+# Set flag whether to use address sanitizer; uncomment to turn this on
+# USE_ASAN := 1
+# The option passed to both compiler and linker when using address sanitizer
+ASAN_OPT := -fsanitize=address
+
+# Add this option if address sanitizer is being used
+ifdef ASAN
+	CXX_FLAGS := $(CXX_FLAGS) $(ASAN_OPT)
+	LD_LIBS := $(LD_LIBS) $(ASAN_OPT)
+endif
