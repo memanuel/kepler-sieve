@@ -151,11 +151,11 @@ bool test_all(db_conn_type& conn)
     // Overall test result
     bool is_ok_all = true;
 
-    // Build BodyVectors for Sun and Earth
-    BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
-    print("Built BodyVector for Sun.\n");
-    BodyVector bv_earth = BodyVector(SolarSystemBody_bv::earth);
-    print("Built BodyVector for Earth.\n");
+    // // Build BodyVectors for Sun and Earth
+    // BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
+    // print("Built BodyVector for Sun.\n");
+    // BodyVector bv_earth = BodyVector(SolarSystemBody_bv::earth);
+    // print("Built BodyVector for Earth.\n");
 
     print("\nOrbitalElement for Juno @ {:8.2f} and {:8.2f}.\n", mjd0, mjd1);
     print_orbital_element_headers();
@@ -202,7 +202,7 @@ bool test_calc_traj()
     print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
 
     // Built trajectory without calibration
-    ce.calc_trajectory(false);
+    ce.calc_trajectory();
     print("Calculated trajectory of CandidateElement.\n");
 
     // Predicted state vector

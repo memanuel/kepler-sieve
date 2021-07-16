@@ -37,6 +37,9 @@
 #include "DetectionTime.hpp"
     using ks::DetectionTime;
     using ks::DetectionTimeTable;
+#include "Detection.hpp"
+    using ks::Detection;
+    using ks::DetectionTable;
 #include "BodyVector.hpp"
     using ks::BodyVector;
 #include "PlanetVector.hpp"
@@ -75,7 +78,7 @@ public:
     /// Calibrate asteroid trajectory to a rebound integration
     void calibrate(const PlanetVector& pv);
     /// Calculate asteroid trajectory (positions and velocity)
-    void calc_trajectory(bool with_calibration=true);
+    void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
     void calc_direction();
 
@@ -97,12 +100,14 @@ private:
     /// Initial value of element used to initialize this object
     const OrbitalElement elt0;
 
+    /// One BodyVector object for Sun shared by all instances
+    const inline static BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);  
+    /// One BodyVector object for Earth shared by all instances
+    const inline static BodyVector bv_earth = BodyVector(SolarSystemBody_bv::earth);
     /// One DetectionTimeTable object shared by all instances
     const inline static DetectionTimeTable dtt = DetectionTimeTable();
-    /// One BodyVector object for Sun shared by all instances
-    const inline static BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
-    /// One BodyVector object for Earth shared by all instances
-    // const inline static BodyVector bv_earth = BodyVector("Earth");
+    /// One DetectionTable object shared by all instances
+    // const inline static DetectionTable dt = DetectionTable();
 
     /// Number of detection times
     const int N_t;
@@ -118,14 +123,10 @@ private:
     double* v_ast;
     /// Array of directions to an asteroid with these candidate elements; size 3N
     double* u_ast;
-    /// Array of positions of the Sun
-    double* q_sun;
-    /// Array of velocities of the Sun
-    double* v_sun;
-    /// Array of position calibration adjustments to match numerical integration
-    double* q_cal;
-    /// Array of velocity calibration adjustments to match numerical integration
-    double* v_cal;
+    /// Array of position shifts; includes (1) sun position (2) numerical calibration adjustment
+    double* dq_ast;
+    /// Array of velocity shifts; includes (1) sun velocity (2) numerical calibration adjustment
+    double* dv_ast;
 };
 
 // *****************************************************************************
