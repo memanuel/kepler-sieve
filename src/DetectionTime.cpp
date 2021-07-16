@@ -15,8 +15,11 @@ using ks::DetectionTime;
 using ks::DetectionTimeTable;
 // Declare helper functions
 int file_length();
+
 // Location of file with serialized data
+namespace {
 const string file_name = "data/cache/DetectionTimeTable.bin";
+}
 
 // *****************************************************************************
 DetectionTimeTable::DetectionTimeTable():

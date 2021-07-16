@@ -121,7 +121,7 @@ const string pfx_row_1 = format("{:8.2f}", mjd1);
 // Functions defined in this module
 int main(int argc, char* argv[]);
 bool test_all(db_conn_type& conn);
-bool test_calc_traj();
+bool test_calc_traj(bool is_calibrated, bool verbose);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -143,19 +143,13 @@ int main(int argc, char* argv[])
 bool test_all(db_conn_type& conn)
 {
     // Inputs used in testing
-    int d0 = 0;
-    int d1 = 1000000;
+    // int d0 = 0;
+    // int d1 = 1000000;
  
     // Current test result
     bool is_ok;
     // Overall test result
     bool is_ok_all = true;
-
-    // // Build BodyVectors for Sun and Earth
-    // BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);
-    // print("Built BodyVector for Sun.\n");
-    // BodyVector bv_earth = BodyVector(SolarSystemBody_bv::earth);
-    // print("Built BodyVector for Earth.\n");
 
     print("\nOrbitalElement for Juno @ {:8.2f} and {:8.2f}.\n", mjd0, mjd1);
     print_orbital_element_headers();
@@ -165,18 +159,20 @@ bool test_all(db_conn_type& conn)
     // Timer object
     Timer t;
 
-    // Initialize DetectionTable
     t.tick();
-    DetectionTable dt = DetectionTable(d0, d1);
-    dt.load();
-    print("\nLoaded DetectionTable with detection_id in [{:d}, {:d}).\n", d0, d1);
-    t.tock_msg();
-    // print_detection(dt[10]);
+    PlanetVector pv = PlanetVector(mjd0, mjd1, 1440);
+    t.tock_msg("Built PlanetVector");
 
-    // Test the calculated trajectory
-    // t.tick();
-    is_ok = test_calc_traj();
+    // Test the calculated trajectory - uncalibrated
+    t.tick();
+    is_ok = test_calc_traj(false, true);
     is_ok_all &= is_ok;
+    t.tock_msg();
+
+    // Test the calculated trajectory - calibrated
+    // t.tick();
+    // is_ok = test_calc_traj(true, false);
+    // is_ok_all &= is_ok;
     // t.tock_msg();
 
     // Return overall test result
@@ -184,14 +180,16 @@ bool test_all(db_conn_type& conn)
 }
 
 // *****************************************************************************
-bool test_calc_traj()
+bool test_calc_traj(bool is_calibrated, bool verbose)
 {
-
     // Expected state vectors
-    print("Expected state vectors:\n");
-    print_state_vector_headers(pfx_header);
-    print_state_vector(s0, pfx_row_0);
-    print_state_vector(s1, pfx_row_1);
+    if (verbose)
+    {
+        print("Expected state vectors:\n");
+        print_state_vector_headers(pfx_header);
+        print_state_vector(s0, pfx_row_0);
+        print_state_vector(s1, pfx_row_1);
+    }
 
     // Create a test array
     constexpr int N_t = 2;
@@ -199,35 +197,43 @@ bool test_calc_traj()
 
     // Build CandidateElement for Juno elements at mjd0
     CandidateElement ce(elt0, candidate_id, mjd, N_t);
-    print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
+    // print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
 
-    // Built trajectory without calibration
+    // Calibrate if requested
+    if (is_calibrated) {ce.calibrate();}
+
+    // Calculate trajectory
     ce.calc_trajectory();
-    print("Calculated trajectory of CandidateElement.\n");
+    // if (verbose) {print("Calculated trajectory of CandidateElement.\n");}
 
     // Predicted state vector
     const StateVector s0_pred = ce.state_vector(0);
     const StateVector s1_pred = ce.state_vector(1);
     // Print the predicted state vectors
-    print("Predicted state vectors with Kepler model:\n");
-    print_state_vector_headers(pfx_header);
-    print_state_vector(s0_pred, pfx_row_0);
-    print_state_vector(s1_pred, pfx_row_1);
+    if (verbose)
+    {
+        print("Predicted state vectors with Kepler model:\n");
+        print_state_vector_headers(pfx_header);
+        print_state_vector(s0_pred, pfx_row_0);
+        print_state_vector(s1_pred, pfx_row_1);
+    }
 
     // Calculate norm of position and velocity difference
     double dq = dist_dq(s0, s0_pred);
     double dv = dist_dv(s0, s0_pred);
 
-    // Test results
+    // Set tolerance
     double tol_dq = 1.0E-4;
     double tol_dv = 1.0E-6;
+    // Test results
     bool is_ok = (dq < tol_dq) && (dv < tol_dv);
 
     // Report results
-    print("Distance between predicted vs. expected state vectors for Juno with Kepler model.\n");
+    string cal_des = is_calibrated ? "calibrated" : "uncalibrated";
+    print("Distance between predicted vs. expected state vectors for Juno with {:s} Kepler model.\n", cal_des);
     print("dq: {:8.2e} AU\n", dq);
     print("dv: {:8.2e} AU/day\n", dv);
-    string test_name = format("Juno trajectory (uncalibrated)");
+    string test_name = format("Juno trajectory ({:s})", cal_des);
     report_test(test_name, is_ok);
     return is_ok;
 }

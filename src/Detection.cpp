@@ -14,11 +14,17 @@
 using ks::Detection;
 using ks::DetectionTable;
 
+// *****************************************************************************
+// constants in this module
+namespace {
 // Set batch size to one million
 constexpr int batch_size = 1000000;
 
 // Location of file with serialized data
 const string file_name = "data/cache/DetectionTable.bin";
+
+// *****************************************************************************
+}   // anonymous namespace
 
 // *****************************************************************************
 // Class DetectionTable

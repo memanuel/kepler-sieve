@@ -50,15 +50,16 @@ double Timer::tock_msg(const string blurb)
 	time_unit_t t = duration_cast<nanoseconds>(tp1 - tp0).count();
 
 	// Create a formatted output with an appropriate amount of resolution for legibility.
-	// This message is either:
-	// Elapsed time <blurb>: nn.ddd <TimeUnits>.
-	// Elapsed time: nn.ddd <TimeUnits>.
+	// This message is:
+	// <blurb>: nnnnn.ddd <TimeUnits>.
 	// TimeUnits is one of seconds, milliseoncds, microseconds, or nanoseconds.
+	// If <blurb> omitted, message defaults to
+	// Elapsed Time: nnnnn.ddd <TimeUnits>.
 
-	// The template message depends on whether a blurb was provided or not
-	string msg = (blurb.length() > 0) ? 
-		"Elapsed time {:s}: {:.3f} {:s}.\n" : 
-		"Elapsed time: {:.3f} {:s}.\n";
+	// The template message
+	string msg = "{:s}: {:9.3f} {:s}.\n";
+	// The prefix of the message is either blurb or defaults to "Elapsed Time"
+	const string prefix = blurb.length() > 0 ? blurb: "Elapsed Time";
 
 	// Compute the elapsed time in seconds.
 	double tSeconds = static_cast<double>(t) / aBillion;
@@ -66,22 +67,22 @@ double Timer::tock_msg(const string blurb)
 	// Print a message stating the elapsed time.
 	if (t > aBillion) 
 	{
-		print(msg, tSeconds, "seconds");
+		print(msg, prefix, tSeconds, "seconds");
 	}
 	else if (t > aMillion) 
 	{
 		double tMilliSeconds = tSeconds * 1000;
-		print(msg, tMilliSeconds, "milliseconds");
+		print(msg, prefix, tMilliSeconds, "milliseconds");
 	}
 	else if (t > 1000) 
 	{
 		double tMicroSeconds = tSeconds * aMillion;
-		print(msg, tMicroSeconds, "microseconds");
+		print(msg, prefix, tMicroSeconds, "microseconds");
 	}
 	else 
 	{
 		double tNanoSeconds = static_cast<double>(t);
-		print(msg, tNanoSeconds, "nanoseconds");
+		print(msg, prefix, tNanoSeconds, "nanoseconds");
 	}
 
 	// Return the elapsed time in seconds
