@@ -68,9 +68,7 @@ AsteroidElement::AsteroidElement(int32_t n0_, int32_t n1_, int mjd0_, int mjd1_,
         .sin_omega  =    {vector<gsl_spline*>(0)}
     },
     // The GSL accelerator
-    acc {gsl_interp_accel_alloc() },
-    // BodyVector object for interpolated Sun state vectors
-    bv_sun {BodyVector(SolarSystemBody_bv::sun)}
+    acc {gsl_interp_accel_alloc() }
 {
     // Populate asteroid_id
     for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
