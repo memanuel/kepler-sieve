@@ -149,7 +149,7 @@ PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min, bool load_) :
 PlanetElement::PlanetElement() :
     // Delegate to memory allocating constructor with database inputs and load_ = true
     PlanetElement(mjd0_db, mjd1_db, stride_db_min, true)
-{}
+    {}
 
 // *****************************************************************************
 PlanetElement::PlanetElement(db_conn_type& conn) :

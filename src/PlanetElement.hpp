@@ -122,7 +122,7 @@ public:
     // ********************************************************************************************
 
     /// Load data from the database and construct interpolating splines
-    void load(db_conn_type &conn);
+    void load(db_conn_type& conn);
     /// Load data from disk and construct interpolating splines
     void load();
     /// Save this object to disk

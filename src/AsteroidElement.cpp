@@ -31,12 +31,12 @@ AsteroidElement::AsteroidElement(int32_t n0_, int32_t n1_, int mjd0_, int mjd1_,
     // Asteroid range
     n0 {n0_},
     n1 {n1_},
-    // Asteroid array
-    asteroid_id {new int32_t[N_ast]},
     // Date range
     mjd0 {mjd0_},
     mjd1 {mjd1_},
     dt {dt_},
+    // Allocate the one dimensional arrays for asteroid_id and mjd
+    asteroid_id {new int32_t[N_ast]},
     mjd {new double[N_t]},
     // Allocate a two dimensional array for seven traditional orbital elements
     elt_a          {new double[N_row]},
@@ -101,6 +101,12 @@ AsteroidElement::AsteroidElement(int32_t n0_, int32_t n1_, int mjd0_, int mjd1_,
         elt_spline.cos_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
         elt_spline.sin_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
     }   // for / asteroid number in batch
+
+    // DEBUG
+    print("N_ast={:d}, N_t={:d}, N_row={:d}.\n", N_ast, N_t, N_row);
+    print("n0={:d}, n1={:d}.\n", n0, n1);
+    print("mjd0={:d}, mjd1={:d}, dt={:d}.\n", mjd0, mjd1, dt);
+
 } // end function
 
 // *****************************************************************************
@@ -129,7 +135,7 @@ AsteroidElement::~AsteroidElement()
     delete [] elt_sin_omega;
 
     // Free GSL resources
-    gsl_free();
+    gsl_free();   
 }
 
 // *****************************************************************************
@@ -190,6 +196,7 @@ void AsteroidElement::load(db_conn_type &conn, bool progbar)
         print("\nLoaded AsteroidSkyPatch table.\n");
         t.tock_msg();
     }
+
     // Delegate to build_splines method to initialize the gsl_spline* objects
     build_splines();
 }   // end function
@@ -199,7 +206,6 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
 {
     // Run the stored procedure to get detections including the observatory position
     string sp_name = "KS.GetAsteroidElements";
-    int mjd1 = mjd0 + N_t*4;
     vector<string> params = {to_string(i0), to_string(i1), to_string(mjd0), to_string(mjd1)};
     ResultSet* rs = sp_run(conn, sp_name, params);
 

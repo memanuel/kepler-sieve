@@ -149,6 +149,15 @@ int main(int argc, char* argv[])
     // Run all the tests
     bool is_ok = test_all(conn, verbose);
 
+    // // DEBUG
+    // AsteroidElement ae(asteroid_id, asteroid_id+1, 58000-0, 59000+0, 4);
+    // print("Constructed AsteroidElement...\n");
+    // ae.load(conn, false);
+    // print("Loaded AsteroidElement...\n");
+    // print("Manually calling destructor.\n");
+    // ae.~AsteroidElement();
+    // print("Destroyed ae.\n");
+
     // Close DB connection
     conn->close();
 
@@ -177,10 +186,9 @@ bool test_all(db_conn_type& conn, bool verbose)
     {
     // Build a spline of orbital elements sampled at frequency dt specified above
     AsteroidElement ae(asteroid_id, asteroid_id+1, mjd0_ae, mjd1_ae, dt);
+    print("Constructed AsteroidElement...\n");
     ae.load(conn, false);
-
-    // DEBUG
-
+    print("Loaded AsteroidElement...\n");
 
     // Predicted state vectors on mjd0 and mjd1
     StateVector s0_pred = ae.interp_vec(asteroid_id, mjd0);

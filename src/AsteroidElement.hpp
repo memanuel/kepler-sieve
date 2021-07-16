@@ -78,7 +78,7 @@ public:
     // ********************************************************************************************
 
     /// Load data from the database and construct interpolating splines
-    void load(db_conn_type &conn, bool progbar);
+    void load(db_conn_type& conn, bool progbar);
 
     /// Get the array of asteroid IDs whose elements are in this table
     const int32_t* get_asteroid_id() const {return asteroid_id;}
@@ -108,13 +108,10 @@ private:
 
     /// The number of rows of data
     const int N_row;
-
     /// First asteroid ID loaded (inclusive)
     int32_t n0;
     /// Last asteroid ID loaded (exclusive)
     int32_t n1;
-    // One shared array for the distinct asteroid IDs (typically a sequence, possibly with some holes)
-    int32_t* const asteroid_id;
 
     /// First date loaded (inclusive); an integer divisible by time_step
     const int mjd0;
@@ -122,6 +119,9 @@ private:
     const int mjd1;
     /// Time step in days
     const int dt;
+
+    // One shared array for the distinct asteroid IDs (typically a sequence, possibly with some holes)
+    int32_t* const asteroid_id;
     /// One shared array for the times as of which orbital elements apply (every 4th day)
     double* const mjd;
 

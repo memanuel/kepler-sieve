@@ -64,7 +64,7 @@ $(info Running make with up to $(MAKE_JOBS) parallel jobs.$(NEWLINE))
 CXX=g++
 
 # Compilation flags
-CXX_FLAGS= \$(NEWLINE) $(TAB) -std=c++20 -Wall -O3
+CXX_FLAGS= \$(NEWLINE) $(TAB) -std=c++20 -Wall -O3 -fsanitize=address
 
 # Output command for object files
 # Note $< is a shorthand for the first dependency
@@ -119,6 +119,9 @@ LD_LIB_MARIADB := -lmariadbcpp
 # rebound (integration of gravitational problem)
 LD_LIB_REBOUND := -lrebound
 
+# address sanitizer tool
+LD_ASAN := -fsanitize=address
+
 # *************************************************************************************************
 # Gather additional include directories with -I flag
 # *************************************************************************************************
@@ -147,8 +150,8 @@ INCLUDE := $(INCLUDE) $(INCLUDE_REBOUND)
 # -l: additional libraries in library search path named lib<library_name>.a
 # *************************************************************************************************
 
-# Additional library directories -L
-LD_FLAGS := $(LD_FLAGS_USR) 
+# Additional library directories -L and other miscellanoues flags (e.g. address saniter)
+LD_FLAGS := $(LD_FLAGS_USR) $(LD_ASAN)
 
 # Additional libraries -l
 LD_LIBS := $(LD_FMT) $(LD_LIB_BOOST) $(LD_LIB_GSL) $(LD_LIB_MARIADB) $(LD_LIB_REBOUND)
