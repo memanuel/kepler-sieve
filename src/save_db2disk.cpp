@@ -71,6 +71,7 @@ int main(int argc, char* argv[])
     // *****************************************************************************
 
     // Flags from commandline arguments
+    bool run_All = false;
     bool run_MassiveBody = false;
     bool run_DetectionTime = false;
     bool run_Detection = false;
@@ -83,6 +84,8 @@ int main(int argc, char* argv[])
     po::options_description desc("Find detections near asteroids");
     desc.add_options()
         ("help,h", "Produce help message")
+        ("All", po::bool_switch(&run_All), 
+            "Save ALL data sets supported by this program.")
         ("MassiveBody", po::bool_switch(&run_MassiveBody), 
             "Save contents of stored procedure KS.GetMassiveBody")
         ("DetectionTime", po::bool_switch(&run_DetectionTime), 
@@ -112,25 +115,32 @@ int main(int argc, char* argv[])
     db_conn_type conn = get_db_conn();
 
     // Save MassiveBody if requested
-    if (run_MassiveBody) {save_MassiveBody(conn);}
+    if (run_MassiveBody || run_All) 
+        {save_MassiveBody(conn);}
 
     // Save DetectionTime if requested
-    if (run_DetectionTime) {save_DetectionTime(conn);}
+    if (run_DetectionTime || run_All) 
+        {save_DetectionTime(conn);}
 
     // Save Detection if requested
-    if (run_Detection) {save_Detection(conn);}
+    if (run_Detection || run_All) 
+        {save_Detection(conn);}
 
     // Save DetectionCandidate if requested
-    if (run_DetectionCandidate) {save_DetectionCandidate(conn);}
+    if (run_DetectionCandidate || run_All) 
+        {save_DetectionCandidate(conn);}
 
     // Save BodyVector if requested
-    if (run_BodyVector) {save_BodyVector(conn);}
+    if (run_BodyVector || run_All) 
+        {save_BodyVector(conn);}
 
     // Save PlanetVector if requested
-    if (run_PlanetVector) {save_PlanetVector(conn);}
+    if (run_PlanetVector || run_All) 
+        {save_PlanetVector(conn);}
 
     // Save PlanetElement if requested
-    if (run_PlanetElement) {save_PlanetElement(conn);}
+    if (run_PlanetElement || run_All) 
+        {save_PlanetElement(conn);}
 
     // Close DB connection
     conn->close();

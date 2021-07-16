@@ -20,10 +20,10 @@ const string file_name = "data/cache/DetectionCandidateTable.bin";
 
 // *****************************************************************************
 DetectionCandidateTable::DetectionCandidateTable(): 
-    d0(0),
-    d1(0),
-    dt(vector<DetectionCandidate>(0)),
-    dtsp(vector<vector<int32_t>>(N_sp))
+    d0 {0},
+    d1 {0},
+    dt {vector<DetectionCandidate>(0)},
+    dtsp {vector<vector<int32_t>>(N_sp)}
 {
     // Load data from disk
     load();
@@ -32,12 +32,12 @@ DetectionCandidateTable::DetectionCandidateTable():
 // *****************************************************************************
 // This constructor is used for loading data in chunks from the database in conjunction with load.
 DetectionCandidateTable::DetectionCandidateTable(int d0, int d1): 
-    d0(d0),
-    d1(d1),
+    d0 {d0},
+    d1 {d1},
     // Initialize dt to a vector with sz entries, one for each possible detection in the interval
-    dt(vector<DetectionCandidate>(d1-d0)),
+    dt {vector<DetectionCandidate>(d1-d0)},
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
-    dtsp(vector<vector<int32_t>>(N_sp))
+    dtsp {vector<vector<int32_t>>(N_sp)}
     {}
 
 // *****************************************************************************

@@ -49,9 +49,9 @@ private:
     // Data
     /**Array of N_spn SkyPatchIDs; 9 entries indexed[spid*9, (spid+1)*9) 
        are the 9 neighbors of the sky patch with ID spid */
-    int32_t* spn;
+    int32_t* const spn;
     /// Array of N_spn distances from spid to its neighbors
-    double* spnd;
+    double* const spnd;
 };
 
 // *****************************************************************************

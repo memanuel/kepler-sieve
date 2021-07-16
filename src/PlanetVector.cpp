@@ -60,6 +60,17 @@ PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
     vy(new double[N_row]),
     vz(new double[N_row]),
     // Initialize GSL objects
+    // vec_spline: each spatial component holds N_body cubic splines of size N_t
+    vec_spline
+    {
+        .qx {vector<gsl_spline*>(0)},
+        .qy {vector<gsl_spline*>(0)},
+        .qz {vector<gsl_spline*>(0)},
+        .vx {vector<gsl_spline*>(0)},
+        .vy {vector<gsl_spline*>(0)},
+        .vz {vector<gsl_spline*>(0)}
+    },
+    // The GSL accelerator
     acc(gsl_interp_accel_alloc() )
 {
     // Populate body_id - this is a copy from body_id_planets

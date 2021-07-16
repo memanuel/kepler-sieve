@@ -16,8 +16,9 @@
 2. DetectionCandidate.hpp, DetectionCandidate.cpp
 3. Detection.hpp, Detection.cpp
 
-## Orbital Elements
-1. OrbitalElement.hpp, OrbitalElement.cpp
+## State Vectors & Orbital Elements
+1. StateVector.hpp, StateVector.cpp
+2. OrbitalElement.hpp, OrbitalElement.cpp
 
 ## Asteroids Near Detections
 1. AsteroidSkyPatch.hpp, AsteroidSkyPatch.cpp
@@ -53,6 +54,7 @@
 2. sky_patch_test.cpp
 3. detection_test.cpp
 4. planet_element_test.cpp
-5. rebound_test.cpp
-6. candidate_elt_test.cpp
-7. test_all.cpp
+5. asteroid_element_test.cpp
+6. rebound_test.cpp
+7. candidate_elt_test.cpp
+8. test_all.cpp

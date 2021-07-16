@@ -16,9 +16,9 @@
 // *****************************************************************************
 SkyPatchNeighbor::SkyPatchNeighbor(): 
     // Allocate an array of size N_spn (number of sky patch neighbors) to hold the 9 neighbors of each patch
-    spn(new int32_t[N_spn]),
+    spn {new int32_t[N_spn]},
     // Allocate array to hold the neighbor distances
-    spnd(new double[N_spn])
+    spnd {new double[N_spn]}
 {
     // Populate the neighbor table
     // Loop through the starting sky patch, with ID sky_patch_id_1

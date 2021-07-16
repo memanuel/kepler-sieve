@@ -21,7 +21,7 @@ using ks::err_cube_face_id;
 // *****************************************************************************
 /** Initialize a CubeFace from its ID; starts from 0.*/
 CubeFace::CubeFace(int8_t id_) : 
-id(id_) 
+id {id_} 
 {
     if ((id_ < 0) || (id_ > 5)) {throw err_cube_face_id;}
 }

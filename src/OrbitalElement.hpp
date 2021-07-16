@@ -91,34 +91,21 @@ struct OrbitalAngle
 
 
 // *****************************************************************************
-/// GSL interpolators for the seven traditional orbital elements a, e, inc, Omega, omega, f, M
+/// GSL interpolators for orbital elements a, e, inc, Omega, omega, f, M; splined directly or via cosine/sine
 struct OrbitalElementSplines
 {
-    // Seven traditional orbital elements
+    // Orbital elements splined directly
     vector<gsl_spline*> a;
     vector<gsl_spline*> e;
-    vector<gsl_spline*> inc;
-    vector<gsl_spline*> Omega;
-    vector<gsl_spline*> omega;
-    vector<gsl_spline*> f;
     vector<gsl_spline*> M;
-};
 
-// *****************************************************************************
-/// GSL interpolators for the cosine and sine of the five orbital angles inc, Omega, omega, f, M
-struct OrbitalAngleSplines
-{
-    // Ten pairs of cosine / sine of angle elements
+    // Orbital angles spliend via cosine / sine
     vector<gsl_spline*> cos_inc;
     vector<gsl_spline*> sin_inc;
     vector<gsl_spline*> cos_Omega;
     vector<gsl_spline*> sin_Omega;
     vector<gsl_spline*> cos_omega;
     vector<gsl_spline*> sin_omega;
-    vector<gsl_spline*> cos_f;
-    vector<gsl_spline*> sin_f;
-    vector<gsl_spline*> cos_M;
-    vector<gsl_spline*> sin_M;
 };
 
 // *****************************************************************************

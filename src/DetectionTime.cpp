@@ -24,7 +24,7 @@ const string file_name = "data/cache/DetectionTimeTable.bin";
 // *****************************************************************************
 DetectionTimeTable::DetectionTimeTable():
     // Delegate to size constructor, looking up the file size
-    DetectionTimeTable(file_length())
+    DetectionTimeTable {file_length()}
 {
     // Load data from disk
     load();
@@ -36,13 +36,13 @@ DetectionTimeTable::DetectionTimeTable():
 DetectionTimeTable::DetectionTimeTable(int N):
     // dtv is a vector of DetectionTimes
     // size is N+1 because we index by detection_time_id, which starts at 1.
-    dtv(vector<DetectionTime>(N+1)),
+    dtv {vector<DetectionTime>(N+1)},
     // dtm is an empty map keyed by TimeID; it will be populated later
-    dtm(map<int32_t, vector<int32_t> >{}),
+    dtm {map<int32_t, vector<int32_t> >{}},
     // mjds is an array of doubles of size N (size of dtv)
-    mjd(new double[N+1]),
+    mjd {new double[N+1]},
     // q_obs is an array of doubles with 3N entries for the HELIOCENTRIC observatory position
-    q_obs(new double[3*(N+1)])
+    q_obs {new double[3*(N+1)]}
     {}
 
 // *****************************************************************************

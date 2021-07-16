@@ -162,7 +162,7 @@ public:
 
 private:
     /// Pointer to the underlying rebound simulation structure; prs is "pointer to rebound simulation"
-    reb_simulation* prs;
+    reb_simulation* const prs;
 public:
     /// Vector of body_id 
     vector<int32_t> body_ids;

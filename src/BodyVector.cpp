@@ -33,40 +33,40 @@ using ks::BodyVector;
 // *****************************************************************************
 // The constructor just allocates memory and initializes GSL splines.  
 // It does not load data from database or file, that is done with the load() method.
-BodyVector::BodyVector(SolarSystemBody_bv ssb, int mjd0, int mjd1, int dt_min):
+BodyVector::BodyVector(SolarSystemBody_bv ssb_, int mjd0_, int mjd1_, int dt_min_):
     // The body and its name
-    ssb(ssb),
-    body_name(get_body_name(ssb)),
+    ssb {ssb_},
+    body_name {get_body_name(ssb_)},
     // number of times (data size)
-    N_t((mjd1-mjd0)*mpd/dt_min+1),
+    N_t {(mjd1_-mjd0_)*mpd/dt_min_+1},
     // Date range
-    mjd0(mjd0),
-    mjd1(mjd1),
+    mjd0 {mjd0_},
+    mjd1 {mjd1_},
     // Stride in minutes between consecutive entries
     // database resolution is every 5 minutes, so apply LCM function to the input to ensure validity.
-    dt_min(lcm(dt_min, stride_db_min)),
+    dt_min {lcm(dt_min_, stride_db_min)},
     // Allocate array for mjd
-    mjd(new double[N_t]),
+    mjd {new double[N_t]},
     // Allocate arrays for each component of the state vector
-    qx(new double[N_t]),
-    qy(new double[N_t]),
-    qz(new double[N_t]),
-    vx(new double[N_t]),
-    vy(new double[N_t]),
-    vz(new double[N_t]),
-
-    // Initialize GSL accelerator
-    acc(gsl_interp_accel_alloc() )
-{
+    qx {new double[N_t]},
+    qy {new double[N_t]},
+    qz {new double[N_t]},
+    vx {new double[N_t]},
+    vy {new double[N_t]},
+    vz {new double[N_t]},
     // Initialize the splines for the six state vector components
-    vec_spline.qx = gsl_spline_alloc(gsl_interp_cspline, N_t);
-    vec_spline.qy = gsl_spline_alloc(gsl_interp_cspline, N_t);
-    vec_spline.qz = gsl_spline_alloc(gsl_interp_cspline, N_t);
-    vec_spline.vx = gsl_spline_alloc(gsl_interp_cspline, N_t);
-    vec_spline.vy = gsl_spline_alloc(gsl_interp_cspline, N_t);
-    vec_spline.vz = gsl_spline_alloc(gsl_interp_cspline, N_t);
-
-} // end function
+    vec_spline 
+    {
+        .qx = gsl_spline_alloc(gsl_interp_cspline, N_t),
+        .qy = gsl_spline_alloc(gsl_interp_cspline, N_t),
+        .qz = gsl_spline_alloc(gsl_interp_cspline, N_t),
+        .vx = gsl_spline_alloc(gsl_interp_cspline, N_t),
+        .vy = gsl_spline_alloc(gsl_interp_cspline, N_t),
+        .vz = gsl_spline_alloc(gsl_interp_cspline, N_t),
+    },
+    // Initialize GSL accelerator
+    acc {gsl_interp_accel_alloc()}
+    {} // end function
 
 // *****************************************************************************
 BodyVector::BodyVector(SolarSystemBody_bv ssb, int mjd0, int mjd1, int dt_min, bool load_) :

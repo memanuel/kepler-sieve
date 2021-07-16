@@ -145,24 +145,24 @@ private:
     const int time_id1;
 
     // One shared array for the body_id; always the same here, the sun, 9 planets, and the moon
-    int32_t* body_id;
+    int32_t* const body_id;
     /// One shared array for the times as of which orbital elements apply
-    double* mjd;
+    double* const mjd;
 
     // One array for each state vector component; array size is N_body * N_t
     // Array is laid out first by body, then by time (same order that SP returns data).
     // This is the required layout to spline each body vs. time.
-    double* qx;
-    double* qy;
-    double* qz;
-    double* vx;
-    double* vy;
-    double* vz;
+    double* const qx;
+    double* const qy;
+    double* const qz;
+    double* const vx;
+    double* const vy;
+    double* const vz;
 
     /// GSL spline interpolators for splined orbital elements
     StateVectorSplines vec_spline;
     /// Get a GSL cubic spline accelerator for lookups on orbital element splines
-    gsl_interp_accel* acc;
+    gsl_interp_accel* const acc;
     
     // ********************************************************************************************
     // Private Methods

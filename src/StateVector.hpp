@@ -78,12 +78,12 @@ struct StateVector
 /// Encapsulate six GSL interpolators, one for each component, into one structure
 struct StateVectorSpline
 {
-    gsl_spline* qx;
-    gsl_spline* qy;
-    gsl_spline* qz;
-    gsl_spline* vx;
-    gsl_spline* vy;
-    gsl_spline* vz;
+    gsl_spline* const qx;
+    gsl_spline* const qy;
+    gsl_spline* const qz;
+    gsl_spline* const vx;
+    gsl_spline* const vy;
+    gsl_spline* const vz;
 };
 
 // *****************************************************************************

@@ -27,10 +27,10 @@ const string file_name = "data/cache/MassiveBody.bin";
 // *****************************************************************************
 // Explicit constructor
 MassiveBodyTable::MassiveBodyTable(bool load_from_disk):
-    body_id(vector<int32_t>(0)),
-    M(vector<double>(0)),
-    GM(vector<double>(0)),
-    row_map(map<int32_t, int32_t>{})
+    body_id {vector<int32_t>(0)},
+    M {vector<double>(0)},
+    GM {vector<double>(0)},
+    row_map {map<int32_t, int32_t>{}}
 {
     // Load data if requested
     if (load_from_disk) {load();}

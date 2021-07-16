@@ -5,8 +5,8 @@ EXEC_CONSOLE := \
 
 # Executable test programs and examples (prefix only)
 EXEC_TEST := \
-    db_test sky_patch_test detection_test rebound_test planet_element_test \
-    detection_near_ast_test candidate_elt_test test_all \
+    db_test sky_patch_test detection_test planet_element_test asteroid_element_test \
+    rebound_test detection_near_ast_test candidate_element_test test_all \
     rebound_example
 
 # Combined list of executables
@@ -68,7 +68,7 @@ sky_patch_test.o: sky_patch_test.cpp
 detection_test.o: detection_test.cpp
 planet_element_test.o: planet_element_test.cpp
 detection_near_ast_test.o: detection_near_ast.cpp
-candidate_elt_test.o: candidate_elt_test.cpp
+candidate_element_test.o: candidate_element_test.cpp
 rebound_example.o: rebound_example.cpp
 
 # *************************************************************************************************
@@ -121,6 +121,12 @@ planet_element_test: \
     obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
+asteroid_element_test: \
+    obj/asteroid_element_test.o \
+    obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o\
+    obj/StateVector.o obj/OrbitalElement.o \
+    obj/BodyVector.o obj/AsteroidElement.o
+
 rebound_test: \
     obj/rebound_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o \
@@ -128,8 +134,8 @@ rebound_test: \
     obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
-candidate_elt_test: \
-    obj/candidate_elt_test.o \
+candidate_element_test: \
+    obj/candidate_element_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \

@@ -55,9 +55,9 @@ void process_rows(db_conn_type& conn, vector<AsteroidSkyPatch>& aspt, int n0, in
 
 // *****************************************************************************
 AsteroidSkyPatchTable::AsteroidSkyPatchTable(db_conn_type &conn, int n0, int n1, bool progbar): 
-    n0(n0),
-    n1(n1),
-    aspt(vector<AsteroidSkyPatch>())
+    n0 {n0},
+    n1 {n1},
+    aspt {vector<AsteroidSkyPatch>()}
 {
     // Status update
     if (progbar) 

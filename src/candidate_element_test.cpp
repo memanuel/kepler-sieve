@@ -54,7 +54,7 @@ constexpr double mjd0 = 58000.0;
 constexpr double mjd1 = 59000.0;
 constexpr int dt_min = 5;
 
-// Set candidate_id to match body_id
+// Set candidate_id to match body_id of Juno (asteroid_id=3)
 constexpr int32_t candidate_id = 1000003;
 
 // Test orbital elements for Juno @ 58000
@@ -64,9 +64,9 @@ constexpr OrbitalElement elt0
     .mjd    =  58000.0,
     .a      =  2.6685312251581927,
     .e      =  0.25685345626072426,
-    .inc    =  0.22673642125828372,
+    .inc    =  0.22671752380617316,
     .Omega  =  2.9645865407453207,
-    .omega  =- 1.951164916093761,
+    .omega  = -1.951164916093761,
     .f      = 48.04726436026028,
     .M      = 42.2236141353505
 };
@@ -185,7 +185,7 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     // Expected state vectors
     if (verbose)
     {
-        print("Expected state vectors:\n");
+        print("\nExpected state vectors:\n");
         print_state_vector_headers(pfx_header);
         print_state_vector(s0, pfx_row_0);
         print_state_vector(s1, pfx_row_1);
@@ -212,27 +212,30 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     // Print the predicted state vectors
     if (verbose)
     {
-        print("Predicted state vectors with Kepler model:\n");
+        print("\nPredicted state vectors with Kepler model:\n");
         print_state_vector_headers(pfx_header);
         print_state_vector(s0_pred, pfx_row_0);
         print_state_vector(s1_pred, pfx_row_1);
     }
 
     // Calculate norm of position and velocity difference
-    double dq = dist_dq(s0, s0_pred);
-    double dv = dist_dv(s0, s0_pred);
+    double dq0 = dist_dq(s0, s0_pred);
+    double dv0 = dist_dv(s0, s0_pred);
+    double dq1 = dist_dq(s1, s1_pred);
+    double dv1 = dist_dv(s1, s1_pred);
 
     // Set tolerance
     double tol_dq = 1.0E-4;
     double tol_dv = 1.0E-6;
     // Test results
-    bool is_ok = (dq < tol_dq) && (dv < tol_dv);
+    bool is_ok = (dq0 < tol_dq) && (dv0 < tol_dv) && (dq1 < tol_dq) && (dv1 < tol_dv);
 
     // Report results
     string cal_des = is_calibrated ? "calibrated" : "uncalibrated";
-    print("Distance between predicted vs. expected state vectors for Juno with {:s} Kepler model.\n", cal_des);
-    print("dq: {:8.2e} AU\n", dq);
-    print("dv: {:8.2e} AU/day\n", dv);
+    print("\nDistance between predicted vs. expected state vectors for Juno with {:s} Kepler model.\n", cal_des);
+    print("{:6s}:  {:8.2f}:  {:8.2f}\n",         "Date", mjd0,   mjd1);
+    print("{:6s}:  {:8.2e}:  {:8.2e} AU\n",      "dq",   dq0,    dq1);
+    print("{:6s}:  {:8.2e}:  {:8.2e} AU/day\n",  "dv",   dv0,    dv1);
     string test_name = format("Juno trajectory ({:s})", cal_des);
     report_test(test_name, is_ok);
     return is_ok;

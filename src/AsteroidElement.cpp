@@ -23,92 +23,85 @@ using ks::AsteroidElement;
 // *****************************************************************************
 // The constructor just allocates memory.  
 // It does not load data from database, that is done with the load() method.
-AsteroidElement::AsteroidElement(int n0, int n1, int mjd0, int mjd1, int dt):
+AsteroidElement::AsteroidElement(int32_t n0_, int32_t n1_, int mjd0_, int mjd1_, int dt_):
     // Data size
-    N_ast(n1-n0),
-    N_t((mjd1-mjd0)/dt+1),
-    N_row(N_ast*N_t),
+    N_ast {n1_ - n0_},
+    N_t {(mjd1_ - mjd0_)/dt_ +1},
+    N_row {N_ast*N_t},
     // Asteroid range
-    n0(n0),
-    n1(n1),
+    n0 {n0_},
+    n1 {n1_},
+    // Asteroid array
+    asteroid_id {new int32_t[N_ast]},
     // Date range
-    mjd0((mjd0/dt)*dt),
-    mjd1((mjd1/dt)*dt),
-    dt(dt),
+    mjd0 {mjd0_},
+    mjd1 {mjd1_},
+    dt {dt_},
+    mjd {new double[N_t]},
+    // 
     // Allocate a two dimensional array for seven traditional orbital elements
-    elt_a(          new double[N_row]),
-    elt_e(          new double[N_row]),
-    elt_inc(        new double[N_row]),
-    elt_Omega(      new double[N_row]),
-    elt_omega(      new double[N_row]),
-    elt_f(          new double[N_row]),
-    elt_M(          new double[N_row]),
-    // Allocate a two dimensional array for ten orbital angles
-    elt_cos_inc(    new double[N_row]),
-    elt_sin_inc(    new double[N_row]),
-    elt_cos_Omega(  new double[N_row]),
-    elt_sin_Omega(  new double[N_row]),
-    elt_cos_omega(  new double[N_row]),
-    elt_sin_omega(  new double[N_row]),
-    elt_cos_f(      new double[N_row]),
-    elt_sin_f(      new double[N_row]),
-    elt_cos_M(      new double[N_row]),
-    elt_sin_M(      new double[N_row]),
+    elt_a          {new double[N_row]},
+    elt_e          {new double[N_row]},
+    elt_inc        {new double[N_row]},
+    elt_Omega      {new double[N_row]},
+    elt_omega      {new double[N_row]},
+    elt_f          {new double[N_row]},
+    elt_M          {new double[N_row]},
+    // Allocate a two dimensional array for orbital angles splined via cosine/sine
+    elt_cos_inc    {new double[N_row]},
+    elt_sin_inc    {new double[N_row]},
+    elt_cos_Omega  {new double[N_row]},
+    elt_sin_Omega  {new double[N_row]},
+    elt_cos_omega  {new double[N_row]},
+    elt_sin_omega  {new double[N_row]},
 
     // Initialize GSL objects
-    acc(gsl_interp_accel_alloc() ),
+    // elt_spline has one member for every orbital quantity that is splined
+    elt_spline 
+    {
+        .a          =    {vector<gsl_spline*>(0)},
+        .e          =    {vector<gsl_spline*>(0)},
+        .M          =    {vector<gsl_spline*>(0)},
+        .cos_inc    =    {vector<gsl_spline*>(0)},
+        .sin_inc    =    {vector<gsl_spline*>(0)},
+        .cos_Omega  =    {vector<gsl_spline*>(0)},
+        .sin_Omega  =    {vector<gsl_spline*>(0)},
+        .cos_omega  =    {vector<gsl_spline*>(0)},
+        .sin_omega  =    {vector<gsl_spline*>(0)}
+    },
+    // The GSL accelerator
+    acc {gsl_interp_accel_alloc() },
     // BodyVector object for interpolated Sun state vectors
-    bv_sun(BodyVector(SolarSystemBody_bv::sun))
+    bv_sun {BodyVector(SolarSystemBody_bv::sun)}
 {
     // Populate asteroid_id
     for (int i=0; i<N_ast; i++) {asteroid_id[i] = n0+i;}
     // Populate mjd
     for (int i=0; i<N_t; i++) {mjd[i] = mjd0 + i*dt;}
 
-    // Reserve space in vector of splines - seven traditional elements
+    // Reserve space in vector of splines
     elt_spline.a.reserve(         N_ast);
     elt_spline.e.reserve(         N_ast);
-    elt_spline.inc.reserve(       N_ast);
-    elt_spline.Omega.reserve(     N_ast);
-    elt_spline.omega.reserve(     N_ast);
-    elt_spline.f.reserve(         N_ast);
     elt_spline.M.reserve(         N_ast);
-
-    // Reserve space - ten orbital angles
-    ang_spline.cos_inc.reserve(   N_ast);
-    ang_spline.cos_inc.reserve(   N_ast);
-    ang_spline.cos_Omega.reserve( N_ast);
-    ang_spline.cos_Omega.reserve( N_ast);
-    ang_spline.cos_omega.reserve( N_ast);
-    ang_spline.cos_omega.reserve( N_ast);
-    ang_spline.cos_f.reserve(     N_ast);
-    ang_spline.sin_f.reserve(     N_ast);
-    ang_spline.cos_M.reserve(     N_ast);
-    ang_spline.sin_M.reserve(     N_ast);
+    elt_spline.cos_inc.reserve(   N_ast);
+    elt_spline.sin_inc.reserve(   N_ast);
+    elt_spline.cos_Omega.reserve( N_ast);
+    elt_spline.sin_Omega.reserve( N_ast);
+    elt_spline.cos_omega.reserve( N_ast);
+    elt_spline.sin_omega.reserve( N_ast);
 
     // Initialize the splines for the elements of each asteroid; one spline for each asteroid and element
     for (int i=0; i<N_ast; i++)
     {
-        // Seven traditional orbital elements
         elt_spline.a.push_back(         gsl_spline_alloc(gsl_interp_cspline, N_t));
         elt_spline.e.push_back(         gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.inc.push_back(       gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.Omega.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.omega.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
-        elt_spline.f.push_back(         gsl_spline_alloc(gsl_interp_cspline, N_t));
         elt_spline.M.push_back(         gsl_spline_alloc(gsl_interp_cspline, N_t));
-
-        // Five pairs of cosine / sine of angle orbital elements
-        ang_spline.cos_inc.push_back(   gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.sin_inc.push_back(   gsl_spline_alloc(gsl_interp_cspline, N_t));        
-        ang_spline.cos_Omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.sin_Omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.cos_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.sin_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.cos_f.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.sin_f.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.cos_M.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
-        ang_spline.sin_M.push_back(     gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.cos_inc.push_back(   gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.sin_inc.push_back(   gsl_spline_alloc(gsl_interp_cspline, N_t));        
+        elt_spline.cos_Omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.sin_Omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.cos_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
+        elt_spline.sin_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
     }   // for / asteroid number in batch
 } // end function
 
@@ -129,17 +122,13 @@ AsteroidElement::~AsteroidElement()
     delete [] elt_f;
     delete [] elt_M;
 
-    // Delete ten 2D arrays, 5 pairs of cosine / sine of the angle orbital elements
+    // Delete 2D arrays, with cosine / sine of the angle orbital elements
     delete [] elt_cos_inc;
     delete [] elt_sin_inc;
     delete [] elt_cos_Omega;
     delete [] elt_sin_Omega;
     delete [] elt_cos_omega;
     delete [] elt_sin_omega;
-    delete [] elt_cos_f;
-    delete [] elt_sin_f;
-    delete [] elt_cos_M;
-    delete [] elt_sin_M;
 
     // Free GSL resources
     gsl_free();
@@ -154,26 +143,15 @@ void AsteroidElement::gsl_free()
     // One interpolator for each asteroid and each element
     for (int i=0; i<N_ast; i++)
     {
-        // Free seven traditional elements
         gsl_spline_free(elt_spline.a[i]);
         gsl_spline_free(elt_spline.e[i]);
-        gsl_spline_free(elt_spline.inc[i]);
-        gsl_spline_free(elt_spline.Omega[i]);
-        gsl_spline_free(elt_spline.omega[i]);
-        gsl_spline_free(elt_spline.f[i]);
         gsl_spline_free(elt_spline.M[i]);
-
-        // Free ten orbital angles
-        gsl_spline_free(ang_spline.cos_inc[i]);
-        gsl_spline_free(ang_spline.cos_inc[i]);
-        gsl_spline_free(ang_spline.cos_Omega[i]);
-        gsl_spline_free(ang_spline.sin_Omega[i]);
-        gsl_spline_free(ang_spline.cos_omega[i]);
-        gsl_spline_free(ang_spline.sin_omega[i]);
-        gsl_spline_free(ang_spline.cos_f[i]);
-        gsl_spline_free(ang_spline.sin_f[i]);
-        gsl_spline_free(ang_spline.cos_M[i]);
-        gsl_spline_free(ang_spline.sin_M[i]);
+        gsl_spline_free(elt_spline.cos_inc[i]);
+        gsl_spline_free(elt_spline.sin_inc[i]);
+        gsl_spline_free(elt_spline.cos_Omega[i]);
+        gsl_spline_free(elt_spline.sin_Omega[i]);
+        gsl_spline_free(elt_spline.cos_omega[i]);
+        gsl_spline_free(elt_spline.sin_omega[i]);
     }
 
     // Just one accelerator object
@@ -270,18 +248,13 @@ void AsteroidElement::process_rows(db_conn_type& conn, int i0, int i1)
         elt_f[j]      = f;
         elt_M[j]      = M;
 
-        // Save five pairs of cosine / sine of angle orbital elements
+        // Save pairs of cosine / sine of angle orbital elements
         elt_cos_inc[j]    = cos(inc);
         elt_sin_inc[j]    = sin(inc);
         elt_cos_Omega[j]  = cos(Omega);
         elt_sin_Omega[j]  = sin(Omega);
         elt_cos_omega[j]  = cos(omega);
         elt_sin_omega[j]  = sin(omega);
-        elt_cos_f[j]      = cos(f);
-        elt_sin_f[j]      = sin(f);
-        elt_cos_M[j]      = cos(M);
-        elt_sin_M[j]      = sin(M);
-
     }   // while rs
     // Close the resultset and free memory
     rs->close();
@@ -297,23 +270,15 @@ void AsteroidElement::build_splines()
         // Initialize an interpolation spline for seven traditional orbital elements of this body
         gsl_spline_init(elt_spline.a[idx]           , mjd, get_a(idx),         N_t);
         gsl_spline_init(elt_spline.e[idx]           , mjd, get_e(idx),         N_t);
-        gsl_spline_init(elt_spline.inc[idx]         , mjd, get_inc(idx),       N_t);
-        gsl_spline_init(elt_spline.Omega[idx]       , mjd, get_Omega(idx),     N_t);
-        gsl_spline_init(elt_spline.omega[idx]       , mjd, get_omega(idx),     N_t);
-        gsl_spline_init(elt_spline.f[idx]           , mjd, get_f(idx),         N_t);
         gsl_spline_init(elt_spline.M[idx]           , mjd, get_M(idx),         N_t);
 
         // Initialize an interpolation spline for ten orbital angles of this body
-        gsl_spline_init(ang_spline.cos_inc[idx]     , mjd, get_cos_inc(idx),   N_t);
-        gsl_spline_init(ang_spline.sin_inc[idx]     , mjd, get_sin_inc(idx),   N_t);
-        gsl_spline_init(ang_spline.cos_Omega[idx]   , mjd, get_cos_Omega(idx), N_t);
-        gsl_spline_init(ang_spline.sin_Omega[idx]   , mjd, get_sin_Omega(idx), N_t);
-        gsl_spline_init(ang_spline.cos_omega[idx]   , mjd, get_cos_omega(idx), N_t);
-        gsl_spline_init(ang_spline.sin_omega[idx]   , mjd, get_sin_omega(idx), N_t);
-        gsl_spline_init(ang_spline.cos_f[idx]       , mjd, get_cos_f(idx),     N_t);
-        gsl_spline_init(ang_spline.sin_f[idx]       , mjd, get_sin_f(idx),     N_t);
-        gsl_spline_init(ang_spline.cos_M[idx]       , mjd, get_cos_M(idx),     N_t);
-        gsl_spline_init(ang_spline.sin_M[idx]       , mjd, get_sin_M(idx),     N_t);
+        gsl_spline_init(elt_spline.cos_inc[idx]     , mjd, get_cos_inc(idx),   N_t);
+        gsl_spline_init(elt_spline.sin_inc[idx]     , mjd, get_sin_inc(idx),   N_t);
+        gsl_spline_init(elt_spline.cos_Omega[idx]   , mjd, get_cos_Omega(idx), N_t);
+        gsl_spline_init(elt_spline.sin_Omega[idx]   , mjd, get_sin_Omega(idx), N_t);
+        gsl_spline_init(elt_spline.cos_omega[idx]   , mjd, get_cos_omega(idx), N_t);
+        gsl_spline_init(elt_spline.sin_omega[idx]   , mjd, get_sin_omega(idx), N_t);
     }
 }
 
@@ -341,23 +306,15 @@ const OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd
     // Seven traditional elements
     gsl_spline* interp_a         = elt_spline.a[idx];
     gsl_spline* interp_e         = elt_spline.e[idx];
-    // gsl_spline* interp_inc       = elt_spline.inc[idx];
-    // gsl_spline* interp_Omega     = elt_spline.Omega[idx];
-    // gsl_spline* interp_omega     = elt_spline.omega[idx];
-    // gsl_spline* interp_f         = elt_spline.f[idx];
     gsl_spline* interp_M         = elt_spline.M[idx];
 
     // Ten orbital angles
-    gsl_spline* interp_cos_inc   = ang_spline.cos_inc[idx];
-    gsl_spline* interp_sin_inc   = ang_spline.sin_inc[idx];
-    gsl_spline* interp_cos_Omega = ang_spline.cos_Omega[idx];
-    gsl_spline* interp_sin_Omega = ang_spline.sin_Omega[idx];
-    gsl_spline* interp_cos_omega = ang_spline.cos_omega[idx];
-    gsl_spline* interp_sin_omega = ang_spline.sin_omega[idx];
-    // gsl_spline* interp_cos_f     = ang_spline.cos_f[idx];
-    // gsl_spline* interp_sin_f     = ang_spline.sin_f[idx];
-    // gsl_spline* interp_cos_M     = ang_spline.cos_M[idx];
-    // gsl_spline* interp_sin_M     = ang_spline.sin_M[idx];
+    gsl_spline* interp_cos_inc   = elt_spline.cos_inc[idx];
+    gsl_spline* interp_sin_inc   = elt_spline.sin_inc[idx];
+    gsl_spline* interp_cos_Omega = elt_spline.cos_Omega[idx];
+    gsl_spline* interp_sin_Omega = elt_spline.sin_Omega[idx];
+    gsl_spline* interp_cos_omega = elt_spline.cos_omega[idx];
+    gsl_spline* interp_sin_omega = elt_spline.sin_omega[idx];
 
     // Spline a and e at selected time
     double a = gsl_spline_eval(interp_a, mjd, acc);
@@ -377,7 +334,6 @@ const OrbitalElement AsteroidElement::interp_elt(int32_t asteroid_id, double mjd
     double omega    = atan2(sin_omega,  cos_omega);
 
     // Directly spline M - this is safe b/c DB source includes winding for f and M
-    // double f = gsl_spline_eval(interp_f, mjd, acc);
     double M = gsl_spline_eval(interp_M, mjd, acc);
 
     // Calculate f from M and e

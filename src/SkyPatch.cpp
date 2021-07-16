@@ -35,9 +35,7 @@ Implementation of the SkyPatch class
 
 // *****************************************************************************
 int ks::fij2spid(int8_t f, int16_t i, int16_t j)
-{
-    return (M2*f) + (M*i) + j;
-}
+    {return (M2*f) + (M*i) + j;}
 
 // *****************************************************************************
 //*Helper function used to initialize SkyPatch; calculate distance r to point on cube.
@@ -53,12 +51,12 @@ double r_initializer(int16_t i, int16_t j)
 
 // *****************************************************************************
 SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_) : 
-    f(f_),
-    i(i_),
-    j(j_),
+    f {f_},
+    i {i_},
+    j {j_},
     // The distance r to the point on the unit cube (where unit sphere is inscribed)
     // r(sqrt(1.0 + sqr(N_inv*(i+0.5)-1.0) + sqr(N_inv*(j+0.5)-1.0)))
-    r(r_initializer(i, j))
+    r {r_initializer(i, j)}
 {
     // Check that grid points were valid
     if ((i_ < 0) || (i_ > M)) 
@@ -83,18 +81,20 @@ SkyPatch::SkyPatch(int8_t f_, int16_t i_, int16_t j_) :
 // *****************************************************************************
 // Fast constructor when r precomputed and f, i, j already validated. Used in copying.
 SkyPatch::SkyPatch(CubeFace f_, int16_t i_, int16_t j_, double r_) : 
-    f(f_),
-    i(i_),
-    j(j_),
-    r(r_) {}
+    f {f_},
+    i {i_},
+    j {j_},
+    r {r_} 
+    {}
 
 // *****************************************************************************
 // Use same approach as fast constructor for copy assignment
 SkyPatch::SkyPatch(const ks::SkyPatch& sp) :
-    f(sp.f),
-    i(sp.i),
-    j(sp.j),
-    r(sp.r) {}
+    f {sp.f},
+    i {sp.i},
+    j {sp.j},
+    r {sp.r}
+    {}
 
 // *****************************************************************************
 SkyPatch::~SkyPatch() {}

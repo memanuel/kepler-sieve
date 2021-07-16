@@ -118,27 +118,27 @@ private:
     /// The number of times
     const int N_t;
     /// First date loaded (inclusive); an integer
-    int mjd0;
+    const int mjd0;
     /// Last date loaded (inclusive); an integer
-    int mjd1;
+    const int mjd1;
     /// Time step in minutes
-    int dt_min;
+    const int dt_min;
 
     /// One shared array for the times when splined elements are available; size N_t
-    double* mjd;
+    double* const mjd;
 
     // One array for state vector component; size N_t
-    double* qx;
-    double* qy;
-    double* qz;
-    double* vx;
-    double* vy;
-    double* vz;
+    double* const qx;
+    double* const qy;
+    double* const qz;
+    double* const vx;
+    double* const vy;
+    double* const vz;
 
     // GSL spline interpolators for splined orbital elements
     StateVectorSpline vec_spline;
     // Get a GSL cubic spline accelerator for lookups on orbital element splines; shared by all six splines
-    gsl_interp_accel* acc;
+    gsl_interp_accel* const acc;
     
     // ********************************************************************************************
     // Private Methods
