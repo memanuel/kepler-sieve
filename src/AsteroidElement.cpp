@@ -38,7 +38,6 @@ AsteroidElement::AsteroidElement(int32_t n0_, int32_t n1_, int mjd0_, int mjd1_,
     mjd1 {mjd1_},
     dt {dt_},
     mjd {new double[N_t]},
-    // 
     // Allocate a two dimensional array for seven traditional orbital elements
     elt_a          {new double[N_row]},
     elt_e          {new double[N_row]},
@@ -54,7 +53,6 @@ AsteroidElement::AsteroidElement(int32_t n0_, int32_t n1_, int mjd0_, int mjd1_,
     elt_sin_Omega  {new double[N_row]},
     elt_cos_omega  {new double[N_row]},
     elt_sin_omega  {new double[N_row]},
-
     // Initialize GSL objects
     // elt_spline has one member for every orbital quantity that is splined
     elt_spline 

@@ -60,9 +60,9 @@ constexpr int32_t asteroid_id = 3;
 /// Absolute difference between interp_pos and interp_vec outputs (position part only)
 constexpr double tol_dq_ip = 1.0E-14;
 /// Absolute difference between interp_vec output and expected position, on node dates
-constexpr double tol_dq_on_node = 1.0E-14;
+constexpr double tol_dq_on_node = 1.0E-13;
 /// Absolute difference between interp_vec output and expected velocity, on nodes dates
-constexpr double tol_dv_on_node = 1.0E-16;
+constexpr double tol_dv_on_node = 1.0E-15;
 
 /// Absolute difference between interp_vec output and expected position, splined off node dates
 constexpr double tol_dq_off_node = 1.0E-7;
@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
     db_conn_type conn = get_db_conn();
 
     // Set verbosity
-    bool verbose = false;
+    bool verbose = true;
 
     // Run all the tests
     bool is_ok = test_all(conn, verbose);
@@ -177,31 +177,32 @@ bool test_all(db_conn_type& conn, bool verbose)
     {
     // Build a spline of orbital elements sampled at frequency dt specified above
     AsteroidElement ae(asteroid_id, asteroid_id+1, mjd0_ae, mjd1_ae, dt);
-    // ae.load(conn, false);
+    ae.load(conn, false);
 
-    // // Predicted state vectors on mjd0 and mjd1
-    // StateVector s0_pred = ae.interp_vec(asteroid_id, mjd0);
-    // // StateVector s1_pred = ae.interp_vec(asteroid_id, mjd1);
-    // // Predicted position on mjd0 and mjd1
-    // Position p0_pred = ae.interp_pos(asteroid_id, mjd0);
-    // // Position p1_pred = ae.interp_pos(asteroid_id, mjd1);
+    // DEBUG
 
-    // // Set tolerances for on-node test
-    // double tol_dq = tol_dq_on_node;
-    // double tol_dv = tol_dv_on_node;
 
-    // // Compare vectors on mjd0
-    // test_name = format("Test AsteroidElement on Juno @ {:8.2f} (on node).\n", mjd0);
-    // is_ok = test_vectors(s0_good, s0_pred, p0_pred, test_name, tol_dq, tol_dv, verbose);
-    // is_ok_all = is_ok_all && is_ok;
+    // Predicted state vectors on mjd0 and mjd1
+    StateVector s0_pred = ae.interp_vec(asteroid_id, mjd0);
+    // StateVector s1_pred = ae.interp_vec(asteroid_id, mjd1);
+    // Predicted position on mjd0 and mjd1
+    Position p0_pred = ae.interp_pos(asteroid_id, mjd0);
+    // Position p1_pred = ae.interp_pos(asteroid_id, mjd1);
+
+    // Set tolerances for on-node test
+    double tol_dq = tol_dq_on_node;
+    double tol_dv = tol_dv_on_node;
+
+    // Compare vectors on mjd0
+    test_name = format("Test AsteroidElement on Juno @ {:8.2f} (on node)", mjd0);
+    is_ok = test_vectors(s0_good, s0_pred, p0_pred, test_name, tol_dq, tol_dv, verbose);
+    is_ok_all = is_ok_all && is_ok;
     }
 
     // *****************************************************************************
     // Overall results
     // *****************************************************************************
 
-    // DEBUG
-    is_ok_all &= is_ok;
     // Return overall test result
     return is_ok_all;
 }
@@ -211,55 +212,51 @@ bool test_all(db_conn_type& conn, bool verbose)
 bool test_vectors(const StateVector& s_good, const StateVector& s_pred, const Position& p_pred, 
                   const string test_name, double tol_dq, double tol_dv, bool verbose)
 {
-    // Extract position from s_good and s_pred
+    // Extract position and velocity from s_good
     Position q_good = sv2pos(s_good);
-    Position q_pred = sv2pos(s_pred);
-    // Extract velocity from s_good and s_pred
     Velocity v_good = sv2vel(s_good);
-    Velocity v_pred = sv2vel(s_pred);
+
+    // Extract velocity from s_good
+    Position q_pred = sv2pos(s_pred);
     // Difference between two interpolation methods for position
-    Position dq_ip = q_pred - q_good;
-    // Difference between interpolated and expected position
-    Position dq = q_pred - q_good;
-    // Difference between interpolated and expected velocity
-    Velocity dv = v_pred - v_good;
+    Position dq_ip = q_pred - p_pred;
+
+    // Difference between interpolated and expected state vector
+    StateVector ds = s_pred - s_good;
 
     // Additional information if requested
     if (verbose)
     {
         // Print predicted position with two methods
+        print("{:s}\n", test_name);
+        print("\nInterpolated position vs. interpolated state vector:\n");
         ks::print_position_headers(     "Component  :");
         ks::print_position(p_pred,      "interp_pos :");
         ks::print_position(q_pred,      "interp_vec :");
         ks::print_position_sci(dq_ip,   "difference :");
 
         // Print expected and predicted position
-        ks::print_position_headers(     "Component  :");
-        ks::print_position(q_good,      "expected   :");
-        ks::print_position(q_pred,      "interp_vec :");
-        ks::print_position_sci(dq,      "difference :");
-
-        // Print expected and predicted velocity
-        ks::print_position_headers(     "Component  :");
-        ks::print_position(q_good,      "expected   :");
-        ks::print_position(q_pred,      "interp_vec :");
-        ks::print_position_sci(dq,      "difference :");
+        print("\nInterpolated vs. expected state vector:\n");
+        ks::print_state_vector_headers(     "Component  :");
+        ks::print_state_vector(s_good,      "expected   :");
+        ks::print_state_vector(s_pred,      "interp_vec :");
+        ks::print_state_vector_sci(ds,      "difference :");
     }
 
     // Calculate distances for the three tests
     double dist_dq_ip = norm(dq_ip);
-    double dist_dq = norm(dq);
-    double dist_dv = norm(dv);
+    double dq = dist_dq(s_good, s_pred);
+    double dv = dist_dv(s_good, s_pred);
     // Relative difference
-    double dist_dq_rel = dist_dq / norm(q_good);
-    double dist_dv_rel = dist_dv / norm(v_good);
+    double dq_rel = dq / norm(q_good);
+    double dv_rel = dv / norm(v_good);
     // Test results
     bool is_ok = is_close(s_good, s_pred, tol_dq, tol_dv) && (dist_dq_ip < tol_dq_ip);
 
     // Report results
     print("\nDistance between state vectors - {:s}.\n", test_name);
-    print("dq: {:8.2e} AU       dq_rel: {:5.3e}.\n", dist_dq, dist_dq_rel);
-    print("dv: {:8.2e} AU/day   dv_rel: {:5.3e}.\n", dist_dv, dist_dv_rel);
+    print("dq: {:8.2e} AU       dq_rel: {:5.3e}.\n", dq, dq_rel);
+    print("dv: {:8.2e} AU/day   dv_rel: {:5.3e}.\n", dv, dv_rel);
     report_test(test_name, is_ok);
     return is_ok;
 }
