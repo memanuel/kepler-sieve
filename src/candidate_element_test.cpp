@@ -208,9 +208,7 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     Timer t;
     t.tick();
     int dt_min = mpd;
-    PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, dt_min);
-    // pv.load();
-    // pv.build_splines();    
+    PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, dt_min, true);
     t.tock_msg(format("Built PlanetVector; mjd0={:d}, mjd1={:d}, dt_min={:d}.\n", pv.mjd0, pv.mjd1, pv.dt_min));
 
     //DEBUG - get position of sun at mjd0

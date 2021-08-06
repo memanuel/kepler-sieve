@@ -30,7 +30,7 @@ using ks::PlanetElement;
 // *****************************************************************************
 // The constructor just allocates memory.  
 // It does not load data from database, that is done with the load() method.
-PlanetElement::PlanetElement(int mjd0_, int mjd1_, int dt_min_):
+PlanetElement::PlanetElement(int mjd0_, int mjd1_, int dt_min_, bool load_):
     // Data size: number of bodies and number of times
     N_body {::N_body},
     N_t {(mjd1_-mjd0_)*mpd/lcm(dt_min_, stride_db_min)+1},
@@ -129,32 +129,44 @@ PlanetElement::PlanetElement(int mjd0_, int mjd1_, int dt_min_):
         elt_spline.cos_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
         elt_spline.sin_omega.push_back( gsl_spline_alloc(gsl_interp_cspline, N_t));
     }   // for / i (loop over massive bodies)
-} // end function
 
-// *****************************************************************************
-PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min, bool load_) :
-    // Delegate to memory allocating constructor with these inputs
-    PlanetElement(mjd0, mjd1, dt_min)
-{
+    // Load the data from disk and build splines if requested
     if (load_)
     {
         // Load data from disk
         load();
         // Initialize the gsl_spline objects
         build_splines();
-    }
-}
+    }    
+} // end function
+
+// // *****************************************************************************
+// PlanetElement::PlanetElement(int mjd0, int mjd1, int dt_min, bool load_) :
+//     // Delegate to memory allocating constructor with these inputs
+//     PlanetElement(mjd0, mjd1, dt_min)
+// {
+//     if (load_)
+//     {
+//         // Load data from disk
+//         load();
+//         // Initialize the gsl_spline objects
+//         build_splines();
+//     }
+// }
 
 // *****************************************************************************
 PlanetElement::PlanetElement() :
-    // Delegate to memory allocating constructor with database inputs and load_ = true
+    // Delegate to memory allocating constructor with database inputs and load = true
+    // In normal use, we want to quickly load all available data from disk
     PlanetElement(mjd0_db, mjd1_db, stride_db_min, true)
     {}
 
 // *****************************************************************************
 PlanetElement::PlanetElement(db_conn_type& conn) :
-    // Delegate to memory allocating constructor with database inputs 
-    PlanetElement(mjd0_db, mjd1_db, stride_db_min)
+    // Delegate to memory allocating constructor with database inputs and load = false
+    // When building from DB connection, we want to to first allocate memory for all available slots,
+    // then run the DB loading routine to populate them
+    PlanetElement(mjd0_db, mjd1_db, stride_db_min, false)
 {
     // Load data from database
     load(conn);

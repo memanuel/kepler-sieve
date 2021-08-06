@@ -149,9 +149,7 @@ bool test_all(db_conn_type& conn, bool verbose)
     // Build PlanetVector
     print_stars(true);
     t.tick();
-    PlanetVector pv(mjd0-pad, mjd1+pad, dt_min);
-    // pv.load();
-    // pv.build_splines();
+    PlanetVector pv(mjd0-pad, mjd1+pad, dt_min, true);
     // PlanetVector pv = PlanetVector();
     print("Built PlanetVector object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
             pv.mjd0, pv.mjd1, pv.dt_min);
@@ -169,9 +167,7 @@ bool test_all(db_conn_type& conn, bool verbose)
     // Build PlanetElement
     print_stars(true);
     t.tick();
-    PlanetElement pe(mjd0-pad, mjd1+pad, dt_min);
-    pe.load();
-    pe.build_splines();
+    PlanetElement pe(mjd0-pad, mjd1+pad, dt_min, true);
     // PlanetElement pe = PlanetElement();
     print("Built PlanetElement object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
             pe.mjd0, pe.mjd1, pe.dt_min);
@@ -207,9 +203,7 @@ bool test_all(db_conn_type& conn, bool verbose)
     {
     // Build a new spline of orbital elements sampled only DAILY
     constexpr int dt_min = 60;
-    PlanetElement pe(mjd0-pad, mjd1+pad, dt_min);
-    pe.load();
-    pe.build_splines();
+    PlanetElement pe(mjd0-pad, mjd1+pad, dt_min, true);
 
     constexpr int dt_min_test = 1440;
     constexpr int offset_test_min = dt_min / 2;

@@ -87,11 +87,8 @@ public:
     // Constructor and destructor
     // ********************************************************************************************
 
-    /// Constructor takes time range, time step and allocates memory
-    PlanetElement(int mjd0, int mjd1, int dt_min);
-
-    /// Constructor gives caller option to load data from disk
-    PlanetElement(int mjd0, int mjd1, int dt_min, bool load_);
+    /// Constructor takes time range, time step and allocates memory; option to load data from disk
+    PlanetElement(int mjd0, int mjd1, int dt_min, bool load);
 
     /// Default Constructor - load data from file on disk
     PlanetElement();
