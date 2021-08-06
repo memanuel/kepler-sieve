@@ -50,14 +50,14 @@
 namespace{
 
 // Date range for testing
-constexpr double mjd0 = 58000.0;
-constexpr double mjd1 = 59000.0;
-constexpr int dt_min = 5;
+constexpr double mjd0 {58000.0};
+constexpr double mjd1 {59000.0};
+constexpr int dt_min {5};
 
 // Date range for PlanetVector
-constexpr int pad = 32;
-constexpr int mjd0_pv = static_cast<int>(mjd0)-pad;
-constexpr int mjd1_pv = static_cast<int>(mjd1)+pad;
+constexpr int pad {32};
+constexpr int mjd0_pv = static_cast<int>(mjd0) - pad;
+constexpr int mjd1_pv = static_cast<int>(mjd1) + pad;
 
 // Set candidate_id to match body_id of Juno (asteroid_id=3)
 constexpr int32_t candidate_id = 1000003;
@@ -156,6 +156,7 @@ bool test_all(db_conn_type& conn)
     // Overall test result
     bool is_ok_all = true;
 
+    // Get reference elements
     print("\nOrbitalElement for Juno @ {:8.2f} and {:8.2f}.\n", mjd0, mjd1);
     print_orbital_element_headers();
     print_orbital_element(elt0);
@@ -206,8 +207,15 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
 
     Timer t;
     t.tick();
-    PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, 1440);    
-    t.tock_msg("Built PlanetVector");
+    int dt_min = mpd;
+    PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, dt_min);
+    // pv.load();
+    // pv.build_splines();    
+    t.tock_msg(format("Built PlanetVector; mjd0={:d}, mjd1={:d}, dt_min={:d}.\n", pv.mjd0, pv.mjd1, pv.dt_min));
+
+    //DEBUG - get position of sun at mjd0
+    Position p = pv.interp_pos(body_id_sun, mjd0);
+    print("Position of Sun at mjd0 {:.0f} = ({:f}, {:f}, {:f})", mjd0, p.qx, p.qy, p.qz);
 
     // Calibrate if requested
     if (is_calibrated) {ce.calibrate(pv);}

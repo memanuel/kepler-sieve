@@ -150,8 +150,8 @@ bool test_all(db_conn_type& conn, bool verbose)
     print_stars(true);
     t.tick();
     PlanetVector pv(mjd0-pad, mjd1+pad, dt_min);
-    pv.load();
-    pv.build_splines();
+    // pv.load();
+    // pv.build_splines();
     // PlanetVector pv = PlanetVector();
     print("Built PlanetVector object from mjd0 {:d} to mjd1 {:d} with time step {:d} minutes.\n", 
             pv.mjd0, pv.mjd1, pv.dt_min);

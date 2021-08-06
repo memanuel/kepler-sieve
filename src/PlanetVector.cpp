@@ -12,11 +12,9 @@
 // *****************************************************************************
 // Constants used in this module
 
-// Number of massive bodies in Planets collection: Sun + 9 planets + moon = 11 bodies
-// constexpr int N_body_planets = 11;
 namespace {
+// Number of massive bodies in Planets collection: Sun + 9 planets + moon = 11 bodies
 constexpr int N_body = N_body_planets;
-// constexpr int32_t body_id_planets[N_body_planets] = {1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399};
 
 // Array of body_id in this problem
 auto body_ids = body_ids_planets;
@@ -34,7 +32,7 @@ using ks::PlanetVector;
 // *****************************************************************************
 // The constructor saves date configuration, allocates memory and initializes splines.  
 // It does not load data from database, that is done with the load() method.
-PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
+PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min, bool load_):
     // Data size: number of bodies and number of times
     N_body(::N_body),
     N_t((mjd1-mjd0)*mpd/lcm(dt_min, stride_db_min)+1),
@@ -98,21 +96,16 @@ PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min):
         vec_spline.vy.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
         vec_spline.vz.push_back(gsl_spline_alloc(gsl_interp_cspline, N_t));
     }   // for / i (loop over massive bodies)
-} // end function
 
-// *****************************************************************************
-PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min, bool load_):
-    // Delegate to memory allocating constructor with these inputs 
-    PlanetVector(mjd0, mjd1, dt_min)
-{
+    // Load data from disk if requested
     if (load_)
     {
         // Load data from disk
         load();
         // Initialize the gsl_spline objects
         build_splines();
-    }
-}
+    }    
+} // end function
 
 // *****************************************************************************
 PlanetVector::PlanetVector() :
@@ -123,7 +116,7 @@ PlanetVector::PlanetVector() :
 // *****************************************************************************
 PlanetVector::PlanetVector(db_conn_type& conn) :
     // Delegate to memory allocating constructor with database inputs 
-    PlanetVector(mjd0_db, mjd1_db, stride_db_min)
+    PlanetVector(mjd0_db, mjd1_db, stride_db_min, false)
 {
     // Load data from database
     load(conn);
@@ -271,7 +264,7 @@ const int PlanetVector::body_idx(int32_t body_id) const
         default:
             string msg = format(
                 "PlanetVector::body_idx(body_id).  Bad body_id={:d}! "
-                "Must be one of 1, 2, 4, 5, 6, 7, 8, 9, 10, 301, 399 "
+                "Must be one of 10, 1, 2, 301, 399, 4, 5, 6, 7, 8, 9"
                 "(Sun, planet barycenters, Earth and Moon.)\n", body_id);
             throw invalid_argument(msg);
     }

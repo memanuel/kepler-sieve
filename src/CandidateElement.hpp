@@ -17,8 +17,6 @@
     using std::string;
 #include <vector>
     using std::vector;
-#include <cstring>
-    // memcpy
 
 // Local dependencies
 #include "constants.hpp"

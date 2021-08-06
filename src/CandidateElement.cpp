@@ -158,11 +158,17 @@ void CandidateElement::calibrate(const PlanetVector& pv)
 
     // Calculate the trajectory without calibration
     calc_trajectory();
+    // DEBUG
+    print("CandidateElement::calibrate - ran calc_trajectory()\n");
 
     // Build rebound simulation with planets at reference time
     Simulation sim = make_sim_planets(pv, mjd0);
+    // DEBUG
+    print("CandidateElement::calibrate - created Simulation with sim = make_sim_planets(pv, mjd0)\n");
     // Add asteroid to simulation with candidate elements
     sim.add_test_particle(elt, candidate_id);
+    // DEBUG
+    print("CandidateElement::calibrate - added test particle for candidate elements.\n");
     // Write the numerically integrated vectors from this simulation into q_cal and v_cal
     sim.write_vectors(mjd, candidate_id, N_t, dq_ast, dv_ast);
 
