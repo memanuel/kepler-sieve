@@ -34,6 +34,7 @@
     using ks::dist_dq;
     using ks::dist_dv;
     using ks::is_close;
+    using ks::is_equal;
 #include "PlanetVector.hpp"
     using ks::PlanetVector;
 #include "MassiveBody.hpp"
@@ -82,6 +83,7 @@ bool test_make_sim();
 bool test_make_sim_planets(const PlanetVector& pv, bool verbose);
 bool test_make_sim_planets_horizons(db_conn_type& conn, bool verbose);
 bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double tol_dv, bool verbose);
+bool test_copy(const PlanetVector& pv);
 
 // *****************************************************************************
 int main()
@@ -188,6 +190,11 @@ bool test_all(db_conn_type& conn)
     report_test(test_name, is_ok);
     }   // block for test off spline nodes
 
+    // Test copying a simulation
+    is_ok = test_copy(pv);
+    is_ok_all &= is_ok;
+    report_test("Test: Copy rebound simulation with planets", is_ok);
+
     // Report overall test results
     print_stars(true);
     report_test("Test Suite on rebound", is_ok);
@@ -293,10 +300,11 @@ bool test_make_sim_planets_horizons(db_conn_type& conn, bool verbose)
     // Status
     print_stars(true);
     print("Built rebound simulation for planets with Horizons data.\n");
-    print("N        : {:d}.\n", sim.N());
-    print("N_active : {:d}.\n", sim.N_active());
-    print("N_test   : {:d}.\n", sim.N_test());
-    print("t        : {:f}.\n", sim.t());
+    sim.print_summary();
+    // print("N        : {:d}.\n", sim.N());
+    // print("N_active : {:d}.\n", sim.N_active());
+    // print("N_test   : {:d}.\n", sim.N_test());
+    // print("t        : {:f}.\n", sim.t());
 
     // Display the particles
     if (verbose) {sim.print_vectors();}
@@ -376,6 +384,61 @@ bool test_integration(Simulation& sim0, Simulation& sim1, double tol_dq, double 
     print("Position: {:9.2e} AU     ({:10s}).\n", dq_max, body_name_dq_max);
     print("Velocity: {:9.2e} AU/day ({:10s}).\n", dv_max, body_name_dv_max);
 
-    // Retutn the test result
+    // Return the test result
+    return is_ok;
+}
+
+// *****************************************************************************
+/// Test that copying a Simulation object works as expected
+bool test_copy(const PlanetVector& pv)
+{
+    // Build rebound simulation with planets at reference time
+    Simulation sim0 = make_sim_planets(pv, epoch);
+
+    // Test orbital elements for Juno @ 59000
+    // Copy / paste from KS.GetAsteroidElements(3, 4, 59000, 59000);
+    constexpr OrbitalElement elt
+    {
+        .mjd    =  59000.0,
+        .a      =  2.6682852999999986,
+        .e      =  0.25693643000000027,
+        .inc    =  0.22673642125828372,
+        .Omega  =  2.9644675653853,
+        .omega  =- 1.9536135288017569,
+        .f      = 46.517431678528794,
+        .M      = 46.171557086433715
+    };
+    int32_t candidate_id = 1000003;
+
+    // Add asteroid to simulation with candidate elements
+    sim0.add_test_particle(elt, candidate_id);
+
+    // Original simulation
+    print_stars(true);
+    print("Simulation summary: planets + 1 asteroid.\n");
+    sim0.print_summary();   
+    sim0.print_vectors();
+
+    // Copy the test result
+    Simulation sim1 = sim0.copy();
+    print("Simulation sim1 = sim0.copy()\n");
+    // sim1.print_summary();
+    // sim1.print_vectors();
+
+    // Test result
+    bool is_ok = (sim0.N() == sim1.N()) && (sim0.N_active() == sim1.N_active()) && (sim0.N_test() == sim1.N_test());
+    is_ok &= (sim0.t() == sim1.t());
+    // Check that all N particles have equal state vectors and masses
+    for (int i=0; i<sim0.N(); i++)
+    {
+        // Check state vectors are equal
+        const StateVector& s0 = sim0.state_vector(i);
+        const StateVector& s1 = sim1.state_vector(i);
+        is_ok &= is_equal(s0, s1);
+        // Check masses are equal
+        is_ok &= (sim0.particle(i).m == sim1.particle(i).m);
+    }
+
+    // Return the test result
     return is_ok;
 }

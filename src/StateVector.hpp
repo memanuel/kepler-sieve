@@ -190,6 +190,9 @@ bool is_close(const StateVector& s1, const StateVector& s2, double tol_dq, doubl
 bool is_close(const StateVector& s1, const Position& q1, double tol_dq);
 bool is_close(const Position& q1, const StateVector& s2, double tol_dq);
 
+/// Test for equality between state vectors
+bool is_equal(const StateVector& s1, const StateVector& s2);
+
 // *****************************************************************************
 // Print a position
 // *****************************************************************************

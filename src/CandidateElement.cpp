@@ -73,27 +73,29 @@ void CandidateElement::init(const double* mjd_)
     // This will be a pretty accurate first pass before running an optional numerical integration
     for (int i=0; i<N_t; i++)
     {
+        // The time of this entry
+        double t = mjd[i];
         // Interpolated position vector of the Earth at time i
-        Position p = bv_earth.interp_pos(mjd[i]);
+        Position p_earth = bv_earth.interp_pos(t);
         // Interpolated state vector of the Sun at time i
-        StateVector s = bv_sun.interp_vec(mjd[i]);
+        StateVector s_sun = bv_sun.interp_vec(t);
         // Index for arrays q_sun and v_sun
         const int j = 3*i;
         const int jx = j+0;
         const int jy = j+1;
         const int jz = j+2;
         // Copy position components into q_obs
-        q_obs[jx] = p.qx;
-        q_obs[jy] = p.qy;
-        q_obs[jz] = p.qz;
+        q_obs[jx] = p_earth.qx;
+        q_obs[jy] = p_earth.qy;
+        q_obs[jz] = p_earth.qz;
         // Copy position components into q_cal
-        dq_ast[jx] = s.qx;  
-        dq_ast[jy] = s.qy;  
-        dq_ast[jz] = s.qz;
+        dq_ast[jx] = s_sun.qx;  
+        dq_ast[jy] = s_sun.qy;  
+        dq_ast[jz] = s_sun.qz;
         // Copy velocity components into v_cal
-        dv_ast[jx] = s.vx;  
-        dv_ast[jy] = s.vy;  
-        dv_ast[jz] = s.vz;
+        dv_ast[jx] = s_sun.vx;  
+        dv_ast[jy] = s_sun.vy;  
+        dv_ast[jz] = s_sun.vz;
     }   // for / i
 }   // CandidateElement::init
 
@@ -120,9 +122,9 @@ void CandidateElement::calc_trajectory()
     for (int i=0; i<N_t; i++)
     {
         // The time shift from the reference time
-        double t = mjd[i] - mjd0;
+        double dt = mjd[i] - mjd0;
         // Mean anomaly at this time; changes at rate n and equal to elt.M at time elt.mjd
-        double M = M0 + n*t;
+        double M = M0 + n*dt;
         // Convert M to a true anomaly f
         double f = anomaly_M2f(M, e);
         // Convert orbital elements to a heliocentric position
@@ -152,8 +154,8 @@ void CandidateElement::calibrate(const PlanetVector& pv)
     // Zero out old calibration
     for (int k=0; k<N_row; k++)
     {
-        dq_ast[k]=0.0;
-        dv_ast[k]=0.0;
+        dq_ast[k] = 0.0;
+        dv_ast[k] = 0.0;
     }
 
     // Calculate the trajectory without calibration
@@ -161,32 +163,31 @@ void CandidateElement::calibrate(const PlanetVector& pv)
 
     // Build rebound simulation with planets at reference time
     Simulation sim = make_sim_planets(pv, mjd0);
-    // DEBUG
-    print("CandidateElement::calibrate - created Simulation with sim = make_sim_planets(pv, mjd0)\n");
     // Add asteroid to simulation with candidate elements
     sim.add_test_particle(elt, candidate_id);
-    // DEBUG
-    print("CandidateElement::calibrate - added test particle for candidate elements.\n");
 
     // DEBUG
-    // sim.integrate(sim.t() + 1000.0);
-    // print("CandidateElement::calibrate - integrated forward over 1000.0 days");
-
-    // DEBUG
-    print("CandidateElement::calibrate - running sim.write_vectors(dq_ast, dv_ast, candidate_id, N_t)\n");
+    print("Simulation summary: planets + 1 asteroid.\n");
+    sim.print_summary();   
+    sim.print_vectors();
+    print("CandidateElement::calibrate - running sim.write_vectors(dq_ast, dv_ast, mjd, candidate_id, N_t)\n");
     print("mjd[0]={:.2f}, mjd[N_t-1]={:.2f}, candidate_id={:d}, N_t={:d}\n", mjd[0], mjd[N_t-1], candidate_id, N_t);
     // Write the numerically integrated vectors from this simulation into q_cal and v_cal
     sim.write_vectors(dq_ast, dv_ast, mjd, N_t, candidate_id);
 
-    // // Iterate through all the rows; subtract the Kepler component from the numerical component
-    // // This is equivalent to writing
-    // // dq_ast[k] = numerical_trajectory[k] - kepler_trajectory[k]
-    // // It just uses less memory by using dq_ast to store the numerical trajectory and subtracting in place
-    // for (int k=0; k<N_row; k++)
-    // {
-    //     dq_ast[k] -= q_ast[k];
-    //     dv_ast[k] -= v_ast[k];
-    // }
+    // Iterate through all the rows; subtract the Kepler component from the numerical component
+    // This is equivalent to writing
+    // dq_ast[k] = numerical_trajectory[k] - kepler_trajectory[k]
+    // It just uses less memory by using dq_ast to store the numerical trajectory and subtracting in place
+    for (int k=0; k<N_row; k++)
+    {
+        // DEBUG
+        print("k={:d}, q = {:+10.6f}, dq = {:+10.6f}.\n", k, q_ast[k], dq_ast[k]);
+        // dq_ast[k] -= q_ast[k];
+        // dv_ast[k] -= v_ast[k];
+        dq_ast[k] = 0.0;
+        dv_ast[k] = 0.0;
+    }
 }
 
 // *****************************************************************************

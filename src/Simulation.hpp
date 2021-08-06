@@ -145,11 +145,14 @@ public:
     const Orbit orbit_b(int32_t body_id) const {return orbit(body_idx(body_id));}
 
     /// Write an array of state vectors for an array of input dates for one body identified by its body_id
-    void write_vectors(double* q, double* v, const double* mjd, const int N_t, int32_t body_id) const;
+    void write_vectors(double* q, double* v, const double* mjd, const int N_t, int32_t body_id);
 
     /// Write an array of state vectors for an array of input dates for all the bodies
     void write_vectors_batch(
-        double* q, double* v, const double* mjd, const int N_t, const vector<int32_t>& body_id) const;
+        double* q, double* v, const double* mjd, const int N_t, const vector<int32_t>& body_id);
+
+    /// Print summary information about simulation
+    void print_summary() const;
 
     /// Print the state vectors of all particles in the simulation
     void print_vectors() const;

@@ -237,6 +237,10 @@ bool is_close(const StateVector& s1, const Position& q2, double tol_dq)
 bool is_close(const Position& q1, const StateVector& s2, double tol_dq) 
     {return dist(q1, s2) < tol_dq;};
 
+bool is_equal(const StateVector& s1, const StateVector& s2)
+    {return (s1.qx==s2.qx) && (s1.qy==s2.qy) && (s1.qz==s2.qz) && 
+            (s1.vx==s2.vx) && (s1.vy==s2.vy) && (s1.vz==s2.vz);}
+
 // *****************************************************************************
 // Print a position
 // *****************************************************************************
