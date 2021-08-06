@@ -151,8 +151,6 @@ bool test_all(db_conn_type& conn)
     // int d0 = 0;
     // int d1 = 1000000;
  
-    // Current test result
-    bool is_ok;
     // Overall test result
     bool is_ok_all = true;
 
@@ -170,16 +168,18 @@ bool test_all(db_conn_type& conn)
     // t.tock_msg("Built PlanetVector");
 
     // Test the calculated trajectory - uncalibrated
-    t.tick();
-    is_ok = test_calc_traj(false, true);
-    is_ok_all &= is_ok;
-    t.tock_msg();
+    {
+        bool calibrated = false;
+        bool verbose = true;
+        is_ok_all &= test_calc_traj(calibrated, verbose);
+    }
 
     // Test the calculated trajectory - calibrated
-    t.tick();
-    is_ok = test_calc_traj(true, false);
-    is_ok_all &= is_ok;
-    t.tock_msg();
+    {
+        bool calibrated = true;
+        bool verbose = false;
+        is_ok_all &= test_calc_traj(calibrated, verbose);
+    }
 
     // Return overall test result
     return is_ok_all;
@@ -203,21 +203,25 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
 
     // Build CandidateElement for Juno elements at mjd0
     CandidateElement ce = CandidateElement(elt0, candidate_id, mjd, N_t);
-    print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
-    print("candidate_id={:d}, mjd[0]={:.1f}, mjd[1]={:.1f}, N_t={:d}.\n", candidate_id, mjd[0], mjd[1], N_t);
+    if (verbose)
+    {
+        print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
+        print("candidate_id={:d}, mjd[0]={:.1f}, mjd[1]={:.1f}, N_t={:d}.\n", candidate_id, mjd[0], mjd[1], N_t);
+    }
 
     Timer t;
     t.tick();
     int dt_min = mpd;
     PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, dt_min, true);
-    t.tock_msg(format("Built PlanetVector; mjd0={:d}, mjd1={:d}, dt_min={:d}.\n", pv.mjd0, pv.mjd1, pv.dt_min));
+    if (verbose)
+    {t.tock_msg(format("Built PlanetVector(mjd0={:d}, mjd1={:d}, dt_min={:d}).\n", pv.mjd0, pv.mjd1, pv.dt_min));}
 
     // Calibrate if requested
     if (is_calibrated) {ce.calibrate(pv);}
 
     // Calculate trajectory
     ce.calc_trajectory();
-    // if (verbose) {print("Calculated trajectory of CandidateElement.\n");}
+    if (verbose) {print("Calculated trajectory of CandidateElement.\n");}
 
     // Predicted state vector
     const StateVector s0_pred = ce.state_vector(0);
@@ -244,11 +248,11 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     double tol_dq = 1.0E-2;
     double tol_dv = 1.0E-4;
 
-    // Tighten up tolerances if calibrated
+    // Tighten up tolerances if calibrated to simulation
     if (is_calibrated)
     {
-        tol_dq = tol_dq_node;
-        tol_dv = tol_dv_node;
+        tol_dq = 1.0E-10;
+        tol_dv = 1.0E-12;
     }
 
     // Test results
@@ -262,5 +266,8 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     print("{:6s}:  {:8.2e}:  {:8.2e} AU/day\n",  "dv",   dv0,    dv1);
     string test_name = format("Juno trajectory ({:s})", cal_des);
     report_test(test_name, is_ok);
+
+    // Report the elapsed time
+    t.tock_msg();
     return is_ok;
 }

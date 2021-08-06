@@ -166,12 +166,11 @@ void CandidateElement::calibrate(const PlanetVector& pv)
     // Add asteroid to simulation with candidate elements
     sim.add_test_particle(elt, candidate_id);
 
-    // DEBUG
-    print("Simulation summary: planets + 1 asteroid.\n");
-    sim.print_summary();   
-    sim.print_vectors();
-    print("CandidateElement::calibrate - running sim.write_vectors(dq_ast, dv_ast, mjd, candidate_id, N_t)\n");
-    print("mjd[0]={:.2f}, mjd[N_t-1]={:.2f}, candidate_id={:d}, N_t={:d}\n", mjd[0], mjd[N_t-1], candidate_id, N_t);
+    // Status update (debugging only)
+    // print("Simulation summary: planets + 1 asteroid.\n");
+    // sim.print_summary();   
+    // sim.print_vectors();
+
     // Write the numerically integrated vectors from this simulation into q_cal and v_cal
     sim.write_vectors(dq_ast, dv_ast, mjd, N_t, candidate_id);
 
@@ -181,12 +180,10 @@ void CandidateElement::calibrate(const PlanetVector& pv)
     // It just uses less memory by using dq_ast to store the numerical trajectory and subtracting in place
     for (int k=0; k<N_row; k++)
     {
-        // DEBUG
-        print("k={:d}, q = {:+10.6f}, dq = {:+10.6f}.\n", k, q_ast[k], dq_ast[k]);
-        // dq_ast[k] -= q_ast[k];
-        // dv_ast[k] -= v_ast[k];
-        dq_ast[k] = 0.0;
-        dv_ast[k] = 0.0;
+        // double q_num = dq_ast[k];
+        dq_ast[k] -= q_ast[k];
+        dv_ast[k] -= v_ast[k];
+        // print("k={:d}, q_num = {:+10.6f}, q_kep = {:+10.6f}, dq = {:+10.6f}.\n", k, q_num, q_ast[k], dq_ast[k]);
     }
 }
 
