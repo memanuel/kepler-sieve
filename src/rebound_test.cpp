@@ -116,14 +116,10 @@ bool test_all(db_conn_type& conn)
 
     // Build PlanetVector object used in tests
     PlanetVector pv = PlanetVector(mjd0_planet, mjd1_planet, dt_min, true);
-    // pv.load();
-    // pv.build_splines();
     print("Built PlanetVector from {:d} to {:d} with dt_min={:d}.\n", mjd0_planet, mjd1_planet, dt_min);
 
     // Build PlanetElement object used in tests
     PlanetElement pe = PlanetElement(mjd0_planet, mjd1_planet, dt_min, true);
-    // pe.load();
-    // pe.build_splines();
     print("Built PlanetElement from {:d} to {:d} with dt_min={:d}.\n", mjd0_planet, mjd1_planet, dt_min);
 
     // Test massive body

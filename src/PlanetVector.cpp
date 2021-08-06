@@ -109,13 +109,16 @@ PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min, bool load_):
 
 // *****************************************************************************
 PlanetVector::PlanetVector() :
-    // Delegate to memory allocating constructor with database inputs and load_ = true
+    // Delegate to memory allocating constructor with database inputs and load = true
+    // In normal use, we want to quickly load all available data from disk    
     PlanetVector(mjd0_db, mjd1_db, stride_db_min, true)
     {}
 
 // *****************************************************************************
 PlanetVector::PlanetVector(db_conn_type& conn) :
-    // Delegate to memory allocating constructor with database inputs 
+    // Delegate to memory allocating constructor with database inputs and load = false
+    // When building from DB connection, we want to to first allocate memory for all available slots,
+    // then run the DB loading routine to populate them
     PlanetVector(mjd0_db, mjd1_db, stride_db_min, false)
 {
     // Load data from database

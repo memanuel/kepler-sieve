@@ -158,8 +158,6 @@ void CandidateElement::calibrate(const PlanetVector& pv)
 
     // Calculate the trajectory without calibration
     calc_trajectory();
-    // DEBUG
-    print("CandidateElement::calibrate - ran calc_trajectory()\n");
 
     // Build rebound simulation with planets at reference time
     Simulation sim = make_sim_planets(pv, mjd0);
@@ -169,18 +167,26 @@ void CandidateElement::calibrate(const PlanetVector& pv)
     sim.add_test_particle(elt, candidate_id);
     // DEBUG
     print("CandidateElement::calibrate - added test particle for candidate elements.\n");
-    // Write the numerically integrated vectors from this simulation into q_cal and v_cal
-    sim.write_vectors(mjd, candidate_id, N_t, dq_ast, dv_ast);
 
-    // Iterate through all the rows; subtract the Kepler component from the numerical component
-    // This is equivalent to writing
-    // dq_ast[k] = numerical_trajectory[k] - kepler_trajectory[k]
-    // It just uses less memory by using dq_ast to store the numerical trajectory and subtracting in place
-    for (int k=0; k<N_row; k++)
-    {
-        dq_ast[k] -= q_ast[k];
-        dv_ast[k] -= v_ast[k];
-    }
+    // DEBUG
+    // sim.integrate(sim.t() + 1000.0);
+    // print("CandidateElement::calibrate - integrated forward over 1000.0 days");
+
+    // DEBUG
+    print("CandidateElement::calibrate - running sim.write_vectors(dq_ast, dv_ast, candidate_id, N_t)\n");
+    print("mjd[0]={:.2f}, mjd[N_t-1]={:.2f}, candidate_id={:d}, N_t={:d}\n", mjd[0], mjd[N_t-1], candidate_id, N_t);
+    // Write the numerically integrated vectors from this simulation into q_cal and v_cal
+    sim.write_vectors(dq_ast, dv_ast, mjd, N_t, candidate_id);
+
+    // // Iterate through all the rows; subtract the Kepler component from the numerical component
+    // // This is equivalent to writing
+    // // dq_ast[k] = numerical_trajectory[k] - kepler_trajectory[k]
+    // // It just uses less memory by using dq_ast to store the numerical trajectory and subtracting in place
+    // for (int k=0; k<N_row; k++)
+    // {
+    //     dq_ast[k] -= q_ast[k];
+    //     dv_ast[k] -= v_ast[k];
+    // }
 }
 
 // *****************************************************************************

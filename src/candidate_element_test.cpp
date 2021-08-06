@@ -202,18 +202,15 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     constexpr double mjd[N_t] {mjd0, mjd1};
 
     // Build CandidateElement for Juno elements at mjd0
-    CandidateElement ce(elt0, candidate_id, mjd, N_t);
-    // print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
+    CandidateElement ce = CandidateElement(elt0, candidate_id, mjd, N_t);
+    print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);
+    print("candidate_id={:d}, mjd[0]={:.1f}, mjd[1]={:.1f}, N_t={:d}.\n", candidate_id, mjd[0], mjd[1], N_t);
 
     Timer t;
     t.tick();
     int dt_min = mpd;
     PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, dt_min, true);
     t.tock_msg(format("Built PlanetVector; mjd0={:d}, mjd1={:d}, dt_min={:d}.\n", pv.mjd0, pv.mjd1, pv.dt_min));
-
-    //DEBUG - get position of sun at mjd0
-    Position p = pv.interp_pos(body_id_sun, mjd0);
-    print("Position of Sun at mjd0 {:.0f} = ({:f}, {:f}, {:f})", mjd0, p.qx, p.qy, p.qz);
 
     // Calibrate if requested
     if (is_calibrated) {ce.calibrate(pv);}

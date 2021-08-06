@@ -202,31 +202,15 @@ const Orbit Simulation::orbit(int i) const
 // *****************************************************************************
 
 // *****************************************************************************
-/** Write an array of state vectors to q and v obtained by integrating this simulation.
- * \param[in] body_id - integer ID of the body whose state vectors are being written 
- * \param[in] mjd - vector of dates when output is desired; size N_t
- * \param[in] q - array of output positions written to; size is 3*N_t; layout (time, axis)
- * \param[in] v - array of output velocities written to; size is 3*N_t*N_body; layout (time, axis)
- * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
-void const Simulation::write_vectors(
-        const double* mjd, const int N_t, int32_t body_id, double* q, double* v) const
-{
-    // Wrap body_id into a vector of length 1
-    vector<int32_t> body_ids = {body_id};
-    // Delegate to Simulation::write_vectors_batch
-    write_vectors_batch(mjd, N_t, body_ids, q, v);
-}
-
-// *****************************************************************************
 // Wrap implementation functions into anonymous namespace
 namespace {
 
 // *****************************************************************************
 // Implementation function - write out state vectors for one batch of bodies
-void write_vector_row_batch(Simulation& sim, vector<int32_t> body_id, int i, double t, double* q, double* v)
+void write_vector_row_batch(double* q, double* v, Simulation& sim, vector<int32_t> body_ids, int i, double t)
 {
     // Number of bodies in output array
-    const int N_body_out = body_id.size();
+    const int N_body_out = body_ids.size();
     // Integrate to this time (either forward or backward)
     sim.integrate(t);
     // The array index for this page of output
@@ -237,9 +221,9 @@ void write_vector_row_batch(Simulation& sim, vector<int32_t> body_id, int i, dou
         // The array index for this row of output
         int j = j0 + 3*k;
         // The body_id of this body
-        int32_t body_id_k = body_id[k];
+        int32_t body_id = body_ids[k];
         /// Get the StateVector for particle b
-        StateVector s = sim.state_vector_b(body_id_k);
+        StateVector s = sim.state_vector_b(body_id);
         /// Write the position array
         q[j+0] = s.qx;
         q[j+1] = s.qy;
@@ -249,32 +233,51 @@ void write_vector_row_batch(Simulation& sim, vector<int32_t> body_id, int i, dou
         v[j+1] = s.vy;
         v[j+2] = s.vz;
     }   // for / bodies
-}   // function write_vector_row_all
+}   // function write_vector_row_batch
 // *****************************************************************************
 }   // anonymous namespace
 
 // *****************************************************************************
-/** Write an array of state vectors to q and v obtained by integrating this simulation. 
+/** Write an array of state vectors to q and v obtained by integrating this simulation.
+ * \param[in] q - array of output positions written to; size is 3*N_t; layout (time, axis)
+ * \param[in] v - array of output velocities written to; size is 3*N_t*N_body; layout (time, axis)
+ * \param[in] body_id - integer ID of the body whose state vectors are being written 
  * \param[in] mjd - vector of dates when output is desired; size N_t
- * \param[in] body_id - vector of integer body IDs whose position and velocity are requested, size N_body
+ * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
+void Simulation::write_vectors(double* q, double* v, const double* mjd, const int N_t, int32_t body_id) const
+{
+    // Wrap body_id into a vector of length 1
+    vector<int32_t> body_ids = {body_id};
+    // Delegate to Simulation::write_vectors_batch
+    write_vectors_batch(q, v, mjd, N_t, body_ids);
+}
+
+// *****************************************************************************
+/** Write an array of state vectors to q and v obtained by integrating this simulation. 
  * \param[in] q - array of output positions; size is 3*N_t*N_body; layout (time, body, axis)
  * \param[in] v - array of output velocities; size is 3*N_t*N_body; layout (time, body, axis)
+ * \param[in] mjd - vector of dates when output is desired; size N_t
+ * \param[in] body_id - vector of integer body IDs whose position and velocity are requested, size N_body
  * Caller is responsible to allocate arrays q and v of the correct size and delete them later. */
-void const Simulation::write_vectors_batch(
-        const double* mjd, const int N_t, const vector<int32_t>& body_id, double* q, double* v) const
+void Simulation::write_vectors_batch(
+        double* q, double* v, const double* mjd, const int N_t, const vector<int32_t>& body_ids) const
 {
     // Alias the initial reference time
     const double t0 = t();
     // Number of times in the output
     // const int N_t = mjd.size();
     // Create a copy of the simulation for integrating forward
-    Simulation sim_f = this->copy();  
+    Simulation sim_f = this->copy();
     // The last index that is prior to t; this will be integrated backwards down to 0
     int i0_back=-1;
 
     // *****************************************************************************
     // Loop forward for times t in mjd where t>= t0
     // *****************************************************************************
+
+    // DEBUG
+    print("Simulation::write_vectors_batch - entering forward loop...\n");
+    print("t0={:.1f}, N_t={:d}.\n", t0, N_t);
 
     // Iterate forward through times in mjd on or after t0
     for (int i=0; i<N_t; i++)
@@ -287,10 +290,16 @@ void const Simulation::write_vectors_batch(
             i0_back = i;
             continue;
         }
+        // DEBUG
+        print("Simulation::write_vectors_batch - i={:d}, t={:f}.\n", i, mjd[i]);
         // If we get here, the output time is on or after the simulation time. 
         // Integrate forward to this time and save the output.
-        write_vector_row_batch(sim_f, body_id, i, t, q, v);
+        write_vector_row_batch(q, v, sim_f, body_ids, i, t);
     } // for / forward over time (i)
+
+    // DEBUG
+    print("Simulation::write_vectors_batch - i0_back={:d}.\n", i0_back);
+    return;
 
     // *****************************************************************************
     // Loop backward for times t in mjd where t< t0
@@ -299,18 +308,18 @@ void const Simulation::write_vectors_batch(
     // Create a copy of sim for the backwards integration
     Simulation sim_b = this->copy();
     // Set time step in sim_back to be negative for backwards integration
-    sim_b.prs->dt = -prs->dt;
+    // sim_b.prs->dt = -prs->dt;
     // Iterate backard through times in mjd prior to t0
     for (int i=i0_back; i>=0; i--)
     {
         // Time of this output
         double t = mjd[i];
         // Integrate backward to this time and save the output.
-        write_vector_row_batch(sim_b, body_id, i, t, q, v);
+        write_vector_row_batch(q, v, sim_b, body_ids, i, t);
     }
 
     // Simulations sim_f and sim_b will be automatically cleaned up when they drop out of scope.
-    // This is why it's better to initialize two copies then to overwrite sim twice.
+    // This is why it's better to initialize two copies than to overwrite sim twice.
 }
 
 // *****************************************************************************
