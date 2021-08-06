@@ -16,9 +16,10 @@
 2. DetectionCandidate.hpp, DetectionCandidate.cpp
 3. Detection.hpp, Detection.cpp
 
-## State Vectors & Orbital Elements
+## State Vectors, Orbital Elements and Directions
 1. StateVector.hpp, StateVector.cpp
 2. OrbitalElement.hpp, OrbitalElement.cpp
+3. Direction.hpp, Direction.cpp
 
 ## Asteroids Near Detections
 1. AsteroidSkyPatch.hpp, AsteroidSkyPatch.cpp

@@ -28,9 +28,10 @@ Timer.o: Timer.hpp Timer.cpp
 # Miscellaneous small data classes
 MassiveBody.o: MassiveBody.hpp MassiveBody.cpp
 
-# State Vectors and Orbital Elements
+# State Vectors, Orbital Elements and Directions
 StateVector.o: StateVector.hpp StateVector.cpp
 OrbitalElement.o: OrbitalElement.hpp OrbitalElement.cpp
+Direction.o: Direction.hpp Direction.cpp
 
 # Splined orbital elements for one body or a collection
 BodyVector.o: BodyVector.hpp BodyVector.cpp
@@ -139,7 +140,7 @@ candidate_element_test: \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o \
     obj/rebound_utils.o obj/Simulation.o obj/SimulationFactory.o \
     obj/CandidateElement.o

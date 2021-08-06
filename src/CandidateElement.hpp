@@ -27,6 +27,9 @@
     using ks::sp_run;
 #include "StateVector.hpp"
     using ks::norm;
+#include "Direction.hpp"
+    using ks::Direction;
+    using ks::observe_dir;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::mean_motion;
@@ -124,6 +127,8 @@ private:
     double* v_ast;
     /// Array of directions to an asteroid with these candidate elements; size 3N
     double* u_ast;
+    /// Array of distances to an asteroid with these candidate elements; size N
+    double* r_ast;
     /// Array of position shifts; includes (1) sun position (2) numerical calibration adjustment
     double* dq_ast;
     /// Array of velocity shifts; includes (1) sun velocity (2) numerical calibration adjustment

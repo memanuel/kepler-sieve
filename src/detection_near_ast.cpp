@@ -240,7 +240,6 @@ int main(int argc, char* argv[])
 
     // Initialize DetectionTable with all available detections
     DetectionTable dt = DetectionTable();
-    // dt.load();
     print("Loaded Detection table from disk with {:d} detections.\n", dt.size());
     
     // Establish DB connection

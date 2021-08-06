@@ -31,6 +31,7 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int
     q_ast {new double[N_row]},
     v_ast {new double[N_row]},
     u_ast {new double[N_row]},
+    r_ast {new double[N_t]},
     dq_ast {new double[N_row]},
     dv_ast {new double[N_row]}
     {}
@@ -59,6 +60,7 @@ CandidateElement::~CandidateElement()
     delete [] q_ast;
     delete [] v_ast;
     delete [] u_ast;
+    delete [] r_ast;
     delete [] dq_ast;
     delete [] dv_ast;
 }

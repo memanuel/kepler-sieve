@@ -30,25 +30,6 @@ using std::numbers::pi;
 constexpr double tau = 2*pi;
 
 // *****************************************************************************
-// Physical constants
-
-/// The gravitational constant in unit system (days, AU, Msun), i.e. AU^3 / MSun / day^2
-constexpr double G = 2.959122082855910945e-04;
-// see rebound documentation for exact value        
-// sim = make_sim_planets(epoch=59000)
-// G_ = sim.G_
-
-/// gravitational field strength: mu = G * (m0 + m1) in AU^3 / day^2
-constexpr double m_sun = 1.0;
-constexpr double mu_sun = G * m_sun;
-// here m0 = 1.0 (Sun) and we assume m1 is light, i.e. m1 = 0.0; works well for asteroids / test bodies.
-// do NOT use this for orbital elements of planets!
-
-// gravitational field strength of the Earth; for elements of the moon
-constexpr double m_earth_moon = 0.000003040432648;
-constexpr double mu_earth_moon = G * m_earth_moon;
-
-// *****************************************************************************
 // Time conversions between minutes and days
 
 /// Number of minutes in one day
@@ -56,6 +37,46 @@ constexpr int mpd = 1440;
 
 /// Number of days in one minute
 constexpr double dpm = 1.0 / mpd;
+
+/// Number of seconds in one day
+constexpr int spd = mpd * 60;
+
+// *****************************************************************************
+// Physical constants
+
+/// The gravitational constant in unit system (days, AU, Msun), i.e. AU^3 / MSun / day^2
+constexpr double G {2.959122082855910945e-04};
+// see rebound documentation for exact value        
+// sim = make_sim_planets(epoch=59000)
+// G_ = sim.G_
+
+/// gravitational field strength: mu = G * (m0 + m1) in AU^3 / day^2
+constexpr double m_sun {1.0};
+constexpr double mu_sun {G * m_sun};
+// here m0 = 1.0 (Sun) and we assume m1 is light, i.e. m1 = 0.0; works well for asteroids / test bodies.
+// do NOT use this for orbital elements of planets!
+
+// gravitational field strength of the Earth; for elements of the moon
+constexpr double m_earth_moon {0.000003040432648};
+constexpr double mu_earth_moon {G * m_earth_moon};
+
+/// speed of light in meters per second - exact by definition (!)
+/// see https://en.wikipedia.org/wiki/Speed_of_light
+constexpr double c_m_s {299792458.0};
+
+/// one astronomical unit (AU) in meters - exact by definition (!)
+/// see https://en.wikipedia.org/wiki/Astronomical_unit
+constexpr double au_m {149597870700};
+
+/// speed of light in AU / day - exact by definition
+/// quoted value (Google) 173.145
+constexpr double c {c_m_s * static_cast<double>(spd) / au_m};
+
+/// inverse speed of light in day / AU - exact by definition
+/// quoted value (Google) 0.00577552
+constexpr double c_inv {au_m / (c_m_s * static_cast<double>(spd))};
+
+// sanity check on Google done by searching for "speed of light in AU per day"
 
 // *****************************************************************************
 // Time span for solar system integrations saved to database
