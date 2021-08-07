@@ -108,6 +108,11 @@ void DetectionTimeTable::load(db_conn_type& conn)
         (dtm[time_id]).push_back(detection_time_id);
         // Save mjd to the array
         mjd_[detection_time_id] = mjd;
+        // Save the observer position to the array q_obs
+        int idx = detection_time_id*3;
+        q_obs[idx+0] = q_obs_x;
+        q_obs[idx+1] = q_obs_y;
+        q_obs[idx+2] = q_obs_z;
     }
     // Close the resultset and free memory
     rs->close();
@@ -209,9 +214,9 @@ void DetectionTimeTable::load()
         mjd_[detection_time_id] = dt.mjd;
         // Save the observer position to the array q_obs
         int idx = dt.detection_time_id*3;
-        // q_obs[idx+0] = dt.q_obs_x;
-        // q_obs[idx+1] = dt.q_obs_y;
-        // q_obs[idx+2] = dt.q_obs_z;
+        q_obs[idx+0] = dt.q_obs_x;
+        q_obs[idx+1] = dt.q_obs_y;
+        q_obs[idx+2] = dt.q_obs_z;
     }
 
     // Close input filestream

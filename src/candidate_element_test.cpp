@@ -141,14 +141,6 @@ int main(int argc, char* argv[])
     DetectionTimeTable dtt = DetectionTimeTable();
     print("Loaded detection time table from disk.\n");
 
-    int N = dtt.N();
-    const double* mjd = dtt.get_mjd();
-    auto dtt_dt = dtt.detection_times();
-    print("N = {:d}.\n", N);
-    print("mjd[1]   = {:8.6f}\n", mjd[1]);
-    print("mjd[N-1] = {:8.6f}\n", mjd[N-1]);
-    print("mjd[N]   = {:8.6f}\n", mjd[N]);
-
     double mjd0_d = dtt.mjd_first();
     double mjd1_d = dtt.mjd_last();
     constexpr int pad = 32;
@@ -161,8 +153,7 @@ int main(int argc, char* argv[])
     print("mjd1  = {:d}\n", mjd1);
 
     // Run all the tests
-    // bool is_ok = test_all(conn);
-    bool is_ok = 1;
+    bool is_ok = test_all(conn);
 
     // Close DB connection
     conn->close();

@@ -256,28 +256,29 @@ BodyVector CandidateElement::bv_sun = BodyVector(SolarSystemBody_bv::sun);
 
 BodyVector CandidateElement::bv_earth = BodyVector(SolarSystemBody_bv::earth);
 
-// // Build DetectionTimeTable object as a variable first.
-// // Need to extract first and last time below.
-// // If the dtt is built immediately as a static member of CandidateElement, it is inaccessible here.
-// // The workaround is to (1) build it locally (2) extract first / last date (3) move it to the static member
-// // This sequence avoids building the object twice.
-// DetectionTimeTable dtt {DetectionTimeTable()};
+// Build DetectionTimeTable object as a variable first.
+// Need to extract first and last time below.
+// If the dtt is built immediately as a static member of CandidateElement, it is inaccessible here.
+// The workaround is to (1) build it locally (2) extract first / last date (3) move it to the static member
+// This sequence avoids building the object twice.
+DetectionTimeTable dtt {DetectionTimeTable()};
 
-// // Inputs to build a PlanetVector table suited to CandidateElement
-// constexpr int pad = 32;
-// const int mjd0 = static_cast<int>(floor(dtt.mjd_first())) - pad;
-// const int mjd1 = static_cast<int>(ceil( dtt.mjd_last() )) + pad;
-// constexpr int dt_min = 1440;
-// bool load = true;
-// PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
-PlanetVector CandidateElement::pv {PlanetVector(59000-32, 60000+32, 1440, true)};
+// Inputs to build a PlanetVector table suited to CandidateElement
+constexpr int pad = 32;
+const int mjd_first = static_cast<int>(floor(dtt.mjd_first()));
+const int mjd_last = static_cast<int>(ceil(dtt.mjd_last()));
+const int mjd0 = std::min(mjd_first, 58000) - pad;
+const int mjd1 = std::max(mjd_last,  60000) + pad;
+constexpr int dt_min = 1440;
+bool load = true;
+PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
+// PlanetVector CandidateElement::pv {PlanetVector(59000-32, 60000+32, 1440, true)};
 
 // // Move the local copy of DetectionTable to avoid cost of building it twice
-// DetectionTimeTable CandidateElement::dtt = std::move(dtt);
-DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
+DetectionTimeTable CandidateElement::dtt = std::move(dtt);
+// DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
 
-// // DEBUG - build a small Detection table quickly for testing
-// // DetectionTable dt = DetectionTable()
-// // DetectionTable dt = DetectionTable();
+// DEBUG - build a small Detection table quickly for testing
+// DetectionTable dt = DetectionTable()
 
 
