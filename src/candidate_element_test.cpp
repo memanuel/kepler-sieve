@@ -17,6 +17,7 @@
 #include "utils.hpp"
     using ks::norm;
     using ks::report_test;
+    using ks::print_stars;
 #include "astro_utils.hpp"
     using ks::SolarSystemBody_bv;
 #include "db_utils.hpp"
@@ -122,6 +123,7 @@ const string pfx_row_1 = format("{:8.2f}", mjd1);
 int main(int argc, char* argv[]);
 bool test_all(db_conn_type& conn);
 bool test_calc_traj(bool is_calibrated, bool verbose);
+bool test_calc_direction(bool verbose);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
@@ -141,13 +143,7 @@ int main(int argc, char* argv[])
     conn->close();
 
     // Report total elapsed time
-    t.tock_msg("candidate_element_test -total\nElapsed Time");
-
-    // // DEBUG
-    // int d1 = 85000000;
-    // int d2 = 86000000;
-    // DetectionTable dt = DetectionTable(d1, d2, true);
-    // print("Size of CandidateElement::dt: {:d}.\n", dt.size());
+    t.tock_msg("\nTOTAL - candidate_element_test\nElapsed Time");
 
     // Normal program exit; return 0 for success, 1 for failure
     return is_ok ? 0 : 1;
@@ -161,10 +157,11 @@ bool test_all(db_conn_type& conn)
     // int d1 = 1000000;
  
     // Overall test result
-    bool is_ok_all = true;
+    bool is_ok = true;
 
     // Get reference elements
-    print("\nOrbitalElement for Juno @ {:8.2f} and {:8.2f}.\n", mjd0, mjd1);
+    print_stars(true);
+    print("OrbitalElement for Juno @ {:8.2f} and {:8.2f} (expected results).\n", mjd0, mjd1);
     print_orbital_element_headers();
     print_orbital_element(elt0);
     print_orbital_element(elt1);
@@ -175,24 +172,35 @@ bool test_all(db_conn_type& conn)
     // Test the calculated trajectory - uncalibrated
     {
         bool calibrated = false;
-        bool verbose = true;
-        is_ok_all &= test_calc_traj(calibrated, verbose);
+        bool verbose = false;
+        is_ok &= test_calc_traj(calibrated, verbose);
     }
 
     // Test the calculated trajectory - calibrated
     {
         bool calibrated = true;
         bool verbose = false;
-        is_ok_all &= test_calc_traj(calibrated, verbose);
+        is_ok &= test_calc_traj(calibrated, verbose);
+    }
+
+    // Test the calculated direction
+    {
+        bool verbose = true;
+        is_ok &= test_calc_direction(verbose);
     }
 
     // Return overall test result
-    return is_ok_all;
+    return is_ok;
 }
 
 // *****************************************************************************
 bool test_calc_traj(bool is_calibrated, bool verbose)
 {
+    // Status - name of test being run
+    string cal_type = is_calibrated ? "calibrated" : "uncalibrated";
+    print_stars(true);
+    print("test_calc_traj - {:s}; test calculated trajectory vs. expected state vectors.\n", cal_type);
+
     // Expected state vectors
     if (verbose)
     {
@@ -269,6 +277,57 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     report_test(test_name, is_ok);
 
     // Report the elapsed time
+    print_stars(true);
     t.tock_msg();
     return is_ok;
+}
+
+// *****************************************************************************
+bool test_calc_direction(bool verbose)
+{
+    // Status - name of test being run
+    print_stars(true);
+    print("test_calc_direction - test calculated direction vs. detection on a hit for Juno.\n");
+    
+    Timer t;
+    t.tick();
+
+    // Build CandidateElement for Juno elements at mjd0
+    CandidateElement ce = CandidateElement(elt0, candidate_id);
+    // if (verbose) {print("Constructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);}
+
+    // Calibrate 
+    ce.calibrate();
+    // if (verbose) {print("Calibrated orbit of CandidateElement.\n");}
+
+    // Calculate trajectory
+    ce.calc_trajectory();
+    // if (verbose) {print("Calculated trajectory of CandidateElement.\n");}
+
+    // Calculate direction
+    ce.calc_direction();
+    if (verbose) {print("Calculated directions on CandidateElement.\n");}
+
+    // First hit on Juno is on detection_id 85817184
+    int32_t detection_id {85817184};
+    // The detection object
+    Detection det {ce.dt[detection_id]};
+    print("Detection with detection_id {:d}:\n", detection_id);
+    print_detection(det);
+
+    // The associated detection_time_id of this detection; corresponds to mjd 58940.4147454002
+    // int32_t detection_time_id = 123113;
+    int32_t detection_time_id = det.detection_time_id;
+    print("\nDetectionTime:\ndetection_time_id = {:d}, mjd = {:8.6f}.\n", detection_time_id, det.mjd);
+    // TODO - diagnose seg fault in next statement
+    // DetectionTime dt {ce.dtt[detection_time_id]};
+    // print("DetectionTime: detection_time_id {:d}, mjd {:8.6f}\n", dt.detection_time_id, dt.mjd);
+
+    // Extract the direction on the test date
+
+    // Test result
+    // TODO - put real test instead of placeholder
+    bool is_ok = true;
+    return is_ok;
+
 }

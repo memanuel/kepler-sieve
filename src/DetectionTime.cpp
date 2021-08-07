@@ -119,7 +119,7 @@ void DetectionTimeTable::load(db_conn_type& conn)
 }
 
 // *****************************************************************************
-const DetectionTime DetectionTimeTable::operator[](int32_t id) const
+const DetectionTime& DetectionTimeTable::operator[](int32_t id) const
     {return dtv[id];}
 
 // *****************************************************************************

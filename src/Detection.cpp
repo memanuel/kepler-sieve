@@ -47,7 +47,7 @@ DetectionTable::DetectionTable():
 DetectionTable::DetectionTable(int d0, int d1, bool load_): 
     d0 {d0},
     d1 {d1},
-    // Initialize dt to a vector with sz entries, one for each possible detection in the interval
+    // Initialize dt to a vector with sz entries, one for each possible detection in the interval [d0, d1)
     dt {vector<Detection>(d1-d0)},
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
     dtsp {vector<vector<int32_t>>(N_sp)}
@@ -169,7 +169,7 @@ const int DetectionTable::size() const
 
 // *****************************************************************************
 const Detection DetectionTable::operator[](int32_t id) const
-    {return dt.at(id);}
+    {return dt.at(id-d0);}
 
 // *****************************************************************************
 const vector<int32_t> DetectionTable::get_skypatch(int32_t spid) const
@@ -249,8 +249,8 @@ void ks::print_detection(const Detection& d)
     print("detection_id = {:d}\n", d.detection_id);
     print("sky_patch_id = {:d}\n", d.sky_patch_id);
     print("time_id = {:d}\n", d.time_id);
-    print("ux      = {:+8.6f}\n", d.ux);
-    print("uy      = {:+8.6f}\n", d.uy);
-    print("uz      = {:+8.6f}\n", d.uz);
-    print("mag     = {:8.4f}\n", d.mag);
+    print("ux      = {:+9.6f}\n", d.ux);
+    print("uy      = {:+9.6f}\n", d.uy);
+    print("uz      = {:+9.6f}\n", d.uz);
+    print("mag     ={:8.4f}\n", d.mag);
 }

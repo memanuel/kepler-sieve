@@ -26,23 +26,27 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int
     N_t {N_t},
     N_row {3*N_t},
     // Allocate arrays
-    mjd   {new double[N_t]},
-    q_obs {new double[N_row]},
-    q_ast {new double[N_row]},
-    v_ast {new double[N_row]},
-    u_ast {new double[N_row]},
-    r_ast {new double[N_t]},
-    dq_ast {new double[N_row]},
-    dv_ast {new double[N_row]}
+    mjd_    {new double[N_t]},
+    q_obs_  {new double[N_row]},
+    q_ast_  {new double[N_row]},
+    v_ast_  {new double[N_row]},
+    u_ast_  {new double[N_row]},
+    r_ast_  {new double[N_t]},
+    dq_ast_ {new double[N_row]},
+    dv_ast_ {new double[N_row]},
+    /// Read-only copies of arrays in public interface
+    mjd     {const_cast<double*> (mjd_) },
+    u_ast   {const_cast<double*> (u_ast_) },
+    r_ast   {const_cast<double*> (r_ast_) }
     {}
 
 // *****************************************************************************
-CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_, int N_t):
-    // Delegate to main constructor using mjd array from detection time table
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_in, int N_t):
+    // Delegate to main constructor using mjd_ array from detection time table
     CandidateElement(elt, candidate_id, N_t)
 {
-    // Initialize mjd array with input times
-    init(mjd_);
+    // Initialize mjd_ array with input times
+    init(mjd_in);
 }
 
 // *****************************************************************************
@@ -55,49 +59,48 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
 // Delete manually allocated arrays
 CandidateElement::~CandidateElement()
 {
-    delete [] mjd;
-    delete [] q_obs;
-    delete [] q_ast;
-    delete [] v_ast;
-    delete [] u_ast;
-    delete [] r_ast;
-    delete [] dq_ast;
-    delete [] dv_ast;
+    delete [] mjd_;
+    delete [] q_obs_;
+    delete [] q_ast_;
+    delete [] v_ast_;
+    delete [] u_ast_;
+    delete [] r_ast_;
+    delete [] dq_ast_;
+    delete [] dv_ast_;
 }
 
 // *****************************************************************************
-void CandidateElement::init(const double* mjd_)
+void CandidateElement::init(const double* mjd_in)
 {
-    // Copy from mjd_ input to mjd on the candidate element
-    for (int i=0; i<N_t; i++) {mjd[i]=mjd_[i];}
+    // Copy from mjd_in to mjd_ on the candidate element
+    for (int i=0; i<N_t; i++) {mjd_[i]=mjd_in[i];}
 
-    // Populate q_cal and v_cal from BodyVector of the Sun
+    // Populate q_cal_ and v_cal_ from BodyVector of the Sun
     // This will be a pretty accurate first pass before running an optional numerical integration
     for (int i=0; i<N_t; i++)
     {
         // The time of this entry
-        double t = mjd[i];
+        double t = mjd_[i];
         // Interpolated position vector of the Earth at time i
         Position p_earth = bv_earth.interp_pos(t);
         // Interpolated state vector of the Sun at time i
         StateVector s_sun = bv_sun.interp_vec(t);
         // Index for arrays q_sun and v_sun
-        const int j0 = 3*i;
-        const int jx = j0+0;
-        const int jy = j0+1;
-        const int jz = j0+2;
+        const int jx {i2jx(i)};
+        const int jy {i2jy(i)};
+        const int jz {i2jz(i)};
         // Copy position components into q_obs
-        q_obs[jx] = p_earth.qx;
-        q_obs[jy] = p_earth.qy;
-        q_obs[jz] = p_earth.qz;
+        q_obs_[jx] = p_earth.qx;
+        q_obs_[jy] = p_earth.qy;
+        q_obs_[jz] = p_earth.qz;
         // Copy position components into dq_ast
-        dq_ast[jx] = s_sun.qx;
-        dq_ast[jy] = s_sun.qy;
-        dq_ast[jz] = s_sun.qz;
+        dq_ast_[jx] = s_sun.qx;
+        dq_ast_[jy] = s_sun.qy;
+        dq_ast_[jz] = s_sun.qz;
         // Copy velocity components into dv_ast
-        dv_ast[jx] = s_sun.vx;
-        dv_ast[jy] = s_sun.vy;
-        dv_ast[jz] = s_sun.vz;
+        dv_ast_[jx] = s_sun.vx;
+        dv_ast_[jy] = s_sun.vy;
+        dv_ast_[jz] = s_sun.vz;
     }   // for / i
 }   // CandidateElement::init
 
@@ -124,26 +127,25 @@ void CandidateElement::calc_trajectory()
     for (int i=0; i<N_t; i++)
     {
         // The time shift from the reference time
-        double dt = mjd[i] - mjd0;
+        double dt = mjd_[i] - mjd0;
         // Mean anomaly at this time; changes at rate n and equal to elt.M at time elt.mjd
         double M = M0 + n*dt;
         // Convert M to a true anomaly f
         double f = anomaly_M2f(M, e);
         // Convert orbital elements to a heliocentric position
         StateVector s = elt2vec(a, e, inc, Omega, omega, f, mu_sun);
-        // Index for arrays q_ast and v_ast
-        const int j = 3*i;
-        const int jx = j+0;
-        const int jy = j+1;
-        const int jz = j+2;
-        // Save into array q_ast
-        q_ast[jx] = s.qx + dq_ast[jx];
-        q_ast[jy] = s.qy + dq_ast[jy];
-        q_ast[jz] = s.qz + dq_ast[jz];
-        // Save into array v_ast
-        v_ast[jx] = s.vx + dv_ast[jx];
-        v_ast[jy] = s.vy + dv_ast[jy];
-        v_ast[jz] = s.vz + dv_ast[jz];
+        // Index for arrays q_ast_ and v_ast_
+        const int jx {i2jx(i)};
+        const int jy {i2jy(i)};
+        const int jz {i2jz(i)};
+        // Save into array q_ast_
+        q_ast_[jx] = s.qx + dq_ast_[jx];
+        q_ast_[jy] = s.qy + dq_ast_[jy];
+        q_ast_[jz] = s.qz + dq_ast_[jz];
+        // Save into array v_ast_
+        v_ast_[jx] = s.vx + dv_ast_[jx];
+        v_ast_[jy] = s.vy + dv_ast_[jy];
+        v_ast_[jz] = s.vz + dv_ast_[jz];
     }
 }
 
@@ -156,8 +158,8 @@ void CandidateElement::calibrate()
     // Zero out old calibration
     for (int k=0; k<N_row; k++)
     {
-        dq_ast[k] = 0.0;
-        dv_ast[k] = 0.0;
+        dq_ast_[k] = 0.0;
+        dv_ast_[k] = 0.0;
     }
 
     // Calculate the trajectory without calibration
@@ -169,7 +171,7 @@ void CandidateElement::calibrate()
     sim.add_test_particle(elt, candidate_id);
 
     // Write the numerically integrated vectors from this simulation into q_cal and v_cal
-    sim.write_vectors(dq_ast, dv_ast, mjd, N_t, candidate_id);
+    sim.write_vectors(dq_ast_, dv_ast_, mjd_, N_t, candidate_id);
 
     // Iterate through all the rows; subtract the Kepler component from the numerical component
     // This is equivalent to writing
@@ -178,54 +180,59 @@ void CandidateElement::calibrate()
     for (int k=0; k<N_row; k++)
     {
         // double q_num = dq_ast[k];
-        dq_ast[k] -= q_ast[k];
-        dv_ast[k] -= v_ast[k];
-        // print("k={:d}, q_num = {:+10.6f}, q_kep = {:+10.6f}, dq = {:+10.6f}.\n", k, q_num, q_ast[k], dq_ast[k]);
+        dq_ast_[k] -= q_ast_[k];
+        dv_ast_[k] -= v_ast_[k];
+        // print("k={:d}, q_num = {:+10.6f}, q_kep = {:+10.6f}, dq = {:+10.6f}.\n", k, q_num, q_ast_[k], dq_ast_[k]);
     }
 }
 
 // *****************************************************************************
-// Get predicted state vectors
+// Get predicted state vectors and direction
 // *****************************************************************************
 
 // *****************************************************************************
 const StateVector CandidateElement::state_vector(int i) const
 {
     // The array index for the test date
-    int j = 3*i;
-    int jx = j+0;  
-    int jy = j+1; 
-    int jz = j+2;
+    const int jx {i2jx(i)};
+    const int jy {i2jy(i)};
+    const int jz {i2jz(i)};
 
     // Wrap the predicted position and velocity of the asteroid on the test date into a StateVector
     return StateVector 
     {
-        .qx = q_ast[jx], 
-        .qy = q_ast[jy],
-        .qz = q_ast[jz],
-        .vx = v_ast[jx],
-        .vy = v_ast[jy],
-        .vz = v_ast[jz]
+        .qx = q_ast_[jx], 
+        .qy = q_ast_[jy],
+        .qz = q_ast_[jz],
+        .vx = v_ast_[jx],
+        .vy = v_ast_[jy],
+        .vz = v_ast_[jz]
     };
 }
 
 // *****************************************************************************
 const Position CandidateElement::observer_pos(int i) const
 {
-    // The array index for the test date
-    int j = 3*i;
-    int jx = j+0;  
-    int jy = j+1; 
-    int jz = j+2;
-
     // Wrap the observer position on the test date into a Position
     return Position 
     {
-        .qx = q_obs[jx], 
-        .qy = q_obs[jy],
-        .qz = q_obs[jz]
+        .qx = q_obs_[i2jx(i)], 
+        .qy = q_obs_[i2jy(i)],
+        .qz = q_obs_[i2jz(i)]
     };
 }
+
+// Extract a Direction to the asteroid from the u_ast_ array
+const Direction CandidateElement::direction(int i) const
+{
+    return Direction
+    {
+        .ux = u_ast_[i2jx(i)],
+        .uy = u_ast_[i2jy(i)],
+        .uz = u_ast_[i2jz(i)]
+    };
+}
+
 
 // *****************************************************************************
 // Calculate direction
@@ -239,12 +246,18 @@ void CandidateElement::calc_direction()
     // Iterate over all N observation times
     for (int i=0; i<N_t; i++)
     {
-        // // Wrap the observer position
-        // Position q_obs {observer_pos(i)};
-        // // Wrap the asteroid state vector
-        // StateVector s_ast {state_vector(i)};
-        // // Calculate direction and distance in Newtonian light model
-        
+        // Wrap the observer position
+        Position q_obs {observer_pos(i)};
+        // Wrap the asteroid state vector
+        StateVector s_ast {state_vector(i)};
+        // Calculate direction and distance in Newtonian light model
+        ObservationResult res {observe(q_obs, s_ast)};      
+        // Write to direction array
+        u_ast_[i2jx(i)] = res.u.ux;
+        u_ast_[i2jy(i)] = res.u.uy;
+        u_ast_[i2jz(i)] = res.u.uz;
+        // Write to distance array
+        r_ast_[i]           = res.r;
     }
 }
 
@@ -272,13 +285,14 @@ const int mjd1 = std::max(mjd_last,  60000) + pad;
 constexpr int dt_min = 60;
 bool load = true;
 PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
-// PlanetVector CandidateElement::pv {PlanetVector(59000-32, 60000+32, 1440, true)};
 
 // // Move the local copy of DetectionTable to avoid cost of building it twice
 DetectionTimeTable CandidateElement::dtt = std::move(dtt);
 
-// DEBUG - build a small Detection table quickly for testing
-// DetectionTable CandidateElement::dt = DetectionTable()
+// // DEBUG - build a small Detection table quickly for testing
+// // DetectionTable CandidateElement::dt = DetectionTable()
 int d1 = 85000000;
 int d2 = 86000000;
+// int d1 = 0;
+// int d2 = 100000;
 DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);

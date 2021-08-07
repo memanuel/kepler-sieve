@@ -102,7 +102,7 @@ public:
 // Member functions
 public:
     /// Get a detection time given its ID
-    const DetectionTime operator[](int32_t id) const;
+    const DetectionTime& operator[](int32_t id) const;
     /// Get vector of DetectionIDs matching a given TimeID
     const vector<int32_t> get_time(int32_t time_id) const;
     /// Vector of all detection time objects

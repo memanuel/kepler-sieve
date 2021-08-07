@@ -29,7 +29,8 @@
     using ks::norm;
 #include "Direction.hpp"
     using ks::Direction;
-    using ks::observe_dir;
+    using ks::ObservationResult;
+    using ks::observe;
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::mean_motion;
@@ -60,7 +61,7 @@ public:
     CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t);
 
     // Build a CandidateElement from an OrbitalElement at the desired output times
-    CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd, int N_t);
+    CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_in, int N_t);
 
     // Build a CandidateElement from an OrbitalElement using the shared DetectionTime table
     CandidateElement(OrbitalElement elt, int32_t candidate_id);
@@ -83,21 +84,22 @@ public:
     /// Calculate direction from asteroid trajectory to observatory
     void calc_direction();
 
-    /// Read access to array of mjd when detections were observed (print time); size N
-    double* get_mjd() const {return mjd;}
-    /// Read access to array of positions of observatory; size 3N
-    double* get_q_obs() const {return q_obs;}
-    /// Read access to array of positions of an asteroid with these candidate elements; size 3N
-    double* get_q_ast() const {return q_ast;}
-    /// Read access to array of velocities of an asteroid with these candidate elements; size 3N
-    double* get_v_ast() const {return v_ast;}
-    /// Read access to array of directions of an asteroid with these candidate elements; size 3N
-    double* get_u_ast() const {return u_ast;}
-
-    /// Extract a StateVector from the q_ast and v_ast arrays
+    /// Extract a StateVector from the q_ast_ and v_ast_ arrays
     const StateVector state_vector(int i) const;
-    /// Extract a Position of the observer from the q_obs arrays
+    /// Extract a Position of the observer from the q_obs_ array
     const Position observer_pos(int i) const;
+    /// Extract a Direction to the asteroid from the u_ast_ array
+    const Direction direction(int i) const;
+    /// Extract a distance to the asteroid from the r_ast_ array
+    const inline double distance(int i) const {return r_ast_[i];}
+    
+    /// Calculate three array indices jx, jy, jz for spatial data from a time index i
+    /// Calculate array index jx for spatial data from time index i
+    inline const int i2jx(const int& i) const {return 3*i+0;}
+    /// Calculate array index jy for spatial data from time index i
+    inline const int i2jy(const int& i) const {return 3*i+1;}
+    /// Calculate array index jz for spatial data from time index i
+    inline const int i2jz(const int& i) const {return 3*i+2;}
 
 private:
     /// Initial value of element used to initialize this object
@@ -109,31 +111,40 @@ private:
     static BodyVector bv_sun;  
     /// One BodyVector object for Earth shared by all instances
     static BodyVector bv_earth;
+public:    
     /// One DetectionTimeTable object shared by all instances
     static DetectionTimeTable dtt;
     /// One DetectionTable object shared by all instances
     static DetectionTable dt;
-
+private:
     /// Number of detection times
     const int N_t;
     /// Number of rows of data in spatial arrays for q and v
     const int N_row;
     /// Array of mjd when detections were observed (print time); size N
-    double* mjd;
+    double* mjd_;
     /// Array of positions of observatory; size 3N
-    double* q_obs;
+    double* q_obs_;
     /// Array of positions of an asteroid with these candidate elements; size 3N
-    double* q_ast;
+    double* q_ast_;
     /// Array of velocities of an asteroid with these candidate elements; size 3N
-    double* v_ast;
+    double* v_ast_;
     /// Array of directions to an asteroid with these candidate elements; size 3N
-    double* u_ast;
+    double* u_ast_;
     /// Array of distances to an asteroid with these candidate elements; size N
-    double* r_ast;
+    double* r_ast_;
     /// Array of position shifts; includes (1) sun position (2) numerical calibration adjustment
-    double* dq_ast;
+    double* dq_ast_;
     /// Array of velocity shifts; includes (1) sun velocity (2) numerical calibration adjustment
-    double* dv_ast;
+    double* dv_ast_;
+
+public:
+    /// Read-only copy of mjd
+    const double* const mjd;    
+    /// Read-only copy of u_ast
+    const double* const u_ast;
+    /// Read-only copy of r_ast
+    const double* const r_ast;
 };
 
 // *****************************************************************************
