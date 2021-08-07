@@ -110,11 +110,10 @@ public:
     /// Save this object to disk
     void save() const;
 
-private:
     // ********************************************************************************************
-    // Private Data Members
+    // Data Members
     // ********************************************************************************************
-
+public:
     /// The number of times
     const int N_t;
     /// First date loaded (inclusive); an integer
@@ -124,10 +123,11 @@ private:
     /// Time step in minutes
     const int dt_min;
 
+private:
     /// One shared array for the times when splined elements are available; size N_t
     double* const mjd;
 
-    // One array for state vector component; size N_t
+    // One array for each state vector component; size N_t
     double* const qx;
     double* const qy;
     double* const qz;

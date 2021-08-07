@@ -52,6 +52,17 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
 // *****************************************************************************
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
     // Delegate to constructor taking an mjd array and size; use mjd array from detection time table
+    // Subtlety: the array passed as the input id dtt.mjd
+    // This has a placeholder value of 0 in index 0 because detection_id counter starts at 1.
+    // Two possible ideas to avoid an interpolation error from having mjd[0] = 0.0.
+    // (1) pass inputs dtt.mjd+1, dtt.N
+    // CandidateElement(elt, candidate_id, dtt.mjd+1, dtt.N)
+    // (2) pass inputs dtt.mjd, dtt.N+1 and collar values of dtt.mjd into interpolation range 
+    // CandidateElement(elt, candidate_id, dtt.mjd, dtt.N+1)
+    // before copying into this instance's mjd array.
+    // Follow plan (1).  It's simple.  There is no need for array indices in CandidateElement to match detection_id.
+    // CandidateElement.mjd will be winnowed way down early in calculation process to a handful of entries
+    // that are close to detections.
     CandidateElement(elt, candidate_id, dtt.mjd+1, dtt.N)
 {}
 
@@ -72,15 +83,12 @@ CandidateElement::~CandidateElement()
 // *****************************************************************************
 void CandidateElement::init(const double* mjd_in)
 {
-    // DEBUG
-    print("CandidateElement::init(elt, candidate_id).\n");
-    print("N_t = {:d}.\n", N_t);
-
     // Copy from mjd_in to mjd_ on the candidate element
     for (int i=0; i<N_t; i++) {mjd_[i]=mjd_in[i];}
 
     // Populate q_cal_ and v_cal_ from BodyVector of the Sun
     // This will be a pretty accurate first pass before running an optional numerical integration
+
     for (int i=0; i<N_t; i++)
     {
         // The time of this entry
