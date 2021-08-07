@@ -134,13 +134,6 @@ int main(int argc, char* argv[])
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
-    // DetectionTimeTable dtt = DetectionTimeTable(conn);
-    // dtt.save();
-    // print("Loaded detection time table from DB and saved to disk.\n");
-
-    DetectionTimeTable dtt = DetectionTimeTable();
-    print("Loaded detection time table from disk.\n");
-
     // Run all the tests
     bool is_ok = test_all(conn);
 
@@ -148,11 +141,10 @@ int main(int argc, char* argv[])
     conn->close();
 
     // Report total elapsed time
-    t.tock();
+    t.tock_msg("Total Elapsed Time");
 
     // Normal program exit; return 0 for success, 1 for failure
     return is_ok ? 0 : 1;
-
 }
 
 // *****************************************************************************

@@ -82,21 +82,21 @@ void CandidateElement::init(const double* mjd_)
         // Interpolated state vector of the Sun at time i
         StateVector s_sun = bv_sun.interp_vec(t);
         // Index for arrays q_sun and v_sun
-        const int j = 3*i;
-        const int jx = j+0;
-        const int jy = j+1;
-        const int jz = j+2;
+        const int j0 = 3*i;
+        const int jx = j0+0;
+        const int jy = j0+1;
+        const int jz = j0+2;
         // Copy position components into q_obs
         q_obs[jx] = p_earth.qx;
         q_obs[jy] = p_earth.qy;
         q_obs[jz] = p_earth.qz;
-        // Copy position components into q_cal
-        dq_ast[jx] = s_sun.qx;  
-        dq_ast[jy] = s_sun.qy;  
+        // Copy position components into dq_ast
+        dq_ast[jx] = s_sun.qx;
+        dq_ast[jy] = s_sun.qy;
         dq_ast[jz] = s_sun.qz;
-        // Copy velocity components into v_cal
-        dv_ast[jx] = s_sun.vx;  
-        dv_ast[jy] = s_sun.vy;  
+        // Copy velocity components into dv_ast
+        dv_ast[jx] = s_sun.vx;
+        dv_ast[jy] = s_sun.vy;
         dv_ast[jz] = s_sun.vz;
     }   // for / i
 }   // CandidateElement::init
@@ -276,7 +276,6 @@ PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
 
 // // Move the local copy of DetectionTable to avoid cost of building it twice
 DetectionTimeTable CandidateElement::dtt = std::move(dtt);
-// DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
 
 // DEBUG - build a small Detection table quickly for testing
 // DetectionTable dt = DetectionTable()

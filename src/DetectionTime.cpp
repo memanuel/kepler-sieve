@@ -22,17 +22,7 @@ const string file_name = "data/cache/DetectionTimeTable.bin";
 }
 
 // *****************************************************************************
-DetectionTimeTable::DetectionTimeTable():
-    // Delegate to size constructor, looking up the file size
-    DetectionTimeTable {file_length()}
-{
-    // Load data from disk
-    load();
-    // Calculate observatory position in heliocentric frame
-    calc_q_obs();
-}
-
-// *****************************************************************************
+// The "real" constructor that initializes all the members
 DetectionTimeTable::DetectionTimeTable(int N):
     N {N},
     // dtv is a vector of DetectionTimes
@@ -51,13 +41,25 @@ DetectionTimeTable::DetectionTimeTable(int N):
     {}
 
 // *****************************************************************************
+// The default constructor loads from the disk; it needs to know row count before delegating.
+DetectionTimeTable::DetectionTimeTable():
+    // Delegate to size constructor, looking up the file size
+    DetectionTimeTable {file_length()}
+{
+    // Load data from disk
+    load();
+    // Write out arrays mjd_ and q_obs_
+    write_arrays();
+}
+
+// *****************************************************************************
 DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
     DetectionTimeTable(sp_run_int(conn, "KS.GetDetectionTimeMaxID"))
     {
         // Now load data from the database
         load(conn);
-        // Calculate observatory position in heliocentric frame
-        calc_q_obs();
+        // Write out arrays mjd_ and q_obs_
+        write_arrays();
     }
 
 // *****************************************************************************
@@ -110,11 +112,7 @@ void DetectionTimeTable::load(db_conn_type& conn)
         dtv[detection_time_id] = dt;
         // Add this detection time to the map keyed by TimeID
         (dtm[time_id]).push_back(detection_time_id);
-        // Save mjd to the array
-        mjd_[detection_time_id] = mjd;
     }
-    // Calculate the q_obs array from dtv
-    calc_q_obs();
     // Close the resultset and free memory
     rs->close();
     delete rs;
@@ -165,7 +163,6 @@ const int DetectionTimeTable::file_length() const
     fs.read( (char*) &N_file, sizeof(N_file));
     // Close input filestream
     fs.close();
-    // Return file as an int, not a long
     return N_file;
 }
 
@@ -198,31 +195,28 @@ void DetectionTimeTable::load()
         dtv[detection_time_id] = dt;
         // Add this detection time to the map keyed by TimeID
         (dtm[dt.time_id]).push_back(detection_time_id);
-        // Save the mjd to the array mjd_
-        mjd_[detection_time_id] = dt.mjd;
     }
 
-    // Calculate the q_obs array from dtv
-    calc_q_obs();
+    // Write out the arrays mjd_ and q_obs_
+    write_arrays();
 
     // Close input filestream
     fs.close();
 }
 
 // *****************************************************************************
-void DetectionTimeTable::calc_q_obs()
+void DetectionTimeTable::write_arrays()
 {
     // Iterate through the detection times in the vector 
     for (DetectionTime dt : dtv)
     {
-        // The observatory position in the heliocentric frame
-        double qx = dt.q_obs_x - dt.q_sun_x;
-        double qy = dt.q_obs_y - dt.q_sun_y;
-        double qz = dt.q_obs_z - dt.q_sun_z;
-        // Save these entries to the q_obs_ array
+        // Save the mjd to the array mjd_
+        mjd_[dt.detection_time_id] = dt.mjd;
+
+        // Save the observatory coordinates to the array q_obs_
         int idx = dt.detection_time_id*3;
-        q_obs_[idx+0] = qx;
-        q_obs_[idx+1] = qy;
-        q_obs_[idx+2] = qz;
+        q_obs_[idx+0] = dt.q_obs_x;
+        q_obs_[idx+1] = dt.q_obs_y;
+        q_obs_[idx+2] = dt.q_obs_z;
     }
 }

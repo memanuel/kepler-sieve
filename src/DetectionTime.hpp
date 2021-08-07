@@ -67,6 +67,18 @@ struct DetectionTime
 // *****************************************************************************
 class DetectionTimeTable
 {
+
+// Constructor and destructor
+public:
+    /// Default constructor builds a table and populates it from disk
+    DetectionTimeTable();
+    /// Constructor builds an empty table with the requested size
+    DetectionTimeTable(int N);
+    /// This constructor builds an empty table, then loads it using the given database connection
+    DetectionTimeTable(db_conn_type& conn);
+    /// Destructor for DetectionTimeTable.
+    ~DetectionTimeTable() ;
+
 // Data elements
 public:
     // Size of this table
@@ -89,15 +101,6 @@ public:
 
 // Member functions
 public:
-    /// Default constructor builds a table and populates it from disk
-    DetectionTimeTable();
-    /// Constructor builds an empty table with the requested size
-    DetectionTimeTable(int N);
-    /// This constructor builds an empty table, then loads it using the given database connection
-    DetectionTimeTable(db_conn_type& conn);
-    /// Destructor for DetectionTimeTable.
-    ~DetectionTimeTable();
-
     /// Get a detection time given its ID
     const DetectionTime operator[](int32_t id) const;
     /// Get vector of DetectionIDs matching a given TimeID
@@ -116,8 +119,8 @@ public:
     /// Load this object from disk
     void load();
 
-    // Add heliocentric observatory position; speeds up calculation of directions to candidate elements
-    void calc_q_obs();
+    // Write out the arrays mjd_ and q_obs from the vector of detection time structs
+    void write_arrays();
     /// Number of rows in data file
     const int file_length() const;
 };
