@@ -152,8 +152,8 @@ void DetectionTimeTable::save()
     fs.open(file_name, file_mode);
 
     // Write the number of rows in binary as long int
-    long sz = N();
-    fs.write((char*) &sz, sizeof(sz));
+    int N_file = N();
+    fs.write((char*) &N_file, sizeof(N_file));
 
     // Write the rows to the file in binary
     for (DetectionTime dt : dtv)
@@ -173,12 +173,12 @@ const int DetectionTimeTable::file_length() const
     std::ios_base::openmode file_mode = (std::ios::in | std::ios::binary);
     fs.open(file_name, file_mode);
     // Read the number of rows in the file
-    long sz=-1;
-    fs.read( (char*) &sz, sizeof(sz));
+    int N_file=-1;
+    fs.read( (char*) &N_file, sizeof(N_file));
     // Close input filestream
     fs.close();
     // Return file as an int, not a long
-    return (int) sz;
+    return N_file;
 }
 
 // *****************************************************************************
@@ -190,10 +190,10 @@ void DetectionTimeTable::load()
     fs.open(file_name, file_mode);
 
     // Read the number of rows in the file
-    long N_file=-1;
+    int N_file=-1;
     fs.read( (char*) &N_file, sizeof(N_file));
     // Need to read one extra row because we index from detection_id which starts at 1
-    long sz = N_file +1;
+    int sz = N_file +1;
     // Status
     // print("DetectionTimeTable::load() - Opened file {:s} with {:d} rows of DetectionTime data (N={:d}).\n", 
     //     file_name, sz, N_file);

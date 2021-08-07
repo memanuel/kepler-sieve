@@ -269,7 +269,7 @@ const int mjd_first = static_cast<int>(floor(dtt.mjd_first()));
 const int mjd_last = static_cast<int>(ceil(dtt.mjd_last()));
 const int mjd0 = std::min(mjd_first, 58000) - pad;
 const int mjd1 = std::max(mjd_last,  60000) + pad;
-constexpr int dt_min = 1440;
+constexpr int dt_min = 60;
 bool load = true;
 PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
 // PlanetVector CandidateElement::pv {PlanetVector(59000-32, 60000+32, 1440, true)};
