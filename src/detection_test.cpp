@@ -94,7 +94,7 @@ bool test_DetectionTime(db_conn_type& conn)
 
     // Load DetectionTimeTable from database
     DetectionTimeTable dtt1 = DetectionTimeTable(conn);
-    print("\nLoaded DetectionTimeTable from DB with {:d} detection times.\n", dtt1.N());
+    print("\nLoaded DetectionTimeTable from DB with {:d} detection times.\n", dtt1.N);
 
     // Version loaded from DB
     DetectionTime dt1 = dtt1[i];
@@ -105,7 +105,7 @@ bool test_DetectionTime(db_conn_type& conn)
 
     // Load DetectionTimeTable from disk
     DetectionTimeTable dtt2 = DetectionTimeTable();
-    print("\nLoaded DetectionTimeTable from disk with {:d} detection times.\n", dtt2.N());
+    print("\nLoaded DetectionTimeTable from disk with {:d} detection times.\n", dtt2.N);
 
     // Version loaded from disk
     DetectionTime dt2 = dtt2[i];

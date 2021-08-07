@@ -48,7 +48,7 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
 // *****************************************************************************
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
     // Delegate to constructor taking an mjd array and size; use mjd array from detection time table
-    CandidateElement(elt, candidate_id, dtt.get_mjd(), dtt.N())
+    CandidateElement(elt, candidate_id, dtt.mjd, dtt.N)
 {}
 
 // *****************************************************************************
@@ -239,11 +239,11 @@ void CandidateElement::calc_direction()
     // Iterate over all N observation times
     for (int i=0; i<N_t; i++)
     {
-        // Wrap the observer position
-        Position q_obs {observer_pos(i)};
-        // Wrap the asteroid state vector
-        StateVector s_ast {state_vector(i)};
-        // Calculate direction and distance in Newtonian light model
+        // // Wrap the observer position
+        // Position q_obs {observer_pos(i)};
+        // // Wrap the asteroid state vector
+        // StateVector s_ast {state_vector(i)};
+        // // Calculate direction and distance in Newtonian light model
         
     }
 }

@@ -34,7 +34,7 @@ DetectionTimeTable::DetectionTimeTable():
 
 // *****************************************************************************
 DetectionTimeTable::DetectionTimeTable(int N):
-    N_ {N},
+    N {N},
     // dtv is a vector of DetectionTimes
     // size is N+1 because we index by detection_time_id, which starts at 1.
     dtv {vector<DetectionTime>(N+1)},
@@ -42,8 +42,12 @@ DetectionTimeTable::DetectionTimeTable(int N):
     dtm {map<int32_t, vector<int32_t> >{}},
     // mjds is an array of doubles of size N+1 (size of dtv)
     mjd_ {new double[N+1]},
-    // q_obs is an array of doubles with 3N entries for the HELIOCENTRIC observatory position
-    q_obs {new double[3*(N+1)]}
+    // q_obs_ is an array of doubles with 3(N+1) entries for the HELIOCENTRIC observatory position
+    q_obs_ {new double[3*(N+1)]},
+    // mjd is a read-only copy of mjd_ that is publicly accessible
+    mjd {const_cast<double*>(mjd_)},
+    // q_obs is a read-only copy of q_obs_ that is publicly accessible
+    q_obs {const_cast<double*>(q_obs_)}
     {}
 
 // *****************************************************************************
@@ -61,7 +65,7 @@ DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
 DetectionTimeTable::~DetectionTimeTable()
 {
     delete [] mjd_;
-    delete [] q_obs;
+    delete [] q_obs_;
 }
 
 // *****************************************************************************
@@ -108,12 +112,9 @@ void DetectionTimeTable::load(db_conn_type& conn)
         (dtm[time_id]).push_back(detection_time_id);
         // Save mjd to the array
         mjd_[detection_time_id] = mjd;
-        // Save the observer position to the array q_obs
-        int idx = detection_time_id*3;
-        q_obs[idx+0] = q_obs_x;
-        q_obs[idx+1] = q_obs_y;
-        q_obs[idx+2] = q_obs_z;
     }
+    // Calculate the q_obs array from dtv
+    calc_q_obs();
     // Close the resultset and free memory
     rs->close();
     delete rs;
@@ -128,20 +129,8 @@ const vector<int32_t> DetectionTimeTable::get_time(int32_t time_id) const
     {return dtm.at(time_id);}
 
 // *****************************************************************************
-const int DetectionTimeTable::N() const
-    {return dtv.size()-1;}
-
-// *****************************************************************************
 const vector<DetectionTime> DetectionTimeTable::detection_times() const
     {return dtv;}
-
-// *****************************************************************************
-const double* DetectionTimeTable::get_mjd() const
-    {return mjd_;}
-
-// *****************************************************************************
-const double* DetectionTimeTable::get_q_obs() const
-    {return q_obs;}
 
 // *****************************************************************************
 void DetectionTimeTable::save()
@@ -152,8 +141,7 @@ void DetectionTimeTable::save()
     fs.open(file_name, file_mode);
 
     // Write the number of rows in binary as long int
-    int N_file = N();
-    fs.write((char*) &N_file, sizeof(N_file));
+    fs.write((char*) &N, sizeof(N));
 
     // Write the rows to the file in binary
     for (DetectionTime dt : dtv)
@@ -212,12 +200,10 @@ void DetectionTimeTable::load()
         (dtm[dt.time_id]).push_back(detection_time_id);
         // Save the mjd to the array mjd_
         mjd_[detection_time_id] = dt.mjd;
-        // Save the observer position to the array q_obs
-        int idx = dt.detection_time_id*3;
-        q_obs[idx+0] = dt.q_obs_x;
-        q_obs[idx+1] = dt.q_obs_y;
-        q_obs[idx+2] = dt.q_obs_z;
     }
+
+    // Calculate the q_obs array from dtv
+    calc_q_obs();
 
     // Close input filestream
     fs.close();
@@ -233,10 +219,10 @@ void DetectionTimeTable::calc_q_obs()
         double qx = dt.q_obs_x - dt.q_sun_x;
         double qy = dt.q_obs_y - dt.q_sun_y;
         double qz = dt.q_obs_z - dt.q_sun_z;
-        // Save these entries to the q_obs array
+        // Save these entries to the q_obs_ array
         int idx = dt.detection_time_id*3;
-        q_obs[idx+0] = qx;
-        q_obs[idx+1] = qy;
-        q_obs[idx+2] = qz;
+        q_obs_[idx+0] = qx;
+        q_obs_[idx+1] = qy;
+        q_obs_[idx+2] = qz;
     }
 }
