@@ -148,7 +148,7 @@ void CandidateElement::calc_trajectory()
 }
 
 // *****************************************************************************
-void CandidateElement::calibrate(const PlanetVector& pv)
+void CandidateElement::calibrate()
 {
     // Get the reference time for the elements
     double mjd0 = elt.mjd;
@@ -167,11 +167,6 @@ void CandidateElement::calibrate(const PlanetVector& pv)
     Simulation sim = make_sim_planets(pv, mjd0);
     // Add asteroid to simulation with candidate elements
     sim.add_test_particle(elt, candidate_id);
-
-    // Status update (debugging only)
-    // print("Simulation summary: planets + 1 asteroid.\n");
-    // sim.print_summary();   
-    // sim.print_vectors();
 
     // Write the numerically integrated vectors from this simulation into q_cal and v_cal
     sim.write_vectors(dq_ast, dv_ast, mjd, N_t, candidate_id);
@@ -215,12 +210,74 @@ const StateVector CandidateElement::state_vector(int i) const
 }
 
 // *****************************************************************************
+const Position CandidateElement::observer_pos(int i) const
+{
+    // The array index for the test date
+    int j = 3*i;
+    int jx = j+0;  
+    int jy = j+1; 
+    int jz = j+2;
+
+    // Wrap the observer position on the test date into a Position
+    return Position 
+    {
+        .qx = q_obs[jx], 
+        .qy = q_obs[jy],
+        .qz = q_obs[jz]
+    };
+}
+
+// *****************************************************************************
 // Calculate direction
 // *****************************************************************************
 
 // *****************************************************************************
+// Calculate direction based on observer position q_obs and state vector q_ast, v_ast
+// Caller is responsible to populate these before running calc_direction()
 void CandidateElement::calc_direction()
 {
-    ;
+    // Iterate over all N observation times
+    for (int i=0; i<N_t; i++)
+    {
+        // Wrap the observer position
+        Position q_obs {observer_pos(i)};
+        // Wrap the asteroid state vector
+        StateVector s_ast {state_vector(i)};
+        // Calculate direction and distance in Newtonian light model
+        
+    }
 }
+
+// *****************************************************************************
+// Initialize the static member PlanetVector
+// *****************************************************************************
+
+BodyVector CandidateElement::bv_sun = BodyVector(SolarSystemBody_bv::sun);  
+
+BodyVector CandidateElement::bv_earth = BodyVector(SolarSystemBody_bv::earth);
+
+// // Build DetectionTimeTable object as a variable first.
+// // Need to extract first and last time below.
+// // If the dtt is built immediately as a static member of CandidateElement, it is inaccessible here.
+// // The workaround is to (1) build it locally (2) extract first / last date (3) move it to the static member
+// // This sequence avoids building the object twice.
+// DetectionTimeTable dtt {DetectionTimeTable()};
+
+// // Inputs to build a PlanetVector table suited to CandidateElement
+// constexpr int pad = 32;
+// const int mjd0 = static_cast<int>(floor(dtt.mjd_first())) - pad;
+// const int mjd1 = static_cast<int>(ceil( dtt.mjd_last() )) + pad;
+// constexpr int dt_min = 1440;
+// bool load = true;
+// PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
+PlanetVector CandidateElement::pv {PlanetVector(59000-32, 60000+32, 1440, true)};
+
+// // Move the local copy of DetectionTable to avoid cost of building it twice
+// DetectionTimeTable CandidateElement::dtt = std::move(dtt);
+DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
+
+// // DEBUG - build a small Detection table quickly for testing
+// // DetectionTable dt = DetectionTable()
+// // DetectionTable dt = DetectionTable();
+
 

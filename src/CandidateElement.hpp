@@ -77,7 +77,7 @@ public:
     const int32_t candidate_id;
 
     /// Calibrate asteroid trajectory to a rebound integration
-    void calibrate(const PlanetVector& pv);
+    void calibrate();
     /// Calculate asteroid trajectory (positions and velocity)
     void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
@@ -96,22 +96,23 @@ public:
 
     /// Extract a StateVector from the q_ast and v_ast arrays
     const StateVector state_vector(int i) const;
+    /// Extract a Position of the observer from the q_obs arrays
+    const Position observer_pos(int i) const;
 
 private:
     /// Initial value of element used to initialize this object
     const OrbitalElement elt0;
 
-    // TODO - get static PlanetVector working
-    // One PlanetVector object shared by all instances
-
+    /// One PlanetVector object shared by all instances
+    static PlanetVector pv;
     /// One BodyVector object for Sun shared by all instances
-    const inline static BodyVector bv_sun = BodyVector(SolarSystemBody_bv::sun);  
+    static BodyVector bv_sun;  
     /// One BodyVector object for Earth shared by all instances
-    const inline static BodyVector bv_earth = BodyVector(SolarSystemBody_bv::earth);
+    static BodyVector bv_earth;
     /// One DetectionTimeTable object shared by all instances
-    const inline static DetectionTimeTable dtt = DetectionTimeTable();
+    static DetectionTimeTable dtt;
     /// One DetectionTable object shared by all instances
-    // const inline static DetectionTable dt = DetectionTable();
+    // static DetectionTable dt = DetectionTable();
 
     /// Number of detection times
     const int N_t;

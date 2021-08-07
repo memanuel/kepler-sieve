@@ -104,7 +104,11 @@ PlanetVector::PlanetVector(int mjd0, int mjd1, int dt_min, bool load_):
         load();
         // Initialize the gsl_spline objects
         build_splines();
-    }    
+    }
+
+    // DEBUG
+    // print("Built PlanetVector({:d}, {:d}, {:d}, {:d})\n", mjd0, mjd1, dt_min, load_);
+
 } // end function
 
 // *****************************************************************************

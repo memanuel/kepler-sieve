@@ -54,11 +54,6 @@ constexpr double mjd0 {58000.0};
 constexpr double mjd1 {59000.0};
 constexpr int dt_min {5};
 
-// Date range for PlanetVector
-constexpr int pad {32};
-constexpr int mjd0_pv = static_cast<int>(mjd0) - pad;
-constexpr int mjd1_pv = static_cast<int>(mjd1) + pad;
-
 // Set candidate_id to match body_id of Juno (asteroid_id=3)
 constexpr int32_t candidate_id = 1000003;
 
@@ -131,17 +126,53 @@ bool test_calc_traj(bool is_calibrated, bool verbose);
 // *****************************************************************************
 int main(int argc, char* argv[])
 {
+
+    // Start timer
+    Timer t;
+    t.tick();
+
     // Establish DB connection
     db_conn_type conn = get_db_conn();
 
+    // DetectionTimeTable dtt = DetectionTimeTable(conn);
+    // dtt.save();
+    // print("Loaded detection time table from DB and saved to disk.\n");
+
+    DetectionTimeTable dtt = DetectionTimeTable();
+    print("Loaded detection time table from disk.\n");
+
+    int N = dtt.N();
+    const double* mjd = dtt.get_mjd();
+    auto dtt_dt = dtt.detection_times();
+    print("N = {:d}.\n", N);
+    print("mjd[1]   = {:8.6f}\n", mjd[1]);
+    print("mjd[N-1] = {:8.6f}\n", mjd[N-1]);
+    print("mjd[N]   = {:8.6f}\n", mjd[N]);
+
+    double mjd0_d = dtt.mjd_first();
+    double mjd1_d = dtt.mjd_last();
+    constexpr int pad = 32;
+    const int mjd0 = static_cast<int>(floor(mjd0_d)) - pad;
+    const int mjd1 = static_cast<int>(ceil( mjd1_d )) + pad;
+    print("Built DetectionTimeTable dtt.\n");
+    print("mjd0_d = {:8.6f}\n", mjd0_d);
+    print("mjd1_d = {:8.6f}\n", mjd1_d);
+    print("mjd0  = {:d}\n", mjd0);
+    print("mjd1  = {:d}\n", mjd1);
+
     // Run all the tests
-    bool is_ok = test_all(conn);
+    // bool is_ok = test_all(conn);
+    bool is_ok = 1;
 
     // Close DB connection
     conn->close();
 
+    // Report total elapsed time
+    t.tock();
+
     // Normal program exit; return 0 for success, 1 for failure
     return is_ok ? 0 : 1;
+
 }
 
 // *****************************************************************************
@@ -162,10 +193,6 @@ bool test_all(db_conn_type& conn)
 
     // Timer object
     Timer t;
-
-    // t.tick();
-    // PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, 1440);
-    // t.tock_msg("Built PlanetVector");
 
     // Test the calculated trajectory - uncalibrated
     {
@@ -211,13 +238,9 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
 
     Timer t;
     t.tick();
-    int dt_min = mpd;
-    PlanetVector pv = PlanetVector(mjd0_pv, mjd1_pv, dt_min, true);
-    if (verbose)
-    {t.tock_msg(format("Built PlanetVector(mjd0={:d}, mjd1={:d}, dt_min={:d}).\n", pv.mjd0, pv.mjd1, pv.dt_min));}
 
     // Calibrate if requested
-    if (is_calibrated) {ce.calibrate(pv);}
+    if (is_calibrated) {ce.calibrate();}
 
     // Calculate trajectory
     ce.calc_trajectory();

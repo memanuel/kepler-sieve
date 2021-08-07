@@ -77,7 +77,7 @@ public:
     /// Destructor for DetectionTimeTable.
     ~DetectionTimeTable();
 
-    /// Get a detection given its ID
+    /// Get a detection time given its ID
     const DetectionTime operator[](int32_t id) const;
     /// Get vector of DetectionIDs matching a given TimeID
     const vector<int32_t> get_time(int32_t time_id) const;
@@ -89,6 +89,10 @@ public:
     const double* get_mjd() const;
     /// Get read-only copy of q_obs
     const double* get_q_obs() const;
+    /// Get date of first detection; this is in array slot 1 because indexing matches detection_id
+    const double mjd_first() const {return mjd_[1];}
+    /// Get date of last detection; this is in array slot N because indexing matches detection_id
+    const double mjd_last() const {return mjd_[N()];}
    
     /// Load all available detections using the DB connection
     void load(db_conn_type& conn);
@@ -101,13 +105,16 @@ public:
     void calc_q_obs();
 
 private:
-    /// Vector of detections; dt stands for "DetectionTime Vector"
+    /// Number of detection times
+    const int N_;
+    /// Vector of detection times; dtv stands for "DetectionTime Vector"
     vector<DetectionTime> dtv;
     /// Map of detection ID vectors keyed by TimeID; dtm stands for "DetectionTime map"
+    /// Given a detection_time_id (the key), returns a vector of all the detection_id's made at that time (the value)
     map<int32_t, vector<int32_t> > dtm;
-    /// Array of mjds when detections taken; size N
-    double* const mjd;
-    /// Array of observatory positions in HELIOCENTRIC frame
+    /// Array of mjds when detections taken; size N+1
+    double* const mjd_;
+    /// Array of observatory positions in HELIOCENTRIC frame; size 3(N+1)
     double* const q_obs;
     /// Number of rows in data file
     const int file_length() const;

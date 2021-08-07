@@ -50,7 +50,20 @@ struct Direction
     double uz;
 };
 
-/// The results of one observation - a direction and a distance
+/// Difference in two Direction objects; will have norm between 0.0 and 2.0
+struct DirectionDifference
+{
+    /// x coordinate of direction difference
+    double dux;
+    /// y coordinate of direction difference
+    double duy;
+    /// z coordinate of direction difference
+    double duz;
+};
+
+/// The results of one observation - a direction and a distance in AU.
+/// This is essentially representing a 3D vector in polar coordinates 
+/// where the polar angle is represented as (ux, uy, uz) rather than (theta, phi).
 struct ObservationResult
 {
     /// The direction from observer to target in the BME frame
@@ -73,17 +86,17 @@ struct DirectionSpline
 // *****************************************************************************
 
 /// Add two direction vectors; result no longer on unit sphere
-Direction operator+ (const Direction& u1, const Direction& u2);
+DirectionDifference operator+ (const Direction& u1, const Direction& u2);
 
 /// Subtract two direction vectors; result no longer on unit sphere
-Direction operator- (const Direction& u1, const Direction& u2);
+DirectionDifference operator- (const Direction& u1, const Direction& u2);
 
 // *****************************************************************************
 // Norm and distance of direction vectors
 // *****************************************************************************
 
-/// Return the norm of a direction vector
-double norm(const Direction& u);
+/// Return the norm of a DirectionDifference vector
+double norm(const DirectionDifference& du);
 
 /// Return the distance between two direction vectors
 double dist(const Direction& u1, const Direction& u2);

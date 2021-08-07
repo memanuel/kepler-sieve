@@ -34,13 +34,14 @@ DetectionTimeTable::DetectionTimeTable():
 
 // *****************************************************************************
 DetectionTimeTable::DetectionTimeTable(int N):
+    N_ {N},
     // dtv is a vector of DetectionTimes
     // size is N+1 because we index by detection_time_id, which starts at 1.
     dtv {vector<DetectionTime>(N+1)},
     // dtm is an empty map keyed by TimeID; it will be populated later
     dtm {map<int32_t, vector<int32_t> >{}},
-    // mjds is an array of doubles of size N (size of dtv)
-    mjd {new double[N+1]},
+    // mjds is an array of doubles of size N+1 (size of dtv)
+    mjd_ {new double[N+1]},
     // q_obs is an array of doubles with 3N entries for the HELIOCENTRIC observatory position
     q_obs {new double[3*(N+1)]}
     {}
@@ -59,7 +60,7 @@ DetectionTimeTable::DetectionTimeTable(db_conn_type& conn):
 // Delete manually allocated arrays
 DetectionTimeTable::~DetectionTimeTable()
 {
-    delete [] mjd;
+    delete [] mjd_;
     delete [] q_obs;
 }
 
@@ -102,12 +103,11 @@ void DetectionTimeTable::load(db_conn_type& conn)
         };
 
         // Write this DetectionTime into the vector dtv
-        // dtv.push_back(dt);
         dtv[detection_time_id] = dt;
         // Add this detection time to the map keyed by TimeID
         (dtm[time_id]).push_back(detection_time_id);
         // Save mjd to the array
-        this->mjd[detection_time_id] = mjd;
+        mjd_[detection_time_id] = mjd;
     }
     // Close the resultset and free memory
     rs->close();
@@ -124,7 +124,7 @@ const vector<int32_t> DetectionTimeTable::get_time(int32_t time_id) const
 
 // *****************************************************************************
 const int DetectionTimeTable::N() const
-    {return dtv.size();}
+    {return dtv.size()-1;}
 
 // *****************************************************************************
 const vector<DetectionTime> DetectionTimeTable::detection_times() const
@@ -132,7 +132,7 @@ const vector<DetectionTime> DetectionTimeTable::detection_times() const
 
 // *****************************************************************************
 const double* DetectionTimeTable::get_mjd() const
-    {return mjd;}
+    {return mjd_;}
 
 // *****************************************************************************
 const double* DetectionTimeTable::get_q_obs() const
@@ -147,7 +147,7 @@ void DetectionTimeTable::save()
     fs.open(file_name, file_mode);
 
     // Write the number of rows in binary as long int
-    long sz = dtv.size();
+    long sz = N();
     fs.write((char*) &sz, sizeof(sz));
 
     // Write the rows to the file in binary
@@ -185,10 +185,13 @@ void DetectionTimeTable::load()
     fs.open(file_name, file_mode);
 
     // Read the number of rows in the file
-    long sz=-1;
-    fs.read( (char*) &sz, sizeof(sz));
+    long N_file=-1;
+    fs.read( (char*) &N_file, sizeof(N_file));
+    // Need to read one extra row because we index from detection_id which starts at 1
+    long sz = N_file +1;
     // Status
-    // print("Opened file {:s} with {:d} rows of DetectionTime data.\n", file_name, sz);
+    // print("DetectionTimeTable::load() - Opened file {:s} with {:d} rows of DetectionTime data (N={:d}).\n", 
+    //     file_name, sz, N_file);
 
     // Read the rows from the file in binary
     DetectionTime dt;
@@ -202,8 +205,13 @@ void DetectionTimeTable::load()
         dtv[detection_time_id] = dt;
         // Add this detection time to the map keyed by TimeID
         (dtm[dt.time_id]).push_back(detection_time_id);
-        // Save the mjd to the array mjds
-        mjd[detection_time_id] = dt.mjd;
+        // Save the mjd to the array mjd_
+        mjd_[detection_time_id] = dt.mjd;
+        // Save the observer position to the array q_obs
+        int idx = dt.detection_time_id*3;
+        // q_obs[idx+0] = dt.q_obs_x;
+        // q_obs[idx+1] = dt.q_obs_y;
+        // q_obs[idx+2] = dt.q_obs_z;
     }
 
     // Close input filestream
