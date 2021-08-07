@@ -41,7 +41,7 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int
     {}
 
 // *****************************************************************************
-CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_in, int N_t):
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* const mjd_in, int N_t):
     // Delegate to main constructor using mjd_ array from detection time table
     CandidateElement(elt, candidate_id, N_t)
 {
@@ -52,7 +52,7 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, con
 // *****************************************************************************
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
     // Delegate to constructor taking an mjd array and size; use mjd array from detection time table
-    CandidateElement(elt, candidate_id, dtt.mjd, dtt.N)
+    CandidateElement(elt, candidate_id, dtt.mjd+1, dtt.N)
 {}
 
 // *****************************************************************************
@@ -72,6 +72,10 @@ CandidateElement::~CandidateElement()
 // *****************************************************************************
 void CandidateElement::init(const double* mjd_in)
 {
+    // DEBUG
+    print("CandidateElement::init(elt, candidate_id).\n");
+    print("N_t = {:d}.\n", N_t);
+
     // Copy from mjd_in to mjd_ on the candidate element
     for (int i=0; i<N_t; i++) {mjd_[i]=mjd_in[i];}
 
@@ -265,15 +269,11 @@ void CandidateElement::calc_direction()
 // Initialize the static member PlanetVector
 // *****************************************************************************
 
-BodyVector CandidateElement::bv_sun = BodyVector(SolarSystemBody_bv::sun);  
+// Shared body vector objects
+BodyVector CandidateElement::bv_sun {BodyVector(SolarSystemBody_bv::sun)};
+BodyVector CandidateElement::bv_earth {BodyVector(SolarSystemBody_bv::earth)};
 
-BodyVector CandidateElement::bv_earth = BodyVector(SolarSystemBody_bv::earth);
-
-// Build DetectionTimeTable object as a variable first.
-// Need to extract first and last time below.
-// If the dtt is built immediately as a static member of CandidateElement, it is inaccessible here.
-// The workaround is to (1) build it locally (2) extract first / last date (3) move it to the static member
-// This sequence avoids building the object twice.
+// Build throwaway copy of DetectionTimeTable to get date range
 DetectionTimeTable dtt {DetectionTimeTable()};
 
 // Inputs to build a PlanetVector table suited to CandidateElement
@@ -286,13 +286,11 @@ constexpr int dt_min = 60;
 bool load = true;
 PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
 
-// // Move the local copy of DetectionTable to avoid cost of building it twice
-DetectionTimeTable CandidateElement::dtt = std::move(dtt);
+// Shared copy of DetectionTimeTable
+DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
 
-// // DEBUG - build a small Detection table quickly for testing
-// // DetectionTable CandidateElement::dt = DetectionTable()
+// DEBUG - build a small Detection table quickly for testing
+// DetectionTable CandidateElement::dt = DetectionTable()
 int d1 = 85000000;
 int d2 = 86000000;
-// int d1 = 0;
-// int d2 = 100000;
 DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);

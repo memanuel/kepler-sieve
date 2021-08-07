@@ -61,7 +61,7 @@ public:
     CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t);
 
     // Build a CandidateElement from an OrbitalElement at the desired output times
-    CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* mjd_in, int N_t);
+    CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* const mjd_in, int N_t);
 
     // Build a CandidateElement from an OrbitalElement using the shared DetectionTime table
     CandidateElement(OrbitalElement elt, int32_t candidate_id);

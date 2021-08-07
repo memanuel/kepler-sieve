@@ -292,17 +292,25 @@ bool test_calc_direction(bool verbose)
     Timer t;
     t.tick();
 
+    // DEBUG
+    const DetectionTimeTable& dtt = CandidateElement::dtt; 
+    print("test_calc_direction - invoking CandidateElement(elt, candidate_id).\n");
+    print("candidate_id = {:d}.\n", candidate_id);
+    print("N = {:d}\n", dtt.N);
+    print("mjd[1] = {:8.6f}.\n", dtt.mjd[1]);
+    print("mjd[N] = {:8.6f}.\n", dtt.mjd[dtt.N]);
+
     // Build CandidateElement for Juno elements at mjd0
     CandidateElement ce = CandidateElement(elt0, candidate_id);
-    // if (verbose) {print("Constructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);}
+    if (verbose) {print("Constructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);}
 
     // Calibrate 
     ce.calibrate();
-    // if (verbose) {print("Calibrated orbit of CandidateElement.\n");}
+    if (verbose) {print("Calibrated orbit of CandidateElement.\n");}
 
     // Calculate trajectory
     ce.calc_trajectory();
-    // if (verbose) {print("Calculated trajectory of CandidateElement.\n");}
+    if (verbose) {print("Calculated trajectory of CandidateElement.\n");}
 
     // Calculate direction
     ce.calc_direction();
@@ -318,7 +326,8 @@ bool test_calc_direction(bool verbose)
     // The associated detection_time_id of this detection; corresponds to mjd 58940.4147454002
     // int32_t detection_time_id = 123113;
     int32_t detection_time_id = det.detection_time_id;
-    print("\nDetectionTime:\ndetection_time_id = {:d}, mjd = {:8.6f}.\n", detection_time_id, det.mjd);
+    print("\nDetectionTime:\n");
+    print("detection_time_id = {:d}, mjd = {:8.6f}.\n", detection_time_id, det.mjd);
     // TODO - diagnose seg fault in next statement
     // DetectionTime dt {ce.dtt[detection_time_id]};
     // print("DetectionTime: detection_time_id {:d}, mjd {:8.6f}\n", dt.detection_time_id, dt.mjd);
