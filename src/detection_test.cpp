@@ -178,7 +178,8 @@ bool test_Detection(db_conn_type& conn)
     int i=10;
 
     // Load the detection table from the database
-    DetectionTable dt1 = DetectionTable(d0, d1);
+    bool load = false;
+    DetectionTable dt1 = DetectionTable(d0, d1, load);
     dt1.load(conn, progbar);
 
     // Version loaded from DB
@@ -192,8 +193,9 @@ bool test_Detection(db_conn_type& conn)
     print("d.uz      = {:8.6f}\n", det1.uz);
 
     // Load detection table from disk
-    DetectionTable dt2 = DetectionTable(d0, d1);
-    dt2.load();
+    load = true;
+    DetectionTable dt2 = DetectionTable(d0, d1, load);
+    // dt2.load();
 
     // Version loaded from disk
     Detection det2 = dt2[i];

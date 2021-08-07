@@ -278,6 +278,7 @@ PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
 DetectionTimeTable CandidateElement::dtt = std::move(dtt);
 
 // DEBUG - build a small Detection table quickly for testing
-// DetectionTable dt = DetectionTable()
-
-
+// DetectionTable CandidateElement::dt = DetectionTable()
+int d1 = 85000000;
+int d2 = 86000000;
+DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);

@@ -141,7 +141,13 @@ int main(int argc, char* argv[])
     conn->close();
 
     // Report total elapsed time
-    t.tock_msg("Total Elapsed Time");
+    t.tock_msg("candidate_element_test -total\nElapsed Time");
+
+    // // DEBUG
+    // int d1 = 85000000;
+    // int d2 = 86000000;
+    // DetectionTable dt = DetectionTable(d1, d2, true);
+    // print("Size of CandidateElement::dt: {:d}.\n", dt.size());
 
     // Normal program exit; return 0 for success, 1 for failure
     return is_ok ? 0 : 1;

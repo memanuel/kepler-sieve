@@ -31,6 +31,7 @@ const string file_name = "data/cache/DetectionTable.bin";
 // *****************************************************************************
 
 // *****************************************************************************
+// Default constructor - first initialize an empty table, then load from disk
 DetectionTable::DetectionTable(): 
     d0 {0},
     d1 {0},
@@ -43,7 +44,7 @@ DetectionTable::DetectionTable():
 
 // *****************************************************************************
 // This constructor is used for loading data in chunks from the database in conjunction with load.
-DetectionTable::DetectionTable(int d0, int d1): 
+DetectionTable::DetectionTable(int d0, int d1, bool load_): 
     d0 {d0},
     d1 {d1},
     // Initialize dt to a vector with sz entries, one for each possible detection in the interval
@@ -51,12 +52,14 @@ DetectionTable::DetectionTable(int d0, int d1):
     // Initialize dtsp to a vector with N_sp entries, one for each SkyPatch (whether occupied or not)
     dtsp {vector<vector<int32_t>>(N_sp)}
     // This constructor does NOT automatically load data from disk! Only default constructor does that.
-    {}
+    {
+        if (load_) {load();};
+    }
 
 // *****************************************************************************
 DetectionTable::DetectionTable(db_conn_type &conn, bool progbar): 
     // Delegate to range constructor, using DB to compute d1
-    DetectionTable(0, sp_run_int(conn, "KS.GetMaxDetectionID")) 
+    DetectionTable(0, sp_run_int(conn, "KS.GetMaxDetectionID"), false) 
 {
     // Load data from database
     load(conn, progbar);

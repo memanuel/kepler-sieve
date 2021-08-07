@@ -61,9 +61,13 @@ double Timer::tock_msg(const string blurb)
 	// Elapsed Time: nnnnn.ddd <TimeUnits>.
 
 	// The template message
-	string msg = "{:s}: {:9.3f} {:s}.\n";
+	string msg = "{:s}{:s}{:9.3f} {:s}.\n";
 	// The prefix of the message is either blurb or defaults to "Elapsed Time"
 	const string prefix = blurb.length() > 0 ? blurb: "Elapsed Time";
+	const string sep = (blurb.back() == '\n') ? "" : ": ";
+	// DEBUG
+	// char c = blurb.at(blurb.length()-1);
+	// print("Last character of blurb (int) = {:d}.\n", static_cast<int>(c));
 
 	// Compute the elapsed time in seconds.
 	double tSeconds = static_cast<double>(t) / aBillion;
@@ -71,22 +75,22 @@ double Timer::tock_msg(const string blurb)
 	// Print a message stating the elapsed time.
 	if (t > aBillion) 
 	{
-		print(msg, prefix, tSeconds, "seconds");
+		print(msg, prefix, sep, tSeconds, "seconds");
 	}
 	else if (t > aMillion) 
 	{
 		double tMilliSeconds = tSeconds * 1000;
-		print(msg, prefix, tMilliSeconds, "milliseconds");
+		print(msg, prefix, sep, tMilliSeconds, "milliseconds");
 	}
 	else if (t > 1000) 
 	{
 		double tMicroSeconds = tSeconds * aMillion;
-		print(msg, prefix, tMicroSeconds, "microseconds");
+		print(msg, prefix, sep, tMicroSeconds, "microseconds");
 	}
 	else 
 	{
 		double tNanoSeconds = static_cast<double>(t);
-		print(msg, prefix, tNanoSeconds, "nanoseconds");
+		print(msg, prefix, sep, tNanoSeconds, "nanoseconds");
 	}
 
 	// Return the elapsed time in seconds

@@ -89,6 +89,7 @@ bool test_all(db_conn_type& conn)
     int mjd0 = 58000;
     int mjd1 = 61000;
     int time_step = 4;
+    bool load = true;
     bool progbar = true;
 
     // Current test result
@@ -103,8 +104,8 @@ bool test_all(db_conn_type& conn)
     print("Completed SkyPatch neighbor table.\n");
 
     // Initialize DetectionTable
-    DetectionTable dt = DetectionTable(d0, d1);
-    dt.load();
+    DetectionTable dt = DetectionTable(d0, d1, load);
+    // dt.load();
 
     // Test DetectionTable
     test_detection_table(dt, d0);

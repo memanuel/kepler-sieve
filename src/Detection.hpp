@@ -69,7 +69,7 @@ public:
     /// Default constructor builds an empty table, then loads from disk
     DetectionTable();
     /// Initialize an empty DetectionTable object with detections in the given range
-    DetectionTable(int d0, int d1);
+    DetectionTable(int d0, int d1, bool load);
     /// Initialize a DetectionTable object with all available detections
     DetectionTable(db_conn_type& conn, bool progbar);
     /// Destructor for DetectionTable.

@@ -112,7 +112,7 @@ private:
     /// One DetectionTimeTable object shared by all instances
     static DetectionTimeTable dtt;
     /// One DetectionTable object shared by all instances
-    // static DetectionTable dt = DetectionTable();
+    static DetectionTable dt;
 
     /// Number of detection times
     const int N_t;
