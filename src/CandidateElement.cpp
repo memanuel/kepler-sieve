@@ -35,9 +35,9 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int
     dq_ast_ {new double[N_row]},
     dv_ast_ {new double[N_row]},
     /// Read-only copies of arrays in public interface
-    mjd     {const_cast<double*> (mjd_) },
-    u_ast   {const_cast<double*> (u_ast_) },
-    r_ast   {const_cast<double*> (r_ast_) }
+    mjd     {mjd_},
+    u_ast   {u_ast_},
+    r_ast   {r_ast_}
     {}
 
 // *****************************************************************************

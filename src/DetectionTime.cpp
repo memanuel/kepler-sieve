@@ -35,9 +35,9 @@ DetectionTimeTable::DetectionTimeTable(int N):
     // q_obs_ is an array of doubles with 3(N+1) entries for the HELIOCENTRIC observatory position
     q_obs_ {new double[3*(N+1)]},
     // mjd is a read-only copy of mjd_ that is publicly accessible
-    mjd {const_cast<double*>(mjd_)},
+    mjd {mjd_},
     // q_obs is a read-only copy of q_obs_ that is publicly accessible
-    q_obs {const_cast<double*>(q_obs_)}
+    q_obs {q_obs_}
     {}
 
 // *****************************************************************************
