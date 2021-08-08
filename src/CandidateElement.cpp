@@ -278,11 +278,11 @@ void CandidateElement::calc_direction()
 // *****************************************************************************
 
 // Shared body vector objects
-BodyVector CandidateElement::bv_sun {BodyVector(SolarSystemBody_bv::sun)};
-BodyVector CandidateElement::bv_earth {BodyVector(SolarSystemBody_bv::earth)};
+const BodyVector CandidateElement::bv_sun {BodyVector(SolarSystemBody_bv::sun)};
+const BodyVector CandidateElement::bv_earth {BodyVector(SolarSystemBody_bv::earth)};
 
 // Build throwaway copy of DetectionTimeTable to get date range
-DetectionTimeTable dtt {DetectionTimeTable()};
+const DetectionTimeTable dtt {DetectionTimeTable()};
 
 // Inputs to build a PlanetVector table suited to CandidateElement
 constexpr int pad = 32;
@@ -292,13 +292,13 @@ const int mjd0 = std::min(mjd_first, 58000) - pad;
 const int mjd1 = std::max(mjd_last,  60000) + pad;
 constexpr int dt_min = 60;
 bool load = true;
-PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
+const PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
 
 // Shared copy of DetectionTimeTable
-DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
+const DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
 
 // DEBUG - build a small Detection table quickly for testing
 // DetectionTable CandidateElement::dt = DetectionTable()
 int d1 = 85000000;
 int d2 = 86000000;
-DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);
+const DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);

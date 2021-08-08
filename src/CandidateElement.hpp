@@ -102,20 +102,19 @@ public:
     inline const int i2jz(const int& i) const {return 3*i+2;}
 
 private:
+    /// One PlanetVector object shared by all instances
+    const static PlanetVector pv;
+    /// One BodyVector object for Sun shared by all instances
+    const static BodyVector bv_sun;  
+    /// One BodyVector object for Earth shared by all instances
+    const static BodyVector bv_earth;
     /// Initial value of element used to initialize this object
     const OrbitalElement elt0;
-
-    /// One PlanetVector object shared by all instances
-    static PlanetVector pv;
-    /// One BodyVector object for Sun shared by all instances
-    static BodyVector bv_sun;  
-    /// One BodyVector object for Earth shared by all instances
-    static BodyVector bv_earth;
 public:    
     /// One DetectionTimeTable object shared by all instances
-    static DetectionTimeTable dtt;
+    const static DetectionTimeTable dtt;
     /// One DetectionTable object shared by all instances
-    static DetectionTable dt;
+    const static DetectionTable dt;
 private:
     /// Number of detection times
     const int N_t;

@@ -131,7 +131,6 @@ bool test_calc_direction(bool verbose);
 // *****************************************************************************
 int main(int argc, char* argv[])
 {
-
     // Start timer
     Timer t;
     t.tick();
@@ -146,6 +145,7 @@ int main(int argc, char* argv[])
     conn->close();
 
     // Report total elapsed time
+    print_stars();
     t.tock_msg("\nTOTAL - candidate_element_test\nElapsed Time");
 
     // Normal program exit; return 0 for success, 1 for failure
@@ -280,7 +280,6 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     report_test(test_name, is_ok);
 
     // Report the elapsed time
-    print_stars(true);
     t.tock_msg();
     return is_ok;
 }
@@ -344,6 +343,8 @@ bool test_calc_direction(bool verbose)
     bool is_ok = (du_sec < tol);
     print("Difference in directions: {:8.2f} arc seconds.\n", du_sec);
     report_test("test_calc_direction", is_ok);
+    // Report the elapsed time
+    t.tock_msg();
     return is_ok;
 
 }
