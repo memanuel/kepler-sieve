@@ -220,9 +220,10 @@ bool test_calc_traj(bool is_calibrated, bool verbose)
     // Create a test array
     constexpr int N_t = 2;
     constexpr double mjd[N_t] {mjd0, mjd1};
+    constexpr int32_t detection_time_id[N_t] {0, 0};
 
     // Build CandidateElement for Juno elements at mjd0
-    CandidateElement ce = CandidateElement(elt0, candidate_id, mjd, N_t);
+    CandidateElement ce = CandidateElement(elt0, candidate_id, mjd, detection_time_id, N_t);
     if (verbose)
     {
         print("\nConstructed CandidateElement from OrbitalElement for Juno @ mjd {:8.2f}.\n", mjd0);

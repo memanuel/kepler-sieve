@@ -61,11 +61,16 @@ public:
     // Build a CandidateElement from an OrbitalElement with a given size
     CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t);
 
-    // Build a CandidateElement from an OrbitalElement at the desired output times
-    CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* const mjd_in, int N_t);
+    /// Build a CandidateElement from an OrbitalElement and a DetectionTimeTable.
+    /// The DetectionTimeTable dtt is NOT necessarily the shared table with all detection times.
+    CandidateElement(OrbitalElement elt, int32_t candidate_id, const DetectionTimeTable& dtt);
 
-    // Build a CandidateElement from an OrbitalElement using the shared DetectionTime table
+    /// Build a CandidateElement from an OrbitalElement using the shared DetectionTime table
     CandidateElement(OrbitalElement elt, int32_t candidate_id);
+
+    /// Build a CandidateElement from an OrbitalElement and custom arrays of mjds and detection time ids
+    CandidateElement(OrbitalElement elt, int32_t candidate_id, 
+                     const double* mjd, const int32_t* detection_time_id, int N_t);
 
     /// Destructor for CandidateElement.
     ~CandidateElement();
@@ -161,8 +166,12 @@ public:
 
 // Implementation functions
 private:    
-    /// Initialize a newly constructed CandidateElement with desired output times
-    void init(const double* mjd);
+    /// Construction helper - initialize time arrays from a DetectionTimeTable object
+    void init_time(const DetectionTimeTable& dtt);
+    /// Construction helper - initialize time arrays from custom input arrays
+    void init_time(const double* mjd, const int32_t* detection_time_id, int N_t);
+    /// Construction helper - initialize position after mjd array populated
+    void init_pos();
     // Calculate three array indices jx, jy, jz for spatial data from a time index i
     /// Calculate array index jx for spatial data from time index i (x component)
     inline const int i2jx(const int& i) const {return 3*i+0;}

@@ -91,30 +91,31 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int
     {}
 
 // *****************************************************************************
-CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const double* const mjd_in, int N_t):
-    // Delegate to main constructor using mjd_ array from detection time table
-    CandidateElement(elt, candidate_id, N_t)
+CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, const DetectionTimeTable& dtt_in):
+    // Delegate to main constructor using size from the DetectionTimeTable
+    CandidateElement(elt, candidate_id, dtt_in.N)
 {
-    // Initialize mjd_ array with input times
-    init(mjd_in);
+    // Initialize times and then positions
+    init_time(dtt_in);
+    init_pos();
 }
 
 // *****************************************************************************
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
-    // Delegate to constructor taking an mjd array and size; use mjd array from detection time table
-    // Subtlety: the array passed as the input id dtt.mjd
-    // This has a placeholder value of 0 in index 0 because detection_id counter starts at 1.
-    // Two possible ideas to avoid an interpolation error from having mjd[0] = 0.0.
-    // (1) pass inputs dtt.mjd+1, dtt.N
-    // CandidateElement(elt, candidate_id, dtt.mjd+1, dtt.N)
-    // (2) pass inputs dtt.mjd, dtt.N+1 and collar values of dtt.mjd into interpolation range 
-    // CandidateElement(elt, candidate_id, dtt.mjd, dtt.N+1)
-    // before copying into this instance's mjd array.
-    // Follow plan (1).  It's simple.  There is no need for array indices in CandidateElement to match detection_id.
-    // CandidateElement.mjd will be winnowed way down early in calculation process to a handful of entries
-    // that are close to detections.
-    CandidateElement(elt, candidate_id, dtt.mjd+1, dtt.N)
+    // Delegate to constructor taking a DetectionTimeTable with the static dtt of all the detections.
+    CandidateElement(elt, candidate_id, dtt)
 {}
+
+// *****************************************************************************
+CandidateElement::CandidateElement(
+    OrbitalElement elt, int32_t candidate_id, const double* mjd, const int32_t* detection_time_id, int N_t):
+    // Delegate to main constructor with the input size
+    CandidateElement(elt, candidate_id, N_t)
+{
+    // Initialize times and then positions
+    init_time(mjd, detection_time_id, N_t);
+    init_pos();
+}
 
 // *****************************************************************************
 // Delete manually allocated arrays
@@ -132,20 +133,34 @@ CandidateElement::~CandidateElement()
 }
 
 // *****************************************************************************
-// Helper to constructor - initialize arrays when mjd passed as an array
-void CandidateElement::init(const double* mjd_in)
+// Helper to constructor - initialize time arrays with a DetectionTimeTable
+void CandidateElement::init_time(const DetectionTimeTable& dtt)
 {
-    // Copy from mjd_in to mjd_ on the candidate element
-    // The structure of the DetectionTimeTable array maintains the invariant
-    // detection_time_id = i+1.
-    // This looks a bit redundant when the CandidateElement is initialized to start out with.
-    // But after filtering, the detection_id will not be be available otherwise.
+    // The DetectionTimeTable maintains the invariant
+    // detection_time_id = array index (i)
+    for (int detection_id=1; detection_id<= dtt.N; detection_id++) 
+    {
+        int i = detection_id-1;
+        mjd_[i] = dtt.mjd[detection_id];
+        detection_time_id_[i] = detection_id;
+    }
+}
+
+// *****************************************************************************
+// Helper to constructor - initialize time arrays with custom arrays for mjd and detection_time
+void CandidateElement::init_time(const double* mjd, const int32_t* detection_time_id, int N_t)
+{
     for (int i=0; i<N_t; i++) 
     {
-        mjd_[i] = mjd_in[i];
-        detection_time_id_[i] = i+1;
+        mjd_[i] = mjd[i];
+        detection_time_id_[i] = detection_time_id[i];
     }
+}
 
+// *****************************************************************************
+// Helper to constructor - initialize position arrays
+void CandidateElement::init_pos()
+{
     // Populate q_cal_ and v_cal_ from BodyVector of the Sun
     // This will be a pretty accurate first pass before running an optional numerical integration
     for (int i=0; i<N_t; i++)
