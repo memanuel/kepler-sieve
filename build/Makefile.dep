@@ -78,7 +78,8 @@ detection_near_ast: \
     obj/detection_near_ast.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/OrbitalElement.o obj/MassiveBody.o obj/StateVector.o obj/BodyVector.o obj/AsteroidElement.o \
+    obj/OrbitalElement.o obj/MassiveBody.o obj/StateVector.o obj/Direction.o \
+    obj/BodyVector.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 
 detection_near_ast_cand: \
@@ -91,7 +92,7 @@ save_db2disk: \
     obj/save_db2disk.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o  obj/Timer.o \
     obj/DetectionTime.o obj/Detection.o obj/DetectionCandidate.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o obj/MassiveBody.o \
     obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 # *************************************************************************************************
@@ -113,35 +114,36 @@ detection_near_ast_test: \
     obj/detection_near_ast_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o obj/SkyPatchNeighbor.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o obj/BodyVector.o obj/AsteroidElement.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o \
+    obj/MassiveBody.o obj/BodyVector.o obj/AsteroidElement.o \
     obj/Detection.o obj/AsteroidSkyPatch.o
 
 planet_element_test: \
     obj/planet_element_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
-    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o\
+    obj/MassiveBody.o obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 asteroid_element_test: \
     obj/asteroid_element_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o\
-    obj/StateVector.o obj/OrbitalElement.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o \
     obj/BodyVector.o obj/AsteroidElement.o
 
 rebound_test: \
     obj/rebound_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o \
     obj/rebound_utils.o obj/Simulation.o obj/SimulationFactory.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/MassiveBody.o \
-    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o \
+    obj/MassiveBody.o obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o
 
 candidate_element_test: \
     obj/candidate_element_test.o \
     obj/utils.o obj/db_utils.o obj/astro_utils.o obj/Timer.o \
     obj/CubeFace.o obj/SkyPatch.o \
     obj/DetectionTime.o obj/Detection.o \
-    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o obj/MassiveBody.o \
-    obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o \
+    obj/StateVector.o obj/OrbitalElement.o obj/Direction.o \
+    obj/MassiveBody.o obj/BodyVector.o obj/PlanetVector.o obj/PlanetElement.o \
     obj/rebound_utils.o obj/Simulation.o obj/SimulationFactory.o \
     obj/CandidateElement.o
 

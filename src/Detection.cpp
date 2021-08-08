@@ -254,3 +254,23 @@ void ks::print_detection(const Detection& d)
     print("uz      = {:+9.6f}\n", d.uz);
     print("mag     ={:8.4f}\n", d.mag);
 }
+
+// *****************************************************************************
+// Extract the direction from a detection
+Direction ks::det2dir(const Detection& det)
+{
+    return Direction
+    {
+        .ux = det.ux,
+        .uy = det.uy,
+        .uz = det.uz
+    };
+}
+
+// *****************************************************************************
+// Distance in directions between a Detection and a Direction
+// double ks::dist(const Detection& det, const Direction& dir)
+// {
+//     const Direction dir_det = det2dir(det);
+//     return dist(dir_det, dir);
+// }

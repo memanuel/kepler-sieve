@@ -30,6 +30,9 @@
     using ks::Velocity;
     using ks::print_state_vector_headers;
     using ks::print_state_vector;
+#include "Direction.hpp"
+    using ks::Direction;
+    using ks::print_direction;    
 #include "OrbitalElement.hpp"
     using ks::OrbitalElement;
     using ks::print_orbital_element_headers;
@@ -40,7 +43,7 @@
 #include "Detection.hpp"
     using ks::Detection;
     using ks::DetectionTable;
-    using ks::print_detection;
+    using ks::print_detection;    
 #include "PlanetElement.hpp"
     using ks::PlanetElement;    
 #include "CandidateElement.hpp"
@@ -312,23 +315,35 @@ bool test_calc_direction(bool verbose)
     int32_t detection_id {85817184};
     // The detection object
     Detection det {ce.dt[detection_id]};
-    print("Detection with detection_id {:d}:\n", detection_id);
+    // print("Detection with detection_id {:d}:\n", detection_id);
     print_detection(det);
+    // Extract the direction from this detection
+    Direction u_det = det2dir(det);
 
     // The associated detection_time_id of this detection; corresponds to mjd 58940.4147454002
-    // int32_t detection_time_id = 123113;
     int32_t detection_time_id = det.detection_time_id;
-    print("\nDetectionTime:\n");
-    print("detection_time_id = {:d}, mjd = {:8.6f}.\n", detection_time_id, det.mjd);
-    // TODO - diagnose seg fault in next statement
     // DetectionTime dt {ce.dtt[detection_time_id]};
-    // print("DetectionTime: detection_time_id {:d}, mjd {:8.6f}\n", dt.detection_time_id, dt.mjd);
+    // print("\nDetectionTime:\n");
+    // print("detection_time_id = {:d}, mjd = {:8.6f}.\n", dt.detection_time_id, dt.mjd);
 
     // Extract the direction on the test date
+    int i = detection_time_id-1;
+    Direction u_ast = ce.direction(i);
+    double mjd_i = ce.mjd[i];
+    print("Calculated direction at i={:d}, mjd = {:8.6f} vs. detection.\n", i, mjd_i);
+    print_direction(u_ast);
+    print_direction(u_det);
 
     // Test result
-    // TODO - put real test instead of placeholder
-    bool is_ok = true;
+    // double du_rad = dist_rad(u_det, u_ast);
+    // Distance between detection and predicted direction in arc seconds
+    double du_sec = dist_sec(u_det, u_ast);
+    // Tolerance in arc seconds
+    double tol = 10.0;
+    // Report
+    bool is_ok = (du_sec < tol);
+    print("Difference in directions: {:8.2f} arc seconds.\n", du_sec);
+    report_test("test_calc_direction", is_ok);
     return is_ok;
 
 }

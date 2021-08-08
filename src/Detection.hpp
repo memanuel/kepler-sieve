@@ -23,6 +23,9 @@
     using std::min;
 
 // Local dependencies
+#include "Direction.hpp"
+    using ks::Direction;
+    using ks::dist;
 #include "utils.hpp"
     using ks::flush_console;
 #include "db_utils.hpp"
@@ -106,6 +109,14 @@ private:
 // *****************************************************************************
 /// Print one detection to console
 void print_detection(const Detection& d);
+
+// *****************************************************************************
+/// Extract the direction from a detection
+Direction det2dir(const Detection& det);
+
+/// Distance in directions between a Detection and a Direction
+// double dist(const Detection& det, const Direction& dir);
+
 
 // *****************************************************************************
 } // namespace ks
