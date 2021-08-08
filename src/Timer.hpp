@@ -56,6 +56,9 @@ public:
 	/// Return the elapsed time in seconds without any string
 	double tock();
 
+	/// Take a "split" by calculating elapsed time, then re-starting timer
+	double split();
+
 	/// Return the elapsed time in seconds
 	double tock_msg(const string blurb = "");
 

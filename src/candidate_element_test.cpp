@@ -130,7 +130,11 @@ bool test_calc_direction(bool verbose);
 
 // *****************************************************************************
 int main(int argc, char* argv[])
-{
+{  
+    // Report time used constructing static members in CandidateElement
+    CandidateElement ce = CandidateElement(elt0, candidate_id);
+    ce.report_static_time();
+
     // Start timer
     Timer t;
     t.tick();

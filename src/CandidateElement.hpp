@@ -56,6 +56,7 @@ namespace ks {
 // *****************************************************************************
 class CandidateElement
 {
+// Constructor and destructor
 public:
     // Build a CandidateElement from an OrbitalElement with a given size
     CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t);
@@ -69,20 +70,23 @@ public:
     /// Destructor for CandidateElement.
     ~CandidateElement();
 
-    /// Initialize a newly constructed CandidateElement with desired output times
-    void init(const double* mjd);
-
-    /// The underlying OrbitalElement; mutable
-    OrbitalElement elt;
-    /// The integer ID of these candidate elements; plays the role of a body_id
-    const int32_t candidate_id;
-
+// Public interface
+public:
     /// Calibrate asteroid trajectory to a rebound integration
     void calibrate();
     /// Calculate asteroid trajectory (positions and velocity)
     void calc_trajectory();
     /// Calculate direction from asteroid trajectory to observatory
     void calc_direction();
+
+    /// Search for all rows where the direction within a tolerance of a detection in the DetectionTable.
+    /// This is brute force version that iterates through every detection.
+    vector<int> search_bf(double thresh_dist) const;
+    /// Search for all rows where the direction within a tolerance of a detection in the DetectionTable
+    /// This is "smart" version that uses SkyPatch indexing.
+    vector<int> search(double thresh_dist) const;
+    /// Construct a new CandidateElement by filtering down to a list of selected rows
+    CandidateElement filter_rows(vector<int> ii);
 
     /// Extract a StateVector from the q_ast_ and v_ast_ arrays
     const StateVector state_vector(int i) const;
@@ -92,15 +96,10 @@ public:
     const Direction direction(int i) const;
     /// Extract a distance to the asteroid from the r_ast_ array
     const inline double distance(int i) const {return r_ast_[i];}
-    
-    /// Calculate three array indices jx, jy, jz for spatial data from a time index i
-    /// Calculate array index jx for spatial data from time index i
-    inline const int i2jx(const int& i) const {return 3*i+0;}
-    /// Calculate array index jy for spatial data from time index i
-    inline const int i2jy(const int& i) const {return 3*i+1;}
-    /// Calculate array index jz for spatial data from time index i
-    inline const int i2jz(const int& i) const {return 3*i+2;}
+    /// Report time to build static objects
+    double report_static_time() const;
 
+// Static data members
 private:
     /// One PlanetVector object shared by all instances
     const static PlanetVector pv;
@@ -108,13 +107,22 @@ private:
     const static BodyVector bv_sun;  
     /// One BodyVector object for Earth shared by all instances
     const static BodyVector bv_earth;
-    /// Initial value of element used to initialize this object
-    const OrbitalElement elt0;
+    /// Structure to save time required for initial construction
+    const static std::map<string, double> time_profile;
 public:    
     /// One DetectionTimeTable object shared by all instances
     const static DetectionTimeTable dtt;
     /// One DetectionTable object shared by all instances
     const static DetectionTable dt;
+
+// Data members
+public:
+    /// The underlying OrbitalElement; mutable
+    OrbitalElement elt;
+    /// Initial value of element used to initialize this object
+    const OrbitalElement elt0;
+    /// The integer ID of these candidate elements; plays the role of a body_id
+    const int32_t candidate_id;
 private:
     /// Number of detection times
     const int N_t;
@@ -122,6 +130,8 @@ private:
     const int N_row;
     /// Array of mjd when detections were observed (print time); size N
     double* mjd_;
+    // TODO - add detection_time_id
+    /// Array of detection_time_id, when applicable; otherwise 0
     /// Array of positions of observatory; size 3N
     double* q_obs_;
     /// Array of positions of an asteroid with these candidate elements; size 3N
@@ -137,6 +147,7 @@ private:
     /// Array of velocity shifts; includes (1) sun velocity (2) numerical calibration adjustment
     double* dv_ast_;
 
+// Read-only copies of data arrays    
 public:
     /// Read-only copy of mjd
     const double* const mjd;    
@@ -144,6 +155,19 @@ public:
     const double* const u_ast;
     /// Read-only copy of r_ast
     const double* const r_ast;
+
+// Implementation functions
+private:    
+    /// Initialize a newly constructed CandidateElement with desired output times
+    void init(const double* mjd);
+    // Calculate three array indices jx, jy, jz for spatial data from a time index i
+    /// Calculate array index jx for spatial data from time index i (x component)
+    inline const int i2jx(const int& i) const {return 3*i+0;}
+    /// Calculate array index jy for spatial data from time index i (y component)
+    inline const int i2jy(const int& i) const {return 3*i+1;}
+    /// Calculate array index jz for spatial data from time index i (z component)
+    inline const int i2jz(const int& i) const {return 3*i+2;}
+
 };
 
 // *****************************************************************************

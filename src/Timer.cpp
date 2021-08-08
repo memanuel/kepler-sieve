@@ -45,6 +45,17 @@ double Timer::tock()
 }
 
 // *********************************************************************************************************************
+double Timer::split()
+{
+	// Get the elapsed time
+	double tSeconds {tock()};
+	// Start the timer for the next split
+	tick();
+	// Return elapsed time of the split in seconds
+	return tSeconds;
+}
+
+// *********************************************************************************************************************
 double Timer::tock_msg(const string blurb) 
 {
 	// Time point when tock() is called

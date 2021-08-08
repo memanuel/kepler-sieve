@@ -14,6 +14,54 @@
 using ks::CandidateElement;
 
 // *****************************************************************************
+// Initialize all the static members
+// *****************************************************************************
+
+// Start timer and create timing profile
+Timer t;
+std::map<string, double> tp {};
+
+// Shared BodyVector objects for Sun and Earth
+const BodyVector CandidateElement::bv_sun {BodyVector(SolarSystemBody_bv::sun)};
+const BodyVector CandidateElement::bv_earth {BodyVector(SolarSystemBody_bv::earth)};
+double t_BodyVector = t.split();
+
+// Shared copy of DetectionTimeTable
+const DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
+double t_DetectionTimeTable = t.split();
+
+// Inputs to build a PlanetVector table suited to CandidateElement 
+// use DetectionTimeTable object to get required date range.
+const DetectionTimeTable& dtt {CandidateElement::dtt};
+constexpr int pad = 32;
+const int mjd_first = static_cast<int>(floor(dtt.mjd_first()));
+const int mjd_last = static_cast<int>(ceil(dtt.mjd_last()));
+const int mjd0 = std::min(mjd_first, 58000) - pad;
+const int mjd1 = std::max(mjd_last,  60000) + pad;
+constexpr int dt_min = 60;
+bool load = true;
+const PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
+double t_PlanetVector = t.split();
+
+// DEBUG - build a small Detection table quickly for testing
+// DetectionTable CandidateElement::dt = DetectionTable()
+int d1 = 85000000;
+int d2 = 86000000;
+const DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);
+double t_DetectionTable = t.split();
+
+// Save timing results
+double t_Total = t_BodyVector + t_PlanetVector + t_DetectionTimeTable + t_DetectionTable;
+const std::map<string, double> CandidateElement::time_profile 
+{
+    {"BodyVector", t_BodyVector},
+    {"PlanetVector", t_PlanetVector},
+    {"DetectionTimeTable", t_DetectionTimeTable},
+    {"DetectionTable", t_DetectionTable},
+    {"Total", t_Total}
+};
+
+// *****************************************************************************
 // Constructor & destructor
 // *****************************************************************************
 
@@ -21,8 +69,8 @@ using ks::CandidateElement;
 CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int N_t): 
     // Small data elements
     elt {elt},
-    candidate_id {candidate_id},
     elt0 {elt},
+    candidate_id {candidate_id},
     N_t {N_t},
     N_row {3*N_t},
     // Allocate arrays
@@ -81,6 +129,7 @@ CandidateElement::~CandidateElement()
 }
 
 // *****************************************************************************
+// Helper to constructor - initialize arrays
 void CandidateElement::init(const double* mjd_in)
 {
     // Copy from mjd_in to mjd_ on the candidate element
@@ -88,7 +137,6 @@ void CandidateElement::init(const double* mjd_in)
 
     // Populate q_cal_ and v_cal_ from BodyVector of the Sun
     // This will be a pretty accurate first pass before running an optional numerical integration
-
     for (int i=0; i<N_t; i++)
     {
         // The time of this entry
@@ -199,6 +247,33 @@ void CandidateElement::calibrate()
 }
 
 // *****************************************************************************
+// Calculate direction
+// *****************************************************************************
+
+// *****************************************************************************
+// Calculate direction based on observer position q_obs and state vector q_ast, v_ast
+// Caller is responsible to populate these before running calc_direction()
+void CandidateElement::calc_direction()
+{
+    // Iterate over all N observation times
+    for (int i=0; i<N_t; i++)
+    {
+        // Wrap the observer position
+        Position q_obs {observer_pos(i)};
+        // Wrap the asteroid state vector
+        StateVector s_ast {state_vector(i)};
+        // Calculate direction and distance in Newtonian light model
+        ObservationResult res {observe(q_obs, s_ast)};      
+        // Write to direction array
+        u_ast_[i2jx(i)] = res.u.ux;
+        u_ast_[i2jy(i)] = res.u.uy;
+        u_ast_[i2jz(i)] = res.u.uz;
+        // Write to distance array
+        r_ast_[i]           = res.r;
+    }
+}
+
+// *****************************************************************************
 // Get predicted state vectors and direction
 // *****************************************************************************
 
@@ -245,60 +320,16 @@ const Direction CandidateElement::direction(int i) const
     };
 }
 
-
 // *****************************************************************************
-// Calculate direction
-// *****************************************************************************
-
-// *****************************************************************************
-// Calculate direction based on observer position q_obs and state vector q_ast, v_ast
-// Caller is responsible to populate these before running calc_direction()
-void CandidateElement::calc_direction()
+double CandidateElement::report_static_time() const
 {
-    // Iterate over all N observation times
-    for (int i=0; i<N_t; i++)
+    print_stars();
+    print("Time spent constructing static members (seconds):\n");
+    for (auto const& split : time_profile)
     {
-        // Wrap the observer position
-        Position q_obs {observer_pos(i)};
-        // Wrap the asteroid state vector
-        StateVector s_ast {state_vector(i)};
-        // Calculate direction and distance in Newtonian light model
-        ObservationResult res {observe(q_obs, s_ast)};      
-        // Write to direction array
-        u_ast_[i2jx(i)] = res.u.ux;
-        u_ast_[i2jy(i)] = res.u.uy;
-        u_ast_[i2jz(i)] = res.u.uz;
-        // Write to distance array
-        r_ast_[i]           = res.r;
+        string step_name = split.first;
+        double step_time = split.second;
+        print("{:20s}: {:8.3f}\n", step_name, step_time);
     }
+    return time_profile.at("Total");
 }
-
-// *****************************************************************************
-// Initialize the static member PlanetVector
-// *****************************************************************************
-
-// Shared body vector objects
-const BodyVector CandidateElement::bv_sun {BodyVector(SolarSystemBody_bv::sun)};
-const BodyVector CandidateElement::bv_earth {BodyVector(SolarSystemBody_bv::earth)};
-
-// Build throwaway copy of DetectionTimeTable to get date range
-const DetectionTimeTable dtt {DetectionTimeTable()};
-
-// Inputs to build a PlanetVector table suited to CandidateElement
-constexpr int pad = 32;
-const int mjd_first = static_cast<int>(floor(dtt.mjd_first()));
-const int mjd_last = static_cast<int>(ceil(dtt.mjd_last()));
-const int mjd0 = std::min(mjd_first, 58000) - pad;
-const int mjd1 = std::max(mjd_last,  60000) + pad;
-constexpr int dt_min = 60;
-bool load = true;
-const PlanetVector CandidateElement::pv {PlanetVector(mjd0, mjd1, dt_min, load)};
-
-// Shared copy of DetectionTimeTable
-const DetectionTimeTable CandidateElement::dtt {DetectionTimeTable()};
-
-// DEBUG - build a small Detection table quickly for testing
-// DetectionTable CandidateElement::dt = DetectionTable()
-int d1 = 85000000;
-int d2 = 86000000;
-const DetectionTable CandidateElement::dt = DetectionTable(d1, d2, load);
