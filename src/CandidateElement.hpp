@@ -130,7 +130,8 @@ private:
     const int N_row;
     /// Array of mjd when detections were observed (print time); size N
     double* mjd_;
-    // TODO - add detection_time_id
+    /// Array of detection_id associated with these times
+    int32_t* detection_time_id_;
     /// Array of detection_time_id, when applicable; otherwise 0
     /// Array of positions of observatory; size 3N
     double* q_obs_;
@@ -150,7 +151,9 @@ private:
 // Read-only copies of data arrays    
 public:
     /// Read-only copy of mjd
-    const double* const mjd;    
+    const double* const mjd;
+    /// Read-only copy of detction_time_id
+    const int32_t* const detection_time_id;
     /// Read-only copy of u_ast
     const double* const u_ast;
     /// Read-only copy of r_ast

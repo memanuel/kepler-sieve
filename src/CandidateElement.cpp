@@ -74,18 +74,20 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id, int
     N_t {N_t},
     N_row {3*N_t},
     // Allocate arrays
-    mjd_    {new double[N_t]},
-    q_obs_  {new double[N_row]},
-    q_ast_  {new double[N_row]},
-    v_ast_  {new double[N_row]},
-    u_ast_  {new double[N_row]},
-    r_ast_  {new double[N_t]},
-    dq_ast_ {new double[N_row]},
-    dv_ast_ {new double[N_row]},
+    mjd_                {new double[N_t]},
+    detection_time_id_  {new int32_t[N_t]},
+    q_obs_              {new double[N_row]},
+    q_ast_              {new double[N_row]},
+    v_ast_              {new double[N_row]},
+    u_ast_              {new double[N_row]},
+    r_ast_              {new double[N_t]},
+    dq_ast_             {new double[N_row]},
+    dv_ast_             {new double[N_row]},
     /// Read-only copies of arrays in public interface
-    mjd     {mjd_},
-    u_ast   {u_ast_},
-    r_ast   {r_ast_}
+    mjd                 {mjd_},
+    detection_time_id   {detection_time_id_},
+    u_ast               {u_ast_},
+    r_ast               {r_ast_}
     {}
 
 // *****************************************************************************
@@ -119,6 +121,7 @@ CandidateElement::CandidateElement(OrbitalElement elt, int32_t candidate_id):
 CandidateElement::~CandidateElement()
 {
     delete [] mjd_;
+    delete [] detection_time_id;
     delete [] q_obs_;
     delete [] q_ast_;
     delete [] v_ast_;
@@ -129,11 +132,19 @@ CandidateElement::~CandidateElement()
 }
 
 // *****************************************************************************
-// Helper to constructor - initialize arrays
+// Helper to constructor - initialize arrays when mjd passed as an array
 void CandidateElement::init(const double* mjd_in)
 {
     // Copy from mjd_in to mjd_ on the candidate element
-    for (int i=0; i<N_t; i++) {mjd_[i]=mjd_in[i];}
+    // The structure of the DetectionTimeTable array maintains the invariant
+    // detection_time_id = i+1.
+    // This looks a bit redundant when the CandidateElement is initialized to start out with.
+    // But after filtering, the detection_id will not be be available otherwise.
+    for (int i=0; i<N_t; i++) 
+    {
+        mjd_[i] = mjd_in[i];
+        detection_time_id_[i] = i+1;
+    }
 
     // Populate q_cal_ and v_cal_ from BodyVector of the Sun
     // This will be a pretty accurate first pass before running an optional numerical integration
@@ -274,6 +285,27 @@ void CandidateElement::calc_direction()
 }
 
 // *****************************************************************************
+// Search for detections near calculated directions
+// *****************************************************************************
+
+
+// *****************************************************************************
+vector<int> CandidateElement::search_bf(double thresh_dist) const
+{
+    // ii holds list of row indices close to 
+    vector<int> ii {};
+    return ii;
+}
+
+// *****************************************************************************
+vector<int> CandidateElement::search(double thresh_dist) const
+{
+    // TODO - implement this
+    vector<int> ii {};
+    return ii;
+}
+
+// *****************************************************************************
 // Get predicted state vectors and direction
 // *****************************************************************************
 
@@ -319,6 +351,10 @@ const Direction CandidateElement::direction(int i) const
         .uz = u_ast_[i2jz(i)]
     };
 }
+
+// *****************************************************************************
+// Report time used in static member construction
+// *****************************************************************************
 
 // *****************************************************************************
 double CandidateElement::report_static_time() const
